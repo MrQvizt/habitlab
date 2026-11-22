@@ -3,6 +3,7 @@ import { html, esc, icon, fmtWeight, fmtDelta, toKg, fmtNum, progressBar, weight
 import { ring } from '../ui/charts.js';
 import * as store from '../store.js';
 import { mealsFor, computeIntake, eatenSoFar, dayComplete, setMealStatus, proteinEaten, recipeDetails, mealMeta, slotLabel, safetyNotices, checkinDue, dayIndex } from './shared.js';
+import { markChosen } from './shared.js';
 import { byId, swapMeal } from '../engine/meals.js';
 import { habitById, streak } from '../engine/habits.js';
 import { stepGoal } from '../engine/workouts.js';
@@ -92,7 +93,7 @@ function moveCard(state, date) {
 }
 
 function habitsCard(state, date) {
-  const active = state.habits.active;
+  const active = store.visibleHabits(state);
   if (!active.length) return `<div class="card"><h2>${icon('habits')} Habits</h2><p class="muted">No active habits. <a href="#/habits">Choose one</a> — small and specific works best.</p></div>`;
   const log = state.habits.log[date] || {};
   return `<div class="card"><div class="card-head"><h2>${icon('habits')} Habits</h2><a href="#/habits" class="muted">Manage →</a></div><ul class="list">
@@ -163,7 +164,7 @@ export default {
       const wk = weekStart(date);
       const di = dayIndex(date);
       const t = store.targets(s, date);
-      const meals = swapMeal(t, s.prefs, s.plans[wk].days[di], el.dataset.slot, `${date}|${Date.now()}`);
+      const meals = markChosen(swapMeal(t, s.prefs, s.plans[wk].days[di], el.dataset.slot, `${date}|${Date.now()}`), s.plans[wk].days[di], el.dataset.slot);
       ctx.update((st) => {
         st.plans[wk].days[di] = meals;
         return st;

@@ -37,7 +37,7 @@ export default {
       <form data-form="profile" class="card"><h2>About you</h2>
         <div class="grid two">
           <label class="field"><span>Units</span><select name="units"><option value="metric" ${u === 'metric' ? 'selected' : ''}>kg / cm</option><option value="imperial" ${u === 'imperial' ? 'selected' : ''}>lb / ft</option></select></label>
-          <label class="field"><span>Age</span><input type="number" name="age" value="${p.age}" min="18" max="100" required></label>
+          <label class="field"><span>Age</span><input type="number" name="age" value="${esc(p.age)}" min="18" max="100" required></label>
           <div class="field"><span class="field-label">Height (${fmtHeight(p.heightCm, u)})</span>${u === 'imperial' ? `<div class="inline-inputs"><input type="number" name="heightFt" value="${Math.floor(hIn / 12)}" min="3" max="8"><span class="unit">ft</span><input type="number" name="heightIn" value="${hIn % 12}" min="0" max="11"><span class="unit">in</span></div>` : `<input type="number" name="heightCm" value="${Math.round(p.heightCm)}" min="120" max="230">`}</div>
           <label class="field"><span>Goal weight</span><div class="inline-inputs"><input type="number" name="goal" step="0.1" value="${p.goalWeightKg ? round(weightNum(p.goalWeightKg, u), 0.1) : ''}"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div></label>
           <label class="field"><span>Activity (outside planned exercise)</span><select name="activity">${Object.entries(ACTIVITY_LEVELS).map(([k, a]) => `<option value="${k}" ${p.activity === k ? 'selected' : ''}>${a.label}</option>`).join('')}</select></label>
@@ -70,7 +70,7 @@ export default {
         <fieldset><legend>Cardio types</legend>${chips('cardioPrefs', Object.fromEntries(Object.entries(CARDIO).map(([k, c]) => [k, c.label])), p.cardioPrefs)}</fieldset>
         <div class="grid two">
           <label class="field"><span>Session length</span><select name="sessionMinutes">${[15, 20, 30, 45].map((m) => `<option value="${m}" ${Number(p.sessionMinutes) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></label>
-          <label class="field"><span>Baseline daily steps</span><input type="number" name="baselineSteps" value="${p.baselineSteps ?? ''}" min="0" max="40000" step="100"></label>
+          <label class="field"><span>Baseline daily steps</span><input type="number" name="baselineSteps" value="${esc(p.baselineSteps ?? '')}" min="0" max="40000" step="100"></label>
         </div>
         <div class="row"><button class="btn primary">Save</button><button type="button" class="btn ghost danger" data-action="resetProgress">Reset exercise levels</button></div>
       </form>
@@ -95,7 +95,10 @@ export default {
         const oldU = p.units;
         p.units = data.units;
         p.age = Number(data.age) || p.age;
-        if (oldU === 'imperial' && data.heightFt) p.heightCm = heightFromFtIn(data.heightFt, data.heightIn);
+        if (oldU === 'imperial' && data.heightFt) {
+          const cm = heightFromFtIn(data.heightFt, data.heightIn);
+          if (Math.round(cmToIn(cm)) !== Math.round(cmToIn(p.heightCm))) p.heightCm = cm; // only if actually changed
+        }
         else if (oldU !== 'imperial' && data.heightCm) p.heightCm = Number(data.heightCm);
         if (data.goal) {
           const g = toKg(Number(data.goal), oldU === 'imperial' ? 'imperial' : 'metric');

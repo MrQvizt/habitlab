@@ -69,7 +69,7 @@ export default {
       </div>
       ${hide ? '' : `<div class="grid two">
         <div class="card"><h2>Weigh-ins</h2>
-          <form data-form="addWeight" class="row"><input type="date" name="date" value="${date}" max="${date}" style="width:160px"><div class="inline-inputs grow"><input type="number" name="w" step="0.1" inputmode="decimal" required placeholder="weight" aria-label="Weight"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div><button class="btn small primary">Add</button></form>
+          <form data-form="addWeight" class="row"><input type="date" name="date" value="${date}" max="${date}" required style="width:160px" aria-label="Date"><div class="inline-inputs grow"><input type="number" name="w" step="0.1" inputmode="decimal" required placeholder="weight" aria-label="Weight"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div><button class="btn small primary">Add</button></form>
           <table class="simple" style="margin-top:10px"><tr><th>Date</th><th class="right">Weight</th><th class="right">Trend</th><th></th></tr>
           ${series.filter((s) => s.kg != null).slice(-12).reverse().map((s) => `<tr><td>${fmtDate(s.date)}</td><td class="right">${fmtWeight(s.kg, u)}</td><td class="right muted">${fmtWeight(s.trend, u)}</td><td class="right"><button class="btn small ghost" data-action="delWeight" data-date="${s.date}" aria-label="Delete">${icon('trash')}</button></td></tr>`).join('')}
           </table></div>
@@ -87,6 +87,7 @@ export default {
     addWeight(form, ev, ctx, data) {
       const u = ctx.state.profile.units === 'imperial' ? 'imperial' : 'metric';
       const kg = toKg(Number(data.w), u);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data.date || '') || data.date > store.today()) return ctx.toast('Please pick a date (today or earlier).');
       if (!(kg > 30 && kg < 400)) return ctx.toast('Please check that number.');
       ctx.update((st) => {
         st.weights = st.weights.filter((w) => w.date !== data.date).concat({ date: data.date, kg: round(kg, 0.01) }).sort((a, b) => (a.date < b.date ? -1 : 1));

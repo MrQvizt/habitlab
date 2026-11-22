@@ -22,7 +22,7 @@ export function demoState() {
   for (let d = 0; d <= 70; d++) {
     const date = addDays(start, d);
     kg += d < 42 ? -0.7 / 7 : 0.005;
-    const water = (rand() - 0.5) * 1.4 + (new Date(date).getDay() === 1 ? 0.4 : 0);
+    const water = (rand() - 0.5) * 1.4 + (new Date(date + 'T12:00').getDay() === 1 ? 0.4 : 0);
     if (rand() < 0.85 || d === 70) s.weights.push({ date, kg: round(kg + water, 0.1) });
     if (rand() < 0.8) s.steps[date] = Math.round(4500 + d * 40 + rand() * 2500);
   }
@@ -33,7 +33,7 @@ export function demoState() {
     const day = {};
     for (const a of s.habits.active) if (date >= a.started && rand() < 0.82) day[a.id] = true;
     s.habits.log[date] = day;
-    const wd = (new Date(date).getDay() + 6) % 7;
+    const wd = (new Date(date + 'T12:00').getDay() + 6) % 7;
     const items = [];
     if ([0, 4].includes(wd) && rand() < 0.85) items.push({ kind: 'strength', variant: wd === 0 ? 'A' : 'B', minutes: 30 });
     if ([1, 2, 3, 5, 6].includes(wd) && rand() < 0.75) items.push({ kind: 'cardio', mode: rand() < 0.7 ? 'walk' : 'cycle', minutes: Math.round(15 + d * 0.35) });

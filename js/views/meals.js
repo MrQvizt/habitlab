@@ -2,6 +2,7 @@
 import { html, esc, icon, chips, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
 import { recipeDetails, mealMeta, slotLabel, totalsLine, dayIndex, setMealStatus, eatenSoFar, dayComplete } from './shared.js';
+import { markChosen } from './shared.js';
 import { byId, swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL } from '../engine/meals.js';
 import { RECIPES } from '../data/recipes.js';
 import { rng } from '../engine/util.js';
@@ -112,7 +113,7 @@ export default {
       const locked = {};
       for (const m of s.plans[wk].days[di]) locked[m.slot] = m.recipeId;
       locked[slot] = el.dataset.id;
-      const meals = planDay(t, s.prefs, { rand: rng(`pick|${Date.now()}`), recent: new Map(), favorites: s.prefs.favorites || [], locked });
+      const meals = markChosen(planDay(t, s.prefs, { rand: rng(`pick|${Date.now()}`), recent: new Map(), favorites: s.prefs.favorites || [], locked }), s.plans[wk].days[di], slot);
       ctx.update((st) => {
         st.plans[wk].days[di] = meals;
         return st;
@@ -125,7 +126,7 @@ export default {
       const wk = weekStart(store.today());
       const di = Number(el.dataset.day);
       const t = store.targets(s, addDays(wk, di));
-      const meals = swapMeal(t, s.prefs, s.plans[wk].days[di], el.dataset.slot, `${wk}|${di}|${Date.now()}`);
+      const meals = markChosen(swapMeal(t, s.prefs, s.plans[wk].days[di], el.dataset.slot, `${wk}|${di}|${Date.now()}`), s.plans[wk].days[di], el.dataset.slot);
       ctx.update((st) => {
         st.plans[wk].days[di] = meals;
         return st;
@@ -175,7 +176,6 @@ export default {
         st.prefs.variety = data.variety || st.prefs.variety;
         st.prefs.mealsPerDay = data.mealsPerDay ? Number(data.mealsPerDay) : null;
         st.prefs.maxMinutesWeekday = Number(data.maxMinutesWeekday) || 30;
-        st.prefs.maxMinutesWeekend = Math.max(45, st.prefs.maxMinutesWeekday);
         return st;
       });
       ctx.toast('Plan rebuilt.');

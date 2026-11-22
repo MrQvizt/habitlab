@@ -34,7 +34,7 @@ function nav(final = false) {
 }
 
 function num(name, value, { min, max, step = 'any', unit = '', placeholder = '', required = true } = {}) {
-  return `<div class="inline-inputs"><input type="number" inputmode="decimal" name="${name}" value="${value ?? ''}" min="${min}" max="${max}" step="${step}" placeholder="${placeholder}" ${required ? 'required' : ''}>${unit ? `<span class="unit">${unit}</span>` : ''}</div>`;
+  return `<div class="inline-inputs"><input type="number" inputmode="decimal" name="${name}" value="${esc(value ?? '')}" min="${min}" max="${max}" step="${step}" placeholder="${placeholder}" ${required ? 'required' : ''}>${unit ? `<span class="unit">${unit}</span>` : ''}</div>`;
 }
 
 function welcome() {

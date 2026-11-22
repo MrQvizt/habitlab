@@ -42,10 +42,10 @@ function automaticityForm(a) {
 export default {
   render(state) {
     const date = store.today();
-    const active = state.habits.active;
-    const activeIds = active.map((a) => a.id);
+    const active = store.visibleHabits(state);
+    const activeIds = state.habits.active.map((a) => a.id);
     const allEstablished = active.every((a) => isEstablished(a, state.habits.log, date));
-    const full = active.length >= MAX_ACTIVE;
+    const full = state.habits.active.length >= MAX_ACTIVE;
     const suggested = suggestNext(activeIds.concat(state.habits.retired.map((r) => r.id)), state.profile);
     const hideNumbers = store.habitsOnly(state);
     const library = HABITS.filter((h) => (filter === 'all' || h.cat === filter) && !activeIds.includes(h.id) && !(hideNumbers && (h.id === 'weigh_daily' || h.id === 'log_meals')));

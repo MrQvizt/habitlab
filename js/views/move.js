@@ -144,7 +144,7 @@ export default {
     logCardio(form, ev, ctx, data) {
       const minutes = Number(data.minutes);
       if (!(minutes > 0)) return;
-      const date = data.date || store.today();
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
       ctx.update((st) => {
         st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'cardio', mode: data.mode, minutes }];
         return st;

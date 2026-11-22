@@ -102,3 +102,9 @@ export function setMealStatus(st, date, slot, fn) {
   if (Object.keys(day).length && st.habits.active.some((a) => a.id === 'log_meals')) st.habits.log[date] = { ...(st.habits.log[date] || {}), log_meals: true };
   return st;
 }
+
+/** After a swap or pick, flag the changed slot (and keep earlier flags) so plan rebuilds keep it. */
+export function markChosen(meals, previous, slot) {
+  const prev = Object.fromEntries((previous || []).map((m) => [m.slot, m]));
+  return meals.map((m) => ({ ...m, chosen: m.slot === slot || (prev[m.slot]?.chosen && prev[m.slot].recipeId === m.recipeId) || undefined }));
+}

@@ -1,7 +1,7 @@
 // Store tests: plan rebuild rules, calc-weight recalculation, export/import round trip.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { emptyState, ensurePlan, targets, calcWeight, exportJson, importJson, weekKey } from '../js/store.js';
+import { emptyState, ensurePlan, targets, calcWeight, exportJson, importJson, weekKey, migrate } from '../js/store.js';
 import { addDays } from '../js/engine/util.js';
 
 function baseState() {
@@ -52,9 +52,42 @@ test('habits-only mode removes the deficit', () => {
 });
 
 test('export/import round-trip and rejects foreign files', () => {
-  const s = ensurePlan(baseState(), '2026-11-19').state;
+  const s = migrate(ensurePlan(baseState(), '2026-11-19').state); // normalised once
   const back = importJson(exportJson(s));
   assert.deepEqual(back.profile, s.profile);
   assert.deepEqual(back.plans, s.plans);
   assert.throws(() => importJson('{"hello":1}'));
+});
+
+test('import sanitises hostile or malformed backups', () => {
+  const s = baseState();
+  s.profile.age = '"><img src=x onerror=alert(1)>';
+  s.profile.daysAvailable = ['0', 3, '<x>'];
+  s.weights = [{ date: '', kg: 80 }, { date: '2026-11-01', kg: '<b>' }, { date: '2026-11-02', kg: 99 }];
+  s.workouts.progress = { squat: { stepId: 'bw_squat', sets: '<img>', reps: 8 }, bogus: {} };
+  s.habits.active = [{ id: 'weigh_daily', cue: 'x'.repeat(500) }, { id: 'nope' }];
+  const out = importJson(JSON.stringify({ state: s }));
+  assert.equal(out.profile.age, 40);
+  assert.deepEqual(out.profile.daysAvailable, [0, 3]);
+  assert.deepEqual(out.weights, [{ date: '2026-11-02', kg: 99 }]);
+  assert.equal(out.workouts.progress.squat.sets, 2);
+  assert.ok(!('bogus' in out.workouts.progress));
+  assert.equal(out.habits.active.length, 1);
+  assert.equal(out.habits.active[0].cue.length, 160);
+});
+
+test('rebuilding the plan keeps today’s logged and hand-picked meals', () => {
+  const date = '2026-11-19';
+  let s = ensurePlan(baseState(), date).state;
+  const wk = weekKey(date);
+  const today = s.plans[wk].days[3];
+  const breakfast = today.find((m) => m.slot === 'breakfast').recipeId;
+  const lunch = today.find((m) => m.slot === 'lunch');
+  lunch.chosen = true;
+  s.mealLog = { [date]: { breakfast: { status: 'ate' } } };
+  s = { ...s, prefs: { ...s.prefs, variety: 'high', seed: 7 } };
+  s = ensurePlan(s, date).state;
+  const after = s.plans[wk].days[3];
+  assert.equal(after.find((m) => m.slot === 'breakfast').recipeId, breakfast);
+  assert.equal(after.find((m) => m.slot === 'lunch').recipeId, lunch.recipeId);
 });

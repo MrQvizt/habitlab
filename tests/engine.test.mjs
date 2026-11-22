@@ -159,9 +159,18 @@ test('double progression: reps → sets → next rung; hard and pain step back',
 
 test('weekly schedule: strength on non-consecutive days, cardio ramps ≤20 min/week toward 200', () => {
   const p = { equipment: [], limitations: [], daysAvailable: [0, 1, 2, 3, 4], sessionMinutes: 30, baselineCardioMin: 30, cardioPrefs: ['walk'], phase: 'lose' };
-  const { strengthDays } = weekSchedule(p, initialProgress(p), 0);
+  assert.equal(weekSchedule(p, initialProgress(p), 0).strengthDays.length, 1, 'week 1 eases in');
+  const { strengthDays } = weekSchedule(p, initialProgress(p), 2);
   assert.equal(strengthDays.length, 3);
   for (let i = 1; i < strengthDays.length; i++) assert.ok(strengthDays[i] - strengthDays[i - 1] >= 2);
+  // Never consecutive, including Sun→Mon wrap-around; fall back to fewer sessions instead.
+  for (const days of [[5, 6], [0, 1, 2, 3], [0, 6], [1, 2]]) {
+    const sd = weekSchedule({ ...p, daysAvailable: days }, initialProgress(p), 3).strengthDays;
+    for (let i = 0; i < sd.length && sd.length > 1; i++) {
+      const next = i + 1 < sd.length ? sd[i + 1] : sd[0] + 7;
+      assert.ok(next - sd[i] >= 2, `${days} → ${sd}`);
+    }
+  }
   let prev = cardioTarget(30, 0, 'lose');
   for (let w = 1; w < 30; w++) {
     const c = cardioTarget(30, w, 'lose');
@@ -274,4 +283,29 @@ test('planner across body sizes: kcal within 4%, protein ≥ minimum, fibre near
       }
     }
   }
+});
+
+test('review: GLP-1 users are not offered a calorie cut on a plateau', () => {
+  const { state, today } = simulate({ weeks: 10, ratePerWeek: (d) => (d < 42 ? -0.6 : 0) });
+  state.profile.medical = ['glp1'];
+  const recs = weeklyReview(state, { adherence: 5 }, today).recs;
+  assert.ok(recs.some((r) => r.group === 'plateau'));
+  assert.ok(!recs.some((r) => r.type === 'kcal' && r.delta < 0));
+});
+
+test('review: adjustments only once per 7 days; habits-only never shows calorie items', () => {
+  const { state, today } = simulate({ weeks: 10, ratePerWeek: (d) => (d < 42 ? -0.6 : 0) });
+  state.checkins = [{ date: addDays(today, -3), applied: [] }];
+  const soon = weeklyReview(state, { adherence: 5 }, today).recs;
+  assert.ok(soon.some((r) => r.id === 'too_soon'));
+  assert.ok(!soon.some((r) => r.type === 'kcal' || r.group));
+  state.checkins = [];
+  const ho = weeklyReview(state, { adherence: 5 }, today, { habitsOnly: true }).recs;
+  assert.ok(!ho.some((r) => ['kcal', 'tdee', 'reset', 'break'].includes(r.type) || r.group || /kcal|kg/.test(r.title)), ho.map((r) => r.id).join());
+});
+
+test('meal plan never dips below the calorie floor', () => {
+  const t = dailyTargets({ ...woman, weightKg: 62, heightCm: 152, age: 70 });
+  assert.equal(t.kcal, 1200);
+  for (const diet of ['omnivore', 'vegan']) for (const day of planWeek(t, { diet }, '2026-11-23')) assert.ok(dayTotals(day).kcal >= 1200, `${diet} ${dayTotals(day).kcal}`);
 });

@@ -10,7 +10,7 @@ export const ALPHA = 0.1; // smoothing per day (classic "Hacker's Diet" style 10
 export function trendSeries(entries) {
   const byDate = new Map();
   for (const e of entries) {
-    if (e && Number.isFinite(e.kg)) byDate.set(e.date, e.kg); // last entry of the day wins
+    if (e && Number.isFinite(e.kg) && /^\d{4}-\d{2}-\d{2}$/.test(e.date)) byDate.set(e.date, e.kg); // last entry of the day wins
   }
   const dates = [...byDate.keys()].sort();
   if (!dates.length) return [];
@@ -38,7 +38,7 @@ export function latestTrend(entries) {
 export function weeklyRate(entries, endDate, windowDays = 21, minPoints = 4, minSpanDays = 10) {
   const start = addDays(endDate, -windowDays);
   const pts = entries
-    .filter((e) => e.date > start && e.date <= endDate && Number.isFinite(e.kg))
+    .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date) && e.date > start && e.date <= endDate && Number.isFinite(e.kg))
     .map((e) => [daysBetween(start, e.date), e.kg]);
   if (pts.length < minPoints) return null;
   const span = Math.max(...pts.map((p) => p[0])) - Math.min(...pts.map((p) => p[0]));

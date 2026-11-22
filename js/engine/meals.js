@@ -172,6 +172,13 @@ export function planDay(targets, prefs, ctx) {
       }
     }
   }
+  // At the safety floor, rounding must never take the day below it: nudge portions up.
+  if (targets.floor && targets.kcal <= targets.floor) {
+    for (let guard = 0; guard < 20 && dayTotals(meals).kcal < targets.kcal; guard++) {
+      const m = meals.reduce((a, b) => (scaledNutrition(byId(b.recipeId), b.scale).kcal > scaledNutrition(byId(a.recipeId), a.scale).kcal ? b : a));
+      m.scale = round(m.scale + 0.05, 0.05);
+    }
+  }
   return meals;
 }
 
@@ -220,7 +227,7 @@ export function planWeek(targets, prefs, weekKey, opts = {}) {
     if (variety === 'low') {
       if (fixedBreakfast) ctx.locked.breakfast = fixedBreakfast;
       const prevDinner = days[d - 1]?.find((m) => m.slot === 'dinner');
-      if (prevDinner && byId(prevDinner.recipeId).batch && d % 2 === 1) ctx.leftovers = { lunch: prevDinner.recipeId };
+      if (prevDinner && byId(prevDinner.recipeId).batch && prefs.leftovers !== false && d % 2 === 1) ctx.leftovers = { lunch: prevDinner.recipeId };
       recent.delete(fixedBreakfast);
     } else if (variety === 'medium' && d > 0) {
       const prevDinner = days[d - 1].find((m) => m.slot === 'dinner');

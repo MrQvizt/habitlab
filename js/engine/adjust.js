@@ -39,7 +39,7 @@ function sustained(weights, today, trendKg, test) {
  * @param state app state (profile, weights, intake, checkins, prefs, kcalAdjust, tdeeOffset, …)
  * @param answers {adherence 1–5, hunger 1–5, energy 1–5, sleepHours, stress 1–5, drinksPerDay, barriers[], edFlags[]}
  */
-export function weeklyReview(state, answers, today) {
+export function weeklyReview(state, answers, today, opts = {}) {
   const p = state.profile;
   const recs = [];
   const weights = state.weights || [];
@@ -53,6 +53,12 @@ export function weeklyReview(state, answers, today) {
   const onMeds = p.medical?.includes('glp1');
   const maintaining = p.phase === 'maintain';
   const breakActive = state.dietBreakUntil && today <= state.dietBreakUntil;
+  // Habits-only mode (pregnancy, eating-disorder flags…): no calorie, weight-rate or TDEE items at all.
+  const habitsOnly = !!opts.habitsOnly;
+  // Rule 6 "every 7 days": numeric adjustments are offered at most once a week, so repeating
+  // the check-in can't stack cuts.
+  const lastApplied = (state.checkins || []).map((c) => c.date).filter((d) => d <= today).sort().pop();
+  const tooSoon = lastApplied && daysBetween(lastApplied, today) < 7;
 
   // ----- Rule 25: safety re-screen (eating-disorder warning signs)
   if ((answers.edFlags || []).length) {
@@ -67,7 +73,7 @@ export function weeklyReview(state, answers, today) {
   const formula = estimateTdee(p, trendKg).tdee;
   const currentTdee = formula + (state.tdeeOffset || 0);
   const obs = observedTdee(state.intake || {}, weights, today);
-  if (obs) {
+  if (obs && adherence >= 3) {
     const next = blendTdee(currentTdee, obs.value);
     if (Math.abs(next - currentTdee) >= 25) {
       recs.push({
@@ -131,8 +137,9 @@ export function weeklyReview(state, answers, today) {
       const targets = dailyTargets(p, { weightKg: trendKg, kcalAdjust: state.kcalAdjust || 0, tdeeOffset: state.tdeeOffset || 0 });
       const atFloor = targets.kcal <= targets.floor + 20;
       const intro = 'Plateaus are expected: as you get lighter you need less energy, and appetite pushes back. First, a quick accuracy check — are oils, sauces, drinks and weekend meals being counted? Then pick one option for the next two weeks:';
-      recs.push({ id: 'plateau_info', type: 'info', priority: 1, title: `Plateau: ${fmt(Math.max(loss, 0))} kg/week for 3 weeks`, body: intro });
-      if (!atFloor) recs.push({ id: 'plateau_kcal', group: 'plateau', type: 'kcal', delta: -150, priority: 1, title: 'Option A: trim 150 kcal a day', body: 'A small reduction, still above your safe minimum.' });
+      recs.push({ id: 'plateau_info', type: 'info', priority: 1, title: `Plateau: ${fmt(Math.max(loss, 0))} kg/week for 3 weeks`, body: onMeds ? `${intro}\n(Because you take a weight-loss medicine, a calorie cut isn’t offered — talk to your prescriber about the plateau, and keep protein and strength sessions high.)` : intro });
+      // Rule 26: on appetite-lowering medicine, intake is often already low, so don't offer a further cut.
+      if (!atFloor && !onMeds) recs.push({ id: 'plateau_kcal', group: 'plateau', type: 'kcal', delta: -150, priority: 1, title: 'Option A: trim 150 kcal a day', body: 'A small reduction, still above your safe minimum.' });
       recs.push({ id: 'plateau_move', group: 'plateau', type: 'cardio', delta: +30, priority: 1, title: 'Option B: add 30 minutes of activity a week', body: 'About 5 extra minutes a day of walking or cycling.' });
       recs.push({ id: 'plateau_structure', group: 'plateau', type: 'prefs', apply: { variety: 'low', structure: true }, priority: 1, title: 'Option C: more structure', body: 'Repeat the same breakfasts and lunches (or use a protein shake as one meal). Fewer decisions makes intake more predictable.' });
       recs.push({ id: 'plateau_none', group: 'plateau', type: 'info', priority: 1, title: 'Decide later', body: 'Keep everything as it is for now. The plateau check will come up again next week.' });
@@ -187,9 +194,19 @@ export function weeklyReview(state, answers, today) {
     recs.push({ id: 'energy', type: 'info', priority: 3, title: 'Energy is low', body: 'Make sure you are eating your full target (not less), sleeping enough and drinking water. If tiredness persists, see your doctor — anaemia, thyroid and medication effects are worth ruling out.' });
   }
 
-  if (!recs.length) recs.push({ id: 'steady', type: 'info', priority: 5, title: 'Steady week', body: 'Keep going with the current plan.' });
-  recs.sort((a, b) => a.priority - b.priority);
-  return { recs, rate, loss, pctWeek, trendKg, lostPct, observed: obs, weeksIn };
+  let out = recs;
+  const NUMERIC = new Set(['kcal', 'tdee', 'reset', 'break', 'cardio', 'steps']);
+  if (habitsOnly) {
+    out = out.filter((r) => !NUMERIC.has(r.type) && !r.group && !['plateau_info', 'plateau_adherence', 'on_track', 'data', 'slow_support', 'maintain'].includes(r.id));
+  }
+  if (tooSoon) {
+    out = out.filter((r) => !NUMERIC.has(r.type) && !r.group && r.id !== 'plateau_info' && r.type !== 'phase' && r.type !== 'flag');
+    out.unshift({ id: 'too_soon', type: 'info', priority: -0.5, title: `Your last check-in was ${daysBetween(lastApplied, today)} day(s) ago`, body: 'Plan changes are made once a week so each one has time to show its effect. Your answers are still saved, and the tips below still apply.' });
+  }
+  if (!out.length) out.push({ id: 'steady', type: 'info', priority: 5, title: 'Steady week', body: 'Keep going with the current plan.' });
+  out.sort((a, b) => a.priority - b.priority);
+  const recsOut = out;
+  return { recs: recsOut, rate, loss, pctWeek, trendKg, lostPct, observed: obs, weeksIn, tooSoon };
 }
 
 /** Apply accepted recommendations (pure: returns a new state and a list of what changed). */
@@ -204,7 +221,8 @@ export function applyRecs(state, recs, today) {
         applied.push({ type: 'kcal', delta: r.delta });
         break;
       case 'reset':
-        s.kcalAdjust = clamp((s.kcalAdjust || 0) + r.delta, -500, 500);
+        // Temporary trim for two weeks (read by store.targets), then it lapses on its own.
+        s.resetAdjust = r.delta;
         s.resetUntil = addDays(today, 14);
         applied.push({ type: 'kcal', delta: r.delta });
         break;

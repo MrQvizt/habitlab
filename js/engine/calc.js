@@ -85,7 +85,7 @@ export function dailyTargets(profile, opts = {}) {
     deficit = Math.min(deficit, (maxKgWeek * KCAL_PER_KG) / 7);
   }
 
-  let kcal = tdee - deficit + (maintenance ? 0 : opts.kcalAdjust || 0);
+  let kcal = tdee - deficit + (opts.dietBreak ? 0 : opts.kcalAdjust || 0);
   const hitFloor = kcal < floor;
   kcal = round(Math.max(kcal, floor), 10);
 

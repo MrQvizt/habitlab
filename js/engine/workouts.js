@@ -130,8 +130,10 @@ export function stepGoal(baseline, level = 0, age = 40) {
  */
 export function weekSchedule(profile, progress, weeksIn = 0) {
   const avail = (profile.daysAvailable?.length ? profile.daysAvailable : [0, 2, 4]).slice().sort((a, b) => a - b);
-  const nStrength = avail.length >= 4 ? 3 : 2;
-  const strengthDays = pickSpread(avail, Math.min(nStrength, avail.length));
+  // Rule 14: 2–3 whole-body sessions on non-consecutive days; week 1 is a single easy session.
+  let nStrength = weeksIn === 0 ? 1 : avail.length >= 4 ? 3 : 2;
+  let strengthDays = pickSpread(avail, Math.min(nStrength, avail.length));
+  while (strengthDays.length > 1 && minGap(strengthDays) < 2) strengthDays = pickSpread(avail, strengthDays.length - 1);
   const cardioMin = cardioTarget(profile.baselineCardioMin, weeksIn, profile.phase) + (profile.cardioBonus || 0);
   const cardioDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => !strengthDays.includes(d) || avail.length <= 2);
   // Strength sessions also include ~10 minutes of cardio-style warm-up/walk where time allows.
@@ -158,8 +160,15 @@ export function weekSchedule(profile, progress, weeksIn = 0) {
   return { schedule, cardioMin, strengthDays };
 }
 
+function minGap(days) {
+  if (days.length < 2) return 7;
+  let g = 7;
+  for (let i = 0; i < days.length; i++) g = Math.min(g, (i + 1 < days.length ? days[i + 1] : days[0] + 7) - days[i]);
+  return g;
+}
+
 function pickSpread(days, n) {
-  if (days.length <= n) return days;
+  if (days.length <= n) return days.slice();
   // Choose n days maximising the minimum gap (wrapping around the week).
   let best = null;
   let bestGap = -1;

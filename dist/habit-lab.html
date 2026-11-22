@@ -14,18 +14,18 @@
   --surface-2: #f1eee7;
   --ink: #1f2a26;
   --ink-2: #4c5a54;
-  --ink-3: #7a8680;
+  --ink-3: #5f6b65;
   --line: #e3ded3;
-  --accent: #1f7a5c;
+  --accent: #1b6e52;
   --accent-ink: #ffffff;
   --accent-soft: #dcefe6;
   --warm: #d9822b;
   --warm-soft: #fbe9d6;
-  --danger: #b4443c;
+  --danger: #a33b34;
   --danger-soft: #f7dfdc;
   --info-soft: #e2ecf6;
   --info: #2f5f8f;
-  --chart-trend: #1f7a5c;
+  --chart-trend: #1b6e52;
   --chart-dot: #9aa7a1;
   --radius: 14px;
   --radius-sm: 9px;
@@ -264,6 +264,7 @@ legend { font-weight: 600; font-size: 0.92rem; margin-bottom: 6px; padding: 0; }
 .chart .dot { fill: var(--chart-dot); }
 .chart .goal { stroke: var(--warm); stroke-dasharray: 5 4; stroke-width: 1.5; }
 .chart .goal-label { fill: var(--warm); }
+.chart .band { fill: color-mix(in srgb, var(--accent) 12%, transparent); }
 .chart .milestone { stroke: var(--line); stroke-dasharray: 2 4; }
 .chart .barfill { fill: color-mix(in srgb, var(--accent) 45%, var(--surface-2)); }
 .chart .barfill.met { fill: var(--accent); }
@@ -564,7 +565,7 @@ function dailyTargets(profile, opts = {}) {
     deficit = Math.min(deficit, (maxKgWeek * KCAL_PER_KG) / 7);
   }
 
-  let kcal = tdee - deficit + (maintenance ? 0 : opts.kcalAdjust || 0);
+  let kcal = tdee - deficit + (opts.dietBreak ? 0 : opts.kcalAdjust || 0);
   const hitFloor = kcal < floor;
   kcal = round(Math.max(kcal, floor), 10);
 
@@ -646,7 +647,7 @@ const ALPHA = 0.1; // smoothing per day (classic "Hacker's Diet" style 10% movin
 function trendSeries(entries) {
   const byDate = new Map();
   for (const e of entries) {
-    if (e && Number.isFinite(e.kg)) byDate.set(e.date, e.kg); // last entry of the day wins
+    if (e && Number.isFinite(e.kg) && /^\d{4}-\d{2}-\d{2}$/.test(e.date)) byDate.set(e.date, e.kg); // last entry of the day wins
   }
   const dates = [...byDate.keys()].sort();
   if (!dates.length) return [];
@@ -674,7 +675,7 @@ function latestTrend(entries) {
 function weeklyRate(entries, endDate, windowDays = 21, minPoints = 4, minSpanDays = 10) {
   const start = addDays(endDate, -windowDays);
   const pts = entries
-    .filter((e) => e.date > start && e.date <= endDate && Number.isFinite(e.kg))
+    .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date) && e.date > start && e.date <= endDate && Number.isFinite(e.kg))
     .map((e) => [daysBetween(start, e.date), e.kg]);
   if (pts.length < minPoints) return null;
   const span = Math.max(...pts.map((p) => p[0])) - Math.min(...pts.map((p) => p[0]));
@@ -895,6 +896,9 @@ const RECIPES = [
     [['pea_protein', 30], ['banana', 100], ['berries', 100], ['soy_milk', 300], ['chia', 10]],
     ['Blend everything until smooth.'],
     { nocook: true }),
+  R('b_vegan_pb_toast', 'Peanut butter banana toast + soy yogurt', 'breakfast', 4, 1,
+    [['ww_bread', 70], ['peanut_butter', 16], ['banana', 100], ['soy_yogurt', 170]],
+    ['Toast bread, spread thinly with peanut butter.', 'Top with sliced banana and cinnamon.', 'Have the soy yogurt on the side.']),
   R('b_savory_oats', 'Savoury oats with egg & greens', 'breakfast', 10, 1,
     [['oats', 40], ['egg', 50], ['egg_white', 100], ['spinach', 40], ['mushrooms', 50], ['parmesan', 10]],
     ['Cook oats in water with a pinch of salt.', 'Stir in egg whites and spinach for the last minute.', 'Top with a fried egg, sautéed mushrooms and parmesan.']),
@@ -1014,6 +1018,9 @@ const RECIPES = [
   R('d_fish_tacos', 'Crispy fish tacos', 'dinner', 20, 2,
     [['cod', 150], ['corn_tortilla', 78], ['cabbage', 80], ['greek_yogurt', 40], ['lemon', 10], ['salsa', 40], ['avocado', 30]],
     ['Season cod with paprika and cumin; pan-cook 3 minutes per side, then flake.', 'Mix cabbage with yogurt and lemon for slaw.', 'Fill tortillas; top with salsa and avocado.']),
+  R('d_peanut_noodles', 'Peanut tofu rice noodles', 'dinner', 20, 1,
+    [['rice_noodles', 180], ['tofu', 150], ['stirfry_veg', 150], ['peanut_butter', 15], ['soy_sauce', 15], ['lemon', 10], ['sesame_oil', 4]],
+    ['Cook noodles; drain.', 'Pan-fry cubed tofu in sesame oil until golden; add vegetables for 3 minutes.', 'Whisk peanut butter, soy sauce, lime or lemon and a splash of hot water; toss everything together.']),
   R('d_fried_rice', 'Veggie egg fried rice', 'dinner', 15, 1,
     [['brown_rice', 150], ['egg', 100], ['egg_white', 100], ['peas', 80], ['carrot', 50], ['soy_sauce', 15], ['sesame_oil', 5]],
     ['Use cold leftover rice.', 'Scramble eggs and whites in sesame oil; set aside.', 'Stir-fry peas and carrot, add rice and soy sauce, fold eggs back in.']),
@@ -1068,10 +1075,18 @@ const SLOT_SPLIT = {
   3: { breakfast: 0.27, lunch: 0.33, dinner: 0.4 },
   4: { breakfast: 0.25, lunch: 0.3, dinner: 0.33, snack: 0.12 },
   5: { breakfast: 0.23, lunch: 0.28, dinner: 0.31, snack: 0.09, snack2: 0.09 },
+  6: { breakfast: 0.21, lunch: 0.26, dinner: 0.29, snack: 0.08, snack2: 0.08, snack3: 0.08 },
 };
-const SLOT_LABEL = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack', snack2: 'Snack' };
+const SLOT_LABEL = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack', snack2: 'Snack', snack3: 'Snack' };
 const MIN_SCALE = 0.6;
-const MAX_SCALE = 1.8;
+const MAX_SCALE = 2.2; // large portions are fine for high calorie targets (e.g. 3,000 kcal)
+/**
+ * Soft fibre ceiling: plenty for fullness (guideline ≈14 g per 1,000 kcal, ≥25 g) without the bloating
+ * that a sudden very large jump can cause. ≈18 g per 1,000 kcal, between 35 and 60 g.
+ */
+function fibreCeiling(kcal) {
+  return Math.min(60, Math.max(35, (kcal / 1000) * 18));
+}
 
 const cache = new Map();
 /** Nutrition for one base serving of a recipe. */
@@ -1111,7 +1126,7 @@ function allowed(recipe, prefs) {
 }
 
 function candidates(slot, prefs, { weekend = false } = {}) {
-  const base = slot === 'snack2' ? 'snack' : slot;
+  const base = slot.startsWith('snack') ? 'snack' : slot;
   const maxMin = weekend ? prefs.maxMinutesWeekend ?? 45 : prefs.maxMinutesWeekday ?? 30;
   const pool = RECIPES.filter((r) => r.slot === base && allowed(r, prefs));
   const timed = pool.filter((r) => r.minutes <= maxMin && (!prefs.noCookLunch || base !== 'lunch' || r.nocook || r.batch));
@@ -1123,11 +1138,16 @@ function candidates(slot, prefs, { weekend = false } = {}) {
   return pool;
 }
 
-function score(recipe, { recent, favorites, rand, proteinNeed, weekCount }) {
+function score(recipe, { recent, favorites, rand, proteinNeed, weekCount, fibreRoom, scale = 1 }) {
   const n = recipeNutrition(recipe);
   const proteinDensity = (n.p * 4) / n.kcal; // share of calories from protein
   const fibreDensity = n.fib / (n.kcal / 100);
   let s = proteinDensity * 4 * proteinNeed + fibreDensity * 0.5;
+  // Fibre is good up to a ceiling; beyond it, penalise (rapid big increases cause GI discomfort).
+  if (fibreRoom != null) {
+    const over = n.fib * scale - fibreRoom;
+    if (over > 0) s -= over * 0.35;
+  }
   if (favorites.includes(recipe.id)) s += 0.8;
   const lastUsed = recent.get(recipe.id);
   if (lastUsed != null) s -= lastUsed <= 1 ? 3 : 1.2; // used in the last day or two
@@ -1146,7 +1166,7 @@ function choose(slot, slotKcal, prefs, ctx) {
     const scale = slotKcal / n.kcal;
     // Penalise recipes that must be stretched far from a natural portion.
     const stretch = scale < MIN_SCALE || scale > MAX_SCALE ? 2.5 : Math.abs(Math.log(scale)) * 0.8;
-    const s = score(r, ctx) - stretch;
+    const s = score(r, { ...ctx, scale: clamp(scale, MIN_SCALE, MAX_SCALE) }) - stretch;
     if (s > bestScore) {
       bestScore = s;
       best = r;
@@ -1160,12 +1180,16 @@ function choose(slot, slotKcal, prefs, ctx) {
  * @param ctx {rand, recent: Map(recipeId -> daysAgo), favorites, weekend, leftovers: {lunch: recipeId}}
  */
 function planDay(targets, prefs, ctx) {
-  const mealsPerDay = clamp(prefs.mealsPerDay || (targets.kcal >= 2300 ? 5 : 4), 3, 5);
+  // Very high targets get a sixth eating occasion so portions stay realistic.
+  const auto = targets.kcal >= 3200 ? 6 : targets.kcal >= 2300 ? 5 : 4;
+  const mealsPerDay = targets.kcal >= 3200 ? Math.max(auto, prefs.mealsPerDay || 0) : clamp(prefs.mealsPerDay || auto, 3, 5);
   const split = SLOT_SPLIT[mealsPerDay];
   const slots = Object.keys(split);
   const meals = [];
   let proteinSoFar = 0;
   let kcalSoFar = 0;
+  let fibreSoFar = 0;
+  const fibreMax = fibreCeiling(targets.kcal);
   const used = new Set();
   for (const slot of slots) {
     const slotKcal = targets.kcal * split[slot];
@@ -1179,7 +1203,9 @@ function planDay(targets, prefs, ctx) {
     if (!recipe) {
       const recent = new Map(ctx.recent);
       used.forEach((id) => recent.set(id, 0));
-      recipe = choose(slot, slotKcal, prefs, { ...ctx, recent, proteinNeed });
+      // Fibre room for this slot: its share of the ceiling, plus anything unused by earlier slots.
+      const fibreRoom = Math.max(0, fibreMax - fibreSoFar) * (split[slot] / slots.slice(slots.indexOf(slot)).reduce((a, k) => a + split[k], 0));
+      recipe = choose(slot, slotKcal, prefs, { ...ctx, recent, proteinNeed, fibreRoom });
     }
     if (!recipe) continue;
     used.add(recipe.id);
@@ -1187,15 +1213,48 @@ function planDay(targets, prefs, ctx) {
     const n = scaledNutrition(recipe, scale);
     proteinSoFar += n.p;
     kcalSoFar += n.kcal;
+    fibreSoFar += n.fib;
     meals.push({ slot, recipeId: recipe.id, scale, leftover: slot === 'lunch' && ctx.leftovers?.lunch === recipe.id });
   }
-  // Final pass: nudge all portions so the day total lands on target.
-  const total = meals.reduce((a, m) => a + scaledNutrition(byId(m.recipeId), m.scale).kcal, 0);
-  if (total > 0) {
-    const k = targets.kcal / total;
-    for (const m of meals) m.scale = round(clamp(m.scale * k, MIN_SCALE * 0.9, MAX_SCALE * 1.1), 0.05);
+  fitToTarget(meals, targets.kcal);
+  // Protein top-up: on small calorie budgets the day can fall short of the protein minimum.
+  // Try swapping snacks (then breakfast) for the most protein-dense option that's allowed.
+  const minP = targets.proteinMinG ?? targets.proteinG * 0.85;
+  if (dayTotals(meals).p < minP) {
+    const order = meals.filter((m) => m.slot.startsWith('snack')).concat(meals.filter((m) => m.slot === 'breakfast'));
+    for (const m of order) {
+      if (dayTotals(meals).p >= minP || ctx.locked?.[m.slot] || m.leftover) continue;
+      const inDay = new Set(meals.map((x) => x.recipeId));
+      const options = candidates(m.slot, prefs, ctx)
+        .filter((r) => !inDay.has(r.id))
+        .sort((a, b) => recipeNutrition(b).p / recipeNutrition(b).kcal - recipeNutrition(a).p / recipeNutrition(a).kcal)
+        .slice(0, 2);
+      for (const r of options) {
+        const trial = meals.map((x) => (x === m ? { ...x, recipeId: r.id } : { ...x }));
+        fitToTarget(trial, targets.kcal);
+        if (dayTotals(trial).p > dayTotals(meals).p + 3) {
+          meals.splice(0, meals.length, ...trial);
+          break;
+        }
+      }
+    }
+  }
+  // At the safety floor, rounding must never take the day below it: nudge portions up.
+  if (targets.floor && targets.kcal <= targets.floor) {
+    for (let guard = 0; guard < 20 && dayTotals(meals).kcal < targets.kcal; guard++) {
+      const m = meals.reduce((a, b) => (scaledNutrition(byId(b.recipeId), b.scale).kcal > scaledNutrition(byId(a.recipeId), a.scale).kcal ? b : a));
+      m.scale = round(m.scale + 0.05, 0.05);
+    }
   }
   return meals;
+}
+
+/** Scale portions so the day's total lands on the calorie target (keeping each slot's share). */
+function fitToTarget(meals, kcal) {
+  const total = meals.reduce((a, m) => a + scaledNutrition(byId(m.recipeId), m.scale).kcal, 0);
+  if (total <= 0) return;
+  const k = kcal / total;
+  for (const m of meals) m.scale = round(clamp(m.scale * k, MIN_SCALE * 0.9, MAX_SCALE * 1.1), 0.05);
 }
 
 function byId(id) {
@@ -1235,7 +1294,7 @@ function planWeek(targets, prefs, weekKey, opts = {}) {
     if (variety === 'low') {
       if (fixedBreakfast) ctx.locked.breakfast = fixedBreakfast;
       const prevDinner = days[d - 1]?.find((m) => m.slot === 'dinner');
-      if (prevDinner && byId(prevDinner.recipeId).batch && d % 2 === 1) ctx.leftovers = { lunch: prevDinner.recipeId };
+      if (prevDinner && byId(prevDinner.recipeId).batch && prefs.leftovers !== false && d % 2 === 1) ctx.leftovers = { lunch: prevDinner.recipeId };
       recent.delete(fixedBreakfast);
     } else if (variety === 'medium' && d > 0) {
       const prevDinner = days[d - 1].find((m) => m.slot === 'dinner');
@@ -1297,7 +1356,7 @@ function formatQty(fid, grams, units = 'metric') {
   return `${round(grams, grams < 30 ? 1 : 5)} g`;
 }
 
-Object.assign(__m, { SLOT_SPLIT, SLOT_LABEL, MIN_SCALE, MAX_SCALE, recipeNutrition, scaledNutrition, allowed, candidates, planDay, byId, dayTotals, planWeek, swapMeal, shoppingList, formatQty });
+Object.assign(__m, { SLOT_SPLIT, SLOT_LABEL, MIN_SCALE, MAX_SCALE, fibreCeiling, recipeNutrition, scaledNutrition, allowed, candidates, planDay, byId, dayTotals, planWeek, swapMeal, shoppingList, formatQty });
 },
 /* js/data/exercises.js */ 6: function (__m, __req) {
 // Exercise library organised as progression chains (easiest first).
@@ -1536,8 +1595,10 @@ function stepGoal(baseline, level = 0, age = 40) {
  */
 function weekSchedule(profile, progress, weeksIn = 0) {
   const avail = (profile.daysAvailable?.length ? profile.daysAvailable : [0, 2, 4]).slice().sort((a, b) => a - b);
-  const nStrength = avail.length >= 4 ? 3 : 2;
-  const strengthDays = pickSpread(avail, Math.min(nStrength, avail.length));
+  // Rule 14: 2–3 whole-body sessions on non-consecutive days; week 1 is a single easy session.
+  let nStrength = weeksIn === 0 ? 1 : avail.length >= 4 ? 3 : 2;
+  let strengthDays = pickSpread(avail, Math.min(nStrength, avail.length));
+  while (strengthDays.length > 1 && minGap(strengthDays) < 2) strengthDays = pickSpread(avail, strengthDays.length - 1);
   const cardioMin = cardioTarget(profile.baselineCardioMin, weeksIn, profile.phase) + (profile.cardioBonus || 0);
   const cardioDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => !strengthDays.includes(d) || avail.length <= 2);
   // Strength sessions also include ~10 minutes of cardio-style warm-up/walk where time allows.
@@ -1564,8 +1625,15 @@ function weekSchedule(profile, progress, weeksIn = 0) {
   return { schedule, cardioMin, strengthDays };
 }
 
+function minGap(days) {
+  if (days.length < 2) return 7;
+  let g = 7;
+  for (let i = 0; i < days.length; i++) g = Math.min(g, (i + 1 < days.length ? days[i + 1] : days[0] + 7) - days[i]);
+  return g;
+}
+
 function pickSpread(days, n) {
-  if (days.length <= n) return days;
+  if (days.length <= n) return days.slice();
   // Choose n days maximising the minimum gap (wrapping around the week).
   let best = null;
   let bestGap = -1;
@@ -1640,7 +1708,61 @@ const STOP_SIGNS = [
 
 Object.assign(__m, { screen, STOP_SIGNS });
 },
-/* js/store.js */ 9: function (__m, __req) {
+/* js/data/habits.js */ 9: function (__m, __req) {
+// Habit library. Each habit is small, specific and has a suggested cue (implementation intention:
+// "After I [cue], I will [behaviour]"). `tiny` is the version to fall back on during a hard day.
+// `ev` points to an evidence card id in learn.js.
+
+const H = (id, cat, title, tiny, cue, why, ev, extra = {}) => ({ id, cat, title, tiny, cue, why, ev, ...extra });
+
+const HABIT_CATEGORIES = {
+  monitor: 'Self-monitoring',
+  food: 'Eating',
+  move: 'Movement',
+  sleep: 'Sleep & stress',
+  env: 'Environment',
+  mind: 'Mindset',
+};
+
+const HABITS = [
+  H('weigh_daily', 'monitor', 'Weigh yourself each morning', 'Step on the scale and log the number — no judgement', 'After I use the bathroom in the morning', 'Daily weighing — looking at the trend, not single days — is linked with more weight loss.', 'self_monitoring', { starter: true }),
+  H('log_meals', 'monitor', 'Tick off meals in the app', 'Log just one meal', 'After I finish eating', 'Food self-monitoring is the behaviour most consistently linked with weight loss in lifestyle programmes.', 'self_monitoring', { starter: true }),
+  H('protein_first', 'food', 'Start each meal with the protein and veg', 'Eat a few bites of protein first', 'When I sit down to eat', 'Protein and fibre are the most filling parts of a meal and help preserve muscle while losing weight.', 'protein'),
+  H('veg_half', 'food', 'Fill half your plate with vegetables', 'Add one handful of veg to one meal', 'When I plate up dinner', 'Low-energy-density foods let you eat satisfying volumes for fewer calories.', 'fibre', { starter: true }),
+  H('water_meals', 'food', 'Drink water instead of sugary drinks', 'Swap one sugary drink for water or a zero-calorie drink', 'When I feel like a soda or juice', 'Each daily sugary drink is linked with extra weight gain each year; liquid calories don’t fill you up.', 'upf', { starter: true }),
+  H('plate_not_package', 'food', 'Eat from a plate, not the package', 'Put snacks in a bowl before eating', 'When I open a snack', 'Changing cues around you (stimulus control) is a core part of effective programmes.', 'stimulus_control'),
+  H('slow_down', 'food', 'Put your fork down between bites', 'Take one pause halfway through the meal', 'When I start a meal', 'Slowing down gives you a moment to notice fullness and choose deliberately.', 'mindful_eating'),
+  H('kitchen_closed', 'food', 'Close the kitchen after dinner', 'Brush teeth right after dinner', 'After I finish washing up', 'A clear “kitchen closed” cue makes evening grazing a decision rather than a habit.', 'stimulus_control'),
+  H('planned_treat', 'food', 'Plan your treats', 'Decide one treat ahead of time and enjoy it seated', 'When I plan tomorrow’s meals', 'Planning treats keeps you in charge and stops one slip turning into “I’ve blown it”.', 'flexible_restraint'),
+  H('breakfast_protein', 'food', 'Have 25 g+ protein at breakfast', 'Add a yogurt or egg to breakfast', 'When I make breakfast', 'Spreading protein across meals helps with fullness and muscle maintenance.', 'protein'),
+  H('alcohol_limit', 'food', 'Keep alcohol to planned days', 'Alternate each drink with a glass of water', 'When I am offered a drink', 'Alcohol adds calories and loosens food choices; limiting it helps both weight and health.', 'alcohol'),
+  H('walk_after_meal', 'move', '10-minute walk after a meal', 'Walk for 2 minutes after one meal', 'After I finish lunch', 'Short walks add up toward your weekly minutes and build the movement habit.', 'activity', { starter: true }),
+  H('step_goal', 'move', 'Hit your daily step goal', 'Take one extra short walk', 'When I check my phone at 6 pm', 'Raising steps gradually adds activity without needing gym time.', 'activity'),
+  H('stand_breaks', 'move', 'Stand up every hour', 'Stand and stretch once this afternoon', 'When a meeting or TV episode ends', 'Everyday movement (NEAT) differs hugely between people and is an easy place to add activity.', 'activity'),
+  H('strength_sessions', 'move', 'Do your planned strength session', 'Do one set of each exercise', 'When I get home from work on session days', 'Resistance training helps keep muscle while losing weight.', 'strength'),
+  H('clothes_ready', 'move', 'Lay out workout clothes the night before', 'Put your walking shoes by the door', 'After I brush my teeth at night', 'Reducing friction makes the planned behaviour the easy default.', 'stimulus_control'),
+  H('sleep_window', 'sleep', 'Aim for 7+ hours in bed asleep', 'Start your bedtime routine 15 minutes earlier', 'When my phone’s wind-down alarm goes off', 'In a trial, people who slept about an hour longer ate ~270 kcal a day less without trying.', 'sleep', { starter: true }),
+  H('screens_off', 'sleep', 'Screens off 30 minutes before bed', 'Put the phone on charge outside the bedroom', 'When I start my bedtime routine', 'Supports earlier, better-quality sleep.', 'sleep'),
+  H('stress_reset', 'sleep', 'Two-minute stress reset', 'Three slow breaths (in 4, out 6)', 'When I notice I want to eat but am not hungry', 'Stress and emotional eating are common triggers; a short alternative response breaks the loop.', 'stress'),
+  H('hunger_check', 'mind', 'Hunger check before eating', 'Rate hunger 1–10 before one snack', 'Before I open the fridge or cupboard', 'Distinguishing physical hunger from cravings or boredom helps you choose deliberately.', 'mindful_eating'),
+  H('shopping_list', 'env', 'Shop from your list', 'Bring the app’s list once this week', 'Before I leave for the shop', 'What is in the house is what gets eaten. Planning shopping supports planned eating.', 'stimulus_control'),
+  H('fruit_visible', 'env', 'Keep fruit on the counter, treats out of sight', 'Move one treat to a high cupboard', 'When I unpack groceries', 'Visibility and convenience shape what we eat more than willpower does.', 'stimulus_control'),
+  H('batch_cook', 'env', 'Batch-cook twice a week', 'Cook a double portion of tonight’s dinner', 'On Sunday afternoon and Wednesday evening', 'Having planned food ready removes the decision at the moment you are tired and hungry.', 'planning'),
+  H('self_compassion', 'mind', 'Treat slips like a friend would', 'Write one kind sentence to yourself after a slip', 'When I notice I went off plan', 'Self-compassion after a lapse reduces the “what-the-hell” effect that turns a slip into a relapse.', 'self_compassion'),
+  H('weekly_review', 'mind', 'Do the weekly check-in', 'Open the check-in and answer one question', 'On Sunday evening after dinner', 'Reviewing progress and problem-solving barriers are core parts of successful programmes.', 'problem_solving', { starter: true }),
+];
+
+/** Short self-report automaticity index (adapted from the 4-item SRBAI). Each answered 1–5. */
+const AUTOMATICITY_ITEMS = [
+  'I do it automatically',
+  'I do it without having to consciously remember',
+  'I do it without thinking',
+  'I start doing it before I realise I’m doing it',
+];
+
+Object.assign(__m, { HABIT_CATEGORIES, HABITS, AUTOMATICITY_ITEMS });
+},
+/* js/store.js */ 10: function (__m, __req) {
 // App state: one JSON object in localStorage. Everything stays on this device.
 const { isoDate, weekStart, addDays, hashString } = __req(0);
 const { dailyTargets, estimateTdee } = __req(1);
@@ -1648,6 +1770,11 @@ const { latestTrend } = __req(2);
 const { planWeek } = __req(5);
 const { initialProgress, weekSchedule } = __req(7);
 const { screen } = __req(8);
+const { HABITS } = __req(9);
+const { RECIPES } = __req(4);
+const { FOODS, DIETS, ALLERGENS } = __req(3);
+const { CARDIO, CHAINS } = __req(6);
+const { ACTIVITY_LEVELS, PACES } = __req(1);
 
 const KEY = 'habitlab.v1';
 const VERSION = 1;
@@ -1709,7 +1836,92 @@ function migrate(s) {
   const out = { ...base, ...s, prefs: { ...base.prefs, ...(s.prefs || {}) } };
   out.workouts = { ...base.workouts, ...(s.workouts || {}) };
   out.habits = { ...base.habits, ...(s.habits || {}) };
-  return out;
+  return sanitize(out);
+}
+
+// ---------- Validation of stored / imported data ----------
+// A backup file is untrusted input: coerce every field to the type and range the app expects,
+// and drop anything unknown, so nothing odd can reach the page.
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+const num = (v, lo, hi, dflt = null) => (Number.isFinite(Number(v)) && v !== '' && v !== null ? Math.min(hi, Math.max(lo, Number(v))) : dflt);
+const oneOf = (v, allowed, dflt) => (allowed.includes(v) ? v : dflt);
+const subset = (arr, allowed) => (Array.isArray(arr) ? [...new Set(arr.filter((x) => allowed.includes(x)))] : []);
+const isoOr = (v, dflt) => (typeof v === 'string' && ISO.test(v) ? v : dflt);
+const dateMap = (obj, fn) => Object.fromEntries(Object.entries(obj && typeof obj === 'object' ? obj : {}).filter(([k]) => ISO.test(k)).map(([k, v]) => [k, fn(v)]).filter(([, v]) => v != null));
+
+function sanitize(s) {
+  const p = s.profile;
+  if (p && typeof p === 'object') {
+    s.profile = {
+      ...p,
+      units: oneOf(p.units, ['metric', 'imperial'], 'metric'),
+      sex: oneOf(p.sex, ['female', 'male'], 'female'),
+      age: num(p.age, 12, 110, 40),
+      heightCm: num(p.heightCm, 100, 250, 165),
+      weightKg: num(p.weightKg, 30, 400, 100),
+      startWeightKg: num(p.startWeightKg, 30, 400, num(p.weightKg, 30, 400, 100)),
+      goalWeightKg: num(p.goalWeightKg, 30, 400, null),
+      activity: oneOf(p.activity, Object.keys(ACTIVITY_LEVELS), 'sedentary'),
+      pace: oneOf(p.pace, Object.keys(PACES), 'steady'),
+      phase: oneOf(p.phase, ['lose', 'maintain'], 'lose'),
+      startDate: isoOr(p.startDate, isoDate()),
+      medical: subset(p.medical, ['pregnant', 'eating_disorder', 'diabetes_meds', 'heart', 'kidney', 'glp1']),
+      edFlags: subset(p.edFlags, ['binge', 'compensate', 'worth']),
+      limitations: subset(p.limitations, ['knee', 'back', 'shoulder', 'wrist']),
+      experience: oneOf(p.experience, ['none', 'some', 'regular'], 'none'),
+      equipment: subset(p.equipment, ['bands', 'dumbbells', 'gym']),
+      daysAvailable: subset((p.daysAvailable || []).map(Number), [0, 1, 2, 3, 4, 5, 6]),
+      sessionMinutes: num(p.sessionMinutes, 10, 90, 30),
+      baselineCardioMin: num(p.baselineCardioMin, 0, 2000, 0),
+      baselineSteps: num(p.baselineSteps, 0, 50000, null),
+      cardioPrefs: subset(p.cardioPrefs, Object.keys(CARDIO)).length ? subset(p.cardioPrefs, Object.keys(CARDIO)) : ['walk'],
+      struggles: subset(p.struggles, ['evening', 'emotional', 'portions', 'drinks', 'time', 'sleep', 'motivation']),
+      stepLevel: num(p.stepLevel, 0, 40, 0),
+      cardioBonus: num(p.cardioBonus, 0, 300, 0),
+      habitsOnly: !!p.habitsOnly,
+      demo: !!p.demo,
+    };
+  }
+  const recipeIds = RECIPES.map((r) => r.id);
+  const pr = s.prefs;
+  s.prefs = {
+    ...pr,
+    diet: oneOf(pr.diet, Object.keys(DIETS), 'omnivore'),
+    allergies: subset(pr.allergies, Object.keys(ALLERGENS)),
+    dislikes: subset(pr.dislikes, Object.keys(FOODS)),
+    variety: oneOf(pr.variety, ['low', 'medium', 'high'], 'medium'),
+    budget: oneOf(pr.budget, ['tight', 'normal', 'flexible'], 'normal'),
+    mealsPerDay: num(pr.mealsPerDay, 3, 6, null),
+    maxMinutesWeekday: num(pr.maxMinutesWeekday, 10, 120, 30),
+    maxMinutesWeekend: num(pr.maxMinutesWeekend, 10, 120, 45),
+    favorites: subset(pr.favorites, recipeIds),
+    blockedRecipes: subset(pr.blockedRecipes, recipeIds),
+    seed: num(pr.seed, 0, 1e6, 0),
+  };
+  s.weights = (Array.isArray(s.weights) ? s.weights : []).filter((w) => w && ISO.test(w.date) && num(w.kg, 30, 400) != null).map((w) => ({ date: w.date, kg: Number(w.kg) }));
+  s.waist = (Array.isArray(s.waist) ? s.waist : []).filter((w) => w && ISO.test(w.date) && num(w.cm, 30, 300) != null).map((w) => ({ date: w.date, cm: Number(w.cm) }));
+  s.intake = dateMap(s.intake, (v) => num(v, 0, 20000));
+  s.steps = dateMap(s.steps, (v) => num(v, 0, 200000));
+  s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
+  s.kcalAdjust = num(s.kcalAdjust, -500, 500, 0);
+  s.tdeeOffset = num(s.tdeeOffset, -1500, 1500, 0);
+  s.calcWeightKg = num(s.calcWeightKg, 30, 400, null) ?? undefined;
+  s.maintainKg = num(s.maintainKg, 30, 400, null) ?? undefined;
+  const habitIds = HABITS.map((h) => h.id);
+  s.habits.active = (Array.isArray(s.habits.active) ? s.habits.active : [])
+    .filter((a) => a && habitIds.includes(a.id))
+    .slice(0, 3)
+    .map((a) => ({ id: a.id, cue: String(a.cue ?? '').slice(0, 160), started: isoOr(a.started, isoDate()), automaticity: num(a.automaticity, 1, 5, null) }));
+  s.habits.retired = (Array.isArray(s.habits.retired) ? s.habits.retired : []).filter((r) => r && habitIds.includes(r.id)).map((r) => ({ id: r.id, date: isoOr(r.date, isoDate()) }));
+  s.habits.log = dateMap(s.habits.log, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).filter((k) => habitIds.includes(k)).map((k) => [k, true])) : null));
+  s.mealLog = dateMap(s.mealLog, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([slot, e]) => /^(breakfast|lunch|dinner|snack\d?)$/.test(slot) && ['ate', 'skip', 'other'].includes(e?.status)).map(([slot, e]) => [slot, e.status === 'other' ? { status: 'other', kcal: num(e.kcal, 0, 10000, 0) } : { status: e.status }])) : null));
+  const wl = s.workouts.log;
+  s.workouts.log = dateMap(wl, (v) => (Array.isArray(v) ? v.filter((x) => x && ['strength', 'cardio'].includes(x.kind)).map((x) => ({ kind: x.kind, mode: x.kind === 'cardio' ? oneOf(x.mode, Object.keys(CARDIO), 'walk') : undefined, variant: x.kind === 'strength' ? oneOf(x.variant, ['A', 'B'], 'A') : undefined, minutes: num(x.minutes, 0, 600, 0), ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined })) : null));
+  const prog = s.workouts.progress && typeof s.workouts.progress === 'object' ? s.workouts.progress : {};
+  s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.slice(-30) : [] }]));
+  // Plans reference recipes by id; drop any plan containing an unknown recipe (it will be rebuilt).
+  s.plans = Object.fromEntries(Object.entries(s.plans || {}).filter(([k, v]) => ISO.test(k) && Array.isArray(v?.days) && v.days.every((d) => Array.isArray(d) && d.every((m) => recipeIds.includes(m?.recipeId) && Number.isFinite(m.scale)))));
+  return s;
 }
 
 // ---------- Derived values ----------
@@ -1732,6 +1944,12 @@ function habitsOnly(state) {
   return !!state.profile?.habitsOnly || safety(state).blocked;
 }
 
+const NUMBER_HABITS = new Set(['weigh_daily', 'log_meals']);
+/** Active habits to show: in habits-only mode, weighing and calorie-logging habits are paused. */
+function visibleHabits(state) {
+  return habitsOnly(state) ? state.habits.active.filter((a) => !NUMBER_HABITS.has(a.id)) : state.habits.active;
+}
+
 /**
  * Weight used for the calorie formula. Rule 7: recompute for every 2 kg change in trend,
  * so targets don't jitter with daily noise.
@@ -1745,7 +1963,8 @@ function calcWeight(state) {
 function targets(state, date = today()) {
   const p = state.profile;
   const dietBreak = (state.dietBreakUntil && date <= state.dietBreakUntil) || habitsOnly(state);
-  return dailyTargets(p, { weightKg: calcWeight(state), kcalAdjust: state.kcalAdjust || 0, tdeeOffset: state.tdeeOffset || 0, dietBreak });
+  const reset = state.resetUntil && date <= state.resetUntil ? state.resetAdjust || 0 : 0;
+  return dailyTargets(p, { weightKg: calcWeight(state), kcalAdjust: (state.kcalAdjust || 0) + reset, tdeeOffset: state.tdeeOffset || 0, dietBreak });
 }
 
 function weekKey(date = today()) {
@@ -1769,8 +1988,18 @@ function ensurePlan(state, date = today()) {
   const sig = planSignature(state, t);
   const existing = state.plans[wk];
   if (existing && existing.sig === sig) return { state, plan: existing };
-  const days = planWeek(t, state.prefs, wk);
-  // Keep days that are already in the past (and any swaps) so history isn't rewritten.
+  // Keep today's meals that were already eaten/logged or chosen by hand, so ticks and swaps survive.
+  const overrides = {};
+  const ti = (new Date(date + 'T12:00').getDay() + 6) % 7;
+  if (existing?.days[ti] && addDays(wk, ti) === date) {
+    const log = state.mealLog?.[date] || {};
+    const keep = {};
+    for (const m of existing.days[ti]) if (log[m.slot] || m.chosen) keep[m.slot] = m.recipeId;
+    if (Object.keys(keep).length) overrides[ti] = keep;
+  }
+  const days = planWeek(t, state.prefs, wk, { overrides });
+  for (const m of days[ti] || []) if (overrides[ti]?.[m.slot]) m.chosen = existing.days[ti].find((x) => x.slot === m.slot)?.chosen;
+  // Keep days that are already in the past so history isn't rewritten.
   if (existing) {
     for (let d = 0; d < 7; d++) if (addDays(wk, d) < date && existing.days[d]) days[d] = existing.days[d];
   }
@@ -1804,9 +2033,9 @@ function importJson(text) {
 
 
 
-Object.assign(__m, { VERSION, emptyState, load, save, clearAll, migrate, today, trendWeight, safety, habitsOnly, calcWeight, targets, weekKey, weeksSinceStart, ensurePlan, ensureProgress, schedule, exportJson, importJson, estimateTdee });
+Object.assign(__m, { VERSION, emptyState, load, save, clearAll, migrate, sanitize, today, trendWeight, safety, habitsOnly, visibleHabits, calcWeight, targets, weekKey, weeksSinceStart, ensurePlan, ensureProgress, schedule, exportJson, importJson, estimateTdee });
 },
-/* js/ui/dom.js */ 10: function (__m, __req) {
+/* js/ui/dom.js */ 11: function (__m, __req) {
 // Rendering helpers. Views return HTML strings; every user-provided value goes through esc().
 const { kgToLb, cmToIn, lbToKg, inToCm, round } = __req(0);
 
@@ -1915,64 +2144,10 @@ function formData(form) {
 
 Object.assign(__m, { esc, html, units, fmtWeight, weightNum, toKg, fmtDelta, fmtHeight, heightFromFtIn, fmtNum, fmtDate, icon, chips, progressBar, formData });
 },
-/* js/data/habits.js */ 11: function (__m, __req) {
-// Habit library. Each habit is small, specific and has a suggested cue (implementation intention:
-// "After I [cue], I will [behaviour]"). `tiny` is the version to fall back on during a hard day.
-// `ev` points to an evidence card id in learn.js.
-
-const H = (id, cat, title, tiny, cue, why, ev, extra = {}) => ({ id, cat, title, tiny, cue, why, ev, ...extra });
-
-const HABIT_CATEGORIES = {
-  monitor: 'Self-monitoring',
-  food: 'Eating',
-  move: 'Movement',
-  sleep: 'Sleep & stress',
-  env: 'Environment',
-  mind: 'Mindset',
-};
-
-const HABITS = [
-  H('weigh_daily', 'monitor', 'Weigh yourself each morning', 'Step on the scale and log the number — no judgement', 'After I use the bathroom in the morning', 'Daily weighing — looking at the trend, not single days — is linked with more weight loss.', 'self_monitoring', { starter: true }),
-  H('log_meals', 'monitor', 'Tick off meals in the app', 'Log just one meal', 'After I finish eating', 'Food self-monitoring is the behaviour most consistently linked with weight loss in lifestyle programmes.', 'self_monitoring', { starter: true }),
-  H('protein_first', 'food', 'Start each meal with the protein and veg', 'Eat a few bites of protein first', 'When I sit down to eat', 'Protein and fibre are the most filling parts of a meal and help preserve muscle while losing weight.', 'protein'),
-  H('veg_half', 'food', 'Fill half your plate with vegetables', 'Add one handful of veg to one meal', 'When I plate up dinner', 'Low-energy-density foods let you eat satisfying volumes for fewer calories.', 'energy_density', { starter: true }),
-  H('water_meals', 'food', 'Drink water instead of sugary drinks', 'Swap one sugary drink for water or a zero-calorie drink', 'When I feel like a soda or juice', 'Each daily sugary drink is linked with extra weight gain each year; liquid calories don’t fill you up.', 'liquid_calories', { starter: true }),
-  H('plate_not_package', 'food', 'Eat from a plate, not the package', 'Put snacks in a bowl before eating', 'When I open a snack', 'Changing cues around you (stimulus control) is a core part of effective programmes.', 'stimulus_control'),
-  H('slow_down', 'food', 'Put your fork down between bites', 'Take one pause halfway through the meal', 'When I start a meal', 'Slowing down gives you a moment to notice fullness and choose deliberately.', 'mindful_eating'),
-  H('kitchen_closed', 'food', 'Close the kitchen after dinner', 'Brush teeth right after dinner', 'After I finish washing up', 'A clear “kitchen closed” cue makes evening grazing a decision rather than a habit.', 'stimulus_control'),
-  H('planned_treat', 'food', 'Plan your treats', 'Decide one treat ahead of time and enjoy it seated', 'When I plan tomorrow’s meals', 'Planning treats keeps you in charge and stops one slip turning into “I’ve blown it”.', 'flexible_restraint'),
-  H('breakfast_protein', 'food', 'Have 25 g+ protein at breakfast', 'Add a yogurt or egg to breakfast', 'When I make breakfast', 'Spreading protein across meals helps with fullness and muscle maintenance.', 'protein'),
-  H('alcohol_limit', 'food', 'Keep alcohol to planned days', 'Alternate each drink with a glass of water', 'When I am offered a drink', 'Alcohol adds calories and loosens food choices; limiting it helps both weight and health.', 'alcohol'),
-  H('walk_after_meal', 'move', '10-minute walk after a meal', 'Walk for 2 minutes after one meal', 'After I finish lunch', 'Short walks add up toward your weekly minutes and build the movement habit.', 'activity', { starter: true }),
-  H('step_goal', 'move', 'Hit your daily step goal', 'Take one extra short walk', 'When I check my phone at 6 pm', 'Raising steps gradually adds activity without needing gym time.', 'activity'),
-  H('stand_breaks', 'move', 'Stand up every hour', 'Stand and stretch once this afternoon', 'When a meeting or TV episode ends', 'Everyday movement (NEAT) differs hugely between people and is an easy place to add activity.', 'activity'),
-  H('strength_sessions', 'move', 'Do your planned strength session', 'Do one set of each exercise', 'When I get home from work on session days', 'Resistance training helps keep muscle while losing weight.', 'strength'),
-  H('clothes_ready', 'move', 'Lay out workout clothes the night before', 'Put your walking shoes by the door', 'After I brush my teeth at night', 'Reducing friction makes the planned behaviour the easy default.', 'stimulus_control'),
-  H('sleep_window', 'sleep', 'Aim for 7+ hours in bed asleep', 'Start your bedtime routine 15 minutes earlier', 'When my phone’s wind-down alarm goes off', 'In a trial, people who slept about an hour longer ate ~270 kcal a day less without trying.', 'sleep', { starter: true }),
-  H('screens_off', 'sleep', 'Screens off 30 minutes before bed', 'Put the phone on charge outside the bedroom', 'When I start my bedtime routine', 'Supports earlier, better-quality sleep.', 'sleep'),
-  H('stress_reset', 'sleep', 'Two-minute stress reset', 'Three slow breaths (in 4, out 6)', 'When I notice I want to eat but am not hungry', 'Stress and emotional eating are common triggers; a short alternative response breaks the loop.', 'stress'),
-  H('hunger_check', 'mind', 'Hunger check before eating', 'Rate hunger 1–10 before one snack', 'Before I open the fridge or cupboard', 'Distinguishing physical hunger from cravings or boredom helps you choose deliberately.', 'mindful_eating'),
-  H('shopping_list', 'env', 'Shop from your list', 'Bring the app’s list once this week', 'Before I leave for the shop', 'What is in the house is what gets eaten. Planning shopping supports planned eating.', 'stimulus_control'),
-  H('fruit_visible', 'env', 'Keep fruit on the counter, treats out of sight', 'Move one treat to a high cupboard', 'When I unpack groceries', 'Visibility and convenience shape what we eat more than willpower does.', 'stimulus_control'),
-  H('batch_cook', 'env', 'Batch-cook twice a week', 'Cook a double portion of tonight’s dinner', 'On Sunday afternoon and Wednesday evening', 'Having planned food ready removes the decision at the moment you are tired and hungry.', 'planning'),
-  H('self_compassion', 'mind', 'Treat slips like a friend would', 'Write one kind sentence to yourself after a slip', 'When I notice I went off plan', 'Self-compassion after a lapse reduces the “what-the-hell” effect that turns a slip into a relapse.', 'self_compassion'),
-  H('weekly_review', 'mind', 'Do the weekly check-in', 'Open the check-in and answer one question', 'On Sunday evening after dinner', 'Reviewing progress and problem-solving barriers are core parts of successful programmes.', 'problem_solving', { starter: true }),
-];
-
-/** Short self-report automaticity index (adapted from the 4-item SRBAI). Each answered 1–5. */
-const AUTOMATICITY_ITEMS = [
-  'I do it automatically',
-  'I do it without having to consciously remember',
-  'I do it without thinking',
-  'I start doing it before I realise I’m doing it',
-];
-
-Object.assign(__m, { HABIT_CATEGORIES, HABITS, AUTOMATICITY_ITEMS });
-},
 /* js/engine/habits.js */ 12: function (__m, __req) {
 // Habit tracking: completion, forgiving streaks ("never miss twice"), and readiness to add a new habit.
 const { addDays, isoDate } = __req(0);
-const { HABITS } = __req(11);
+const { HABITS } = __req(9);
 
 const MAX_ACTIVE = 3;
 
@@ -2050,10 +2225,10 @@ Object.assign(__m, { MAX_ACTIVE, habitById, streak, completionRate, isEstablishe
 },
 /* js/views/shared.js */ 13: function (__m, __req) {
 // Pieces shared by several views.
-const { esc, icon, fmtNum } = __req(10);
+const { esc, icon, fmtNum } = __req(11);
 const { byId, scaledNutrition, formatQty, SLOT_LABEL, dayTotals } = __req(5);
 const { FOODS } = __req(3);
-const store = __req(9);
+const store = __req(10);
 const { daysBetween, weekStart, parseDate } = __req(0);
 
 function dayIndex(date) {
@@ -2154,13 +2329,19 @@ function setMealStatus(st, date, slot, fn) {
   return st;
 }
 
-Object.assign(__m, { dayIndex, mealsFor, eatenSoFar, dayComplete, computeIntake, proteinEaten, recipeDetails, mealMeta, slotLabel, totalsLine, safetyNotices, checkinDue, setMealStatus });
+/** After a swap or pick, flag the changed slot (and keep earlier flags) so plan rebuilds keep it. */
+function markChosen(meals, previous, slot) {
+  const prev = Object.fromEntries((previous || []).map((m) => [m.slot, m]));
+  return meals.map((m) => ({ ...m, chosen: m.slot === slot || (prev[m.slot]?.chosen && prev[m.slot].recipeId === m.recipeId) || undefined }));
+}
+
+Object.assign(__m, { dayIndex, mealsFor, eatenSoFar, dayComplete, computeIntake, proteinEaten, recipeDetails, mealMeta, slotLabel, totalsLine, safetyNotices, checkinDue, setMealStatus, markChosen });
 },
 /* js/demo.js */ 14: function (__m, __req) {
 // Demo profile with ~10 weeks of realistic history, so the app can be explored before real use.
-const { emptyState, ensurePlan, ensureProgress } = __req(9);
+const { emptyState, ensurePlan, ensureProgress } = __req(10);
 const { addDays, isoDate, round, rng, weekStart } = __req(0);
-const { HABITS } = __req(11);
+const { HABITS } = __req(9);
 const { computeIntake } = __req(13);
 
 function demoState() {
@@ -2181,7 +2362,7 @@ function demoState() {
   for (let d = 0; d <= 70; d++) {
     const date = addDays(start, d);
     kg += d < 42 ? -0.7 / 7 : 0.005;
-    const water = (rand() - 0.5) * 1.4 + (new Date(date).getDay() === 1 ? 0.4 : 0);
+    const water = (rand() - 0.5) * 1.4 + (new Date(date + 'T12:00').getDay() === 1 ? 0.4 : 0);
     if (rand() < 0.85 || d === 70) s.weights.push({ date, kg: round(kg + water, 0.1) });
     if (rand() < 0.8) s.steps[date] = Math.round(4500 + d * 40 + rand() * 2500);
   }
@@ -2192,7 +2373,7 @@ function demoState() {
     const day = {};
     for (const a of s.habits.active) if (date >= a.started && rand() < 0.82) day[a.id] = true;
     s.habits.log[date] = day;
-    const wd = (new Date(date).getDay() + 6) % 7;
+    const wd = (new Date(date + 'T12:00').getDay() + 6) % 7;
     const items = [];
     if ([0, 4].includes(wd) && rand() < 0.85) items.push({ kind: 'strength', variant: wd === 0 ? 'A' : 'B', minutes: 30 });
     if ([1, 2, 3, 5, 6].includes(wd) && rand() < 0.75) items.push({ kind: 'cardio', mode: rand() < 0.7 ? 'walk' : 'cycle', minutes: Math.round(15 + d * 0.35) });
@@ -2222,14 +2403,14 @@ Object.assign(__m, { demoState });
 },
 /* js/views/onboarding.js */ 15: function (__m, __req) {
 // Onboarding wizard: about you → health check → food → movement → habits → your plan.
-const { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight } = __req(10);
+const { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight } = __req(11);
 const { ACTIVITY_LEVELS, PACES, dailyTargets, bmi, weightAtBmi, projectWeeks } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
-const { HABITS } = __req(11);
+const { HABITS } = __req(9);
 const { suggestNext } = __req(12);
 const { screen } = __req(8);
-const { emptyState, importJson } = __req(9);
+const { emptyState, importJson } = __req(10);
 const { isoDate, round, cmToIn } = __req(0);
 const { demoState } = __req(14);
 
@@ -2257,7 +2438,7 @@ function nav(final = false) {
 }
 
 function num(name, value, { min, max, step = 'any', unit = '', placeholder = '', required = true } = {}) {
-  return `<div class="inline-inputs"><input type="number" inputmode="decimal" name="${name}" value="${value ?? ''}" min="${min}" max="${max}" step="${step}" placeholder="${placeholder}" ${required ? 'required' : ''}>${unit ? `<span class="unit">${unit}</span>` : ''}</div>`;
+  return `<div class="inline-inputs"><input type="number" inputmode="decimal" name="${name}" value="${esc(value ?? '')}" min="${min}" max="${max}" step="${step}" placeholder="${placeholder}" ${required ? 'required' : ''}>${unit ? `<span class="unit">${unit}</span>` : ''}</div>`;
 }
 
 function welcome() {
@@ -2590,20 +2771,21 @@ Object.assign(__m, {  });
 },
 /* js/ui/charts.js */ 16: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
-const { esc } = __req(10);
+const { esc } = __req(11);
 const { daysBetween, addDays } = __req(0);
 
 /**
  * Weight chart: raw weigh-ins as dots, smoothed trend as a line, optional goal line and milestone ticks.
  * series: [{date, kg|null, trend}] (from trendSeries), conv: kg -> display units
  */
-function weightChart(series, { goal = null, milestones = [], conv = (x) => x, unitLabel = 'kg', width = 640, height = 240 } = {}) {
+function weightChart(series, { goal = null, band = null, milestones = [], conv = (x) => x, unitLabel = 'kg', width = 640, height = 240 } = {}) {
   if (series.length < 2) return '<div class="empty">Log a few weigh-ins to see your trend line.</div>';
   const pad = { l: 44, r: 12, t: 12, b: 26 };
   const W = width - pad.l - pad.r;
   const H = height - pad.t - pad.b;
   const vals = series.flatMap((p) => [p.trend, p.kg].filter((v) => v != null)).map(conv);
   if (goal != null) vals.push(conv(goal));
+  if (band) vals.push(conv(band.lo), conv(band.hi));
   let lo = Math.min(...vals);
   let hi = Math.max(...vals);
   const span = Math.max(hi - lo, 2);
@@ -2631,7 +2813,10 @@ function weightChart(series, { goal = null, milestones = [], conv = (x) => x, un
     .filter((m) => conv(m.weightKg) >= lo && conv(m.weightKg) <= hi)
     .map((m) => `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y(m.weightKg).toFixed(1)}" y2="${y(m.weightKg).toFixed(1)}" class="milestone"/><text x="${pad.l + 4}" y="${(y(m.weightKg) - 4).toFixed(1)}" class="axis">−${m.pct}%</text>`)
     .join('');
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Weight trend chart">${grid}${ms}${goalLine}${dots}<path d="${trendPath}" class="trend"/>${xlabels}</svg>`;
+  const bandRect = band
+    ? `<rect x="${pad.l}" width="${W}" y="${y(band.hi).toFixed(1)}" height="${(y(band.lo) - y(band.hi)).toFixed(1)}" class="band"/><text x="${width - pad.r - 4}" y="${(y(band.hi) + 12).toFixed(1)}" class="axis" text-anchor="end">maintenance band</text>`
+    : '';
+  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Weight trend chart">${bandRect}${grid}${ms}${goalLine}${dots}<path d="${trendPath}" class="trend"/>${xlabels}</svg>`;
 }
 
 /** Simple bar chart: items [{label, value}], optional target line. */
@@ -2698,10 +2883,11 @@ Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
 /* js/views/today.js */ 17: function (__m, __req) {
 // Today: weigh-in, today's meals (tick off), movement, habits.
-const { html, esc, icon, fmtWeight, fmtDelta, toKg, fmtNum, progressBar, weightNum, fmtDate } = __req(10);
+const { html, esc, icon, fmtWeight, fmtDelta, toKg, fmtNum, progressBar, weightNum, fmtDate } = __req(11);
 const { ring } = __req(16);
-const store = __req(9);
+const store = __req(10);
 const { mealsFor, computeIntake, eatenSoFar, dayComplete, setMealStatus, proteinEaten, recipeDetails, mealMeta, slotLabel, safetyNotices, checkinDue, dayIndex } = __req(13);
+const { markChosen } = __req(13);
 const { byId, swapMeal } = __req(5);
 const { habitById, streak } = __req(12);
 const { stepGoal } = __req(7);
@@ -2791,7 +2977,7 @@ function moveCard(state, date) {
 }
 
 function habitsCard(state, date) {
-  const active = state.habits.active;
+  const active = store.visibleHabits(state);
   if (!active.length) return `<div class="card"><h2>${icon('habits')} Habits</h2><p class="muted">No active habits. <a href="#/habits">Choose one</a> — small and specific works best.</p></div>`;
   const log = state.habits.log[date] || {};
   return `<div class="card"><div class="card-head"><h2>${icon('habits')} Habits</h2><a href="#/habits" class="muted">Manage →</a></div><ul class="list">
@@ -2862,7 +3048,7 @@ __m.default = {
       const wk = weekStart(date);
       const di = dayIndex(date);
       const t = store.targets(s, date);
-      const meals = swapMeal(t, s.prefs, s.plans[wk].days[di], el.dataset.slot, `${date}|${Date.now()}`);
+      const meals = markChosen(swapMeal(t, s.prefs, s.plans[wk].days[di], el.dataset.slot, `${date}|${Date.now()}`), s.plans[wk].days[di], el.dataset.slot);
       ctx.update((st) => {
         st.plans[wk].days[di] = meals;
         return st;
@@ -2942,9 +3128,10 @@ Object.assign(__m, { addDays });
 },
 /* js/views/meals.js */ 18: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
-const { html, esc, icon, chips, fmtDate } = __req(10);
-const store = __req(9);
+const { html, esc, icon, chips, fmtDate } = __req(11);
+const store = __req(10);
 const { recipeDetails, mealMeta, slotLabel, totalsLine, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(13);
+const { markChosen } = __req(13);
 const { byId, swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL } = __req(5);
 const { RECIPES } = __req(4);
 const { rng } = __req(0);
@@ -2957,7 +3144,7 @@ function browser(state, slot, di) {
   const date = store.today();
   const wk = weekStart(date);
   const showNumbers = !store.habitsOnly(state);
-  const base = slot === 'snack2' ? 'snack' : slot;
+  const base = slot.startsWith('snack') ? 'snack' : slot;
   const allowedIds = new Set(candidates(slot, { ...state.prefs, maxMinutesWeekday: 999, maxMinutesWeekend: 999, budget: 'flexible' }).map((r) => r.id));
   const list = RECIPES.filter((r) => r.slot === base && allowedIds.has(r.id));
   const u = state.profile.units === 'imperial' ? 'imperial' : 'metric';
@@ -3030,6 +3217,9 @@ __m.default = {
         <li><strong>Repeats and leftovers on purpose:</strong> fewer decisions makes the plan easier to follow — and following it is what works.</li>
       </ul></div>`;
   },
+  after(root) {
+    root.querySelector('.daytabs a.on')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  },
   actions: {
     ate(el, ev, ctx) {
       ctx.update((st) => setMealStatus(st, el.dataset.date, el.dataset.slot, (cur) => (cur?.status === 'ate' ? null : { status: 'ate' })));
@@ -3052,7 +3242,7 @@ __m.default = {
       const locked = {};
       for (const m of s.plans[wk].days[di]) locked[m.slot] = m.recipeId;
       locked[slot] = el.dataset.id;
-      const meals = planDay(t, s.prefs, { rand: rng(`pick|${Date.now()}`), recent: new Map(), favorites: s.prefs.favorites || [], locked });
+      const meals = markChosen(planDay(t, s.prefs, { rand: rng(`pick|${Date.now()}`), recent: new Map(), favorites: s.prefs.favorites || [], locked }), s.plans[wk].days[di], slot);
       ctx.update((st) => {
         st.plans[wk].days[di] = meals;
         return st;
@@ -3065,7 +3255,7 @@ __m.default = {
       const wk = weekStart(store.today());
       const di = Number(el.dataset.day);
       const t = store.targets(s, addDays(wk, di));
-      const meals = swapMeal(t, s.prefs, s.plans[wk].days[di], el.dataset.slot, `${wk}|${di}|${Date.now()}`);
+      const meals = markChosen(swapMeal(t, s.prefs, s.plans[wk].days[di], el.dataset.slot, `${wk}|${di}|${Date.now()}`), s.plans[wk].days[di], el.dataset.slot);
       ctx.update((st) => {
         st.plans[wk].days[di] = meals;
         return st;
@@ -3115,7 +3305,6 @@ __m.default = {
         st.prefs.variety = data.variety || st.prefs.variety;
         st.prefs.mealsPerDay = data.mealsPerDay ? Number(data.mealsPerDay) : null;
         st.prefs.maxMinutesWeekday = Number(data.maxMinutesWeekday) || 30;
-        st.prefs.maxMinutesWeekend = Math.max(45, st.prefs.maxMinutesWeekday);
         return st;
       });
       ctx.toast('Plan rebuilt.');
@@ -3136,8 +3325,8 @@ Object.assign(__m, {  });
 },
 /* js/views/move.js */ 19: function (__m, __req) {
 // Movement: the week's schedule, strength session player with feedback, cardio logging.
-const { html, esc, icon, progressBar, fmtNum } = __req(10);
-const store = __req(9);
+const { html, esc, icon, progressBar, fmtNum } = __req(11);
+const store = __req(10);
 const { progressChain, stepOf, stepGoal, REP_RANGE } = __req(7);
 const { CARDIO, WARMUP, COOLDOWN, CHAINS } = __req(6);
 const { STOP_SIGNS } = __req(8);
@@ -3281,7 +3470,7 @@ __m.default = {
     logCardio(form, ev, ctx, data) {
       const minutes = Number(data.minutes);
       if (!(minutes > 0)) return;
-      const date = data.date || store.today();
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
       ctx.update((st) => {
         st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'cardio', mode: data.mode, minutes }];
         return st;
@@ -3296,10 +3485,10 @@ Object.assign(__m, {  });
 },
 /* js/views/habits.js */ 20: function (__m, __req) {
 // Habits: active habits with if-then cues, 66-day horizon, forgiving streaks, automaticity check, library.
-const { html, esc, icon, progressBar } = __req(10);
+const { html, esc, icon, progressBar } = __req(11);
 const { habitGrid } = __req(16);
-const store = __req(9);
-const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(11);
+const store = __req(10);
+const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(12);
 const { daysBetween } = __req(0);
 
@@ -3322,7 +3511,7 @@ function activeCard(state, a, date) {
           <span class="muted" style="font-size:.9rem">→ ${esc(h.title.toLowerCase())}</span>
           <button class="btn small">Save</button>
         </form>
-        <p style="font-size:.88rem" class="muted">Minimum version for hard days: <strong>${esc(h.tiny)}</strong>. ${esc(h.why)}</p>
+        <p style="font-size:.88rem" class="muted">Minimum version for hard days: <strong>${esc(h.tiny)}</strong>. ${esc(h.why)} <a href="#/learn/${esc(h.ev)}">Why this works</a></p>
         <div class="macro"><span>Day ${days}</span>${progressBar(Math.min(days, 66), 66, { label: 'Days toward 66' })}<span class="muted">of ~66</span></div>
         <div class="row" style="font-size:.88rem;margin-top:6px"><span class="tag ${st >= 3 ? 'green' : ''}">${icon('flame', 'tiny')} ${st}-day streak</span><span class="tag">${Math.round(rate * 100)}% last 7 days</span>${a.automaticity != null ? `<span class="tag">automatic: ${a.automaticity.toFixed(1)}/5</span>` : ''}${established ? '<span class="tag green">sticking</span>' : ''}</div>
         ${rating === a.id ? automaticityForm(a) : `<div class="row" style="margin-top:10px"><button class="btn small" data-action="rate" data-id="${a.id}">How automatic is it?</button>${established ? `<button class="btn small" data-action="retire" data-id="${a.id}">It’s automatic — graduate it</button>` : ''}<button class="btn small ghost danger" data-action="remove" data-id="${a.id}">Stop tracking</button></div>`}
@@ -3339,10 +3528,10 @@ function automaticityForm(a) {
 __m.default = {
   render(state) {
     const date = store.today();
-    const active = state.habits.active;
-    const activeIds = active.map((a) => a.id);
+    const active = store.visibleHabits(state);
+    const activeIds = state.habits.active.map((a) => a.id);
     const allEstablished = active.every((a) => isEstablished(a, state.habits.log, date));
-    const full = active.length >= MAX_ACTIVE;
+    const full = state.habits.active.length >= MAX_ACTIVE;
     const suggested = suggestNext(activeIds.concat(state.habits.retired.map((r) => r.id)), state.profile);
     const hideNumbers = store.habitsOnly(state);
     const library = HABITS.filter((h) => (filter === 'all' || h.cat === filter) && !activeIds.includes(h.id) && !(hideNumbers && (h.id === 'weigh_daily' || h.id === 'log_meals')));
@@ -3357,7 +3546,8 @@ __m.default = {
         ${full ? `<div class="notice warn">${icon('alert')}<div>You have ${MAX_ACTIVE} active habits. Graduate or stop one before adding more.</div></div>` : ''}
         ${suggested.length ? `<p style="font-size:.9rem"><strong>Suggested next for you:</strong> ${suggested.slice(0, 3).map((id) => esc(names[id])).join(' · ')}</p>` : ''}
         <div class="segmented" style="margin-bottom:12px">${[['all', 'All'], ...Object.entries(HABIT_CATEGORIES)].map(([k, l]) => `<button type="button" class="${filter === k ? 'on' : ''}" data-action="filter" data-value="${k}">${esc(l)}</button>`).join('')}</div>
-        <ul class="list">${library.map((h) => `<li class="row between nowrap"><div class="grow"><strong>${esc(h.title)}</strong>${suggested.slice(0, 3).includes(h.id) ? ' <span class="tag green">suggested</span>' : ''}<div class="muted" style="font-size:.86rem">${esc(h.cue)} → ${esc(h.title.toLowerCase())}. ${esc(h.why)}</div></div><button class="btn small" data-action="add" data-id="${h.id}" ${full ? 'disabled' : ''}>${icon('plus')}Add</button></li>`).join('')}</ul>
+        <details ${full ? '' : 'open'}><summary style="cursor:pointer;font-weight:600;margin-bottom:8px">${full ? 'Browse the habit library' : 'Habit library'} (${library.length})</summary>
+        <ul class="list">${library.map((h) => `<li class="row between nowrap"><div class="grow"><strong>${esc(h.title)}</strong>${suggested.slice(0, 3).includes(h.id) ? ' <span class="tag green">suggested</span>' : ''}<div class="muted" style="font-size:.86rem">${esc(h.cue)} → ${esc(h.title.toLowerCase())}. ${esc(h.why)} <a href="#/learn/${esc(h.ev)}">Evidence</a></div></div><button class="btn small" data-action="add" data-id="${h.id}" ${full ? 'disabled' : ''}>${icon('plus')}Add</button></li>`).join('')}</ul></details>
       </div>
       ${state.habits.retired.length ? `<div class="card flat"><h2>Graduated habits</h2><p class="muted" style="font-size:.9rem">These became part of your routine. Keep them going without tracking.</p><ul class="list">${state.habits.retired.map((r) => `<li>${esc(names[r.id])} <span class="muted" style="font-size:.85rem">— automatic since ${esc(r.date)}</span></li>`).join('')}</ul></div>` : ''}`;
   },
@@ -3438,9 +3628,9 @@ Object.assign(__m, {  });
 },
 /* js/views/progress.js */ 21: function (__m, __req) {
 // Progress: weight trend chart, milestones, rate, activity history, waist, check-in history.
-const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(10);
+const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(11);
 const { weightChart, barChart } = __req(16);
-const store = __req(9);
+const store = __req(10);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
 const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
@@ -3483,7 +3673,8 @@ __m.default = {
       </div>
       <div class="card">
         <div class="card-head"><h2>Weight trend</h2><div class="segmented">${[['4w', '4 weeks'], ['12w', '12 weeks'], ['all', 'All']].map(([k, l]) => `<button type="button" class="${range === k ? 'on' : ''}" data-action="range" data-value="${k}">${l}</button>`).join('')}</div></div>
-        ${weightChart(shown, { goal: p.goalWeightKg, milestones: ms, conv, unitLabel: u === 'imperial' ? 'lb' : 'kg' })}
+        ${weightChart(shown, { goal: p.phase === 'maintain' ? null : p.goalWeightKg, band: p.phase === 'maintain' && state.maintainKg ? { lo: state.maintainKg - 2, hi: state.maintainKg + 2 } : null, milestones: p.phase === 'maintain' ? [] : ms, conv, unitLabel: u === 'imperial' ? 'lb' : 'kg' })}
+        ${p.phase === 'maintain' && state.maintainKg ? `<p style="font-size:.9rem;margin-top:6px"><strong>Maintenance:</strong> keep your trend between ${fmtWeight(state.maintainKg - 2, u)} and ${fmtWeight(state.maintainKg + 2, u)}. If it drifts above, the check-in starts a short reset plan.</p>` : ''}
         <p class="muted" style="font-size:.85rem;margin-top:6px">Dots are daily weigh-ins; the line is your smoothed trend. Water, salt, hormones and digestion move daily weight by 1–2 kg — the line shows what’s really happening.</p>
       </div>
       <div class="card"><h2>Milestones</h2><ul class="list">
@@ -3507,7 +3698,7 @@ __m.default = {
       </div>
       ${hide ? '' : `<div class="grid two">
         <div class="card"><h2>Weigh-ins</h2>
-          <form data-form="addWeight" class="row"><input type="date" name="date" value="${date}" max="${date}" style="width:160px"><div class="inline-inputs grow"><input type="number" name="w" step="0.1" inputmode="decimal" required placeholder="weight" aria-label="Weight"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div><button class="btn small primary">Add</button></form>
+          <form data-form="addWeight" class="row"><input type="date" name="date" value="${date}" max="${date}" required style="width:160px" aria-label="Date"><div class="inline-inputs grow"><input type="number" name="w" step="0.1" inputmode="decimal" required placeholder="weight" aria-label="Weight"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div><button class="btn small primary">Add</button></form>
           <table class="simple" style="margin-top:10px"><tr><th>Date</th><th class="right">Weight</th><th class="right">Trend</th><th></th></tr>
           ${series.filter((s) => s.kg != null).slice(-12).reverse().map((s) => `<tr><td>${fmtDate(s.date)}</td><td class="right">${fmtWeight(s.kg, u)}</td><td class="right muted">${fmtWeight(s.trend, u)}</td><td class="right"><button class="btn small ghost" data-action="delWeight" data-date="${s.date}" aria-label="Delete">${icon('trash')}</button></td></tr>`).join('')}
           </table></div>
@@ -3525,6 +3716,7 @@ __m.default = {
     addWeight(form, ev, ctx, data) {
       const u = ctx.state.profile.units === 'imperial' ? 'imperial' : 'metric';
       const kg = toKg(Number(data.w), u);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data.date || '') || data.date > store.today()) return ctx.toast('Please pick a date (today or earlier).');
       if (!(kg > 30 && kg < 400)) return ctx.toast('Please check that number.');
       ctx.update((st) => {
         st.weights = st.weights.filter((w) => w.date !== data.date).concat({ date: data.date, kg: round(kg, 0.01) }).sort((a, b) => (a.date < b.date ? -1 : 1));
@@ -3615,7 +3807,7 @@ function sustained(weights, today, trendKg, test) {
  * @param state app state (profile, weights, intake, checkins, prefs, kcalAdjust, tdeeOffset, …)
  * @param answers {adherence 1–5, hunger 1–5, energy 1–5, sleepHours, stress 1–5, drinksPerDay, barriers[], edFlags[]}
  */
-function weeklyReview(state, answers, today) {
+function weeklyReview(state, answers, today, opts = {}) {
   const p = state.profile;
   const recs = [];
   const weights = state.weights || [];
@@ -3629,6 +3821,12 @@ function weeklyReview(state, answers, today) {
   const onMeds = p.medical?.includes('glp1');
   const maintaining = p.phase === 'maintain';
   const breakActive = state.dietBreakUntil && today <= state.dietBreakUntil;
+  // Habits-only mode (pregnancy, eating-disorder flags…): no calorie, weight-rate or TDEE items at all.
+  const habitsOnly = !!opts.habitsOnly;
+  // Rule 6 "every 7 days": numeric adjustments are offered at most once a week, so repeating
+  // the check-in can't stack cuts.
+  const lastApplied = (state.checkins || []).map((c) => c.date).filter((d) => d <= today).sort().pop();
+  const tooSoon = lastApplied && daysBetween(lastApplied, today) < 7;
 
   // ----- Rule 25: safety re-screen (eating-disorder warning signs)
   if ((answers.edFlags || []).length) {
@@ -3643,7 +3841,7 @@ function weeklyReview(state, answers, today) {
   const formula = estimateTdee(p, trendKg).tdee;
   const currentTdee = formula + (state.tdeeOffset || 0);
   const obs = observedTdee(state.intake || {}, weights, today);
-  if (obs) {
+  if (obs && adherence >= 3) {
     const next = blendTdee(currentTdee, obs.value);
     if (Math.abs(next - currentTdee) >= 25) {
       recs.push({
@@ -3707,8 +3905,9 @@ function weeklyReview(state, answers, today) {
       const targets = dailyTargets(p, { weightKg: trendKg, kcalAdjust: state.kcalAdjust || 0, tdeeOffset: state.tdeeOffset || 0 });
       const atFloor = targets.kcal <= targets.floor + 20;
       const intro = 'Plateaus are expected: as you get lighter you need less energy, and appetite pushes back. First, a quick accuracy check — are oils, sauces, drinks and weekend meals being counted? Then pick one option for the next two weeks:';
-      recs.push({ id: 'plateau_info', type: 'info', priority: 1, title: `Plateau: ${fmt(Math.max(loss, 0))} kg/week for 3 weeks`, body: intro });
-      if (!atFloor) recs.push({ id: 'plateau_kcal', group: 'plateau', type: 'kcal', delta: -150, priority: 1, title: 'Option A: trim 150 kcal a day', body: 'A small reduction, still above your safe minimum.' });
+      recs.push({ id: 'plateau_info', type: 'info', priority: 1, title: `Plateau: ${fmt(Math.max(loss, 0))} kg/week for 3 weeks`, body: onMeds ? `${intro}\n(Because you take a weight-loss medicine, a calorie cut isn’t offered — talk to your prescriber about the plateau, and keep protein and strength sessions high.)` : intro });
+      // Rule 26: on appetite-lowering medicine, intake is often already low, so don't offer a further cut.
+      if (!atFloor && !onMeds) recs.push({ id: 'plateau_kcal', group: 'plateau', type: 'kcal', delta: -150, priority: 1, title: 'Option A: trim 150 kcal a day', body: 'A small reduction, still above your safe minimum.' });
       recs.push({ id: 'plateau_move', group: 'plateau', type: 'cardio', delta: +30, priority: 1, title: 'Option B: add 30 minutes of activity a week', body: 'About 5 extra minutes a day of walking or cycling.' });
       recs.push({ id: 'plateau_structure', group: 'plateau', type: 'prefs', apply: { variety: 'low', structure: true }, priority: 1, title: 'Option C: more structure', body: 'Repeat the same breakfasts and lunches (or use a protein shake as one meal). Fewer decisions makes intake more predictable.' });
       recs.push({ id: 'plateau_none', group: 'plateau', type: 'info', priority: 1, title: 'Decide later', body: 'Keep everything as it is for now. The plateau check will come up again next week.' });
@@ -3763,9 +3962,19 @@ function weeklyReview(state, answers, today) {
     recs.push({ id: 'energy', type: 'info', priority: 3, title: 'Energy is low', body: 'Make sure you are eating your full target (not less), sleeping enough and drinking water. If tiredness persists, see your doctor — anaemia, thyroid and medication effects are worth ruling out.' });
   }
 
-  if (!recs.length) recs.push({ id: 'steady', type: 'info', priority: 5, title: 'Steady week', body: 'Keep going with the current plan.' });
-  recs.sort((a, b) => a.priority - b.priority);
-  return { recs, rate, loss, pctWeek, trendKg, lostPct, observed: obs, weeksIn };
+  let out = recs;
+  const NUMERIC = new Set(['kcal', 'tdee', 'reset', 'break', 'cardio', 'steps']);
+  if (habitsOnly) {
+    out = out.filter((r) => !NUMERIC.has(r.type) && !r.group && !['plateau_info', 'plateau_adherence', 'on_track', 'data', 'slow_support', 'maintain'].includes(r.id));
+  }
+  if (tooSoon) {
+    out = out.filter((r) => !NUMERIC.has(r.type) && !r.group && r.id !== 'plateau_info' && r.type !== 'phase' && r.type !== 'flag');
+    out.unshift({ id: 'too_soon', type: 'info', priority: -0.5, title: `Your last check-in was ${daysBetween(lastApplied, today)} day(s) ago`, body: 'Plan changes are made once a week so each one has time to show its effect. Your answers are still saved, and the tips below still apply.' });
+  }
+  if (!out.length) out.push({ id: 'steady', type: 'info', priority: 5, title: 'Steady week', body: 'Keep going with the current plan.' });
+  out.sort((a, b) => a.priority - b.priority);
+  const recsOut = out;
+  return { recs: recsOut, rate, loss, pctWeek, trendKg, lostPct, observed: obs, weeksIn, tooSoon };
 }
 
 /** Apply accepted recommendations (pure: returns a new state and a list of what changed). */
@@ -3780,7 +3989,8 @@ function applyRecs(state, recs, today) {
         applied.push({ type: 'kcal', delta: r.delta });
         break;
       case 'reset':
-        s.kcalAdjust = clamp((s.kcalAdjust || 0) + r.delta, -500, 500);
+        // Temporary trim for two weeks (read by store.targets), then it lapses on its own.
+        s.resetAdjust = r.delta;
         s.resetUntil = addDays(today, 14);
         applied.push({ type: 'kcal', delta: r.delta });
         break;
@@ -3833,8 +4043,8 @@ Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
 /* js/views/checkin.js */ 23: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
-const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(10);
-const store = __req(9);
+const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(11);
+const store = __req(10);
 const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(22);
 const { habitById, MAX_ACTIVE } = __req(12);
 const { daysBetween, round } = __req(0);
@@ -3906,7 +4116,7 @@ function results(state) {
 }
 
 function stripNumbers(text) {
-  return text.replace(/[−+-]?\d[\d,.]*\s*(kcal(\/day)?|kg(\/week)?|%)/g, '').replace(/\s{2,}/g, ' ');
+  return text.replace(/[−+-]?\d[\d,.]*(\s*(→|to|–|-)\s*[−+-]?\d[\d,.]*)?\s*(kcal(\/day)?|kg(\/week)?|%)/g, '').replace(/\s{2,}/g, ' ');
 }
 
 __m.default = {
@@ -3937,7 +4147,7 @@ __m.default = {
         edFlags: data.edFlags || [],
         edScreened: !!data.edScreened,
       };
-      review = { answers, result: weeklyReview(s, answers, date) };
+      review = { answers, result: weeklyReview(s, answers, date, { habitsOnly: store.habitsOnly(s) }) };
       ctx.rerender();
       window.scrollTo(0, 0);
     },
@@ -4207,26 +4417,30 @@ Object.assign(__m, { LEARN_SECTIONS, LEARN, LEARN_BY_ID });
 },
 /* js/views/learn.js */ 25: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
-const { html, esc, icon } = __req(10);
+const { html, esc, icon } = __req(11);
 const { LEARN, LEARN_SECTIONS } = __req(24);
 
 let section = 'all';
+let openAll = false;
 
 __m.default = {
   render(state, params) {
     const focus = params[0];
+    if (focus && LEARN.some((c) => c.id === focus)) section = 'all';
     const cards = LEARN.filter((c) => section === 'all' || c.section === section);
     return html`${state.profile ? '' : '<a class="btn ghost small" href="#/start">' + icon('back') + 'Back</a>'}
       <h1>The evidence</h1>
       <p class="muted">Every feature in Habit Lab is based on guidelines, trials and reviews. Here’s what they say, in plain language, with links to the sources. The full research brief is in <code>RESEARCH.md</code> in the project.</p>
-      <div class="segmented" style="margin-bottom:14px">${[['all', 'All'], ...LEARN_SECTIONS.map((s) => [s, s])].map(([k, l]) => `<button type="button" class="${section === k ? 'on' : ''}" data-action="section" data-value="${esc(k)}">${esc(l)}</button>`)}</div>
+      <div class="row" style="margin-bottom:14px;align-items:flex-start"><div class="segmented">${[['all', 'All'], ...LEARN_SECTIONS.map((s) => [s, s])].map(([k, l]) => `<button type="button" class="${section === k ? 'on' : ''}" data-action="section" data-value="${esc(k)}">${esc(l)}</button>`)}</div><button type="button" class="btn small" data-action="toggleAll">${openAll ? 'Collapse all' : 'Expand all'}</button></div>
       ${cards.map((c) => `<article class="card learn-card" id="learn-${c.id}" ${focus === c.id ? 'style="border-color:var(--accent)"' : ''}>
         <span class="tag">${esc(c.section)}</span>
         <h3 style="margin-top:6px">${esc(c.title)}</h3>
         <p class="muted-2">${esc(c.summary)}</p>
-        <ul>${c.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
         ${c.app ? `<div class="notice ok" style="margin:10px 0 0">${icon('info')}<div><strong>In the app:</strong> ${esc(c.app)}</div></div>` : ''}
-        <div class="src">Sources: ${c.sources.map(([label, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`).join(' · ')}</div>
+        <details class="recipe" ${focus === c.id || openAll ? 'open' : ''}><summary>Show the evidence (${c.sources.length} source${c.sources.length === 1 ? '' : 's'})</summary>
+          <ul>${c.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>
+          <div class="src">Sources: ${c.sources.map(([label, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`).join(' · ')}</div>
+        </details>
       </article>`)}
       <p class="footer-note">General information only — not medical advice. Talk to your doctor about your own situation.</p>`;
   },
@@ -4234,9 +4448,14 @@ __m.default = {
     if (params[0]) root.querySelector(`#learn-${CSS.escape(params[0])}`)?.scrollIntoView({ block: 'start' });
   },
   actions: {
+    toggleAll(el, ev, ctx) {
+      openAll = !openAll;
+      ctx.rerender();
+    },
     section(el, ev, ctx) {
       section = el.dataset.value;
-      ctx.rerender();
+      if (location.hash.replace(/^#\/?/, '') !== 'learn') location.hash = '#/learn';
+      else ctx.rerender();
     },
   },
 };
@@ -4245,8 +4464,8 @@ Object.assign(__m, {  });
 },
 /* js/views/settings.js */ 26: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
-const { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(10);
-const store = __req(9);
+const { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(11);
+const store = __req(10);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
@@ -4283,7 +4502,7 @@ __m.default = {
       <form data-form="profile" class="card"><h2>About you</h2>
         <div class="grid two">
           <label class="field"><span>Units</span><select name="units"><option value="metric" ${u === 'metric' ? 'selected' : ''}>kg / cm</option><option value="imperial" ${u === 'imperial' ? 'selected' : ''}>lb / ft</option></select></label>
-          <label class="field"><span>Age</span><input type="number" name="age" value="${p.age}" min="18" max="100" required></label>
+          <label class="field"><span>Age</span><input type="number" name="age" value="${esc(p.age)}" min="18" max="100" required></label>
           <div class="field"><span class="field-label">Height (${fmtHeight(p.heightCm, u)})</span>${u === 'imperial' ? `<div class="inline-inputs"><input type="number" name="heightFt" value="${Math.floor(hIn / 12)}" min="3" max="8"><span class="unit">ft</span><input type="number" name="heightIn" value="${hIn % 12}" min="0" max="11"><span class="unit">in</span></div>` : `<input type="number" name="heightCm" value="${Math.round(p.heightCm)}" min="120" max="230">`}</div>
           <label class="field"><span>Goal weight</span><div class="inline-inputs"><input type="number" name="goal" step="0.1" value="${p.goalWeightKg ? round(weightNum(p.goalWeightKg, u), 0.1) : ''}"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div></label>
           <label class="field"><span>Activity (outside planned exercise)</span><select name="activity">${Object.entries(ACTIVITY_LEVELS).map(([k, a]) => `<option value="${k}" ${p.activity === k ? 'selected' : ''}>${a.label}</option>`).join('')}</select></label>
@@ -4316,7 +4535,7 @@ __m.default = {
         <fieldset><legend>Cardio types</legend>${chips('cardioPrefs', Object.fromEntries(Object.entries(CARDIO).map(([k, c]) => [k, c.label])), p.cardioPrefs)}</fieldset>
         <div class="grid two">
           <label class="field"><span>Session length</span><select name="sessionMinutes">${[15, 20, 30, 45].map((m) => `<option value="${m}" ${Number(p.sessionMinutes) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></label>
-          <label class="field"><span>Baseline daily steps</span><input type="number" name="baselineSteps" value="${p.baselineSteps ?? ''}" min="0" max="40000" step="100"></label>
+          <label class="field"><span>Baseline daily steps</span><input type="number" name="baselineSteps" value="${esc(p.baselineSteps ?? '')}" min="0" max="40000" step="100"></label>
         </div>
         <div class="row"><button class="btn primary">Save</button><button type="button" class="btn ghost danger" data-action="resetProgress">Reset exercise levels</button></div>
       </form>
@@ -4341,7 +4560,10 @@ __m.default = {
         const oldU = p.units;
         p.units = data.units;
         p.age = Number(data.age) || p.age;
-        if (oldU === 'imperial' && data.heightFt) p.heightCm = heightFromFtIn(data.heightFt, data.heightIn);
+        if (oldU === 'imperial' && data.heightFt) {
+          const cm = heightFromFtIn(data.heightFt, data.heightIn);
+          if (Math.round(cmToIn(cm)) !== Math.round(cmToIn(p.heightCm))) p.heightCm = cm; // only if actually changed
+        }
         else if (oldU !== 'imperial' && data.heightCm) p.heightCm = Number(data.heightCm);
         if (data.goal) {
           const g = toKg(Number(data.goal), oldU === 'imperial' ? 'imperial' : 'metric');
@@ -4477,8 +4699,8 @@ Object.assign(__m, {  });
 },
 /* js/views/shopping.js */ 27: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
-const { html, esc, icon } = __req(10);
-const store = __req(9);
+const { html, esc, icon } = __req(11);
+const store = __req(10);
 const { shoppingList, formatQty } = __req(5);
 const { weekStart } = __req(0);
 const { dayIndex } = __req(13);
@@ -4523,8 +4745,8 @@ Object.assign(__m, {  });
 },
 /* js/app.js */ 28: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
-const store = __req(9);
-const { icon, formData } = __req(10);
+const store = __req(10);
+const { icon, formData } = __req(11);
 const onboarding = __req(15).default;
 const todayView = __req(17).default;
 const meals = __req(18).default;

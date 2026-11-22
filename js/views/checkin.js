@@ -72,7 +72,7 @@ function results(state) {
 }
 
 function stripNumbers(text) {
-  return text.replace(/[−+-]?\d[\d,.]*\s*(kcal(\/day)?|kg(\/week)?|%)/g, '').replace(/\s{2,}/g, ' ');
+  return text.replace(/[−+-]?\d[\d,.]*(\s*(→|to|–|-)\s*[−+-]?\d[\d,.]*)?\s*(kcal(\/day)?|kg(\/week)?|%)/g, '').replace(/\s{2,}/g, ' ');
 }
 
 export default {
@@ -103,7 +103,7 @@ export default {
         edFlags: data.edFlags || [],
         edScreened: !!data.edScreened,
       };
-      review = { answers, result: weeklyReview(s, answers, date) };
+      review = { answers, result: weeklyReview(s, answers, date, { habitsOnly: store.habitsOnly(s) }) };
       ctx.rerender();
       window.scrollTo(0, 0);
     },
