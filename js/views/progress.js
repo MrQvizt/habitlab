@@ -44,7 +44,8 @@ export default {
       </div>
       <div class="card">
         <div class="card-head"><h2>Weight trend</h2><div class="segmented">${[['4w', '4 weeks'], ['12w', '12 weeks'], ['all', 'All']].map(([k, l]) => `<button type="button" class="${range === k ? 'on' : ''}" data-action="range" data-value="${k}">${l}</button>`).join('')}</div></div>
-        ${weightChart(shown, { goal: p.goalWeightKg, milestones: ms, conv, unitLabel: u === 'imperial' ? 'lb' : 'kg' })}
+        ${weightChart(shown, { goal: p.phase === 'maintain' ? null : p.goalWeightKg, band: p.phase === 'maintain' && state.maintainKg ? { lo: state.maintainKg - 2, hi: state.maintainKg + 2 } : null, milestones: p.phase === 'maintain' ? [] : ms, conv, unitLabel: u === 'imperial' ? 'lb' : 'kg' })}
+        ${p.phase === 'maintain' && state.maintainKg ? `<p style="font-size:.9rem;margin-top:6px"><strong>Maintenance:</strong> keep your trend between ${fmtWeight(state.maintainKg - 2, u)} and ${fmtWeight(state.maintainKg + 2, u)}. If it drifts above, the check-in starts a short reset plan.</p>` : ''}
         <p class="muted" style="font-size:.85rem;margin-top:6px">Dots are daily weigh-ins; the line is your smoothed trend. Water, salt, hormones and digestion move daily weight by 1–2 kg — the line shows what’s really happening.</p>
       </div>
       <div class="card"><h2>Milestones</h2><ul class="list">

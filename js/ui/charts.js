@@ -6,13 +6,14 @@ import { daysBetween, addDays } from '../engine/util.js';
  * Weight chart: raw weigh-ins as dots, smoothed trend as a line, optional goal line and milestone ticks.
  * series: [{date, kg|null, trend}] (from trendSeries), conv: kg -> display units
  */
-export function weightChart(series, { goal = null, milestones = [], conv = (x) => x, unitLabel = 'kg', width = 640, height = 240 } = {}) {
+export function weightChart(series, { goal = null, band = null, milestones = [], conv = (x) => x, unitLabel = 'kg', width = 640, height = 240 } = {}) {
   if (series.length < 2) return '<div class="empty">Log a few weigh-ins to see your trend line.</div>';
   const pad = { l: 44, r: 12, t: 12, b: 26 };
   const W = width - pad.l - pad.r;
   const H = height - pad.t - pad.b;
   const vals = series.flatMap((p) => [p.trend, p.kg].filter((v) => v != null)).map(conv);
   if (goal != null) vals.push(conv(goal));
+  if (band) vals.push(conv(band.lo), conv(band.hi));
   let lo = Math.min(...vals);
   let hi = Math.max(...vals);
   const span = Math.max(hi - lo, 2);
@@ -40,7 +41,10 @@ export function weightChart(series, { goal = null, milestones = [], conv = (x) =
     .filter((m) => conv(m.weightKg) >= lo && conv(m.weightKg) <= hi)
     .map((m) => `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y(m.weightKg).toFixed(1)}" y2="${y(m.weightKg).toFixed(1)}" class="milestone"/><text x="${pad.l + 4}" y="${(y(m.weightKg) - 4).toFixed(1)}" class="axis">−${m.pct}%</text>`)
     .join('');
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Weight trend chart">${grid}${ms}${goalLine}${dots}<path d="${trendPath}" class="trend"/>${xlabels}</svg>`;
+  const bandRect = band
+    ? `<rect x="${pad.l}" width="${W}" y="${y(band.hi).toFixed(1)}" height="${(y(band.lo) - y(band.hi)).toFixed(1)}" class="band"/><text x="${width - pad.r - 4}" y="${(y(band.hi) + 12).toFixed(1)}" class="axis" text-anchor="end">maintenance band</text>`
+    : '';
+  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Weight trend chart">${bandRect}${grid}${ms}${goalLine}${dots}<path d="${trendPath}" class="trend"/>${xlabels}</svg>`;
 }
 
 /** Simple bar chart: items [{label, value}], optional target line. */

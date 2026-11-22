@@ -254,6 +254,7 @@ legend { font-weight: 600; font-size: 0.92rem; margin-bottom: 6px; padding: 0; }
 .chart .dot { fill: var(--chart-dot); }
 .chart .goal { stroke: var(--warm); stroke-dasharray: 5 4; stroke-width: 1.5; }
 .chart .goal-label { fill: var(--warm); }
+.chart .band { fill: color-mix(in srgb, var(--accent) 12%, transparent); }
 .chart .milestone { stroke: var(--line); stroke-dasharray: 2 4; }
 .chart .barfill { fill: color-mix(in srgb, var(--accent) 45%, var(--surface-2)); }
 .chart .barfill.met { fill: var(--accent); }
