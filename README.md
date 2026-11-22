@@ -51,7 +51,7 @@ tools/       build.mjs: zero-dependency bundler → dist/habit-lab.html
 ## Tests
 
 ```bash
-node --test tests/engine.test.mjs           # 25 engine tests, including simulated multi-week users
+node --test tests/*.test.mjs                # 31 engine + store tests, incl. simulated multi-week users
 python3 -m http.server 8765 &               # then, with Playwright available:
 node tests/e2e.cjs http://localhost:8765/   # onboarding → every page → session → check-in; no console errors, no overflow
 node tests/demo.cjs http://localhost:8765/  # demo data → plateau check-in flow
