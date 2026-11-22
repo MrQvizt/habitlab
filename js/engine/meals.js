@@ -8,10 +8,18 @@ export const SLOT_SPLIT = {
   3: { breakfast: 0.27, lunch: 0.33, dinner: 0.4 },
   4: { breakfast: 0.25, lunch: 0.3, dinner: 0.33, snack: 0.12 },
   5: { breakfast: 0.23, lunch: 0.28, dinner: 0.31, snack: 0.09, snack2: 0.09 },
+  6: { breakfast: 0.21, lunch: 0.26, dinner: 0.29, snack: 0.08, snack2: 0.08, snack3: 0.08 },
 };
-export const SLOT_LABEL = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack', snack2: 'Snack' };
+export const SLOT_LABEL = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack', snack2: 'Snack', snack3: 'Snack' };
 export const MIN_SCALE = 0.6;
-export const MAX_SCALE = 1.8;
+export const MAX_SCALE = 2.2; // large portions are fine for high calorie targets (e.g. 3,000 kcal)
+/**
+ * Soft fibre ceiling: plenty for fullness (guideline ≈14 g per 1,000 kcal, ≥25 g) without the bloating
+ * that a sudden very large jump can cause. ≈18 g per 1,000 kcal, between 35 and 60 g.
+ */
+export function fibreCeiling(kcal) {
+  return Math.min(60, Math.max(35, (kcal / 1000) * 18));
+}
 
 const cache = new Map();
 /** Nutrition for one base serving of a recipe. */
@@ -51,7 +59,7 @@ export function allowed(recipe, prefs) {
 }
 
 export function candidates(slot, prefs, { weekend = false } = {}) {
-  const base = slot === 'snack2' ? 'snack' : slot;
+  const base = slot.startsWith('snack') ? 'snack' : slot;
   const maxMin = weekend ? prefs.maxMinutesWeekend ?? 45 : prefs.maxMinutesWeekday ?? 30;
   const pool = RECIPES.filter((r) => r.slot === base && allowed(r, prefs));
   const timed = pool.filter((r) => r.minutes <= maxMin && (!prefs.noCookLunch || base !== 'lunch' || r.nocook || r.batch));
@@ -63,11 +71,16 @@ export function candidates(slot, prefs, { weekend = false } = {}) {
   return pool;
 }
 
-function score(recipe, { recent, favorites, rand, proteinNeed, weekCount }) {
+function score(recipe, { recent, favorites, rand, proteinNeed, weekCount, fibreRoom, scale = 1 }) {
   const n = recipeNutrition(recipe);
   const proteinDensity = (n.p * 4) / n.kcal; // share of calories from protein
   const fibreDensity = n.fib / (n.kcal / 100);
   let s = proteinDensity * 4 * proteinNeed + fibreDensity * 0.5;
+  // Fibre is good up to a ceiling; beyond it, penalise (rapid big increases cause GI discomfort).
+  if (fibreRoom != null) {
+    const over = n.fib * scale - fibreRoom;
+    if (over > 0) s -= over * 0.35;
+  }
   if (favorites.includes(recipe.id)) s += 0.8;
   const lastUsed = recent.get(recipe.id);
   if (lastUsed != null) s -= lastUsed <= 1 ? 3 : 1.2; // used in the last day or two
@@ -86,7 +99,7 @@ function choose(slot, slotKcal, prefs, ctx) {
     const scale = slotKcal / n.kcal;
     // Penalise recipes that must be stretched far from a natural portion.
     const stretch = scale < MIN_SCALE || scale > MAX_SCALE ? 2.5 : Math.abs(Math.log(scale)) * 0.8;
-    const s = score(r, ctx) - stretch;
+    const s = score(r, { ...ctx, scale: clamp(scale, MIN_SCALE, MAX_SCALE) }) - stretch;
     if (s > bestScore) {
       bestScore = s;
       best = r;
@@ -100,12 +113,16 @@ function choose(slot, slotKcal, prefs, ctx) {
  * @param ctx {rand, recent: Map(recipeId -> daysAgo), favorites, weekend, leftovers: {lunch: recipeId}}
  */
 export function planDay(targets, prefs, ctx) {
-  const mealsPerDay = clamp(prefs.mealsPerDay || (targets.kcal >= 2300 ? 5 : 4), 3, 5);
+  // Very high targets get a sixth eating occasion so portions stay realistic.
+  const auto = targets.kcal >= 3200 ? 6 : targets.kcal >= 2300 ? 5 : 4;
+  const mealsPerDay = targets.kcal >= 3200 ? Math.max(auto, prefs.mealsPerDay || 0) : clamp(prefs.mealsPerDay || auto, 3, 5);
   const split = SLOT_SPLIT[mealsPerDay];
   const slots = Object.keys(split);
   const meals = [];
   let proteinSoFar = 0;
   let kcalSoFar = 0;
+  let fibreSoFar = 0;
+  const fibreMax = fibreCeiling(targets.kcal);
   const used = new Set();
   for (const slot of slots) {
     const slotKcal = targets.kcal * split[slot];
@@ -119,7 +136,9 @@ export function planDay(targets, prefs, ctx) {
     if (!recipe) {
       const recent = new Map(ctx.recent);
       used.forEach((id) => recent.set(id, 0));
-      recipe = choose(slot, slotKcal, prefs, { ...ctx, recent, proteinNeed });
+      // Fibre room for this slot: its share of the ceiling, plus anything unused by earlier slots.
+      const fibreRoom = Math.max(0, fibreMax - fibreSoFar) * (split[slot] / slots.slice(slots.indexOf(slot)).reduce((a, k) => a + split[k], 0));
+      recipe = choose(slot, slotKcal, prefs, { ...ctx, recent, proteinNeed, fibreRoom });
     }
     if (!recipe) continue;
     used.add(recipe.id);
@@ -127,15 +146,41 @@ export function planDay(targets, prefs, ctx) {
     const n = scaledNutrition(recipe, scale);
     proteinSoFar += n.p;
     kcalSoFar += n.kcal;
+    fibreSoFar += n.fib;
     meals.push({ slot, recipeId: recipe.id, scale, leftover: slot === 'lunch' && ctx.leftovers?.lunch === recipe.id });
   }
-  // Final pass: nudge all portions so the day total lands on target.
-  const total = meals.reduce((a, m) => a + scaledNutrition(byId(m.recipeId), m.scale).kcal, 0);
-  if (total > 0) {
-    const k = targets.kcal / total;
-    for (const m of meals) m.scale = round(clamp(m.scale * k, MIN_SCALE * 0.9, MAX_SCALE * 1.1), 0.05);
+  fitToTarget(meals, targets.kcal);
+  // Protein top-up: on small calorie budgets the day can fall short of the protein minimum.
+  // Try swapping snacks (then breakfast) for the most protein-dense option that's allowed.
+  const minP = targets.proteinMinG ?? targets.proteinG * 0.85;
+  if (dayTotals(meals).p < minP) {
+    const order = meals.filter((m) => m.slot.startsWith('snack')).concat(meals.filter((m) => m.slot === 'breakfast'));
+    for (const m of order) {
+      if (dayTotals(meals).p >= minP || ctx.locked?.[m.slot] || m.leftover) continue;
+      const inDay = new Set(meals.map((x) => x.recipeId));
+      const options = candidates(m.slot, prefs, ctx)
+        .filter((r) => !inDay.has(r.id))
+        .sort((a, b) => recipeNutrition(b).p / recipeNutrition(b).kcal - recipeNutrition(a).p / recipeNutrition(a).kcal)
+        .slice(0, 2);
+      for (const r of options) {
+        const trial = meals.map((x) => (x === m ? { ...x, recipeId: r.id } : { ...x }));
+        fitToTarget(trial, targets.kcal);
+        if (dayTotals(trial).p > dayTotals(meals).p + 3) {
+          meals.splice(0, meals.length, ...trial);
+          break;
+        }
+      }
+    }
   }
   return meals;
+}
+
+/** Scale portions so the day's total lands on the calorie target (keeping each slot's share). */
+function fitToTarget(meals, kcal) {
+  const total = meals.reduce((a, m) => a + scaledNutrition(byId(m.recipeId), m.scale).kcal, 0);
+  if (total <= 0) return;
+  const k = kcal / total;
+  for (const m of meals) m.scale = round(clamp(m.scale * k, MIN_SCALE * 0.9, MAX_SCALE * 1.1), 0.05);
 }
 
 export function byId(id) {

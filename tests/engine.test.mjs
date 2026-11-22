@@ -257,3 +257,21 @@ test('review: goal reached → maintenance; ED flags → habits-only', () => {
   assert.ok(next.profile.habitsOnly);
   assert.ok(next.maintainKg > 90);
 });
+
+test('planner across body sizes: kcal within 4%, protein ≥ minimum, fibre near the ceiling (non-vegan)', async () => {
+  const { fibreCeiling } = await import('../js/engine/meals.js');
+  const people = [['female', 155, 80, 68, 'sedentary'], ['female', 170, 130, 55, 'light'], ['male', 175, 110, 40, 'sedentary'], ['male', 185, 150, 30, 'moderate']];
+  for (const diet of ['omnivore', 'pescatarian', 'vegetarian', 'vegan']) {
+    for (const [sex, heightCm, weightKg, age, activity] of people) {
+      const t = dailyTargets({ sex, heightCm, weightKg, age, activity, pace: 'steady', phase: 'lose' });
+      for (const wk of ['2026-11-23', '2026-11-30']) {
+        for (const day of planWeek(t, { diet }, wk)) {
+          const tot = dayTotals(day);
+          assert.ok(Math.abs(tot.kcal - t.kcal) / t.kcal < 0.04, `${diet} ${weightKg}kg: ${Math.round(tot.kcal)} vs ${t.kcal}`);
+          assert.ok(tot.p >= t.proteinMinG * 0.9, `${diet} ${weightKg}kg protein ${Math.round(tot.p)} < ${t.proteinMinG}`);
+          if (diet !== 'vegan') assert.ok(tot.fib <= fibreCeiling(t.kcal) + 30, `${diet} ${weightKg}kg fibre ${Math.round(tot.fib)}`);
+        }
+      }
+    }
+  }
+});

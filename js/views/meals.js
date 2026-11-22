@@ -14,7 +14,7 @@ function browser(state, slot, di) {
   const date = store.today();
   const wk = weekStart(date);
   const showNumbers = !store.habitsOnly(state);
-  const base = slot === 'snack2' ? 'snack' : slot;
+  const base = slot.startsWith('snack') ? 'snack' : slot;
   const allowedIds = new Set(candidates(slot, { ...state.prefs, maxMinutesWeekday: 999, maxMinutesWeekend: 999, budget: 'flexible' }).map((r) => r.id));
   const list = RECIPES.filter((r) => r.slot === base && allowedIds.has(r.id));
   const u = state.profile.units === 'imperial' ? 'imperial' : 'metric';
@@ -86,6 +86,9 @@ export default {
         <li><strong>Mostly minimally processed:</strong> in a controlled trial, people ate ~500 kcal/day more on ultra-processed food without noticing.</li>
         <li><strong>Repeats and leftovers on purpose:</strong> fewer decisions makes the plan easier to follow — and following it is what works.</li>
       </ul></div>`;
+  },
+  after(root) {
+    root.querySelector('.daytabs a.on')?.scrollIntoView({ block: 'nearest', inline: 'center' });
   },
   actions: {
     ate(el, ev, ctx) {
