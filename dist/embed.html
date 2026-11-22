@@ -899,6 +899,21 @@ const RECIPES = [
     [['corn_tortilla', 52], ['egg', 100], ['egg_white', 60], ['black_beans', 60], ['salsa', 40], ['avocado', 30]],
     ['Warm beans in a pan; scramble eggs and whites.', 'Pile into warmed tortillas with salsa and avocado.']),
 
+  R('b_shakshuka', 'Shakshuka with feta', 'breakfast', 20, 1,
+    [['egg', 100], ['canned_tomato', 200], ['pepper', 75], ['onion', 50], ['feta', 20], ['ww_bread', 35], ['olive_oil', 4]],
+    ['Soften onion and pepper in the oil with cumin and paprika.', 'Add tomatoes; simmer 8 minutes until thick.', 'Make two wells, crack in the eggs, cover and cook 5–6 minutes. Top with feta; serve with bread.']),
+  R('b_cottage_pancakes', 'Oat & cottage cheese pancakes', 'breakfast', 15, 1,
+    [['oats', 40], ['cottage_cheese', 120], ['egg', 50], ['egg_white', 60], ['berries', 100]],
+    ['Blend oats, cottage cheese, egg and egg whites into a batter.', 'Cook small pancakes in a non-stick pan, 2 minutes each side.', 'Top with berries.']),
+  R('b_egg_muffins', 'Make-ahead veggie egg muffins', 'breakfast', 25, 1,
+    [['egg', 100], ['egg_white', 100], ['spinach', 40], ['pepper', 60], ['cheddar_light', 15], ['ww_bread', 35]],
+    ['Whisk eggs and whites; stir in chopped spinach, pepper and cheese.', 'Pour into a muffin tin; bake at 180 °C / 350 °F for 18–20 minutes.', 'Keep 4 days in the fridge. Serve with toast.'],
+    { batch: true }),
+  R('b_chia_pudding', 'Mango chia pudding (vegan)', 'breakfast', 5, 2,
+    [['chia', 25], ['soy_milk', 200], ['soy_yogurt', 100], ['mango', 100], ['pea_protein', 15]],
+    ['Whisk chia, protein powder and soy milk; rest 5 minutes and whisk again.', 'Refrigerate overnight. Top with soy yogurt and mango.'],
+    { nocook: true, batch: true }),
+
   // ---------- Lunch ----------
   R('l_chicken_wrap', 'Chicken salad wrap', 'lunch', 8, 2,
     [['chicken_breast', 120], ['ww_wrap', 45], ['hummus', 30], ['salad_leaves', 40], ['tomato', 60], ['cucumber', 50], ['greek_yogurt', 40]],
@@ -952,6 +967,21 @@ const RECIPES = [
   R('l_shrimp_salad', 'Shrimp & avocado salad', 'lunch', 10, 3,
     [['shrimp', 150], ['salad_leaves', 60], ['avocado', 50], ['cherry_tomato', 80], ['corn', 40], ['quinoa', 80], ['lemon', 10]],
     ['Pan-cook shrimp 2–3 minutes with garlic.', 'Toss with leaves, tomatoes, corn and quinoa.', 'Top with avocado and lemon.']),
+
+  R('l_greek_salad_chicken', 'Greek salad with chicken', 'lunch', 10, 2,
+    [['chicken_breast', 120], ['cucumber', 100], ['tomato', 120], ['onion', 20], ['feta', 30], ['salad_leaves', 40], ['ww_pita', 60], ['olive_oil', 6], ['lemon', 10]],
+    ['Slice batch-cooked chicken.', 'Toss cucumber, tomato, onion and leaves with oil, lemon and oregano.', 'Top with chicken and crumbled feta; pita on the side.']),
+  R('l_bibimbap_bowl', 'Tofu bibimbap bowl', 'lunch', 20, 1,
+    [['brown_rice', 120], ['tofu', 120], ['spinach', 60], ['carrot', 60], ['mushrooms', 60], ['egg', 50], ['kimchi', 40], ['soy_sauce', 10], ['sesame_oil', 4]],
+    ['Pan-fry tofu cubes in sesame oil; set aside.', 'Quickly sauté spinach, carrot and mushrooms.', 'Serve over rice with tofu, a fried egg, kimchi and soy sauce.']),
+  R('l_tuna_wrap', 'Tuna & sweetcorn wrap', 'lunch', 5, 1,
+    [['tuna_can', 100], ['greek_yogurt', 40], ['corn', 40], ['ww_wrap', 45], ['salad_leaves', 30], ['cucumber', 60], ['apple', 150]],
+    ['Mix tuna, yogurt, corn, lemon and pepper.', 'Fill the wrap with leaves, cucumber and the tuna mix.', 'Apple on the side.'],
+    { nocook: true }),
+  R('l_black_bean_soup', 'Smoky black bean soup', 'lunch', 25, 1,
+    [['black_beans', 180], ['canned_tomato', 120], ['onion', 60], ['pepper', 75], ['stock', 250], ['olive_oil', 5], ['greek_yogurt', 50]],
+    ['Soften onion and pepper in oil with cumin and smoked paprika.', 'Add beans, tomatoes and stock; simmer 15 minutes, then blend half.', 'Top with yogurt. Freezes well.'],
+    { batch: true }),
 
   // ---------- Dinner ----------
   R('d_chicken_stirfry', 'Garlic chicken stir-fry', 'dinner', 20, 2,
@@ -1022,6 +1052,28 @@ const RECIPES = [
     ['Soften onion and carrot in oil with garlic and rosemary.', 'Add beans, tomatoes and stock; simmer 15 minutes.', 'Stir in greens; serve with bread and parmesan.'],
     { batch: true }),
 
+  R('d_dal', 'Red lentil dal with spinach & rice', 'dinner', 30, 1,
+    [['red_lentils_dry', 70], ['onion', 60], ['canned_tomato', 120], ['spinach', 80], ['curry_paste', 10], ['brown_rice', 120], ['soy_yogurt', 60]],
+    ['Fry onion with curry paste (or cumin, turmeric and garlic).', 'Add lentils, tomatoes and 400 ml water; simmer 20 minutes.', 'Stir in spinach. Serve with rice and a spoon of yogurt.'],
+    { batch: true }),
+  R('d_teriyaki_salmon', 'Teriyaki salmon, rice & greens', 'dinner', 20, 3,
+    [['salmon', 120], ['brown_rice', 120], ['broccoli', 150], ['soy_sauce', 15], ['honey', 6], ['garlic', 4]],
+    ['Mix soy sauce, honey and grated garlic.', 'Roast salmon at 200 °C / 400 °F for 12 minutes, brushing with the sauce.', 'Serve with rice and steamed broccoli.']),
+  R('d_turkey_burger', 'Turkey burger with sweet potato wedges', 'dinner', 35, 2,
+    [['turkey_mince', 130], ['ww_bread', 50], ['sweet_potato', 180], ['salad_leaves', 30], ['tomato', 60], ['olive_oil', 5]],
+    ['Toss sweet potato wedges in the oil and roast at 210 °C / 410 °F for 25 minutes.', 'Shape turkey into a patty with herbs; pan-cook 5 minutes per side.', 'Serve in a bun with leaves and tomato.']),
+  R('d_stuffed_peppers', 'Bean & quinoa stuffed peppers', 'dinner', 40, 1,
+    [['pepper', 300], ['quinoa', 120], ['black_beans', 100], ['canned_tomato', 100], ['corn', 40], ['cheddar_light', 25]],
+    ['Halve peppers and roast 10 minutes at 200 °C / 400 °F.', 'Mix quinoa, beans, tomatoes, corn and cumin; fill the peppers.', 'Top with cheese and bake 15 minutes more.'],
+    { batch: true }),
+  R('d_shrimp_noodles', 'Garlic shrimp stir-fried noodles', 'dinner', 15, 3,
+    [['shrimp', 150], ['rice_noodles', 150], ['stirfry_veg', 200], ['soy_sauce', 15], ['garlic', 8], ['sesame_oil', 5]],
+    ['Cook noodles; drain.', 'Stir-fry garlic and shrimp in sesame oil for 2 minutes; add vegetables for 3.', 'Toss in the noodles and soy sauce.']),
+  R('d_chicken_curry', 'Lighter chicken tikka curry', 'dinner', 30, 2,
+    [['chicken_breast', 140], ['greek_yogurt', 60], ['canned_tomato', 150], ['onion', 60], ['curry_paste', 15], ['spinach', 50], ['brown_rice', 120]],
+    ['Brown diced chicken with onion and curry paste.', 'Add tomatoes; simmer 15 minutes.', 'Off the heat, stir in yogurt and spinach. Serve with rice.'],
+    { batch: true }),
+
   // ---------- Snacks ----------
   R('s_yogurt_berries', 'Greek yogurt & berries', 'snack', 2, 1,
     [['greek_yogurt', 170], ['berries', 80]], ['Top yogurt with berries.'], { nocook: true }),
@@ -1053,6 +1105,10 @@ const RECIPES = [
     [['tuna_can', 60], ['rye_crispbread', 20], ['cucumber', 40]], ['Mix tuna with lemon and pepper; pile onto crispbreads.'], { nocook: true }),
   R('s_roast_chickpeas', 'Crunchy roasted chickpeas', 'snack', 30, 1,
     [['chickpeas', 80], ['olive_oil', 3]], ['Pat chickpeas dry, toss with oil and spices, roast at 200 °C for 25 minutes.'], { batch: true }),
+  R('s_skyr_cereal', 'Yogurt with oats & cinnamon', 'snack', 2, 1,
+    [['greek_yogurt', 150], ['oats', 15], ['banana', 50]], ['Top yogurt with raw oats, sliced banana and cinnamon.'], { nocook: true }),
+  R('s_tofu_bites', 'Crispy soy tofu bites', 'snack', 15, 1,
+    [['tofu', 120], ['soy_sauce', 5]], ['Cube tofu, toss with soy sauce and bake or air-fry at 200 °C for 12 minutes.'], { batch: true }),
 ];
 
 Object.assign(__m, { RECIPES });
@@ -1896,6 +1952,7 @@ function sanitize(s) {
   s.intake = dateMap(s.intake, (v) => num(v, 0, 20000));
   s.steps = dateMap(s.steps, (v) => num(v, 0, 200000));
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
+  s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
   s.kcalAdjust = num(s.kcalAdjust, -500, 500, 0);
   s.tdeeOffset = num(s.tdeeOffset, -1500, 1500, 0);
   s.calcWeightKg = num(s.calcWeightKg, 30, 400, null) ?? undefined;
@@ -2984,6 +3041,21 @@ function habitsCard(state, date) {
     }).join('')}</ul></div>`;
 }
 
+function firstWeek(state, date) {
+  if (state.flags?.firstWeekDone || store.weeksSinceStart(state, date) > 0 || state.profile.demo) return '';
+  const hide = store.habitsOnly(state);
+  const steps = [
+    hide ? null : ['Weigh in each morning', 'Same time, after the bathroom. You need about 4 weigh-ins before the trend means anything.', state.weights.length >= 4],
+    ['Tick off what you eat', 'Rough is fine. Mark meals as eaten, skipped or “something else”.', Object.values(state.mealLog || {}).some((d) => Object.keys(d).length)],
+    ['Do one easy strength session', 'Week 1 has a single short session — it should feel easy.', Object.values(state.workouts.log || {}).some((l) => l.some((x) => x.kind === 'strength'))],
+    ['Make one habit specific', 'Edit its cue so it matches something you really do every day.', state.habits.active.some((a) => a.cue !== (habitById(a.id)?.cue))],
+    ['Do your first check-in in 7 days', 'That is when the plan starts adjusting to you.', false],
+  ].filter(Boolean);
+  return `<div class="card" style="border-color:var(--accent)"><div class="card-head"><h2>Your first week</h2><button class="btn small ghost" data-action="dismissFirstWeek">Hide</button></div>
+    <p class="muted" style="font-size:.9rem">Small and consistent beats perfect. Here’s all you need to do:</p>
+    <ul class="list">${steps.map(([t, d, done]) => `<li class="habit-item"><span class="check ${done ? 'on' : ''}" aria-hidden="true">${icon('check')}</span><div class="grow"><strong>${t}</strong><p>${d}</p></div></li>`).join('')}</ul></div>`;
+}
+
 function banners(state, date) {
   const out = [safetyNotices(state)];
   if (state.profile.demo) out.push(`<div class="notice info">${icon('info')}<div class="grow">You’re exploring <strong>demo data</strong>. <button class="btn small" data-action="endDemo">Start my own plan</button></div></div>`);
@@ -3002,6 +3074,7 @@ __m.default = {
     const showNumbers = !store.habitsOnly(state);
     return html`<h1>${greeting()}</h1><p class="muted">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · week ${store.weeksSinceStart(state, date) + 1}</p>
       ${banners(state, date)}
+      ${firstWeek(state, date)}
       <div class="grid two">
         <div>${showNumbers ? weighCard(state, date, u) : ''}${habitsCard(state, date)}${moveCard(state, date)}</div>
         <div>${foodCard(state, date, u, showNumbers)}</div>
@@ -3095,6 +3168,12 @@ __m.default = {
         return st;
       });
       ctx.toast('Nice work. Every session counts.');
+    },
+    dismissFirstWeek(el, ev, ctx) {
+      ctx.update((st) => {
+        st.flags = { ...(st.flags || {}), firstWeekDone: true };
+        return st;
+      });
     },
     async endDemo(el, ev, ctx) {
       if (!(await ctx.confirm('Clear the demo data and set up your own plan?', { ok: 'Start my own plan' }))) return;

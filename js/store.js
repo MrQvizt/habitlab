@@ -138,6 +138,7 @@ export function sanitize(s) {
   s.intake = dateMap(s.intake, (v) => num(v, 0, 20000));
   s.steps = dateMap(s.steps, (v) => num(v, 0, 200000));
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
+  s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
   s.kcalAdjust = num(s.kcalAdjust, -500, 500, 0);
   s.tdeeOffset = num(s.tdeeOffset, -1500, 1500, 0);
   s.calcWeightKg = num(s.calcWeightKg, 30, 400, null) ?? undefined;

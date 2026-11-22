@@ -107,6 +107,21 @@ function habitsCard(state, date) {
     }).join('')}</ul></div>`;
 }
 
+function firstWeek(state, date) {
+  if (state.flags?.firstWeekDone || store.weeksSinceStart(state, date) > 0 || state.profile.demo) return '';
+  const hide = store.habitsOnly(state);
+  const steps = [
+    hide ? null : ['Weigh in each morning', 'Same time, after the bathroom. You need about 4 weigh-ins before the trend means anything.', state.weights.length >= 4],
+    ['Tick off what you eat', 'Rough is fine. Mark meals as eaten, skipped or “something else”.', Object.values(state.mealLog || {}).some((d) => Object.keys(d).length)],
+    ['Do one easy strength session', 'Week 1 has a single short session — it should feel easy.', Object.values(state.workouts.log || {}).some((l) => l.some((x) => x.kind === 'strength'))],
+    ['Make one habit specific', 'Edit its cue so it matches something you really do every day.', state.habits.active.some((a) => a.cue !== (habitById(a.id)?.cue))],
+    ['Do your first check-in in 7 days', 'That is when the plan starts adjusting to you.', false],
+  ].filter(Boolean);
+  return `<div class="card" style="border-color:var(--accent)"><div class="card-head"><h2>Your first week</h2><button class="btn small ghost" data-action="dismissFirstWeek">Hide</button></div>
+    <p class="muted" style="font-size:.9rem">Small and consistent beats perfect. Here’s all you need to do:</p>
+    <ul class="list">${steps.map(([t, d, done]) => `<li class="habit-item"><span class="check ${done ? 'on' : ''}" aria-hidden="true">${icon('check')}</span><div class="grow"><strong>${t}</strong><p>${d}</p></div></li>`).join('')}</ul></div>`;
+}
+
 function banners(state, date) {
   const out = [safetyNotices(state)];
   if (state.profile.demo) out.push(`<div class="notice info">${icon('info')}<div class="grow">You’re exploring <strong>demo data</strong>. <button class="btn small" data-action="endDemo">Start my own plan</button></div></div>`);
@@ -125,6 +140,7 @@ export default {
     const showNumbers = !store.habitsOnly(state);
     return html`<h1>${greeting()}</h1><p class="muted">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · week ${store.weeksSinceStart(state, date) + 1}</p>
       ${banners(state, date)}
+      ${firstWeek(state, date)}
       <div class="grid two">
         <div>${showNumbers ? weighCard(state, date, u) : ''}${habitsCard(state, date)}${moveCard(state, date)}</div>
         <div>${foodCard(state, date, u, showNumbers)}</div>
@@ -218,6 +234,12 @@ export default {
         return st;
       });
       ctx.toast('Nice work. Every session counts.');
+    },
+    dismissFirstWeek(el, ev, ctx) {
+      ctx.update((st) => {
+        st.flags = { ...(st.flags || {}), firstWeekDone: true };
+        return st;
+      });
     },
     async endDemo(el, ev, ctx) {
       if (!(await ctx.confirm('Clear the demo data and set up your own plan?', { ok: 'Start my own plan' }))) return;
