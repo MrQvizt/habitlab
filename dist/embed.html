@@ -4622,14 +4622,26 @@ __m.default = {
         return st;
       });
     },
-    export(el, ev, ctx) {
+    async export(el, ev, ctx) {
       showBackup = true;
       ctx.rerender();
-      const blob = new Blob([store.exportJson(ctx.state)], { type: 'application/json' });
+      const filename = `habit-lab-backup-${store.today()}.json`;
+      const json = store.exportJson(ctx.state);
+      // Hosts that provide a downloads capability (e.g. a published claude.ai page) ask the viewer to confirm.
+      const downloads = window.claude?.use ? await window.claude.use('downloads').catch(() => null) : null;
+      if (downloads) {
+        try {
+          await downloads.save({ filename, data: json });
+          ctx.toast('Backup saved.');
+        } catch (e) {
+          if (e?.code !== 'declined') ctx.toast('A file couldn’t be saved here — copy the backup text below instead.');
+        }
+        return;
+      }
+      if (document.documentElement.classList.contains('framed')) return; // embedded: use the copy box
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `habit-lab-backup-${store.today()}.json`;
-      if (document.documentElement.classList.contains('framed')) return; // downloads are blocked in frames; use the copy box
+      a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
