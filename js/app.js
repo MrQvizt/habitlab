@@ -50,7 +50,47 @@ const ctx = {
     toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3200);
   },
   rerender: () => renderRoute(),
+  /** In-page replacement for confirm(): resolves true/false. */
+  confirm(message, { ok = 'OK', danger = false } = {}) {
+    return dialog({ message, ok, danger });
+  },
+  /** In-page replacement for prompt(): resolves the entered string, or null if cancelled. */
+  ask(message, { value = '', type = 'number', ok = 'Save' } = {}) {
+    return dialog({ message, ok, input: { value, type } });
+  },
 };
+
+function dialog({ message, ok, danger = false, input = null }) {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-wrap';
+    wrap.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-msg"><form>
+      <p id="modal-msg"></p>
+      ${input ? `<input id="modal-input" type="${input.type}" ${input.type === 'number' ? 'inputmode="numeric" min="0" max="5000"' : ''}>` : ''}
+      <div class="row" style="justify-content:flex-end;margin-top:14px"><button type="button" class="btn ghost" data-x="cancel">Cancel</button><button class="btn ${danger ? 'danger-solid' : 'primary'}">${ok}</button></div></form></div>`;
+    wrap.querySelector('#modal-msg').textContent = message;
+    const field = wrap.querySelector('#modal-input');
+    if (field) field.value = input.value;
+    const prev = document.activeElement;
+    const close = (val) => {
+      wrap.remove();
+      document.removeEventListener('keydown', onKey);
+      prev?.focus?.();
+      resolve(val);
+    };
+    const onKey = (e) => e.key === 'Escape' && close(input ? null : false);
+    document.addEventListener('keydown', onKey);
+    wrap.addEventListener('click', (e) => {
+      if (e.target === wrap || e.target.dataset.x === 'cancel') close(input ? null : false);
+    });
+    wrap.querySelector('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      close(input ? field.value : true);
+    });
+    document.body.appendChild(wrap);
+    (field || wrap.querySelector('button.btn:not(.ghost)')).focus();
+  });
+}
 
 function parseRoute() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
@@ -154,7 +194,14 @@ try {
 window.addEventListener('hashchange', renderRoute);
 renderRoute();
 
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+// Flag when running inside a frame (e.g. an embedded preview): printing and downloads may be blocked there.
+try {
+  if (window.self !== window.top) document.documentElement.classList.add('framed');
+} catch (e) {
+  document.documentElement.classList.add('framed');
+}
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !document.documentElement.classList.contains('framed')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 

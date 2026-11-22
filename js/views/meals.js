@@ -94,9 +94,9 @@ export default {
     skip(el, ev, ctx) {
       ctx.update((st) => setMealStatus(st, el.dataset.date, el.dataset.slot, (cur) => (cur?.status === 'skip' ? null : { status: 'skip' })));
     },
-    other(el, ev, ctx) {
+    async other(el, ev, ctx) {
       const show = !store.habitsOnly(ctx.state);
-      const v = show ? prompt('Roughly how many calories was it? (A rough guess is fine.)', '500') : '0';
+      const v = show ? await ctx.ask('Roughly how many calories was it? A rough guess is fine.', { value: '500' }) : '0';
       if (v == null) return;
       ctx.update((st) => setMealStatus(st, el.dataset.date, el.dataset.slot, () => ({ status: 'other', kcal: Math.max(0, Number(v) || 0) })));
     },

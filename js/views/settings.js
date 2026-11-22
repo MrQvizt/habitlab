@@ -8,6 +8,8 @@ import { initialProgress, availableSteps } from '../engine/workouts.js';
 import { round, cmToIn } from '../engine/util.js';
 
 const DAYS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
+let showBackup = false;
+let pasteMode = false;
 const DISLIKES = Object.fromEntries(Object.entries(FOODS).map(([k, f]) => [k, f.name.replace(/,.*$/, '').replace(/ \(.*\)$/, '')]));
 
 export default {
@@ -78,8 +80,11 @@ export default {
       <div class="card"><h2>Your data</h2>
         <p class="muted">Everything is stored only in this browser on this device. Nothing is uploaded. Export a backup to move to another device or keep a copy.</p>
         <div class="row"><button class="btn" data-action="export">Export backup</button>
-          <label class="btn">Import backup<input type="file" accept="application/json,.json" data-change="importFile" hidden></label>
+          <label class="btn">Import backup file<input type="file" accept="application/json,.json" data-change="importFile" hidden></label>
+          <button class="btn" data-action="pasteMode">Paste a backup</button>
           <button class="btn danger" data-action="reset">${icon('trash')}Delete everything</button></div>
+        ${showBackup ? `<div style="margin-top:14px"><label class="field"><span>Your backup <span class="hint">If no file downloaded, copy this text and save it somewhere safe (a note or an email to yourself).</span></span><textarea id="backup-out" class="backup" readonly>${esc(store.exportJson(state))}</textarea></label><button class="btn small" data-action="copyBackup">Copy to clipboard</button></div>` : ''}
+        ${pasteMode ? `<form data-form="pasteImport" style="margin-top:14px"><label class="field"><span>Paste backup text</span><textarea id="backup-in" name="text" class="backup" required></textarea></label><button class="btn primary small">Import</button></form>` : ''}
       </div>
       <p class="footer-note">Habit Lab · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
@@ -149,18 +154,21 @@ export default {
       });
       ctx.toast('Saved. Exercises updated for your equipment and joints.');
     },
-    resetProgress(el, ev, ctx) {
-      if (!confirm('Reset all exercise levels to the start?')) return;
+    async resetProgress(el, ev, ctx) {
+      if (!(await ctx.confirm('Reset all exercise levels to the start?', { ok: 'Reset' }))) return;
       ctx.update((st) => {
         st.workouts.progress = initialProgress(st.profile);
         return st;
       });
     },
     export(el, ev, ctx) {
+      showBackup = true;
+      ctx.rerender();
       const blob = new Blob([store.exportJson(ctx.state)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `habit-lab-backup-${store.today()}.json`;
+      if (document.documentElement.classList.contains('framed')) return; // downloads are blocked in frames; use the copy box
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
@@ -171,18 +179,45 @@ export default {
     importFile(el, ev, ctx) {
       const file = el.files?.[0];
       if (!file) return;
-      file.text().then((text) => {
+      file.text().then(async (text) => {
         try {
-          if (!confirm('Replace all current data with this backup?')) return;
-          ctx.set(store.importJson(text));
+          const data = store.importJson(text);
+          if (!(await ctx.confirm('Replace all current data with this backup?', { ok: 'Replace', danger: true }))) return;
+          ctx.set(data);
           ctx.toast('Backup imported.');
         } catch (e) {
           ctx.toast(e.message || 'Couldn’t read that file.');
         }
       });
     },
-    reset(el, ev, ctx) {
-      if (!confirm('Delete all your Habit Lab data from this browser? This can’t be undone. Consider exporting a backup first.')) return;
+    async copyBackup(el, ev, ctx) {
+      const ta = document.getElementById('backup-out');
+      try {
+        await navigator.clipboard.writeText(ta.value);
+        ctx.toast('Copied.');
+      } catch (e) {
+        ta.focus();
+        ta.select();
+        ctx.toast('Text selected — press Ctrl/Cmd+C to copy.');
+      }
+    },
+    pasteMode(el, ev, ctx) {
+      pasteMode = !pasteMode;
+      ctx.rerender();
+    },
+    async pasteImport(form, ev, ctx, data) {
+      try {
+        const st = store.importJson(data.text);
+        if (!(await ctx.confirm('Replace all current data with this backup?', { ok: 'Replace', danger: true }))) return;
+        pasteMode = false;
+        ctx.set(st);
+        ctx.toast('Backup imported.');
+      } catch (e) {
+        ctx.toast(e instanceof SyntaxError ? 'That text isn’t a complete backup — copy the whole thing.' : e.message);
+      }
+    },
+    async reset(el, ev, ctx) {
+      if (!(await ctx.confirm('Delete all your Habit Lab data from this browser? This can’t be undone. Consider exporting a backup first.', { ok: 'Delete everything', danger: true }))) return;
       store.clearAll();
       ctx.set(store.emptyState(), { render: false });
       store.clearAll();
@@ -191,4 +226,3 @@ export default {
   },
 };
 void fmtWeight;
-void esc;

@@ -10,7 +10,7 @@ const shots = process.argv[3] || null;
   const errors = [];
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   page.on('pageerror', (e) => errors.push(e.message));
-  page.on('dialog', (d) => d.accept(d.type() === 'prompt' ? '450' : undefined));
+  
   const snap = async (name) => shots && page.screenshot({ path: `${shots}/${name}.png`, fullPage: true });
 
   await page.goto(base);
@@ -51,6 +51,9 @@ const shots = process.argv[3] || null;
   await page.click('.meal button.check >> nth=0');
   await page.click('button:has-text("Swap") >> nth=1');
   await page.click('button:has-text("Ate something else") >> nth=2');
+  await page.fill('#modal-input', '450');
+  await page.click('.modal button.primary');
+  await page.waitForSelector('text=ate something else (450 kcal)');
   await page.click('.habit-item button.check >> nth=0');
   await page.fill('input[name=steps]', '5200');
   await page.click('form[data-form=steps] button');
@@ -72,6 +75,15 @@ const shots = process.argv[3] || null;
   await page.waitForSelector('text=Apply selected');
   await snap('06-checkin-results');
   await page.click('button:has-text("Apply selected")');
+  await page.waitForSelector('text=Today’s food');
+
+  // Backup export shows a copyable box; reset uses the in-page dialog (cancel keeps data)
+  await page.goto(base + '#/settings');
+  await page.click('button:has-text("Export backup")');
+  await page.waitForSelector('#backup-out');
+  await page.click('button:has-text("Delete everything")');
+  await page.click('.modal button:has-text("Cancel")');
+  await page.goto(base + '#/today');
   await page.waitForSelector('text=Today’s food');
 
   // Desktop layout

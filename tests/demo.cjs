@@ -8,7 +8,7 @@ const shots = process.argv[3] || null;
   const errors = [];
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   page.on('pageerror', (e) => errors.push(e.message));
-  page.on('dialog', (d) => d.accept());
+
   const snap = async (n) => shots && page.screenshot({ path: `${shots}/${n}.png`, fullPage: true });
   await page.goto(base);
   await page.click('text=Explore with demo data');

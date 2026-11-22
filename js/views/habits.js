@@ -113,8 +113,8 @@ export default {
       });
       ctx.toast('Graduated! Time to pick your next habit.');
     },
-    remove(el, ev, ctx) {
-      if (!confirm('Stop tracking this habit? Your history is kept.')) return;
+    async remove(el, ev, ctx) {
+      if (!(await ctx.confirm('Stop tracking this habit? Your history is kept.', { ok: 'Stop tracking' }))) return;
       const id = el.dataset.id;
       ctx.update((st) => {
         st.habits.active = st.habits.active.filter((a) => a.id !== id);

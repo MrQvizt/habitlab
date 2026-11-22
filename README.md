@@ -16,8 +16,11 @@ python3 -m http.server 8000     # any static server works
 # open http://localhost:8000
 ```
 
-ES modules need to be served over HTTP; opening `index.html` from the file system won't work. To deploy, copy the
+ES modules need to be served over HTTP, so opening `index.html` from the file system won't work. To deploy, copy the
 folder to any static host (GitHub Pages, Netlify, Cloudflare Pages). There are no dependencies.
+
+**Single-file version:** `node tools/build.mjs` bundles everything into `dist/habit-lab.html`. That one file opens
+straight from disk (double-click it), with no server needed. The bundler is a ~100-line script with no dependencies.
 
 Click **Explore with demo data** on the welcome screen to see ten weeks of sample history, including a plateau.
 
@@ -42,6 +45,7 @@ js/data/     foods (per-100 g nutrition), recipes, exercises, habits, learn card
 js/views/    one module per screen; render() returns HTML, actions handle events
 js/store.js  state, persistence and derived values (targets, plans, schedules)
 tests/       engine unit tests + Playwright walkthroughs
+tools/       build.mjs: zero-dependency bundler → dist/habit-lab.html
 ```
 
 ## Tests
@@ -51,6 +55,7 @@ node --test tests/engine.test.mjs           # 25 engine tests, including simulat
 python3 -m http.server 8765 &               # then, with Playwright available:
 node tests/e2e.cjs http://localhost:8765/   # onboarding → every page → session → check-in; no console errors, no overflow
 node tests/demo.cjs http://localhost:8765/  # demo data → plateau check-in flow
+node tests/e2e.cjs file://$PWD/dist/habit-lab.html   # same walkthrough against the single-file build
 ```
 
 ## Disclaimer

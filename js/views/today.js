@@ -151,9 +151,9 @@ export default {
     skip(el, ev, ctx) {
       setMeal(ctx, el.dataset.slot, (cur) => (cur?.status === 'skip' ? null : { status: 'skip' }));
     },
-    other(el, ev, ctx) {
+    async other(el, ev, ctx) {
       const show = !store.habitsOnly(ctx.state);
-      const v = show ? prompt('Roughly how many calories was it? (A rough guess is fine.)', '500') : '0';
+      const v = show ? await ctx.ask('Roughly how many calories was it? A rough guess is fine.', { value: '500' }) : '0';
       if (v == null) return;
       setMeal(ctx, el.dataset.slot, () => ({ status: 'other', kcal: Math.max(0, Number(v) || 0) }));
     },
@@ -218,8 +218,8 @@ export default {
       });
       ctx.toast('Nice work. Every session counts.');
     },
-    endDemo(el, ev, ctx) {
-      if (!confirm('Clear the demo data and set up your own plan?')) return;
+    async endDemo(el, ev, ctx) {
+      if (!(await ctx.confirm('Clear the demo data and set up your own plan?', { ok: 'Start my own plan' }))) return;
       ctx.set(store.emptyState(), { render: false });
       ctx.go('#/start');
     },
