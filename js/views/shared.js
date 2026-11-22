@@ -1,0 +1,104 @@
+// Pieces shared by several views.
+import { esc, icon, fmtNum } from '../ui/dom.js';
+import { byId, scaledNutrition, formatQty, SLOT_LABEL, dayTotals } from '../engine/meals.js';
+import { FOODS } from '../data/foods.js';
+import * as store from '../store.js';
+import { daysBetween, weekStart, parseDate } from '../engine/util.js';
+
+export function dayIndex(date) {
+  return (parseDate(date).getDay() + 6) % 7;
+}
+
+export function mealsFor(state, date) {
+  const plan = state.plans[weekStart(date)];
+  return plan?.days?.[dayIndex(date)] || [];
+}
+
+/** Calories logged so far today (meal ticks + extras). */
+export function eatenSoFar(state, date) {
+  const log = state.mealLog[date] || {};
+  let kcal = 0;
+  for (const m of mealsFor(state, date)) {
+    const entry = log[m.slot];
+    if (entry?.status === 'ate') kcal += scaledNutrition(byId(m.recipeId), m.scale).kcal;
+    else if (entry?.status === 'other') kcal += Number(entry.kcal) || 0;
+  }
+  for (const x of state.extras[date] || []) kcal += Number(x.kcal) || 0;
+  return Math.round(kcal);
+}
+
+/** True when every planned meal has a status (eaten / something else / skipped). */
+export function dayComplete(state, date) {
+  const log = state.mealLog[date] || {};
+  const meals = mealsFor(state, date);
+  return meals.length > 0 && meals.every((m) => log[m.slot]);
+}
+
+/**
+ * Intake used for learning your energy needs: only fully logged days count, so a half-logged
+ * day can't look like a very low-calorie day and drag the estimate down.
+ */
+export function computeIntake(state, date) {
+  return dayComplete(state, date) ? eatenSoFar(state, date) : 0;
+}
+
+export function proteinEaten(state, date) {
+  const log = state.mealLog[date] || {};
+  let p = 0;
+  for (const m of mealsFor(state, date)) if (log[m.slot]?.status === 'ate') p += scaledNutrition(byId(m.recipeId), m.scale).p;
+  return p;
+}
+
+export function recipeDetails(m, units = 'metric', open = false) {
+  const r = byId(m.recipeId);
+  return `<details class="recipe" ${open ? 'open' : ''}><summary>Recipe & ingredients</summary>
+    <ul class="ingredients">${r.ingredients.map(([fid, g]) => `<li>${esc(formatQty(fid, g * m.scale, units))} ${esc(FOODS[fid].name.toLowerCase())}</li>`).join('')}</ul>
+    <ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
+    <small class="muted">Season freely with herbs, spices, garlic, lemon, vinegar, mustard and salt to taste.</small></details>`;
+}
+
+export function mealMeta(m, showNumbers = true) {
+  const r = byId(m.recipeId);
+  const n = scaledNutrition(r, m.scale);
+  const tags = [
+    m.leftover ? '<span class="tag warm">leftovers</span>' : '',
+    r.batch && !m.leftover ? '<span class="tag">batch-friendly</span>' : '',
+    r.nocook ? '<span class="tag">no-cook</span>' : '',
+  ].join('');
+  return `<div class="meta">${icon('clock', 'tiny')} ${m.leftover ? 'ready' : `${r.minutes} min`}${showNumbers ? ` · ${fmtNum(n.kcal, 10)} kcal · ${Math.round(n.p)} g protein · ${Math.round(n.fib)} g fibre` : ''} ${tags}</div>`;
+}
+
+export function slotLabel(slot) {
+  return SLOT_LABEL[slot] || slot;
+}
+
+export function totalsLine(meals, showNumbers) {
+  if (!showNumbers) return '';
+  const t = dayTotals(meals);
+  return `${fmtNum(t.kcal, 10)} kcal · ${Math.round(t.p)} g protein · ${Math.round(t.c)} g carbs · ${Math.round(t.f)} g fat · ${Math.round(t.fib)} g fibre`;
+}
+
+export function safetyNotices(state, levels = ['block', 'warn']) {
+  const s = store.safety(state);
+  return s.flags
+    .filter((f) => levels.includes(f.level))
+    .map((f) => `<div class="notice ${f.level === 'block' ? 'block' : f.level === 'warn' ? 'warn' : 'info'}">${icon(f.level === 'info' ? 'info' : 'alert')}<div>${esc(f.text)}</div></div>`)
+    .join('');
+}
+
+export function checkinDue(state, date) {
+  const last = state.checkins.length ? state.checkins[state.checkins.length - 1].date : state.profile.startDate;
+  return daysBetween(last, date) >= 7;
+}
+
+/** Update one meal's log status for a date (returns the mutated state). */
+export function setMealStatus(st, date, slot, fn) {
+  const day = { ...(st.mealLog[date] || {}) };
+  const next = fn(day[slot]);
+  if (next) day[slot] = next;
+  else delete day[slot];
+  st.mealLog[date] = day;
+  st.intake[date] = computeIntake(st, date);
+  if (Object.keys(day).length && st.habits.active.some((a) => a.id === 'log_meals')) st.habits.log[date] = { ...(st.habits.log[date] || {}), log_meals: true };
+  return st;
+}

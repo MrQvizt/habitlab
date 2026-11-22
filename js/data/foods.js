@@ -1,0 +1,131 @@
+// Ingredient nutrition per 100 g (approximate USDA FoodData Central values, rounded).
+// [name, kcal, protein, carbs, fat, fiber, aisle, tags]
+// tags: animal-source flags (meat, fish, shellfish, dairy, egg, honey) and allergens (gluten, nuts, soy, sesame).
+// `each` gives grams per natural unit so recipes and shopping lists can show "2 eggs" not "100 g eggs".
+
+const F = (name, kcal, p, c, f, fib, aisle, tags = [], each = null) => ({ name, kcal, p, c, f, fib, aisle, tags, each });
+
+export const FOODS = {
+  // Protein
+  chicken_breast: F('Chicken breast, skinless', 120, 22.5, 0, 2.6, 0, 'Meat & fish', ['meat']),
+  chicken_thigh: F('Chicken thigh, skinless', 144, 19.7, 0, 7, 0, 'Meat & fish', ['meat']),
+  turkey_mince: F('Lean turkey mince (93%)', 150, 18.7, 0, 8.3, 0, 'Meat & fish', ['meat']),
+  beef_mince: F('Extra-lean beef mince (95%)', 137, 21.4, 0, 5, 0, 'Meat & fish', ['meat']),
+  pork_tenderloin: F('Pork tenderloin', 120, 21, 0, 3.5, 0, 'Meat & fish', ['meat']),
+  turkey_slices: F('Sliced turkey breast (deli)', 104, 17, 3.5, 2, 0, 'Meat & fish', ['meat']),
+  salmon: F('Salmon fillet', 208, 20, 0, 13, 0, 'Meat & fish', ['fish']),
+  cod: F('Cod / white fish fillet', 82, 18, 0, 0.7, 0, 'Meat & fish', ['fish']),
+  tuna_can: F('Tuna in water, drained', 116, 25.5, 0, 0.8, 0, 'Canned & dry', ['fish']),
+  salmon_can: F('Canned salmon, drained', 167, 23, 0, 8, 0, 'Canned & dry', ['fish']),
+  shrimp: F('Shrimp / prawns, peeled', 85, 20, 0, 0.5, 0, 'Meat & fish', ['shellfish']),
+  egg: F('Eggs', 143, 12.6, 0.7, 9.5, 0, 'Dairy & eggs', ['egg'], { g: 50, unit: 'egg' }),
+  egg_white: F('Liquid egg whites', 52, 10.9, 0.7, 0.2, 0, 'Dairy & eggs', ['egg']),
+  greek_yogurt: F('Greek yogurt, 0% plain', 59, 10.3, 3.6, 0.4, 0, 'Dairy & eggs', ['dairy']),
+  cottage_cheese: F('Cottage cheese, low-fat', 72, 12.4, 2.7, 1, 0, 'Dairy & eggs', ['dairy']),
+  feta: F('Feta cheese', 264, 14.2, 4.1, 21.3, 0, 'Dairy & eggs', ['dairy']),
+  mozzarella_light: F('Light mozzarella', 254, 24.3, 2.8, 15.9, 0, 'Dairy & eggs', ['dairy']),
+  cheddar_light: F('Reduced-fat cheddar', 280, 27, 2, 18, 0, 'Dairy & eggs', ['dairy']),
+  parmesan: F('Parmesan', 400, 36, 3, 26, 0, 'Dairy & eggs', ['dairy']),
+  milk_skim: F('Skimmed milk', 34, 3.4, 5, 0.1, 0, 'Dairy & eggs', ['dairy']),
+  soy_milk: F('Soy milk, unsweetened', 33, 2.9, 1.7, 1.6, 0.4, 'Dairy & eggs', ['soy']),
+  soy_yogurt: F('Soy yogurt, plain high-protein', 70, 6.5, 3, 3, 1, 'Dairy & eggs', ['soy']),
+  whey: F('Whey protein powder', 380, 75, 10, 5, 0, 'Canned & dry', ['dairy']),
+  pea_protein: F('Pea / plant protein powder', 380, 78, 6, 6, 2, 'Canned & dry', []),
+  tofu: F('Firm tofu', 144, 17.3, 2.8, 8.7, 2.3, 'Produce', ['soy']),
+  tempeh: F('Tempeh', 192, 20.3, 7.6, 10.8, 4, 'Produce', ['soy']),
+  edamame: F('Edamame, shelled (frozen)', 121, 11.9, 8.9, 5.2, 5.2, 'Frozen', ['soy']),
+  lentils: F('Lentils, cooked / canned', 116, 9, 20, 0.4, 7.9, 'Canned & dry', []),
+  red_lentils_dry: F('Red lentils, dry', 358, 24, 63, 2, 11, 'Canned & dry', []),
+  chickpeas: F('Chickpeas, cooked / canned', 164, 8.9, 27.4, 2.6, 7.6, 'Canned & dry', []),
+  black_beans: F('Black beans, cooked / canned', 132, 8.9, 23.7, 0.5, 8.7, 'Canned & dry', []),
+  kidney_beans: F('Kidney beans, cooked / canned', 127, 8.7, 22.8, 0.5, 6.4, 'Canned & dry', []),
+  white_beans: F('Cannellini beans, cooked / canned', 139, 9.7, 25, 0.4, 6.3, 'Canned & dry', []),
+  hummus: F('Hummus', 166, 7.9, 14.3, 9.6, 6, 'Dairy & eggs', ['sesame']),
+
+  // Grains & starch
+  oats: F('Rolled oats', 379, 13.2, 67.7, 6.5, 10.1, 'Canned & dry', []),
+  brown_rice: F('Brown rice, cooked', 123, 2.7, 25.6, 1, 1.6, 'Canned & dry', []),
+  quinoa: F('Quinoa, cooked', 120, 4.4, 21.3, 1.9, 2.8, 'Canned & dry', []),
+  ww_pasta: F('Wholewheat pasta, cooked', 149, 5.8, 30, 1.7, 3.9, 'Canned & dry', ['gluten']),
+  lentil_pasta: F('Lentil / chickpea pasta, cooked', 160, 11, 25, 1.5, 4.5, 'Canned & dry', []),
+  ww_bread: F('Wholegrain bread', 250, 12.5, 43, 3.5, 6, 'Bakery', ['gluten'], { g: 35, unit: 'slice' }),
+  ww_wrap: F('Wholewheat tortilla wrap', 300, 9, 48, 8, 6, 'Bakery', ['gluten'], { g: 45, unit: 'wrap' }),
+  corn_tortilla: F('Corn tortilla', 218, 5.7, 44.6, 2.9, 6.3, 'Bakery', [], { g: 26, unit: 'tortilla' }),
+  ww_pita: F('Wholewheat pita', 266, 9.8, 55, 2.6, 7.4, 'Bakery', ['gluten'], { g: 60, unit: 'pita' }),
+  potato: F('Potatoes', 77, 2, 17.5, 0.1, 2.2, 'Produce', []),
+  sweet_potato: F('Sweet potato', 86, 1.6, 20.1, 0.1, 3, 'Produce', []),
+  rice_noodles: F('Rice noodles, cooked', 108, 1.8, 24, 0.2, 1, 'Canned & dry', []),
+  popcorn: F('Popcorn, air-popped', 387, 13, 78, 4.5, 14.5, 'Canned & dry', []),
+  rye_crispbread: F('Rye crispbread', 334, 9, 70, 1.5, 16, 'Bakery', ['gluten'], { g: 10, unit: 'crispbread' }),
+
+  // Fruit
+  banana: F('Banana', 89, 1.1, 22.8, 0.3, 2.6, 'Produce', [], { g: 118, unit: 'banana' }),
+  apple: F('Apple', 52, 0.3, 13.8, 0.2, 2.4, 'Produce', [], { g: 180, unit: 'apple' }),
+  berries: F('Mixed berries (fresh or frozen)', 45, 0.8, 10.5, 0.3, 3, 'Frozen', []),
+  orange: F('Orange', 47, 0.9, 11.8, 0.1, 2.4, 'Produce', [], { g: 140, unit: 'orange' }),
+  pear: F('Pear', 57, 0.4, 15.2, 0.1, 3.1, 'Produce', [], { g: 180, unit: 'pear' }),
+  mango: F('Mango, cubed (fresh or frozen)', 60, 0.8, 15, 0.4, 1.6, 'Frozen', []),
+  lemon: F('Lemon juice', 22, 0.4, 6.9, 0.2, 0.3, 'Produce', []),
+  raisins: F('Raisins', 299, 3.1, 79, 0.5, 3.7, 'Canned & dry', []),
+
+  // Vegetables
+  spinach: F('Spinach', 23, 2.9, 3.6, 0.4, 2.2, 'Produce', []),
+  broccoli: F('Broccoli', 34, 2.8, 6.6, 0.4, 2.6, 'Produce', []),
+  pepper: F('Bell pepper', 31, 1, 6, 0.3, 2.1, 'Produce', [], { g: 150, unit: 'pepper' }),
+  onion: F('Onion', 40, 1.1, 9.3, 0.1, 1.7, 'Produce', [], { g: 110, unit: 'onion' }),
+  garlic: F('Garlic', 149, 6.4, 33, 0.5, 2.1, 'Produce', [], { g: 4, unit: 'clove' }),
+  tomato: F('Tomatoes', 18, 0.9, 3.9, 0.2, 1.2, 'Produce', [], { g: 120, unit: 'tomato' }),
+  cherry_tomato: F('Cherry tomatoes', 18, 0.9, 3.9, 0.2, 1.2, 'Produce', []),
+  canned_tomato: F('Canned chopped tomatoes', 32, 1.6, 7, 0.3, 1.9, 'Canned & dry', []),
+  carrot: F('Carrots', 41, 0.9, 9.6, 0.2, 2.8, 'Produce', [], { g: 70, unit: 'carrot' }),
+  cucumber: F('Cucumber', 15, 0.7, 3.6, 0.1, 0.5, 'Produce', []),
+  zucchini: F('Courgette / zucchini', 17, 1.2, 3.1, 0.3, 1, 'Produce', [], { g: 200, unit: 'courgette' }),
+  salad_leaves: F('Mixed salad leaves', 20, 1.5, 3, 0.3, 1.8, 'Produce', []),
+  mixed_veg: F('Frozen mixed vegetables', 60, 2.9, 12, 0.4, 4, 'Frozen', []),
+  stirfry_veg: F('Stir-fry vegetable mix', 35, 2, 6.5, 0.3, 2.5, 'Frozen', []),
+  mushrooms: F('Mushrooms', 22, 3.1, 3.3, 0.3, 1, 'Produce', []),
+  green_beans: F('Green beans', 31, 1.8, 7, 0.2, 2.7, 'Frozen', []),
+  cauliflower: F('Cauliflower', 25, 1.9, 5, 0.3, 2, 'Produce', []),
+  cabbage: F('Cabbage / coleslaw mix', 25, 1.3, 5.8, 0.1, 2.5, 'Produce', []),
+  peas: F('Frozen peas', 77, 5.2, 13.6, 0.4, 5, 'Frozen', []),
+  corn: F('Sweetcorn', 86, 3.3, 19, 1.4, 2.4, 'Frozen', []),
+  celery: F('Celery', 16, 0.7, 3, 0.2, 1.6, 'Produce', []),
+  avocado: F('Avocado', 160, 2, 8.5, 14.7, 6.7, 'Produce', [], { g: 150, unit: 'avocado' }),
+  salsa: F('Tomato salsa', 30, 1.5, 6.6, 0.2, 1.8, 'Canned & dry', []),
+  kimchi: F('Kimchi / sauerkraut', 20, 1.1, 3, 0.5, 1.6, 'Produce', []),
+
+  // Fats, nuts, flavour
+  olive_oil: F('Olive oil', 884, 0, 0, 100, 0, 'Canned & dry', []),
+  peanut_butter: F('Peanut butter', 588, 25, 20, 50, 6, 'Canned & dry', ['nuts']),
+  almonds: F('Almonds', 579, 21, 21.6, 49.9, 12.5, 'Canned & dry', ['nuts']),
+  walnuts: F('Walnuts', 654, 15, 13.7, 65, 6.7, 'Canned & dry', ['nuts']),
+  chia: F('Chia seeds', 486, 16.5, 42, 30.7, 34.4, 'Canned & dry', []),
+  pumpkin_seeds: F('Pumpkin seeds', 559, 30, 10.7, 49, 6, 'Canned & dry', []),
+  sesame_oil: F('Sesame oil', 884, 0, 0, 100, 0, 'Canned & dry', ['sesame']),
+  soy_sauce: F('Reduced-salt soy sauce', 60, 8, 5.6, 0.1, 0.8, 'Canned & dry', ['soy', 'gluten']),
+  honey: F('Honey', 304, 0.3, 82, 0, 0.2, 'Canned & dry', ['honey']),
+  coconut_milk_light: F('Light coconut milk', 74, 0.7, 1.8, 7, 0, 'Canned & dry', []),
+  curry_paste: F('Curry paste', 120, 2, 10, 8, 3, 'Canned & dry', []),
+  pesto: F('Pesto', 418, 5, 6, 42, 1.5, 'Canned & dry', ['dairy', 'nuts']),
+  stock: F('Vegetable / chicken stock', 5, 0.3, 0.6, 0.2, 0, 'Canned & dry', []),
+  dark_chocolate: F('Dark chocolate (70%+)', 600, 7.8, 46, 43, 11, 'Canned & dry', []),
+};
+
+// Diets and the tags they exclude.
+export const DIETS = {
+  omnivore: { label: 'Everything', excludes: [] },
+  pescatarian: { label: 'Pescatarian', excludes: ['meat'] },
+  vegetarian: { label: 'Vegetarian', excludes: ['meat', 'fish', 'shellfish'] },
+  vegan: { label: 'Vegan', excludes: ['meat', 'fish', 'shellfish', 'dairy', 'egg', 'honey'] },
+};
+
+export const ALLERGENS = {
+  gluten: 'Gluten / wheat',
+  dairy: 'Dairy',
+  egg: 'Eggs',
+  nuts: 'Peanuts & tree nuts',
+  soy: 'Soy',
+  fish: 'Fish',
+  shellfish: 'Shellfish',
+  sesame: 'Sesame',
+};
