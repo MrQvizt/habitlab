@@ -58,7 +58,8 @@ export default {
       <details class="card"><summary class="row nowrap" style="cursor:pointer;list-style:none"><strong class="grow">How to earn XP</strong>${icon('chevron')}</summary><div style="margin-top:10px">
         <table class="simple"><tr><th>Action</th><th class="right">XP</th></tr>
         ${[
-          ['Log a meal (eaten, skipped or something else — same XP)', XP.meal],
+          ['Log a meal you ate (planned or something else — same XP)', XP.meal],
+          ['Log a skipped meal', XP.mealSkip],
           ['Log every meal in a day', XP.fullDay],
           ['Do a habit', XP.habit],
           ['Strength session', XP.strength],

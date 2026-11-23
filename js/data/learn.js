@@ -173,7 +173,7 @@ export const LEARN = [
       'Rewards here go only to the behaviours that predict success — logging, moving, habits and check-ins — never to eating less or to weight lost, which could encourage under-eating or dishonest logging.',
       'Points are a scaffold. As habits become automatic, they matter less, and that’s the goal.'],
     ['mazeas', 'stepup', 'harvey'],
-    'XP for each logged meal (whatever you ate), habit, session and check-in; daily quests; a forgiving streak; and badges.'),
+    'XP for each meal you log (the same whatever you ate; a skipped meal earns less), habit, session and check-in; daily quests; a forgiving streak; and badges.'),
   C('mindful_eating', 'Habits & mindset', 'Slowing down and checking in with hunger',
     'Pausing before and during eating helps you choose deliberately.',
     ['In the ultra-processed food trial, people ate faster on the ultra-processed meals as well as eating more.',

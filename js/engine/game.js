@@ -12,7 +12,8 @@ import { addDays, daysBetween, weekStart, hashString, parseDate } from './util.j
 import { stepGoal, creditedMinutes } from './workouts.js';
 
 export const XP = {
-  meal: 10, // per meal logged (eaten, skipped or "something else" — honesty pays the same)
+  meal: 10, // per meal you ate and logged — planned or "something else" (honesty pays the same)
+  mealSkip: 5, // a skipped meal is worth logging, but never worth more than eating
   fullDay: 20, // every planned meal logged
   weighIn: 5,
   habit: 15,
@@ -64,7 +65,14 @@ export function dayAwards(state, date, { habitsOnly = false } = {}) {
   };
   const log = state.mealLog?.[date] || {};
   const meals = mealsFor(state, date);
-  for (const m of meals) if (log[m.slot]) add(`meal:${date}:${m.slot}`, 'meal', `Logged ${m.slot.replace(/\d$/, '')}`, XP.meal, true);
+  for (const m of meals) {
+    const st = log[m.slot]?.status;
+    if (!st) continue;
+    const slotName = m.slot.replace(/\d$/, '');
+    // Skips are logged honestly but earn less, no lucky bonus and no eating badges: the app never rewards eating less.
+    if (st === 'skip') add(`meal:${date}:${m.slot}`, 'mealSkip', `Logged skipped ${slotName}`, XP.mealSkip);
+    else add(`meal:${date}:${m.slot}`, 'meal', `Logged ${slotName}`, XP.meal, true);
+  }
   if (meals.length && meals.every((m) => log[m.slot])) add(`full:${date}`, 'fullDay', 'Whole day logged', XP.fullDay);
   if (!habitsOnly && state.weights?.some((w) => w.date === date)) add(`weigh:${date}`, 'weigh', 'Weighed in', XP.weighIn);
   const hl = state.habits?.log?.[date] || {};
@@ -142,7 +150,7 @@ function bestStreak(activeDays) {
 // ---------- Badges ----------
 // Each badge: id, name, how (shown when locked), check(stats) → boolean. Weight badges are hidden in habits-only mode.
 export const BADGES = [
-  { id: 'first_log', name: 'First Bite', icon: 'meals', how: 'Log your first meal', check: (s) => s.mealsLogged >= 1 },
+  { id: 'first_log', name: 'First Bite', icon: 'meals', how: 'Log a meal you ate', check: (s) => s.mealsLogged >= 1 },
   { id: 'full_day', name: 'Full Picture', icon: 'check', how: 'Log every meal in a day', check: (s) => s.fullDays >= 1 },
   { id: 'full_days_7', name: 'Food Diarist', icon: 'meals', how: 'Log every meal on 7 days', check: (s) => s.fullDays >= 7 },
   { id: 'full_days_30', name: 'Data Devotee', icon: 'meals', how: 'Log every meal on 30 days', check: (s) => s.fullDays >= 30 },
@@ -220,7 +228,8 @@ export function summary(state, today, { habitsOnly = false, trendKg = null } = {
 
   const earnedNow = BADGES.filter((b) => !(habitsOnly && b.weight) && b.check(stats)).map((b) => b.id);
   // Badges once earned are kept (stored with the date), even if a log is later un-ticked.
-  const kept = Object.keys(state.game?.badges || {});
+  // (Earlier versions could award First Bite for a skipped meal; drop it until a real meal is logged.)
+  const kept = Object.keys(state.game?.badges || {}).filter((id) => id !== 'first_log' || stats.mealsLogged >= 1);
   const badges = [...new Set([...kept, ...earnedNow])];
   xp += badges.length * XP.badge;
   const level = levelFromXp(xp);

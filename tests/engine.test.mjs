@@ -355,3 +355,17 @@ test('schedule: never strength and app cardio on the same day; activities reduce
   assert.equal(sum(withActs, 'strength'), sum(without, 'strength') - 1);
   for (const d of withActs.schedule) if (d.items.some((i) => i.kind === 'activity')) assert.ok(!d.items.some((i) => i.kind === 'strength' || i.kind === 'cardio'), `${d.name} doubled up`);
 });
+
+test('rewards: a skipped meal earns less than eating and never unlocks First Bite', async () => {
+  const { summary, XP } = await import('../js/engine/game.js');
+  const { planWeek: pw } = await import('../js/engine/meals.js');
+  const wk = '2026-11-23';
+  const base = { profile: { ...woman, startDate: wk, startWeightKg: 105 }, plans: { [wk]: { days: pw(dailyTargets(woman), { diet: 'omnivore' }, wk) } }, weights: [], habits: { active: [], log: {}, retired: [] }, workouts: { log: {}, progress: {} }, steps: {}, checkins: [], game: { badges: {} } };
+  const skipped = summary({ ...base, mealLog: { [wk]: { breakfast: { status: 'skip' } } }, game: { badges: { first_log: wk } } }, wk);
+  assert.ok(!skipped.badges.includes('first_log'), 'skip must not keep First Bite');
+  assert.equal(skipped.byDay[wk].awards.find((a) => a.kind === 'mealSkip').xp, XP.mealSkip);
+  assert.ok(!skipped.byDay[wk].awards.some((a) => a.lucky));
+  const ate = summary({ ...base, mealLog: { [wk]: { breakfast: { status: 'ate' } } } }, wk);
+  assert.ok(ate.badges.includes('first_log'));
+  assert.ok(XP.mealSkip < XP.meal);
+});
