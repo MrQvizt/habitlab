@@ -8,6 +8,7 @@ import { habitById, streak, habitLevels, levelIndex } from '../engine/habits.js'
 import { stepGoal } from '../engine/workouts.js';
 import { CARDIO } from '../data/exercises.js';
 import { daysBetween } from '../engine/util.js';
+import { toHHMM, daySchedule } from '../engine/schedule.js';
 import { itemDone, logPlannedActivity } from './move.js';
 import { slotIcon, toggleHabit, mealRows } from './sheets.js';
 
@@ -51,8 +52,9 @@ function nextUp(state, date) {
   const card = (eyebrow, t, s, btn, done = false) => `<section class="next-card ${done ? 'done' : ''}" aria-label="Next up"><div class="body"><div class="eyebrow">${eyebrow}</div><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ''}</div>${btn || ''}</section>`;
   const btn = (label, attrs) => `<button class="btn small" ${attrs}>${label}</button>`;
   if (!hide && h < 12 && !state.weights.some((w) => w.date === date)) return card('Next up', 'Weigh in', 'Ten seconds · +5 XP', btn('Log', 'data-action="openWeigh"'));
-  const due = meals.find((m) => !log[m.slot] && (SLOT_HOUR[m.slot] ?? 12) <= h + 1);
-  if (due) return card(`Next up · ${slotLabel(due.slot)}`, esc(byId(due.recipeId).name), 'Log it, whatever you ate · +10 XP', btn('Log', `data-action="openMeal" data-slot="${due.slot}" data-date="${date}"`));
+  const nowMin = h * 60 + new Date().getMinutes();
+  const due = meals.find((m) => !log[m.slot] && m.time <= nowMin + 30);
+  if (due) return card(`Next up · ${toHHMM(due.time)} ${slotLabel(due.slot)}`, esc(byId(due.recipeId).name), 'Log it, whatever you ate · +10 XP', btn('Log', `data-action="openMeal" data-slot="${due.slot}" data-date="${date}"`));
   const { schedule } = store.schedule(state, date);
   const items = schedule[(new Date().getDay() + 6) % 7].items;
   const move = items.find((it) => it.kind !== 'rest' && !itemDone(state.workouts.log[date] || [], it));
@@ -65,7 +67,7 @@ function nextUp(state, date) {
   if (habit) return card('Next up · Habit', esc(habitById(habit.id).title), esc(habit.cue), btn('Open', `data-action="openHabit" data-id="${habit.id}"`));
   if (checkinDue(state, date)) return card('Next up', 'Weekly check-in', 'Two minutes · +50 XP', `<a class="btn small" href="#/checkin">Start</a>`);
   const later = meals.find((m) => !log[m.slot]);
-  if (later) return card(`Later · ${slotLabel(later.slot)}`, esc(byId(later.recipeId).name), 'Tap to see the recipe', btn('View', `data-action="openMeal" data-slot="${later.slot}" data-date="${date}"`));
+  if (later) return card(`Later · ${toHHMM(later.time)} ${slotLabel(later.slot)}`, esc(byId(later.recipeId).name), 'Tap to see the recipe', btn('View', `data-action="openMeal" data-slot="${later.slot}" data-date="${date}"`));
   return card('All done', 'Everything’s ticked off for today', 'Rest up — see you tomorrow.', '', true);
 }
 
@@ -164,6 +166,7 @@ function banners(state, date) {
   const overdue = daysBetween(last, date) >= 9;
   const checkinDay = (new Date(date + 'T12:00').getDay() + 6) % 7 === Number(state.reminders?.checkinDay ?? 6);
   if (checkinDue(state, date) && (overdue || checkinDay) && !nextUp(state, date).includes('Weekly check-in')) out.push(`<a class="notice ok" href="#/checkin" style="text-decoration:none;align-items:center">${icon('calendar')}<div class="grow"><strong>Weekly check-in</strong> · two minutes, +50 XP</div>${icon('chevron')}</a>`);
+  if (!state.profile.schedule?.wake && !state.flags?.dayAsked && !state.profile.demo) out.push(`<a class="notice info" href="#/settings/day" style="text-decoration:none;align-items:center">${icon('clock')}<div class="grow"><strong>Set your day</strong> · wake, bed and meal times so snacks and reminders fit you</div>${icon('chevron')}</a>`);
   if (state.dietBreakUntil && date <= state.dietBreakUntil) out.push(`<div class="notice info">${icon('info')}<div>Planned maintenance phase until ${fmtDate(state.dietBreakUntil)}: calories are at your estimated needs.</div></div>`);
   const calc = state.calcWeightKg ?? state.profile.weightKg;
   const trend = store.trendWeight(state);

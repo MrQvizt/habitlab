@@ -9,6 +9,7 @@ import { FOODS } from '../data/foods.js';
 import { habitById, streak, habitLevels, levelIndex, levelValue } from '../engine/habits.js';
 import { stepGoal } from '../engine/workouts.js';
 import { round, weekStart, isoDate, addDays } from '../engine/util.js';
+import { toHHMM } from '../engine/schedule.js';
 
 const SLOT_ICON = { breakfast: 'today', lunch: 'meals', dinner: 'meals', snack: 'star', snack2: 'star', snack3: 'star' };
 export const slotIcon = (slot) => SLOT_ICON[slot] || 'meals';
@@ -81,7 +82,7 @@ export function mealRows(state, date) {
       ? `<button class="check ${st === 'ate' || st === 'other' ? 'on' : st === 'skip' ? 'skip' : ''}" data-action="mealCheck" data-date="${date}" data-slot="${m.slot}" aria-pressed="${!!st}" aria-label="${st ? 'Clear log for' : 'Mark eaten:'} ${esc(r.name)}">${st === 'skip' ? icon('x') : icon('check')}</button>`
       : `<span class="slot-ico">${icon(slotIcon(m.slot))}</span>`;
     return `<li><div class="lrow ${st ? 'done' : ''}">${lead}
-      <button class="body row-btn" data-action="openMeal" data-slot="${m.slot}" data-date="${date}"><div class="over">${esc(SLOT_LABEL[m.slot] || m.slot)}${show ? ` · ${fmtNum(n.kcal, 10)} kcal` : ''}${favs.has(r.id) ? ' · ★' : ''}</div><div class="title"><span>${esc(r.name)}</span></div><div class="sub">${sub}</div></button>
+      <button class="body row-btn" data-action="openMeal" data-slot="${m.slot}" data-date="${date}"><div class="over"><span class="meal-time">${toHHMM(m.time)}</span> ${esc(SLOT_LABEL[m.slot] || m.slot)}${show ? ` · ${fmtNum(n.kcal, 10)} kcal` : ''}${favs.has(r.id) ? ' · ★' : ''}</div><div class="title"><span>${esc(r.name)}</span></div><div class="sub">${sub}</div></button>
       <span class="trail" aria-hidden="true">${icon('chevron')}</span></div></li>`;
   }).join('');
 }

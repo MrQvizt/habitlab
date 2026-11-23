@@ -3,15 +3,18 @@ import { esc, icon, fmtNum } from '../ui/dom.js';
 import { byId, scaledNutrition, formatQty, SLOT_LABEL, dayTotals, ingredientText } from '../engine/meals.js';
 import { FOODS } from '../data/foods.js';
 import * as store from '../store.js';
+import { orderMeals } from '../engine/schedule.js';
 import { daysBetween, weekStart, parseDate } from '../engine/util.js';
 
 export function dayIndex(date) {
   return (parseDate(date).getDay() + 6) % 7;
 }
 
+/** The day's meals in the order you eat them (by your day timeline), each with `time` in minutes. */
 export function mealsFor(state, date) {
   const plan = state.plans[weekStart(date)];
-  return plan?.days?.[dayIndex(date)] || [];
+  const day = plan?.days?.[dayIndex(date)] || [];
+  return orderMeals(state.profile || {}, day);
 }
 
 /** Calories logged so far today (meal ticks + extras). */

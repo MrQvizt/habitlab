@@ -169,6 +169,7 @@ export function sanitize(s) {
         intensity: oneOf(a.intensity, ['easy', 'moderate', 'vigorous'], 'moderate'),
         strength: !!a.strength,
       })),
+      schedule: Object.fromEntries(Object.entries(p.schedule && typeof p.schedule === 'object' ? p.schedule : {}).filter(([k, v]) => ['wake', 'bed', 'firstMeal', 'lastMeal'].includes(k) && typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v))),
       habitsOnly: !!p.habitsOnly,
       demo: !!p.demo,
     };

@@ -7,6 +7,7 @@
 import { addDays, weekStart, parseDate, hashString, isoDate } from './util.js';
 import { quests } from './game.js';
 import { byId } from './meals.js';
+import { mealTimes, daySchedule, toHHMM } from './schedule.js';
 
 export const DEFAULT_REMINDERS = {
   enabled: false,
@@ -58,6 +59,12 @@ function at(date, hhmm) {
   return d;
 }
 
+function atMin(date, minutes) {
+  const d = parseDate(date);
+  d.setHours(0, minutes, 0, 0); // minutes past midnight; values over 1440 roll into the next day
+  return d;
+}
+
 function mealsFor(state, date) {
   const plan = state.plans?.[weekStart(date)];
   return plan?.days?.[(parseDate(date).getDay() + 6) % 7] || [];
@@ -77,7 +84,7 @@ export function buildReminders(state, now, ctx = {}) {
   const today = isoDate(now);
   const out = [];
   const push = (date, slot, time, title, body, route) => {
-    const when = at(date, time);
+    const when = typeof time === 'number' ? atMin(date, time) : at(date, time);
     if (when > now) out.push({ id: reminderId(date, slot), at: when, title, body, route });
   };
   for (let i = 0; i < days; i++) {
@@ -99,14 +106,18 @@ export function buildReminders(state, now, ctx = {}) {
       push(date, 'morning', r.morning, 'Good morning', 'Your quests for today are ready.', '#/today');
     }
 
-    // Meal logging nudges
+    // Meal logging nudges: 45 minutes after each main meal on the person's own timeline
     if (r.meals) {
+      const times = mealTimes(state.profile, meals.map((m) => m.slot));
       for (const slot of ['breakfast', 'lunch', 'dinner']) {
         const m = meals.find((x) => x.slot === slot);
         if (!m || (isToday && log[slot])) continue;
         const name = byId(m.recipeId)?.name || slot;
         const label = slot[0].toUpperCase() + slot.slice(1);
-        push(date, slot, r[slot], `${label}: log it for +10 XP`, `Planned: ${name}. Ate something else? Log that instead — it’s worth the same.`, '#/today');
+        const body = slot === 'dinner'
+          ? `Planned: ${name}. Kitchen closes after dinner — about ${Math.round(daySchedule(state.profile).gapBeforeBed / 60)} h before bed helps sleep and hunger.`
+          : `Planned: ${name}. Ate something else? Log that instead — it’s worth the same.`;
+        push(date, slot, (times[slot] ?? 12 * 60) + 45, `${label}: log it for +10 XP`, body, '#/today');
       }
     }
 

@@ -8,6 +8,8 @@ import { initialProgress, availableSteps } from '../engine/workouts.js';
 import { round, cmToIn } from '../engine/util.js';
 import * as notify from '../notify.js';
 import { DEFAULT_REMINDERS } from '../engine/reminders.js';
+import { dayFields, daySummary, readDay } from './day.js';
+import { daySchedule, toHHMM } from '../engine/schedule.js';
 
 const DAYS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
 let showBackup = false;
@@ -34,8 +36,7 @@ function remindersHtml(state) {
       ${row('morningOn', 'morning', 'Morning', 'Weigh-in and today’s plan')}
       <li class="lrow" style="cursor:default;flex-wrap:wrap;row-gap:10px">
         <label class="switch"><input type="checkbox" name="meals" value="1" ${r.meals ? 'checked' : ''} aria-label="Meal logging"><span></span></label>
-        <span class="body"><span class="title" style="display:block">Meal logging</span><span class="sub" style="display:block">Shows what’s planned for each meal</span></span>
-        <span class="meal-times">${[['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner']].map(([k, l]) => `<label><span>${l}</span><input type="time" name="${k}" value="${esc(r[k])}"></label>`).join('')}</span></li>
+        <span class="body"><span class="title" style="display:block">Meal logging</span><span class="sub" style="display:block">45 min after each meal in <a href="#/settings/day">your day</a></span></span></li>
       ${row('moveOn', 'move', 'Movement', 'Only on days with a session or activity')}
       ${row('encourage', 'encourageAt', 'Encouragement', 'A short tip or pep talk')}
       ${row('eveningOn', 'evening', 'Evening wrap-up', 'Only if quests are left')}
@@ -63,6 +64,7 @@ export default {
     const section = params[0] || '';
     const SECTIONS = [
       ['profile', 'About you', 'Body, goal, pace, health', 'today'],
+      ['day', 'Your day', (() => { const d = daySchedule(state.profile); return `Up ${toHHMM(d.wake)} · bed ${toHHMM(d.bed)} · kitchen closes ${toHHMM(d.last)}`; })(), 'clock'],
       ['food', 'Food', 'Diet, allergies, foods to avoid', 'meals'],
       ['movement', 'Movement', 'Equipment, joints, days', 'move'],
       ['reminders', 'Reminders', state.reminders?.enabled ? 'On' : 'Off', 'calendar'],
@@ -94,6 +96,13 @@ export default {
         <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
       </form>
 `;
+    if (section === 'day') return head('Your day') + `
+      <form data-form="daySave" class="card">
+        <p class="muted" style="font-size:var(--text-sm);margin-top:0">Your meal times, snacks and reminders follow this. Snacks go between meals, never after the kitchen closes.</p>
+        ${dayFields(p)}
+        <div data-live="day">${daySummary(p)}</div>
+        <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
+      </form>`;
     if (section === 'food') return head('Food') + `
       <form data-form="food" class="card">
         <fieldset><legend>Diet</legend>${chips('diet', Object.fromEntries(Object.entries(DIETS).map(([k, d]) => [k, d.label])), pr.diet, { multi: false })}</fieldset>
@@ -153,6 +162,21 @@ export default {
       <p class="footer-note">Habit Lab${window.HABITLAB_VERSION ? ` ${esc(window.HABITLAB_VERSION)}` : ''} · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
   actions: {
+    daySave(form, ev, ctx, data) {
+      ctx.update((st) => {
+        const before = daySchedule(st.profile);
+        st.profile.schedule = { ...(st.profile.schedule || {}), ...readDay(data) };
+        const d = daySchedule(st.profile);
+        // Move untouched default reminder times along with the new rhythm.
+        const r = { ...DEFAULT_REMINDERS, ...(st.reminders || {}) };
+        if (r.morning === DEFAULT_REMINDERS.morning || r.morning === toHHMM(before.wake + 15)) r.morning = toHHMM(d.wake + 15);
+        if (r.evening === DEFAULT_REMINDERS.evening || r.evening === toHHMM(Math.min(before.last + 90, before.bed - 60))) r.evening = toHHMM(Math.min(d.last + 90, d.bed - 60));
+        st.reminders = r;
+        st.flags = { ...(st.flags || {}), dayAsked: true };
+        return st;
+      });
+      ctx.toast('Your day is saved — meals and reminders now follow it.');
+    },
     gamePref(el, ev, ctx) {
       ctx.update((st) => {
         st.game = { ...st.game, [el.dataset.key]: el.checked };

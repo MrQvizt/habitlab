@@ -783,6 +783,20 @@ form:has(input[name=enabled]:not(:checked)) .reminder-list { opacity: 0.5; }
 .lv-dots { display: inline-flex; gap: 3px; flex: none; }
 .lv-dots i { width: 8px; height: 22px; border-radius: 4px; background: var(--surface-3); }
 .lv-dots i.on { background: var(--accent); }
+
+/* Header: solid enough that content never shows through (dark mode bleed) */
+.topbar { background: color-mix(in srgb, var(--bg) 97%, transparent); }
+.topbar.scrolled { box-shadow: 0 1px 0 var(--line), 0 6px 16px -12px rgba(0,0,0,.25); }
+.meal-time { color: var(--ink-2); font-variant-numeric: tabular-nums; margin-right: 4px; }
+
+/* Your day timeline preview */
+.timeline { display: flex; gap: 0; overflow-x: auto; padding: 4px 0 2px; scrollbar-width: none; position: relative; }
+.timeline::before { content: ''; position: absolute; left: 6px; right: 6px; top: 31px; height: 2px; background: var(--line-strong); }
+.tl-dot { position: relative; flex: 1 0 64px; display: flex; flex-direction: column; align-items: center; gap: 14px; font-size: var(--text-xs); color: var(--ink-3); font-weight: 600; text-align: center; }
+.tl-dot b { font-size: var(--text-sm); color: var(--ink); font-variant-numeric: tabular-nums; }
+.tl-dot::after { content: ''; position: absolute; top: 25px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); box-sizing: border-box; }
+.tl-dot { padding-top: 0; }
+.tl-dot b { margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -2666,7 +2680,101 @@ function summary(state, today, { habitsOnly = false, trendKg = null } = {}) {
 
 Object.assign(__m, { XP, levelStart, levelFromXp, LEVEL_TITLES, levelTitle, dayAwards, quests, showUpStreak, BADGES, summary });
 },
-/* js/engine/reminders.js */ 12: function (__m, __req) {
+/* js/engine/schedule.js */ 12: function (__m, __req) {
+// Your day: wake/bed times and eating window → a timeline of meal times.
+// Evidence (see Learn → "When to eat"): stop eating 2–3 h before bed (ACG GERD guideline, Katz 2022);
+// eating late increases hunger and lowers energy expenditure (Vujović 2022); an earlier main meal is
+// linked with better weight loss (Garaulet 2013). Restricting the window itself adds no weight loss
+// beyond calories (Liu 2022), so the app sets a comfortable window rather than pushing fasting.
+
+const BED_GAP_MIN = 3 * 60; // recommended: finish eating ~3 h before bed
+const BED_GAP_FLOOR = 2 * 60; // never plan the last meal closer than 2 h to bed
+
+function toMin(hhmm) {
+  const [h, m] = String(hhmm || '0:0').split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+function toHHMM(min) {
+  const m = ((Math.round(min) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+const round15 = (m) => Math.round(m / 15) * 15;
+
+/**
+ * Normalised day schedule with defaults. Times are minutes from the wake day's midnight
+ * (bed after midnight becomes > 1440).
+ */
+function daySchedule(profile = {}) {
+  const s = profile.schedule || {};
+  const wake = toMin(s.wake || '07:00');
+  let bed = toMin(s.bed || '23:00');
+  if (bed <= wake) bed += 1440;
+  let first = s.firstMeal ? toMin(s.firstMeal) : wake + 30;
+  if (first < wake) first += 1440;
+  let last = s.lastMeal ? toMin(s.lastMeal) : bed - BED_GAP_MIN;
+  if (last < first) last += 1440;
+  // Keep the last meal at least 2 h before bed, and a usable window of at least 4 h.
+  last = Math.min(last, bed - BED_GAP_FLOOR);
+  if (last - first < 240) first = Math.max(wake, last - 240);
+  return {
+    wake, bed, first, last,
+    window: last - first,
+    gapBeforeBed: bed - last,
+    sleepMinutes: 1440 - (bed - wake),
+    isSet: !!(s.wake && s.bed),
+  };
+}
+
+/**
+ * Meal times for the slots in a day: breakfast opens the window, dinner closes it, lunch a little
+ * before the middle (earlier main meals), and snacks spaced between meals — never after dinner.
+ * @returns {slot: minutes}
+ */
+function mealTimes(profile, slots) {
+  const d = daySchedule(profile);
+  const has = (x) => slots.includes(x);
+  const t = {};
+  const B = d.first;
+  const D = d.last;
+  const L = round15(B + (D - B) * 0.42);
+  if (has('breakfast')) t.breakfast = B;
+  if (has('lunch')) t.lunch = L;
+  if (has('dinner')) t.dinner = D;
+  const snacks = slots.filter((x) => x.startsWith('snack'));
+  if (snacks.length === 1) t[snacks[0]] = round15((L + D) / 2); // afternoon
+  else if (snacks.length === 2) {
+    t[snacks[0]] = round15((B + L) / 2); // mid-morning
+    t[snacks[1]] = round15((L + D) / 2); // afternoon
+  } else if (snacks.length >= 3) {
+    t[snacks[0]] = round15((B + L) / 2);
+    t[snacks[1]] = round15(L + (D - L) / 3);
+    t[snacks[2]] = round15(L + (2 * (D - L)) / 3);
+  }
+  return t;
+}
+
+/** Meals sorted into the order you eat them, each with its time. */
+function orderMeals(profile, meals) {
+  const t = mealTimes(profile, meals.map((m) => m.slot));
+  return meals.map((m) => ({ ...m, time: t[m.slot] ?? 0 })).sort((a, b) => a.time - b.time);
+}
+
+/** Friendly checks shown next to the schedule inputs. */
+function scheduleAdvice(profile) {
+  const d = daySchedule(profile);
+  const tips = [];
+  const sleepH = d.sleepMinutes / 60;
+  if (sleepH < 7) tips.push({ level: 'warn', text: `That’s about ${sleepH.toFixed(1)} hours of sleep. Adults do best with 7+ — even 30 minutes more can reduce next-day snacking.` });
+  const req = profile.schedule?.lastMeal ? toMin(profile.schedule.lastMeal) : null;
+  if (req != null && d.last < (req < d.first ? req + 1440 : req)) tips.push({ level: 'info', text: `Your last meal is planned for ${toHHMM(d.last)} so there are at least 2 hours before bed.` });
+  if (d.gapBeforeBed < BED_GAP_MIN) tips.push({ level: 'info', text: `Finishing eating about 3 hours before bed (${toHHMM(d.bed - BED_GAP_MIN)}) is gentler on reflux and sleep.` });
+  if (d.window > 13 * 60) tips.push({ level: 'info', text: `A ${Math.round(d.window / 60)}-hour eating window leaves little time for the kitchen to be closed. Many people find a 10–12 hour window easier.` });
+  return tips;
+}
+
+Object.assign(__m, { BED_GAP_MIN, BED_GAP_FLOOR, toMin, toHHMM, daySchedule, mealTimes, orderMeals, scheduleAdvice });
+},
+/* js/engine/reminders.js */ 13: function (__m, __req) {
 // Reminder schedule: turns the plan and today's progress into specific, friendly notifications
 // for the next few days. Pure — the platform layer (js/notify.js) delivers them.
 //
@@ -2676,6 +2784,7 @@ Object.assign(__m, { XP, levelStart, levelFromXp, LEVEL_TITLES, levelTitle, dayA
 const { addDays, weekStart, parseDate, hashString, isoDate } = __req(0);
 const { quests } = __req(11);
 const { byId } = __req(5);
+const { mealTimes, daySchedule, toHHMM } = __req(12);
 
 const DEFAULT_REMINDERS = {
   enabled: false,
@@ -2727,6 +2836,12 @@ function at(date, hhmm) {
   return d;
 }
 
+function atMin(date, minutes) {
+  const d = parseDate(date);
+  d.setHours(0, minutes, 0, 0); // minutes past midnight; values over 1440 roll into the next day
+  return d;
+}
+
 function mealsFor(state, date) {
   const plan = state.plans?.[weekStart(date)];
   return plan?.days?.[(parseDate(date).getDay() + 6) % 7] || [];
@@ -2746,7 +2861,7 @@ function buildReminders(state, now, ctx = {}) {
   const today = isoDate(now);
   const out = [];
   const push = (date, slot, time, title, body, route) => {
-    const when = at(date, time);
+    const when = typeof time === 'number' ? atMin(date, time) : at(date, time);
     if (when > now) out.push({ id: reminderId(date, slot), at: when, title, body, route });
   };
   for (let i = 0; i < days; i++) {
@@ -2768,14 +2883,18 @@ function buildReminders(state, now, ctx = {}) {
       push(date, 'morning', r.morning, 'Good morning', 'Your quests for today are ready.', '#/today');
     }
 
-    // Meal logging nudges
+    // Meal logging nudges: 45 minutes after each main meal on the person's own timeline
     if (r.meals) {
+      const times = mealTimes(state.profile, meals.map((m) => m.slot));
       for (const slot of ['breakfast', 'lunch', 'dinner']) {
         const m = meals.find((x) => x.slot === slot);
         if (!m || (isToday && log[slot])) continue;
         const name = byId(m.recipeId)?.name || slot;
         const label = slot[0].toUpperCase() + slot.slice(1);
-        push(date, slot, r[slot], `${label}: log it for +10 XP`, `Planned: ${name}. Ate something else? Log that instead — it’s worth the same.`, '#/today');
+        const body = slot === 'dinner'
+          ? `Planned: ${name}. Kitchen closes after dinner — about ${Math.round(daySchedule(state.profile).gapBeforeBed / 60)} h before bed helps sleep and hunger.`
+          : `Planned: ${name}. Ate something else? Log that instead — it’s worth the same.`;
+        push(date, slot, (times[slot] ?? 12 * 60) + 45, `${label}: log it for +10 XP`, body, '#/today');
       }
     }
 
@@ -2821,7 +2940,7 @@ function buildReminders(state, now, ctx = {}) {
 
 Object.assign(__m, { DEFAULT_REMINDERS, ENCOURAGEMENTS, reminderId, buildReminders });
 },
-/* js/store.js */ 13: function (__m, __req) {
+/* js/store.js */ 14: function (__m, __req) {
 // App state: one JSON object in localStorage. Everything stays on this device.
 const { isoDate, weekStart, addDays, hashString } = __req(0);
 const { dailyTargets, estimateTdee } = __req(1);
@@ -2830,7 +2949,7 @@ const { planWeek } = __req(5);
 const { initialProgress, weekSchedule } = __req(7);
 const { screen } = __req(8);
 const { summary: gameSummaryRaw } = __req(11);
-const { DEFAULT_REMINDERS } = __req(12);
+const { DEFAULT_REMINDERS } = __req(13);
 const { HABITS } = __req(9);
 const { RECIPES } = __req(4);
 const { FOODS, DIETS, ALLERGENS } = __req(3);
@@ -2993,6 +3112,7 @@ function sanitize(s) {
         intensity: oneOf(a.intensity, ['easy', 'moderate', 'vigorous'], 'moderate'),
         strength: !!a.strength,
       })),
+      schedule: Object.fromEntries(Object.entries(p.schedule && typeof p.schedule === 'object' ? p.schedule : {}).filter(([k, v]) => ['wake', 'bed', 'firstMeal', 'lastMeal'].includes(k) && typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v))),
       habitsOnly: !!p.habitsOnly,
       demo: !!p.demo,
     };
@@ -3178,7 +3298,7 @@ function game(state, date = today()) {
 
 Object.assign(__m, { VERSION, emptyState, load, save, nativeRestoreCandidate, clearAll, migrate, sanitize, today, trendWeight, safety, habitsOnly, visibleHabits, calcWeight, targets, weekKey, weeksSinceStart, ensurePlan, ensureProgress, schedule, exportJson, importJson, game, estimateTdee });
 },
-/* js/ui/dom.js */ 14: function (__m, __req) {
+/* js/ui/dom.js */ 15: function (__m, __req) {
 // Rendering helpers. Views return HTML strings; every user-provided value goes through esc().
 const { kgToLb, cmToIn, lbToKg, inToCm, round } = __req(0);
 
@@ -3294,21 +3414,24 @@ function formData(form) {
 
 Object.assign(__m, { esc, html, units, fmtWeight, weightNum, toKg, fmtDelta, fmtHeight, heightFromFtIn, fmtNum, fmtDate, icon, chips, progressBar, formData });
 },
-/* js/views/shared.js */ 15: function (__m, __req) {
+/* js/views/shared.js */ 16: function (__m, __req) {
 // Pieces shared by several views.
-const { esc, icon, fmtNum } = __req(14);
+const { esc, icon, fmtNum } = __req(15);
 const { byId, scaledNutrition, formatQty, SLOT_LABEL, dayTotals, ingredientText } = __req(5);
 const { FOODS } = __req(3);
-const store = __req(13);
+const store = __req(14);
+const { orderMeals } = __req(12);
 const { daysBetween, weekStart, parseDate } = __req(0);
 
 function dayIndex(date) {
   return (parseDate(date).getDay() + 6) % 7;
 }
 
+/** The day's meals in the order you eat them (by your day timeline), each with `time` in minutes. */
 function mealsFor(state, date) {
   const plan = state.plans[weekStart(date)];
-  return plan?.days?.[dayIndex(date)] || [];
+  const day = plan?.days?.[dayIndex(date)] || [];
+  return orderMeals(state.profile || {}, day);
 }
 
 /** Calories logged so far today (meal ticks + extras). */
@@ -3408,12 +3531,12 @@ function markChosen(meals, previous, slot) {
 
 Object.assign(__m, { dayIndex, mealsFor, eatenSoFar, dayComplete, computeIntake, proteinEaten, recipeDetails, mealMeta, slotLabel, totalsLine, safetyNotices, checkinDue, setMealStatus, markChosen });
 },
-/* js/demo.js */ 16: function (__m, __req) {
+/* js/demo.js */ 17: function (__m, __req) {
 // Demo profile with ~10 weeks of realistic history, so the app can be explored before real use.
-const { emptyState, ensurePlan, ensureProgress } = __req(13);
+const { emptyState, ensurePlan, ensureProgress } = __req(14);
 const { addDays, isoDate, round, rng, weekStart } = __req(0);
 const { HABITS } = __req(9);
-const { computeIntake } = __req(15);
+const { computeIntake } = __req(16);
 
 function demoState() {
   const today = isoDate();
@@ -3472,18 +3595,64 @@ function demoState() {
 
 Object.assign(__m, { demoState });
 },
-/* js/views/onboarding.js */ 17: function (__m, __req) {
+/* js/views/day.js */ 18: function (__m, __req) {
+// "Your day": wake, bed and eating-window inputs, shared by onboarding and Settings.
+const { esc, icon } = __req(15);
+const { daySchedule, scheduleAdvice, toHHMM, mealTimes } = __req(12);
+
+function dayFields(profile) {
+  const d = daySchedule(profile);
+  const s = profile.schedule || {};
+  const v = (k, fallback) => esc(s[k] || fallback);
+  return `<div class="grid two" style="gap:0 14px;margin-bottom:0">
+      <label class="field"><span>I usually wake up at</span><input type="time" name="wake" value="${v('wake', toHHMM(d.wake))}" required></label>
+      <label class="field"><span>I usually go to bed at</span><input type="time" name="bed" value="${v('bed', toHHMM(d.bed))}" required></label>
+      <label class="field"><span>First meal</span><input type="time" name="firstMeal" value="${v('firstMeal', toHHMM(d.first))}" required></label>
+      <label class="field"><span>Last meal <span class="hint">Ideally about 3 hours before bed</span></span><input type="time" name="lastMeal" value="${v('lastMeal', toHHMM(d.last))}" required></label>
+    </div>`;
+}
+
+/** Live summary: sleep, window, kitchen-closed time, timeline preview and advice. */
+function daySummary(profile, slots = ['breakfast', 'snack', 'lunch', 'snack2', 'dinner']) {
+  const d = daySchedule(profile);
+  const t = mealTimes(profile, slots);
+  const names = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack', snack2: 'Snack', snack3: 'Snack' };
+  const line = Object.entries(t).sort((a, b) => a[1] - b[1]).map(([k, m]) => `<span class="tl-dot"><b>${toHHMM(m)}</b>${names[k]}</span>`).join('');
+  const tips = scheduleAdvice(profile);
+  return `<div class="day-summary">
+      <div class="hero-pills" style="margin-bottom:10px">
+        <span class="pill-stat">${icon('clock')}${(d.sleepMinutes / 60).toFixed(1)} h sleep</span>
+        <span class="pill-stat">${icon('meals')}${Math.round(d.window / 60)} h eating window</span>
+        <span class="pill-stat" style="background:var(--accent-soft);color:var(--accent)">Kitchen closes ${toHHMM(d.last)} · ${(d.gapBeforeBed / 60).toFixed(1)} h before bed</span>
+      </div>
+      <div class="timeline">${line}</div>
+      ${tips.map((x) => `<div class="notice ${x.level === 'warn' ? 'warn' : 'info'}" style="margin:10px 0 0">${icon(x.level === 'warn' ? 'alert' : 'info')}<div>${esc(x.text)}</div></div>`).join('')}
+      <p class="muted" style="font-size:var(--text-xs);margin:10px 0 0">Why: eating late raises hunger and lowers energy use, and finishing 2–3 h before bed is easier on reflux and sleep. <a href="#/learn/meal_timing">The evidence</a></p>
+    </div>`;
+}
+
+function readDay(data) {
+  const ok = (x) => typeof x === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x);
+  const out = {};
+  for (const k of ['wake', 'bed', 'firstMeal', 'lastMeal']) if (ok(data[k])) out[k] = data[k];
+  return out;
+}
+
+Object.assign(__m, { dayFields, daySummary, readDay });
+},
+/* js/views/onboarding.js */ 19: function (__m, __req) {
 // Onboarding wizard: about you → health check → food → movement → habits → your plan.
-const { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight } = __req(14);
+const { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight } = __req(15);
 const { ACTIVITY_LEVELS, PACES, dailyTargets, bmi, weightAtBmi, projectWeeks } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { HABITS } = __req(9);
 const { suggestNext } = __req(10);
 const { screen } = __req(8);
-const { emptyState, importJson } = __req(13);
+const { emptyState, importJson } = __req(14);
 const { isoDate, round, cmToIn } = __req(0);
-const { demoState } = __req(16);
+const { demoState } = __req(17);
+const { dayFields, daySummary, readDay } = __req(18);
 
 let draft = { step: 0, units: 'metric' };
 
@@ -3595,6 +3764,11 @@ function health() {
 function food() {
   return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Food</h1></div></header><p class="muted">No diet is “best” — the one you can stick with is. Same calories, your choice of foods.</p>
   <form data-form="step" class="card">
+    <fieldset><legend>Your day</legend>
+      <p class="muted" style="font-size:var(--text-sm);margin:-2px 0 10px">Meals and reminders follow your rhythm, with snacks between meals and the kitchen closed well before bed.</p>
+      ${dayFields({ schedule: draft.schedule })}
+      <div data-live="day">${daySummary({ schedule: draft.schedule })}</div>
+    </fieldset>
     <fieldset><legend>What do you eat?</legend>${chips('diet', Object.fromEntries(Object.entries(DIETS).map(([k, d]) => [k, d.label])), draft.diet || 'omnivore', { multi: false })}</fieldset>
     <fieldset><legend>Allergies or intolerances</legend>${chips('allergies', ALLERGENS, draft.allergies || [])}</fieldset>
     <fieldset><legend>Foods you don’t like <span class="hint">Recipes containing these won’t be suggested.</span></legend>
@@ -3706,6 +3880,7 @@ function profileFromDraft() {
     baselineSteps: draft.baselineSteps ? Number(draft.baselineSteps) : null,
     cardioPrefs: draft.cardioPrefs?.length ? draft.cardioPrefs : ['walk'],
     struggles: draft.struggles || [],
+    schedule: draft.schedule || {},
   };
 }
 
@@ -3721,7 +3896,10 @@ function absorb(data) {
   }
   for (const k of ['medical', 'edFlags', 'limitations', 'allergies', 'dislikes', 'equipment', 'daysAvailable', 'cardioPrefs', 'struggles', 'habitPicks']) if (k in data) draft[k] = data[k];
   for (const k of ['diet', 'mealsPerDay', 'maxMinutesWeekday', 'budget', 'variety', 'experience', 'sessionMinutes', 'baselineCardioMin', 'baselineSteps', 'pace']) if (k in data) draft[k] = data[k];
-  if (draft.step === 3) draft.noCookLunch = !!data.noCookLunch;
+  if (draft.step === 3) {
+    draft.noCookLunch = !!data.noCookLunch;
+    draft.schedule = { ...(draft.schedule || {}), ...readDay(data) };
+  }
 }
 
 function validate() {
@@ -3843,16 +4021,16 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/move.js */ 18: function (__m, __req) {
+/* js/views/move.js */ 20: function (__m, __req) {
 // Movement: the week's schedule, strength session player with feedback, cardio logging.
-const { html, esc, icon, progressBar, fmtNum } = __req(14);
-const store = __req(13);
+const { html, esc, icon, progressBar, fmtNum } = __req(15);
+const store = __req(14);
 const { progressChain, stepOf, stepGoal, REP_RANGE, INTENSITY, creditedMinutes } = __req(7);
-const { chips } = __req(14);
+const { chips } = __req(15);
 const { CARDIO, WARMUP, COOLDOWN, CHAINS } = __req(6);
 const { STOP_SIGNS } = __req(8);
 const { addDays, weekStart } = __req(0);
-const { dayIndex } = __req(15);
+const { dayIndex } = __req(16);
 
 let ratings = {}; // chainKey -> rating, for the session in progress
 let showAddActivity = false;
@@ -4106,7 +4284,7 @@ function logPlannedActivity(ctx, id) {
 
 Object.assign(__m, { itemDone, logPlannedActivity });
 },
-/* js/ui/sheet.js */ 19: function (__m, __req) {
+/* js/ui/sheet.js */ 21: function (__m, __req) {
 // Bottom sheet (dialog on wide screens): swipe-down / scrim / Escape to close, focus trapped,
 // focus returned to the opener. Content is HTML; buttons inside use the normal data-action routing.
 let current = null;
@@ -4219,18 +4397,19 @@ function updateSheet(html) {
 
 Object.assign(__m, { isOpen, openSheet, closeSheet, updateSheet });
 },
-/* js/views/sheets.js */ 20: function (__m, __req) {
+/* js/views/sheets.js */ 22: function (__m, __req) {
 // Bottom-sheet flows shared by Today and Meals: a meal's detail + logging, weigh-in stepper,
 // steps, extra food and habit detail. Every reversible change offers Undo instead of asking first.
-const { esc, icon, fmtNum, fmtWeight, toKg, weightNum } = __req(14);
-const { openSheet, closeSheet, updateSheet } = __req(19);
-const store = __req(13);
-const { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } = __req(15);
+const { esc, icon, fmtNum, fmtWeight, toKg, weightNum } = __req(15);
+const { openSheet, closeSheet, updateSheet } = __req(21);
+const store = __req(14);
+const { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } = __req(16);
 const { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } = __req(5);
 const { FOODS } = __req(3);
 const { habitById, streak, habitLevels, levelIndex, levelValue } = __req(10);
 const { stepGoal } = __req(7);
 const { round, weekStart, isoDate, addDays } = __req(0);
+const { toHHMM } = __req(12);
 
 const SLOT_ICON = { breakfast: 'today', lunch: 'meals', dinner: 'meals', snack: 'star', snack2: 'star', snack3: 'star' };
 const slotIcon = (slot) => SLOT_ICON[slot] || 'meals';
@@ -4303,7 +4482,7 @@ function mealRows(state, date) {
       ? `<button class="check ${st === 'ate' || st === 'other' ? 'on' : st === 'skip' ? 'skip' : ''}" data-action="mealCheck" data-date="${date}" data-slot="${m.slot}" aria-pressed="${!!st}" aria-label="${st ? 'Clear log for' : 'Mark eaten:'} ${esc(r.name)}">${st === 'skip' ? icon('x') : icon('check')}</button>`
       : `<span class="slot-ico">${icon(slotIcon(m.slot))}</span>`;
     return `<li><div class="lrow ${st ? 'done' : ''}">${lead}
-      <button class="body row-btn" data-action="openMeal" data-slot="${m.slot}" data-date="${date}"><div class="over">${esc(SLOT_LABEL[m.slot] || m.slot)}${show ? ` · ${fmtNum(n.kcal, 10)} kcal` : ''}${favs.has(r.id) ? ' · ★' : ''}</div><div class="title"><span>${esc(r.name)}</span></div><div class="sub">${sub}</div></button>
+      <button class="body row-btn" data-action="openMeal" data-slot="${m.slot}" data-date="${date}"><div class="over"><span class="meal-time">${toHHMM(m.time)}</span> ${esc(SLOT_LABEL[m.slot] || m.slot)}${show ? ` · ${fmtNum(n.kcal, 10)} kcal` : ''}${favs.has(r.id) ? ' · ★' : ''}</div><div class="title"><span>${esc(r.name)}</span></div><div class="sub">${sub}</div></button>
       <span class="trail" aria-hidden="true">${icon('chevron')}</span></div></li>`;
   }).join('');
 }
@@ -4613,19 +4792,20 @@ function setHabitLevel(ctx, id, index) {
 
 Object.assign(__m, { slotIcon, mealRows, openMeal, habitLevelsHtml, sheetActions, toggleHabit, setHabitLevel, isoDate });
 },
-/* js/views/today.js */ 21: function (__m, __req) {
+/* js/views/today.js */ 23: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
-const { esc, icon, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(14);
-const store = __req(13);
-const { mealsFor, eatenSoFar, proteinEaten, dayComplete, setMealStatus, safetyNotices, checkinDue, slotLabel, computeIntake } = __req(15);
+const { esc, icon, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(15);
+const store = __req(14);
+const { mealsFor, eatenSoFar, proteinEaten, dayComplete, setMealStatus, safetyNotices, checkinDue, slotLabel, computeIntake } = __req(16);
 const { byId, scaledNutrition } = __req(5);
 const { habitById, streak, habitLevels, levelIndex } = __req(10);
 const { stepGoal } = __req(7);
 const { CARDIO } = __req(6);
 const { daysBetween } = __req(0);
-const { itemDone, logPlannedActivity } = __req(18);
-const { slotIcon, toggleHabit, mealRows } = __req(20);
+const { toHHMM, daySchedule } = __req(12);
+const { itemDone, logPlannedActivity } = __req(20);
+const { slotIcon, toggleHabit, mealRows } = __req(22);
 
 const SLOT_HOUR = { breakfast: 7, snack: 10, lunch: 12, snack2: 15, dinner: 18, snack3: 20 };
 
@@ -4667,8 +4847,9 @@ function nextUp(state, date) {
   const card = (eyebrow, t, s, btn, done = false) => `<section class="next-card ${done ? 'done' : ''}" aria-label="Next up"><div class="body"><div class="eyebrow">${eyebrow}</div><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ''}</div>${btn || ''}</section>`;
   const btn = (label, attrs) => `<button class="btn small" ${attrs}>${label}</button>`;
   if (!hide && h < 12 && !state.weights.some((w) => w.date === date)) return card('Next up', 'Weigh in', 'Ten seconds · +5 XP', btn('Log', 'data-action="openWeigh"'));
-  const due = meals.find((m) => !log[m.slot] && (SLOT_HOUR[m.slot] ?? 12) <= h + 1);
-  if (due) return card(`Next up · ${slotLabel(due.slot)}`, esc(byId(due.recipeId).name), 'Log it, whatever you ate · +10 XP', btn('Log', `data-action="openMeal" data-slot="${due.slot}" data-date="${date}"`));
+  const nowMin = h * 60 + new Date().getMinutes();
+  const due = meals.find((m) => !log[m.slot] && m.time <= nowMin + 30);
+  if (due) return card(`Next up · ${toHHMM(due.time)} ${slotLabel(due.slot)}`, esc(byId(due.recipeId).name), 'Log it, whatever you ate · +10 XP', btn('Log', `data-action="openMeal" data-slot="${due.slot}" data-date="${date}"`));
   const { schedule } = store.schedule(state, date);
   const items = schedule[(new Date().getDay() + 6) % 7].items;
   const move = items.find((it) => it.kind !== 'rest' && !itemDone(state.workouts.log[date] || [], it));
@@ -4681,7 +4862,7 @@ function nextUp(state, date) {
   if (habit) return card('Next up · Habit', esc(habitById(habit.id).title), esc(habit.cue), btn('Open', `data-action="openHabit" data-id="${habit.id}"`));
   if (checkinDue(state, date)) return card('Next up', 'Weekly check-in', 'Two minutes · +50 XP', `<a class="btn small" href="#/checkin">Start</a>`);
   const later = meals.find((m) => !log[m.slot]);
-  if (later) return card(`Later · ${slotLabel(later.slot)}`, esc(byId(later.recipeId).name), 'Tap to see the recipe', btn('View', `data-action="openMeal" data-slot="${later.slot}" data-date="${date}"`));
+  if (later) return card(`Later · ${toHHMM(later.time)} ${slotLabel(later.slot)}`, esc(byId(later.recipeId).name), 'Tap to see the recipe', btn('View', `data-action="openMeal" data-slot="${later.slot}" data-date="${date}"`));
   return card('All done', 'Everything’s ticked off for today', 'Rest up — see you tomorrow.', '', true);
 }
 
@@ -4780,6 +4961,7 @@ function banners(state, date) {
   const overdue = daysBetween(last, date) >= 9;
   const checkinDay = (new Date(date + 'T12:00').getDay() + 6) % 7 === Number(state.reminders?.checkinDay ?? 6);
   if (checkinDue(state, date) && (overdue || checkinDay) && !nextUp(state, date).includes('Weekly check-in')) out.push(`<a class="notice ok" href="#/checkin" style="text-decoration:none;align-items:center">${icon('calendar')}<div class="grow"><strong>Weekly check-in</strong> · two minutes, +50 XP</div>${icon('chevron')}</a>`);
+  if (!state.profile.schedule?.wake && !state.flags?.dayAsked && !state.profile.demo) out.push(`<a class="notice info" href="#/settings/day" style="text-decoration:none;align-items:center">${icon('clock')}<div class="grow"><strong>Set your day</strong> · wake, bed and meal times so snacks and reminders fit you</div>${icon('chevron')}</a>`);
   if (state.dietBreakUntil && date <= state.dietBreakUntil) out.push(`<div class="notice info">${icon('info')}<div>Planned maintenance phase until ${fmtDate(state.dietBreakUntil)}: calories are at your estimated needs.</div></div>`);
   const calc = state.calcWeightKg ?? state.profile.weightKg;
   const trend = store.trendWeight(state);
@@ -4842,13 +5024,13 @@ __m.default = {
 
 Object.assign(__m, { habitRow });
 },
-/* js/views/meals.js */ 22: function (__m, __req) {
+/* js/views/meals.js */ 24: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
-const { html, esc, icon, chips, fmtDate, fmtNum } = __req(14);
-const { mealRows } = __req(20);
-const store = __req(13);
-const { recipeDetails, mealMeta, slotLabel, totalsLine, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(15);
-const { markChosen } = __req(15);
+const { html, esc, icon, chips, fmtDate, fmtNum } = __req(15);
+const { mealRows } = __req(22);
+const store = __req(14);
+const { recipeDetails, mealMeta, slotLabel, totalsLine, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(16);
+const { markChosen } = __req(16);
 const { byId, swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL, dayTotals } = __req(5);
 const { RECIPES } = __req(4);
 const { rng } = __req(0);
@@ -5031,9 +5213,9 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 23: function (__m, __req) {
+/* js/ui/charts.js */ 25: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
-const { esc } = __req(14);
+const { esc } = __req(15);
 const { daysBetween, addDays } = __req(0);
 
 /**
@@ -5143,16 +5325,16 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/habits.js */ 24: function (__m, __req) {
+/* js/views/habits.js */ 26: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
-const { esc, icon } = __req(14);
-const { habitGrid } = __req(23);
-const store = __req(13);
+const { esc, icon } = __req(15);
+const { habitGrid } = __req(25);
+const store = __req(14);
 const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(10);
 const { daysBetween } = __req(0);
-const { openSheet, closeSheet, updateSheet } = __req(19);
-const { toggleHabit, habitLevelsHtml } = __req(20);
+const { openSheet, closeSheet, updateSheet } = __req(21);
+const { toggleHabit, habitLevelsHtml } = __req(22);
 const { habitLevels, levelIndex } = __req(10);
 
 let filter = 'all';
@@ -5299,11 +5481,11 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/progress.js */ 25: function (__m, __req) {
+/* js/views/progress.js */ 27: function (__m, __req) {
 // Progress: weight trend chart, milestones, rate, activity history, waist, check-in history.
-const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(14);
-const { weightChart, barChart } = __req(23);
-const store = __req(13);
+const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(15);
+const { weightChart, barChart } = __req(25);
+const store = __req(14);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
 const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
@@ -5442,7 +5624,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, {  });
 },
-/* js/engine/adjust.js */ 26: function (__m, __req) {
+/* js/engine/adjust.js */ 28: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -5718,11 +5900,11 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 27: function (__m, __req) {
+/* js/views/checkin.js */ 29: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
-const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(14);
-const store = __req(13);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(26);
+const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(15);
+const store = __req(14);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(28);
 const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
@@ -5867,7 +6049,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/data/learn.js */ 28: function (__m, __req) {
+/* js/data/learn.js */ 30: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -5914,6 +6096,10 @@ const S = {
   compassion: ['Brenton-Peters et al. — self-compassion and eating', 'https://eprints.whiterose.ac.uk/160045/3/Self-compassion%20and%20eating%20-%20CPR%20%28final%29.pdf'],
   mazeas: ['Mazeas et al., JMIR 2022 — gamification and physical activity (meta-analysis)', 'https://jmir.org/2022/1/e26779'],
   stepup: ['Patel et al., JAMA Intern Med 2019 — STEP UP gamification trial', 'https://pubmed.ncbi.nlm.nih.gov/31498375/'],
+  acg: ['Katz et al., ACG GERD guideline 2022 — avoid meals 2–3 h before bed', 'https://pubmed.ncbi.nlm.nih.gov/34807007/'],
+  vujovic: ['Vujović et al., Cell Metab 2022 — late eating, hunger and energy use (RCT)', 'https://pubmed.ncbi.nlm.nih.gov/36198293/'],
+  garaulet: ['Garaulet et al., IJO 2013 — meal timing and weight-loss success', 'https://www.nature.com/articles/ijo2012229'],
+  sutton: ['Sutton et al., Cell Metab 2018 — early time-restricted eating', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC5990470/'],
   stigma: ['Rubino et al., Nat Med 2020 — ending weight stigma', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC7154011'],
   tasali: ['Tasali et al., JAMA Intern Med 2022 — sleep extension RCT', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8822469'],
   cappuccio: ['Cappuccio et al. 2008 — short sleep and obesity', 'https://pubmed.ncbi.nlm.nih.gov/18517032/'],
@@ -6062,6 +6248,14 @@ const LEARN = [
       'Meal replacements and repeated meals add structure, which helps many people.'],
     ['gardner', 'astbury'],
     'Choose “low variety” to repeat favourite meals and use leftovers for lunch.'),
+  C('meal_timing', 'Sleep, stress & alcohol', 'When to eat — and when to stop',
+    'A regular rhythm with the kitchen closed a few hours before bed. What you eat still matters most.',
+    ['US gastroenterology guidelines suggest avoiding meals for 2–3 hours before bed, which helps with reflux and sleep (a conditional recommendation based on limited evidence).',
+      'In a randomised crossover trial of adults with overweight or obesity, eating the same meals ~4 hours later increased hunger and lowered energy expenditure (a small lab study of 16 people).',
+      'In a 20-week programme of 420 people, those whose main meal came before 3 pm lost more weight than later eaters (an observational study, so a link rather than proof).',
+      'Squeezing meals into a short window hasn’t produced extra weight loss beyond the calories eaten, though an earlier window improved insulin sensitivity in a very small trial. So the app sets a comfortable window — it doesn’t push fasting.'],
+    ['acg', 'vujovic', 'garaulet', 'liu', 'sutton'],
+    'Tell the app when you wake, sleep and like to eat. Meals are timed across your window with snacks in between, lunch a little before the midpoint, and the last meal at least 2 hours (ideally 3) before bed.'),
   C('sleep', 'Sleep, stress & alcohol', 'Sleep',
     'Getting enough sleep makes eating less easier.',
     ['Short sleep is associated with obesity (about 1.55× the odds), though cause and effect are uncertain.',
@@ -6110,10 +6304,10 @@ const LEARN_BY_ID = Object.fromEntries(LEARN.map((c) => [c.id, c]));
 
 Object.assign(__m, { LEARN_SECTIONS, LEARN, LEARN_BY_ID });
 },
-/* js/views/learn.js */ 29: function (__m, __req) {
+/* js/views/learn.js */ 31: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
-const { html, esc, icon } = __req(14);
-const { LEARN, LEARN_SECTIONS } = __req(28);
+const { html, esc, icon } = __req(15);
+const { LEARN, LEARN_SECTIONS } = __req(30);
 
 let section = 'all';
 let openAll = false;
@@ -6158,12 +6352,12 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/notify.js */ 30: function (__m, __req) {
+/* js/notify.js */ 32: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
 //   reliably without a server), so the Settings screen explains that the app is better for reminders.
-const { buildReminders } = __req(12);
+const { buildReminders } = __req(13);
 
 const MAX_WEB_DELAY = 24 * 3600 * 1000;
 let webTimers = [];
@@ -6295,17 +6489,19 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 31: function (__m, __req) {
+/* js/views/settings.js */ 33: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
-const { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(14);
-const store = __req(13);
+const { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(15);
+const store = __req(14);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn } = __req(0);
-const notify = __req(30);
-const { DEFAULT_REMINDERS } = __req(12);
+const notify = __req(32);
+const { DEFAULT_REMINDERS } = __req(13);
+const { dayFields, daySummary, readDay } = __req(18);
+const { daySchedule, toHHMM } = __req(12);
 
 const DAYS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
 let showBackup = false;
@@ -6332,8 +6528,7 @@ function remindersHtml(state) {
       ${row('morningOn', 'morning', 'Morning', 'Weigh-in and today’s plan')}
       <li class="lrow" style="cursor:default;flex-wrap:wrap;row-gap:10px">
         <label class="switch"><input type="checkbox" name="meals" value="1" ${r.meals ? 'checked' : ''} aria-label="Meal logging"><span></span></label>
-        <span class="body"><span class="title" style="display:block">Meal logging</span><span class="sub" style="display:block">Shows what’s planned for each meal</span></span>
-        <span class="meal-times">${[['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner']].map(([k, l]) => `<label><span>${l}</span><input type="time" name="${k}" value="${esc(r[k])}"></label>`).join('')}</span></li>
+        <span class="body"><span class="title" style="display:block">Meal logging</span><span class="sub" style="display:block">45 min after each meal in <a href="#/settings/day">your day</a></span></span></li>
       ${row('moveOn', 'move', 'Movement', 'Only on days with a session or activity')}
       ${row('encourage', 'encourageAt', 'Encouragement', 'A short tip or pep talk')}
       ${row('eveningOn', 'evening', 'Evening wrap-up', 'Only if quests are left')}
@@ -6361,6 +6556,7 @@ __m.default = {
     const section = params[0] || '';
     const SECTIONS = [
       ['profile', 'About you', 'Body, goal, pace, health', 'today'],
+      ['day', 'Your day', (() => { const d = daySchedule(state.profile); return `Up ${toHHMM(d.wake)} · bed ${toHHMM(d.bed)} · kitchen closes ${toHHMM(d.last)}`; })(), 'clock'],
       ['food', 'Food', 'Diet, allergies, foods to avoid', 'meals'],
       ['movement', 'Movement', 'Equipment, joints, days', 'move'],
       ['reminders', 'Reminders', state.reminders?.enabled ? 'On' : 'Off', 'calendar'],
@@ -6392,6 +6588,13 @@ __m.default = {
         <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
       </form>
 `;
+    if (section === 'day') return head('Your day') + `
+      <form data-form="daySave" class="card">
+        <p class="muted" style="font-size:var(--text-sm);margin-top:0">Your meal times, snacks and reminders follow this. Snacks go between meals, never after the kitchen closes.</p>
+        ${dayFields(p)}
+        <div data-live="day">${daySummary(p)}</div>
+        <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
+      </form>`;
     if (section === 'food') return head('Food') + `
       <form data-form="food" class="card">
         <fieldset><legend>Diet</legend>${chips('diet', Object.fromEntries(Object.entries(DIETS).map(([k, d]) => [k, d.label])), pr.diet, { multi: false })}</fieldset>
@@ -6451,6 +6654,21 @@ __m.default = {
       <p class="footer-note">Habit Lab${window.HABITLAB_VERSION ? ` ${esc(window.HABITLAB_VERSION)}` : ''} · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
   actions: {
+    daySave(form, ev, ctx, data) {
+      ctx.update((st) => {
+        const before = daySchedule(st.profile);
+        st.profile.schedule = { ...(st.profile.schedule || {}), ...readDay(data) };
+        const d = daySchedule(st.profile);
+        // Move untouched default reminder times along with the new rhythm.
+        const r = { ...DEFAULT_REMINDERS, ...(st.reminders || {}) };
+        if (r.morning === DEFAULT_REMINDERS.morning || r.morning === toHHMM(before.wake + 15)) r.morning = toHHMM(d.wake + 15);
+        if (r.evening === DEFAULT_REMINDERS.evening || r.evening === toHHMM(Math.min(before.last + 90, before.bed - 60))) r.evening = toHHMM(Math.min(d.last + 90, d.bed - 60));
+        st.reminders = r;
+        st.flags = { ...(st.flags || {}), dayAsked: true };
+        return st;
+      });
+      ctx.toast('Your day is saved — meals and reminders now follow it.');
+    },
     gamePref(el, ev, ctx) {
       ctx.update((st) => {
         st.game = { ...st.game, [el.dataset.key]: el.checked };
@@ -6642,13 +6860,13 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 32: function (__m, __req) {
+/* js/views/shopping.js */ 34: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
-const { html, esc, icon } = __req(14);
-const store = __req(13);
+const { html, esc, icon } = __req(15);
+const store = __req(14);
 const { shoppingList, formatQty } = __req(5);
 const { weekStart } = __req(0);
-const { dayIndex } = __req(15);
+const { dayIndex } = __req(16);
 
 const AISLE_ORDER = ['Produce', 'Frozen', 'Meat & fish', 'Dairy & eggs', 'Bakery', 'Canned & dry'];
 
@@ -6688,11 +6906,11 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 33: function (__m, __req) {
+/* js/views/rewards.js */ 35: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
-const { html, esc, icon, fmtDate, progressBar } = __req(14);
-const { ring, barChart } = __req(23);
-const store = __req(13);
+const { html, esc, icon, fmtDate, progressBar } = __req(15);
+const { ring, barChart } = __req(25);
+const store = __req(14);
 const { BADGES, XP, levelTitle } = __req(11);
 const { addDays, weekStart } = __req(0);
 
@@ -6803,11 +7021,11 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/ui/celebrate.js */ 34: function (__m, __req) {
+/* js/ui/celebrate.js */ 36: function (__m, __req) {
 // Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
 // Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
 // after the user has interacted with the page.
-const { esc, icon } = __req(14);
+const { esc, icon } = __req(15);
 
 let lastPoint = null;
 document.addEventListener('pointerdown', (e) => (lastPoint = { x: e.clientX, y: e.clientY }), true);
@@ -6934,26 +7152,27 @@ function showCelebration({ kicker, title, body, iconName = 'star', ok = 'Nice!' 
 
 Object.assign(__m, { floatXp, confetti, chime, buzz, showCelebration });
 },
-/* js/app.js */ 35: function (__m, __req) {
+/* js/app.js */ 37: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
-const store = __req(13);
-const { icon, formData } = __req(14);
-const onboarding = __req(17).default;
-const todayView = __req(21).default;
-const meals = __req(22).default;
-const move = __req(18).default;
-const habits = __req(24).default;
-const progress = __req(25).default;
-const checkin = __req(27).default;
-const learn = __req(29).default;
-const settings = __req(31).default;
-const shopping = __req(32).default;
-const rewards = __req(33).default;
-const { floatXp, confetti, chime, buzz, showCelebration } = __req(34);
+const store = __req(14);
+const { icon, formData } = __req(15);
+const onboarding = __req(19).default;
+const todayView = __req(23).default;
+const meals = __req(24).default;
+const move = __req(20).default;
+const habits = __req(26).default;
+const progress = __req(27).default;
+const checkin = __req(29).default;
+const learn = __req(31).default;
+const settings = __req(33).default;
+const shopping = __req(34).default;
+const rewards = __req(35).default;
+const { floatXp, confetti, chime, buzz, showCelebration } = __req(36);
 const { BADGES } = __req(11);
-const notify = __req(30);
-const { closeSheet } = __req(19);
-const { sheetActions } = __req(20);
+const notify = __req(32);
+const { closeSheet } = __req(21);
+const { sheetActions } = __req(22);
+const { daySummary, readDay } = __req(18);
 
 const VIEWS = { rewards, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 const NAV = [
@@ -7200,6 +7419,14 @@ document.addEventListener('submit', (ev) => {
   const handler = view.actions?.[form.dataset.form] || GLOBAL[form.dataset.form];
   if (handler) handler(form, ev, ctx, formData(form));
 });
+// Live "Your day" preview while the time inputs change.
+document.addEventListener('input', (ev) => {
+  const form = ev.target.closest('form');
+  const live = form?.querySelector('[data-live=day]');
+  if (!live || !['wake', 'bed', 'firstMeal', 'lastMeal'].includes(ev.target.name)) return;
+  const fd = Object.fromEntries(new FormData(form).entries());
+  live.innerHTML = daySummary({ schedule: readDay(fd) });
+});
 document.addEventListener('change', (ev) => {
   const el = ev.target.closest('[data-change]');
   if (el) dispatch('change', el, ev);
@@ -7277,7 +7504,7 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(35);
+__req(37);
 })();</script>
 </body>
 </html>

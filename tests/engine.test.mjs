@@ -393,3 +393,23 @@ test('small wins: every level earns XP and keeps the streak; full earns most', a
   const { streak } = await import('../js/engine/habits.js');
   assert.equal(streak(st(1).habits.log, 'water_meals', wk), 5);
 });
+
+test('day timeline: snacks sit between meals, last meal ≥2 h before bed, late bedtimes work', async () => {
+  const { mealTimes, orderMeals, daySchedule, toHHMM } = await import('../js/engine/schedule.js');
+  const p = { schedule: { wake: '06:30', bed: '22:30', firstMeal: '07:00', lastMeal: '19:30' } };
+  const slots = ['breakfast', 'lunch', 'dinner', 'snack', 'snack2', 'snack3'];
+  const order = orderMeals(p, slots.map((slot) => ({ slot }))).map((m) => m.slot);
+  assert.deepEqual(order, ['breakfast', 'snack', 'lunch', 'snack2', 'snack3', 'dinner']);
+  const four = orderMeals(p, ['breakfast', 'lunch', 'dinner', 'snack'].map((slot) => ({ slot }))).map((m) => m.slot);
+  assert.deepEqual(four, ['breakfast', 'lunch', 'snack', 'dinner']);
+  const t = mealTimes(p, slots);
+  assert.equal(toHHMM(t.breakfast), '07:00');
+  assert.equal(toHHMM(t.dinner), '19:30');
+  // Asking for a last meal 1 h before bed is pulled back to 2 h.
+  const late = daySchedule({ schedule: { wake: '08:00', bed: '23:00', lastMeal: '22:00' } });
+  assert.equal(late.bed - late.last, 120);
+  // Bedtime after midnight.
+  const owl = daySchedule({ schedule: { wake: '09:00', bed: '01:00' } });
+  assert.equal(toHHMM(owl.last), '22:00');
+  assert.equal(owl.sleepMinutes, 480);
+});

@@ -113,6 +113,21 @@ const shots = process.argv[3] || null;
     await page.waitForTimeout(250);
     await snap('05-' + route);
   }
+  // Your day: set times, then meals on Today are in time order and end by the kitchen-closed time
+  await page.goto(base + '#/settings/day');
+  await page.fill('form[data-form=daySave] input[name=wake]', '06:00');
+  await page.fill('form[data-form=daySave] input[name=bed]', '22:00');
+  await page.fill('form[data-form=daySave] input[name=firstMeal]', '06:30');
+  await page.fill('form[data-form=daySave] input[name=lastMeal]', '19:00');
+  await page.waitForSelector('text=Kitchen closes 19:00');
+  await page.click('form[data-form=daySave] button.primary');
+  await page.waitForSelector('text=Your day is saved');
+  await page.goto(base + '#/today');
+  await page.waitForSelector('.tg-food .meal-time');
+  const times = await page.$$eval('.tg-food .meal-time', (els) => els.map((e) => e.textContent.trim()));
+  if (times.join() !== [...times].sort().join()) errors.push('meals not in time order: ' + times.join(', '));
+  if (times[0] !== '06:30' || times[times.length - 1] !== '19:00') errors.push('timeline does not match the eating window: ' + times.join(', '));
+
   // Regular activity: add one for today, see it planned, log it, check XP/quest credit
   const todayIdx = await page.evaluate(() => (new Date().getDay() + 6) % 7);
   const dayName = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][todayIdx];

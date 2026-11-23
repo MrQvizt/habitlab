@@ -17,6 +17,7 @@ import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
 import { closeSheet } from './ui/sheet.js';
 import { sheetActions } from './views/sheets.js';
+import { daySummary, readDay } from './views/day.js';
 
 const VIEWS = { rewards, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 const NAV = [
@@ -262,6 +263,14 @@ document.addEventListener('submit', (ev) => {
   const view = currentView();
   const handler = view.actions?.[form.dataset.form] || GLOBAL[form.dataset.form];
   if (handler) handler(form, ev, ctx, formData(form));
+});
+// Live "Your day" preview while the time inputs change.
+document.addEventListener('input', (ev) => {
+  const form = ev.target.closest('form');
+  const live = form?.querySelector('[data-live=day]');
+  if (!live || !['wake', 'bed', 'firstMeal', 'lastMeal'].includes(ev.target.name)) return;
+  const fd = Object.fromEntries(new FormData(form).entries());
+  live.innerHTML = daySummary({ schedule: readDay(fd) });
 });
 document.addEventListener('change', (ev) => {
   const el = ev.target.closest('[data-change]');

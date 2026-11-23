@@ -9,6 +9,7 @@ import { screen } from '../engine/safety.js';
 import { emptyState, importJson } from '../store.js';
 import { isoDate, round, cmToIn } from '../engine/util.js';
 import { demoState } from '../demo.js';
+import { dayFields, daySummary, readDay } from './day.js';
 
 let draft = { step: 0, units: 'metric' };
 
@@ -120,6 +121,11 @@ function health() {
 function food() {
   return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Food</h1></div></header><p class="muted">No diet is “best” — the one you can stick with is. Same calories, your choice of foods.</p>
   <form data-form="step" class="card">
+    <fieldset><legend>Your day</legend>
+      <p class="muted" style="font-size:var(--text-sm);margin:-2px 0 10px">Meals and reminders follow your rhythm, with snacks between meals and the kitchen closed well before bed.</p>
+      ${dayFields({ schedule: draft.schedule })}
+      <div data-live="day">${daySummary({ schedule: draft.schedule })}</div>
+    </fieldset>
     <fieldset><legend>What do you eat?</legend>${chips('diet', Object.fromEntries(Object.entries(DIETS).map(([k, d]) => [k, d.label])), draft.diet || 'omnivore', { multi: false })}</fieldset>
     <fieldset><legend>Allergies or intolerances</legend>${chips('allergies', ALLERGENS, draft.allergies || [])}</fieldset>
     <fieldset><legend>Foods you don’t like <span class="hint">Recipes containing these won’t be suggested.</span></legend>
@@ -231,6 +237,7 @@ function profileFromDraft() {
     baselineSteps: draft.baselineSteps ? Number(draft.baselineSteps) : null,
     cardioPrefs: draft.cardioPrefs?.length ? draft.cardioPrefs : ['walk'],
     struggles: draft.struggles || [],
+    schedule: draft.schedule || {},
   };
 }
 
@@ -246,7 +253,10 @@ function absorb(data) {
   }
   for (const k of ['medical', 'edFlags', 'limitations', 'allergies', 'dislikes', 'equipment', 'daysAvailable', 'cardioPrefs', 'struggles', 'habitPicks']) if (k in data) draft[k] = data[k];
   for (const k of ['diet', 'mealsPerDay', 'maxMinutesWeekday', 'budget', 'variety', 'experience', 'sessionMinutes', 'baselineCardioMin', 'baselineSteps', 'pace']) if (k in data) draft[k] = data[k];
-  if (draft.step === 3) draft.noCookLunch = !!data.noCookLunch;
+  if (draft.step === 3) {
+    draft.noCookLunch = !!data.noCookLunch;
+    draft.schedule = { ...(draft.schedule || {}), ...readDay(data) };
+  }
 }
 
 function validate() {

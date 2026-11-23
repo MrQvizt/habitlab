@@ -773,3 +773,17 @@ form:has(input[name=enabled]:not(:checked)) .reminder-list { opacity: 0.5; }
 .lv-dots { display: inline-flex; gap: 3px; flex: none; }
 .lv-dots i { width: 8px; height: 22px; border-radius: 4px; background: var(--surface-3); }
 .lv-dots i.on { background: var(--accent); }
+
+/* Header: solid enough that content never shows through (dark mode bleed) */
+.topbar { background: color-mix(in srgb, var(--bg) 97%, transparent); }
+.topbar.scrolled { box-shadow: 0 1px 0 var(--line), 0 6px 16px -12px rgba(0,0,0,.25); }
+.meal-time { color: var(--ink-2); font-variant-numeric: tabular-nums; margin-right: 4px; }
+
+/* Your day timeline preview */
+.timeline { display: flex; gap: 0; overflow-x: auto; padding: 4px 0 2px; scrollbar-width: none; position: relative; }
+.timeline::before { content: ''; position: absolute; left: 6px; right: 6px; top: 31px; height: 2px; background: var(--line-strong); }
+.tl-dot { position: relative; flex: 1 0 64px; display: flex; flex-direction: column; align-items: center; gap: 14px; font-size: var(--text-xs); color: var(--ink-3); font-weight: 600; text-align: center; }
+.tl-dot b { font-size: var(--text-sm); color: var(--ink); font-variant-numeric: tabular-nums; }
+.tl-dot::after { content: ''; position: absolute; top: 25px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); box-sizing: border-box; }
+.tl-dot { padding-top: 0; }
+.tl-dot b { margin-bottom: 4px; }
