@@ -198,7 +198,7 @@ export default {
         try {
           const data = store.importJson(text);
           if (!(await ctx.confirm('Replace all current data with this backup?', { ok: 'Replace', danger: true }))) return;
-          ctx.set(data);
+          ctx.set(data, { quiet: true });
           ctx.toast('Backup imported.');
         } catch (e) {
           ctx.toast(e.message || 'Couldn’t read that file.');
@@ -225,7 +225,7 @@ export default {
         const st = store.importJson(data.text);
         if (!(await ctx.confirm('Replace all current data with this backup?', { ok: 'Replace', danger: true }))) return;
         pasteMode = false;
-        ctx.set(st);
+        ctx.set(st, { quiet: true });
         ctx.toast('Backup imported.');
       } catch (e) {
         ctx.toast(e instanceof SyntaxError ? 'That text isn’t a complete backup — copy the whole thing.' : e.message);

@@ -9,6 +9,7 @@ import { habitById, streak } from '../engine/habits.js';
 import { stepGoal } from '../engine/workouts.js';
 import { round, addDays, weekStart } from '../engine/util.js';
 import { CARDIO } from '../data/exercises.js';
+import { questsHtml } from './rewards.js';
 
 function greeting() {
   const h = new Date().getHours();
@@ -107,6 +108,11 @@ function habitsCard(state, date) {
     }).join('')}</ul></div>`;
 }
 
+function questCard(state) {
+  const g = store.game(state);
+  return `<div class="card"><div class="card-head"><h2>${icon('star')} Today’s quests</h2><a href="#/rewards" class="muted">Level ${g.level} · ${g.todayXp} XP today →</a></div>${questsHtml(g)}</div>`;
+}
+
 function firstWeek(state, date) {
   if (state.flags?.firstWeekDone || store.weeksSinceStart(state, date) > 0 || state.profile.demo) return '';
   const hide = store.habitsOnly(state);
@@ -140,6 +146,7 @@ export default {
     const showNumbers = !store.habitsOnly(state);
     return html`<h1>${greeting()}</h1><p class="muted">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · week ${store.weeksSinceStart(state, date) + 1}</p>
       ${banners(state, date)}
+      ${questCard(state)}
       ${firstWeek(state, date)}
       <div class="grid two">
         <div>${showNumbers ? weighCard(state, date, u) : ''}${habitsCard(state, date)}${moveCard(state, date)}</div>

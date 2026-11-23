@@ -9,6 +9,11 @@ const shots = process.argv[3] || null;
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   page.on('pageerror', (e) => errors.push(e.message));
 
+  let celebrations = 0;
+  await page.addLocatorHandler(page.locator('.celebrate-modal'), async () => {
+    celebrations++;
+    await page.click('.celebrate-modal button');
+  });
   const snap = async (n) => shots && page.screenshot({ path: `${shots}/${n}.png`, fullPage: true });
   await page.goto(base);
   await page.click('text=Explore with demo data');

@@ -352,7 +352,7 @@ export default {
       if (!file) return;
       file.text().then((text) => {
         try {
-          ctx.set(importJson(text), { render: false });
+          ctx.set(importJson(text), { render: false, quiet: true });
           ctx.toast('Backup imported.');
           ctx.go('#/today');
         } catch (e) {

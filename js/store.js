@@ -5,6 +5,7 @@ import { latestTrend } from './engine/trend.js';
 import { planWeek } from './engine/meals.js';
 import { initialProgress, weekSchedule } from './engine/workouts.js';
 import { screen } from './engine/safety.js';
+import { summary as gameSummaryRaw } from './engine/game.js';
 import { HABITS } from './data/habits.js';
 import { RECIPES } from './data/recipes.js';
 import { FOODS, DIETS, ALLERGENS } from './data/foods.js';
@@ -33,6 +34,7 @@ export function emptyState() {
     kcalAdjust: 0,
     tdeeOffset: 0,
     flags: {},
+    game: { badges: {}, sound: true, haptics: true, lastLevel: 1 },
   };
 }
 
@@ -71,6 +73,7 @@ export function migrate(s) {
   const out = { ...base, ...s, prefs: { ...base.prefs, ...(s.prefs || {}) } };
   out.workouts = { ...base.workouts, ...(s.workouts || {}) };
   out.habits = { ...base.habits, ...(s.habits || {}) };
+  out.game = { ...base.game, ...(s.game || {}) };
   return sanitize(out);
 }
 
@@ -139,6 +142,13 @@ export function sanitize(s) {
   s.steps = dateMap(s.steps, (v) => num(v, 0, 200000));
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
+  const g = s.game && typeof s.game === 'object' ? s.game : {};
+  s.game = {
+    badges: Object.fromEntries(Object.entries(g.badges || {}).filter(([k, v]) => /^[a-z0-9_]+$/.test(k) && ISO.test(v))),
+    sound: g.sound !== false,
+    haptics: g.haptics !== false,
+    lastLevel: num(g.lastLevel, 1, 1000, 1),
+  };
   s.kcalAdjust = num(s.kcalAdjust, -500, 500, 0);
   s.tdeeOffset = num(s.tdeeOffset, -1500, 1500, 0);
   s.calcWeightKg = num(s.calcWeightKg, 30, 400, null) ?? undefined;
@@ -265,6 +275,12 @@ export function importJson(text) {
   const s = obj.state || obj;
   if (!s || typeof s !== 'object' || !('profile' in s)) throw new Error('This file doesn’t look like a Habit Lab export.');
   return migrate(s);
+}
+
+/** Rewards summary (XP, level, streak, quests, badges) for a date. */
+export function game(state, date = today()) {
+  if (!state.profile) return null;
+  return gameSummaryRaw(state, date, { habitsOnly: habitsOnly(state), trendKg: trendWeight(state) });
 }
 
 export { estimateTdee };

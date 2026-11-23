@@ -11,6 +11,11 @@ const shots = process.argv[3] || null;
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   page.on('pageerror', (e) => errors.push(e.message));
   
+  let celebrations = 0;
+  await page.addLocatorHandler(page.locator('.celebrate-modal'), async () => {
+    celebrations++;
+    await page.click('.celebrate-modal button');
+  });
   const snap = async (name) => shots && page.screenshot({ path: `${shots}/${name}.png`, fullPage: true });
 
   await page.goto(base);
@@ -99,6 +104,12 @@ const shots = process.argv[3] || null;
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (over > 1) errors.push(`horizontal overflow ${over}px on ${route}`);
   }
+  // Gamification: XP chip present, rewards page renders, at least one celebration (level 2) happened.
+  await page.goto(base + '#/rewards');
+  await page.waitForSelector('text=Badges');
+  if (!(await page.locator('.xp-chip').count())) errors.push('missing XP chip');
+  if (!celebrations) errors.push('expected a level-up/badge celebration');
+  await snap('08-rewards');
   await browser.close();
   if (errors.length) {
     console.error('ERRORS:\n' + errors.join('\n'));

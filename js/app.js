@@ -11,8 +11,11 @@ import checkin from './views/checkin.js';
 import learn from './views/learn.js';
 import settings from './views/settings.js';
 import shopping from './views/shopping.js';
+import rewards from './views/rewards.js';
+import { floatXp, confetti, chime, buzz, showCelebration } from './ui/celebrate.js';
+import { BADGES } from './engine/game.js';
 
-const VIEWS = { start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { rewards, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -31,8 +34,15 @@ const ctx = {
   get state() {
     return state;
   },
-  set(next, { render = true } = {}) {
+  set(next, { render = true, quiet = false } = {}) {
+    const before = state.profile ? store.game(state) : null;
+    const after = next.profile ? store.game(next) : null;
+    if (after?.newBadges.length) {
+      next = { ...next, game: { ...next.game, badges: { ...next.game.badges } } };
+      for (const id of after.newBadges) next.game.badges[id] = store.today();
+    }
     state = next;
+    if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game));
     if (!store.save(state)) ctx.toast('Couldn’t save — your browser is blocking storage. Export your data in Settings to keep it.');
     if (render) renderRoute();
   },
@@ -92,6 +102,43 @@ function dialog({ message, ok, danger = false, input = null }) {
   });
 }
 
+/** Turn the difference between two reward summaries into feedback. */
+function celebrate(before, after, prefs) {
+  const gained = after.xp - before.xp;
+  if (gained <= 0) return;
+  const todayBefore = new Set((before.byDay[store.today()]?.awards || []).map((a) => a.key));
+  const fresh = (after.byDay[store.today()]?.awards || []).filter((a) => !todayBefore.has(a.key));
+  const lucky = fresh.some((a) => a.lucky);
+  const perfect = fresh.some((a) => a.kind === 'perfect');
+  const questsDoneBefore = before.quests.filter((q) => q.done).length;
+  const questsDoneAfter = after.quests.filter((q) => q.done).length;
+  floatXp(gained, { lucky, label: lucky ? 'lucky!' : perfect ? 'perfect day' : '' });
+  if (prefs.haptics) buzz(lucky || perfect ? [12, 40, 12] : 12);
+  let sound = lucky ? 'lucky' : 'tick';
+  if (questsDoneAfter > questsDoneBefore) sound = 'quest';
+  if (perfect) {
+    confetti(1.2);
+    sound = 'badge';
+    toast('Perfect day! Every quest done — +25 XP bonus.');
+  }
+  const newBadges = after.newBadges.map((id) => BADGES.find((b) => b.id === id)).filter(Boolean);
+  if (after.level > before.level) {
+    sound = 'level';
+    confetti(1.6);
+    showCelebration({ kicker: `Level ${after.level}`, title: after.title, body: `You’ve earned ${after.xp.toLocaleString()} XP by showing up. ${(after.nextLevelAt - after.xp).toLocaleString()} XP to level ${after.level + 1}.`, iconName: 'star', ok: 'Keep going' });
+  } else if (newBadges.length) {
+    sound = 'badge';
+    confetti(1);
+    const b = newBadges[0];
+    showCelebration({ kicker: 'Badge unlocked', title: b.name, body: `${b.how}. +${50 * newBadges.length} XP${newBadges.length > 1 ? ` (and ${newBadges.length - 1} more badge${newBadges.length > 2 ? 's' : ''})` : ''}.`, iconName: b.icon, ok: 'Nice!' });
+  }
+  if (prefs.sound) chime(sound);
+}
+
+function toast(msg) {
+  ctx.toast(msg);
+}
+
 function parseRoute() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   return { name: parts[0] || 'today', params: parts.slice(1) };
@@ -100,9 +147,16 @@ function parseRoute() {
 function navHtml(active, kind) {
   const links = NAV.map(([id, label, ic]) => `<a href="#/${id}" class="${kind === 'side' ? 'nav ' : ''}${active === id ? 'active' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`).join('');
   if (kind === 'side') {
-    return `<a class="brand" href="#/today"><span class="logo">HL</span>Habit Lab</a>${links}<div class="spacer"></div><a href="#/checkin" class="nav ${active === 'checkin' ? 'active' : ''}">${icon('calendar')}<span>Weekly check-in</span></a><a href="#/settings" class="nav ${active === 'settings' ? 'active' : ''}">${icon('settings')}<span>Settings</span></a>`;
+    return `<a class="brand" href="#/today"><span class="logo">HL</span>Habit Lab</a>${links}<a href="#/rewards" class="nav ${active === 'rewards' ? 'active' : ''}">${icon('star')}<span>Rewards</span></a><div class="spacer"></div><a href="#/checkin" class="nav ${active === 'checkin' ? 'active' : ''}">${icon('calendar')}<span>Weekly check-in</span></a><a href="#/settings" class="nav ${active === 'settings' ? 'active' : ''}">${icon('settings')}<span>Settings</span></a>`;
   }
   return links;
+}
+
+function xpChip() {
+  const g = store.game(state);
+  if (!g) return '';
+  const pct = Math.round(((g.xp - g.levelStart) / (g.nextLevelAt - g.levelStart)) * 100);
+  return `<a class="xp-chip" href="#/rewards" aria-label="Level ${g.level}, ${g.xp} XP, ${g.streak}-day streak. Open rewards"><span class="lvl">${g.level}</span><span class="mini"><span style="width:${pct}%"></span></span><span class="flame">${icon('flame')}${g.streak}</span></a>`;
 }
 
 let lastRoute = '';
@@ -126,7 +180,7 @@ function renderRoute() {
   document.querySelector('.bottomnav').style.display = hasShell ? '' : 'none';
   document.querySelector('.sidebar').style.display = hasShell ? '' : 'none';
   const top = hasShell
-    ? `<div class="topbar no-print"><a class="brand" href="#/today"><span class="logo">HL</span>Habit Lab</a><div class="row nowrap"><a class="btn small" href="#/checkin">${icon('calendar')}Check-in</a><a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
+    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span class="hide-narrow">Habit Lab</span></a><div class="row nowrap">${xpChip()}<a class="btn small" href="#/checkin" aria-label="Weekly check-in">${icon('calendar')}<span class="hide-narrow">Check-in</span></a><a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
     : '';
   main.innerHTML = top + view.render(state, params, ctx);
   view.after?.(main, ctx, params);
