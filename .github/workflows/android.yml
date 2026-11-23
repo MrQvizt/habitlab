@@ -25,6 +25,9 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: android-actions/setup-android@v3
+        with:
+          # The default list includes the legacy 'tools' package, which current sdkmanager no longer has.
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
       - run: npm ci
       - name: Unit tests
         run: npm test
