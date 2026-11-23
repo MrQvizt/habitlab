@@ -11,7 +11,7 @@ It builds a **meal plan**, a **workout plan** and a small set of **habits**, and
 ## Run it
 
 ```bash
-cd habit-lab
+git clone https://github.com/MrQvizt/habitlab.git && cd habitlab
 python3 -m http.server 8000     # any static server works
 # open http://localhost:8000
 ```
