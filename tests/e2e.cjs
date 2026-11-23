@@ -88,6 +88,19 @@ const shots = process.argv[3] || null;
   await page.keyboard.press('Escape');
   await page.waitForTimeout(400);
   if (await page.locator('.sheet').count()) errors.push('Escape did not close the sheet');
+  // Small win: add the sugary-drinks habit, log a smaller level, then upgrade to full with the check
+  await page.goto(base + '#/habits');
+  await page.click('button[aria-label="Add Drink water instead of sugary drinks"]');
+  await page.goto(base + '#/today');
+  await page.waitForSelector('.tg-rest button[data-action=openSmallWin]');
+  await page.click('.tg-rest button[data-action=openSmallWin] >> nth=0');
+  await page.waitForSelector('.sheet.open .level-opt');
+  await page.click('.sheet .level-opt >> nth=0');
+  await page.waitForSelector('.toast.show >> text=Small win!');
+  await page.waitForSelector('.tg-rest .check.partial');
+  await page.click('.tg-rest .check.partial');
+  await page.waitForTimeout(300);
+  if (await page.locator('.tg-rest .check.partial').count()) errors.push('check did not upgrade small win to full');
   // Habit row + steps sheet
   await page.click('button[data-action=habitCheck] >> nth=0');
   await page.click('button[data-action=openSteps]');

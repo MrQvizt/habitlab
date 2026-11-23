@@ -369,3 +369,27 @@ test('rewards: a skipped meal earns less than eating and never unlocks First Bit
   assert.ok(ate.badges.includes('first_log'));
   assert.ok(XP.mealSkip < XP.meal);
 });
+
+test('small wins: every level earns XP and keeps the streak; full earns most', async () => {
+  const { summary } = await import('../js/engine/game.js');
+  const { habitLevels, levelIndex, levelValue } = await import('../js/engine/habits.js');
+  const levels = habitLevels('water_meals');
+  assert.equal(levels.length, 3);
+  assert.ok(levels[0].xp < levels[1].xp && levels[1].xp < levels[2].xp);
+  assert.equal(levelIndex('water_meals', true), 2);
+  assert.equal(levelIndex('water_meals', levelValue('water_meals', 0)), 0);
+  assert.equal(habitLevels('kitchen_closed').length, 2);
+  const wk = '2026-11-23';
+  const st = (val) => ({ profile: { ...woman, startDate: '2026-11-16', startWeightKg: 105 }, plans: {}, weights: [], mealLog: {}, workouts: { log: {}, progress: {} }, steps: {}, checkins: [], game: { badges: {} },
+    habits: { active: [{ id: 'water_meals', cue: 'x', started: '2026-11-16' }], retired: [], log: Object.fromEntries(['2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22', wk].map((d) => [d, { water_meals: val }])) } });
+  const small = summary(st(1), wk);
+  const full = summary(st(true), wk);
+  const award = (g) => g.byDay[wk].awards.find((a) => a.kind === 'habitSmall' || a.kind === 'habit');
+  assert.equal(award(small).kind, 'habitSmall');
+  assert.equal(award(small).xp, 6);
+  assert.equal(award(full).xp, 15);
+  assert.ok(small.badges.includes('small_wins_5'), 'five small wins → Small Steps badge');
+  assert.ok(small.quests.find((q) => q.id === 'habits').done, 'a small win completes the habit quest');
+  const { streak } = await import('../js/engine/habits.js');
+  assert.equal(streak(st(1).habits.log, 'water_meals', wk), 5);
+});

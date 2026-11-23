@@ -78,6 +78,7 @@ screenshot tour for design review.
   - There are daily quests, with a "perfect day" bonus for completing them all.
   - Levels and 27 badges mark progress.
   - The streak counts days you log anything, and missing a single day doesn't break it.
+  - Habits have small-win levels, for example: swapped one sugary drink → swapped about half → no sugary drinks today. Every level earns XP and keeps the streak.
   - Occasional lucky bonuses add variety.
   - Celebrations (confetti, chimes, a short vibration) respect your device's reduced-motion setting. Sound and vibration can be turned off.
 - **Reminders:** specific nudges such as "Lunch: Greek salad with chicken" or "Strength session A".

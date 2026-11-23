@@ -48,3 +48,23 @@ export const AUTOMATICITY_ITEMS = [
   'I do it without thinking',
   'I start doing it before I realise I’m doing it',
 ];
+
+/**
+ * Small-win ladders: every habit can be done partly and still counts (it keeps the streak and the
+ * habit quest going). Habits listed here have a natural middle step; the rest get two levels —
+ * the "tiny" version and the full habit.
+ */
+export const HABIT_STEPS = {
+  weigh_daily: ['Weighed in'], // nothing smaller to do — a single level
+  water_meals: ['Swapped one sugary drink', 'Swapped about half of them', 'No sugary drinks today'],
+  veg_half: ['Added veg to one meal', 'Half a plate of veg at one meal', 'Half-plate veg at every meal'],
+  walk_after_meal: ['Walked for 2 minutes', 'Walked for 5 minutes', 'Walked for 10 minutes'],
+  alcohol_limit: ['Alternated drinks with water', 'Had fewer than usual', 'Stuck to my plan'],
+  sleep_window: ['Started winding down 15 min earlier', 'In bed 30 min earlier', '7+ hours asleep'],
+  screens_off: ['Phone away 10 min before bed', 'Phone away 20 min before bed', 'Screens off 30 min before bed'],
+  protein_first: ['Protein first at one meal', 'Protein first at two meals', 'Protein first at every meal'],
+  stand_breaks: ['Stood up once this afternoon', 'Stood up a few times', 'Stood up every hour'],
+  step_goal: ['Took one extra short walk', 'Got halfway to my goal', 'Hit my step goal'],
+  breakfast_protein: ['Added some protein to breakfast', '15 g+ protein at breakfast', '25 g+ protein at breakfast'],
+};
+

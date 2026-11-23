@@ -6,7 +6,8 @@ import { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } from '../data/habits.js'
 import { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } from '../engine/habits.js';
 import { daysBetween } from '../engine/util.js';
 import { openSheet, closeSheet, updateSheet } from '../ui/sheet.js';
-import { toggleHabit } from './sheets.js';
+import { toggleHabit, habitLevelsHtml } from './sheets.js';
+import { habitLevels, levelIndex } from '../engine/habits.js';
 
 let filter = 'all';
 
@@ -30,6 +31,9 @@ function manageSheet(state, id, mode = '') {
   }
   return `<div class="sheet-head"><div><div class="over">Habit · day ${days} of ~66</div><h2>${esc(h.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
     <div class="hero-pills" style="margin-bottom:12px"><span class="pill-stat streak">${icon('flame')}${st}-day streak</span><span class="pill-stat">${Math.round(rate * 100)}% last 7 days</span>${a.automaticity != null ? `<span class="pill-stat">automatic ${a.automaticity.toFixed(1)}/5</span>` : ''}${established ? '<span class="pill-stat" style="background:var(--accent-soft);color:var(--accent)">sticking</span>' : ''}</div>
+    <div class="section-title" style="margin-top:0">How did it go today?</div>
+    ${habitLevelsHtml(state, id)}
+    <div class="divider" style="margin:16px 0"></div>
     <div class="meter" aria-label="Days toward 66"><span style="width:${Math.min(100, (days / 66) * 100).toFixed(1)}%"></span></div>
     <p class="muted" style="font-size:var(--text-sm)">Habits take about 66 days to feel automatic on average (anywhere from 3 weeks to 8 months).</p>
     <form data-form="cue" data-id="${id}" style="margin-top:14px">
@@ -63,9 +67,12 @@ export default {
       const on = !!log[a.id];
       const days = daysBetween(a.started, date) + 1;
       const st = streak(state.habits.log, a.id, date);
-      return `<li><div class="lrow ${on ? 'done' : ''}">
-        <button class="check ${on ? 'on' : ''}" data-action="toggle" data-id="${a.id}" aria-pressed="${on}" aria-label="${esc(h.title)} done today">${icon('check')}</button>
-        <button class="body row-btn" data-action="manage" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">After ${esc(a.cue.replace(/^after\s+/i, ''))}</div>
+      const idx = levelIndex(a.id, log[a.id]);
+      const fullDone = idx === habitLevels(a.id).length - 1;
+      const partial = idx >= 0 && !fullDone;
+      return `<li><div class="lrow ${fullDone ? 'done' : ''}">
+        <button class="check ${fullDone ? 'on' : partial ? 'partial' : ''}" data-action="toggle" data-id="${a.id}" aria-pressed="${fullDone}" aria-label="${esc(h.title)} done today">${icon('check')}</button>
+        <button class="body row-btn" data-action="manage" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${partial ? `<span style="color:var(--accent);font-weight:650">Small win · ${esc(habitLevels(a.id)[idx].label)}</span>` : `After ${esc(a.cue.replace(/^after\s+/i, ''))}`}</div>
           ${days > 66 ? `<span class="sub" style="display:block;color:var(--accent);font-weight:650;margin-top:4px">Habit formed ✓ · ${st}-day streak</span>` : `<span class="meter" style="display:block;height:5px;margin:8px 0 2px"><span style="width:${Math.min(100, (days / 66) * 100).toFixed(1)}%"></span></span><span class="sub" style="display:block;font-size:var(--text-xs)">Day ${days} of ~66 · ${st}-day streak</span>`}</button></div></li>`;
     }).join('');
     const libRows = library.map((h) => `<li><div class="lrow"><span class="body"><span class="title" style="display:block">${esc(h.title)}${suggested.includes(h.id) ? ' <span class="tag" style="background:var(--accent-soft);color:var(--accent);vertical-align:2px">suggested</span>' : ''}</span><span class="sub" style="display:block">${esc(h.cue)} · <a href="#/learn/${esc(h.ev)}">evidence</a></span></span>

@@ -766,6 +766,23 @@ form:has(input[name=enabled]:not(:checked)) .reminder-list { opacity: 0.5; }
 .reminder-list .title { white-space: normal; }
 @media (max-width: 480px) { .action-bar .need-all, .action-bar .all-done { display: none !important; } .action-bar .btn.primary { max-width: none; } }
 .action-bar .btn.primary { white-space: nowrap; }
+
+/* Small wins */
+.check.partial { border-color: var(--accent); color: var(--accent); background: conic-gradient(var(--accent-soft) 0 50%, var(--surface) 50% 100%); }
+.check.partial .icon { opacity: 0.55; }
+.win-chip { border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); background: var(--accent-tint); color: var(--accent); font: inherit; font-size: var(--text-xs); font-weight: 700; padding: 5px 10px; border-radius: 999px; cursor: pointer; white-space: nowrap; min-height: 30px; }
+.win-chip:active { transform: scale(0.95); }
+.level-list { display: grid; gap: 8px; margin-bottom: 10px; }
+.level-opt { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 10px 14px; border-radius: var(--radius); border: 1.5px solid var(--line); background: var(--surface); font: inherit; color: var(--ink); text-align: left; cursor: pointer; transition: all var(--dur) var(--ease); }
+.level-opt:hover { border-color: var(--accent); }
+.level-opt:active { transform: scale(0.99); }
+.level-opt.on { border-color: var(--accent); background: var(--accent-tint); }
+.level-opt .lv-label { flex: 1; font-weight: 650; line-height: 1.3; }
+.level-opt .lv-label small { display: block; font-weight: 500; font-size: var(--text-xs); color: var(--ink-3); margin-top: 2px; }
+.level-opt .lv-xp { font-weight: 800; font-size: var(--text-sm); color: var(--accent); font-variant-numeric: tabular-nums; }
+.lv-dots { display: inline-flex; gap: 3px; flex: none; }
+.lv-dots i { width: 8px; height: 22px; border-radius: 4px; background: var(--surface-3); }
+.lv-dots i.on { background: var(--accent); }
 </style>
 </head>
 <body>
@@ -2210,7 +2227,185 @@ const STOP_SIGNS = [
 
 Object.assign(__m, { screen, STOP_SIGNS });
 },
-/* js/engine/game.js */ 9: function (__m, __req) {
+/* js/data/habits.js */ 9: function (__m, __req) {
+// Habit library. Each habit is small, specific and has a suggested cue (implementation intention:
+// "After I [cue], I will [behaviour]"). `tiny` is the version to fall back on during a hard day.
+// `ev` points to an evidence card id in learn.js.
+
+const H = (id, cat, title, tiny, cue, why, ev, extra = {}) => ({ id, cat, title, tiny, cue, why, ev, ...extra });
+
+const HABIT_CATEGORIES = {
+  monitor: 'Self-monitoring',
+  food: 'Eating',
+  move: 'Movement',
+  sleep: 'Sleep & stress',
+  env: 'Environment',
+  mind: 'Mindset',
+};
+
+const HABITS = [
+  H('weigh_daily', 'monitor', 'Weigh yourself each morning', 'Step on the scale and log the number — no judgement', 'After I use the bathroom in the morning', 'Daily weighing — looking at the trend, not single days — is linked with more weight loss.', 'self_monitoring', { starter: true }),
+  H('log_meals', 'monitor', 'Tick off meals in the app', 'Log just one meal', 'After I finish eating', 'Food self-monitoring is the behaviour most consistently linked with weight loss in lifestyle programmes.', 'self_monitoring', { starter: true }),
+  H('protein_first', 'food', 'Start each meal with the protein and veg', 'Eat a few bites of protein first', 'When I sit down to eat', 'Protein and fibre are the most filling parts of a meal and help preserve muscle while losing weight.', 'protein'),
+  H('veg_half', 'food', 'Fill half your plate with vegetables', 'Add one handful of veg to one meal', 'When I plate up dinner', 'Low-energy-density foods let you eat satisfying volumes for fewer calories.', 'fibre', { starter: true }),
+  H('water_meals', 'food', 'Drink water instead of sugary drinks', 'Swap one sugary drink for water or a zero-calorie drink', 'When I feel like a soda or juice', 'Each daily sugary drink is linked with extra weight gain each year; liquid calories don’t fill you up.', 'upf', { starter: true }),
+  H('plate_not_package', 'food', 'Eat from a plate, not the package', 'Put snacks in a bowl before eating', 'When I open a snack', 'Changing cues around you (stimulus control) is a core part of effective programmes.', 'stimulus_control'),
+  H('slow_down', 'food', 'Put your fork down between bites', 'Take one pause halfway through the meal', 'When I start a meal', 'Slowing down gives you a moment to notice fullness and choose deliberately.', 'mindful_eating'),
+  H('kitchen_closed', 'food', 'Close the kitchen after dinner', 'Brush teeth right after dinner', 'After I finish washing up', 'A clear “kitchen closed” cue makes evening grazing a decision rather than a habit.', 'stimulus_control'),
+  H('planned_treat', 'food', 'Plan your treats', 'Decide one treat ahead of time and enjoy it seated', 'When I plan tomorrow’s meals', 'Planning treats keeps you in charge and stops one slip turning into “I’ve blown it”.', 'flexible_restraint'),
+  H('breakfast_protein', 'food', 'Have 25 g+ protein at breakfast', 'Add a yogurt or egg to breakfast', 'When I make breakfast', 'Spreading protein across meals helps with fullness and muscle maintenance.', 'protein'),
+  H('alcohol_limit', 'food', 'Keep alcohol to planned days', 'Alternate each drink with a glass of water', 'When I am offered a drink', 'Alcohol adds calories and loosens food choices; limiting it helps both weight and health.', 'alcohol'),
+  H('walk_after_meal', 'move', '10-minute walk after a meal', 'Walk for 2 minutes after one meal', 'After I finish lunch', 'Short walks add up toward your weekly minutes and build the movement habit.', 'activity', { starter: true }),
+  H('step_goal', 'move', 'Hit your daily step goal', 'Take one extra short walk', 'When I check my phone at 6 pm', 'Raising steps gradually adds activity without needing gym time.', 'activity'),
+  H('stand_breaks', 'move', 'Stand up every hour', 'Stand and stretch once this afternoon', 'When a meeting or TV episode ends', 'Everyday movement (NEAT) differs hugely between people and is an easy place to add activity.', 'activity'),
+  H('strength_sessions', 'move', 'Do your planned strength session', 'Do one set of each exercise', 'When I get home from work on session days', 'Resistance training helps keep muscle while losing weight.', 'strength'),
+  H('clothes_ready', 'move', 'Lay out workout clothes the night before', 'Put your walking shoes by the door', 'After I brush my teeth at night', 'Reducing friction makes the planned behaviour the easy default.', 'stimulus_control'),
+  H('sleep_window', 'sleep', 'Aim for 7+ hours in bed asleep', 'Start your bedtime routine 15 minutes earlier', 'When my phone’s wind-down alarm goes off', 'In a trial, people who slept about an hour longer ate ~270 kcal a day less without trying.', 'sleep', { starter: true }),
+  H('screens_off', 'sleep', 'Screens off 30 minutes before bed', 'Put the phone on charge outside the bedroom', 'When I start my bedtime routine', 'Supports earlier, better-quality sleep.', 'sleep'),
+  H('stress_reset', 'sleep', 'Two-minute stress reset', 'Three slow breaths (in 4, out 6)', 'When I notice I want to eat but am not hungry', 'Stress and emotional eating are common triggers; a short alternative response breaks the loop.', 'stress'),
+  H('hunger_check', 'mind', 'Hunger check before eating', 'Rate hunger 1–10 before one snack', 'Before I open the fridge or cupboard', 'Distinguishing physical hunger from cravings or boredom helps you choose deliberately.', 'mindful_eating'),
+  H('shopping_list', 'env', 'Shop from your list', 'Bring the app’s list once this week', 'Before I leave for the shop', 'What is in the house is what gets eaten. Planning shopping supports planned eating.', 'stimulus_control'),
+  H('fruit_visible', 'env', 'Keep fruit on the counter, treats out of sight', 'Move one treat to a high cupboard', 'When I unpack groceries', 'Visibility and convenience shape what we eat more than willpower does.', 'stimulus_control'),
+  H('batch_cook', 'env', 'Batch-cook twice a week', 'Cook a double portion of tonight’s dinner', 'On Sunday afternoon and Wednesday evening', 'Having planned food ready removes the decision at the moment you are tired and hungry.', 'planning'),
+  H('self_compassion', 'mind', 'Treat slips like a friend would', 'Write one kind sentence to yourself after a slip', 'When I notice I went off plan', 'Self-compassion after a lapse reduces the “what-the-hell” effect that turns a slip into a relapse.', 'self_compassion'),
+  H('weekly_review', 'mind', 'Do the weekly check-in', 'Open the check-in and answer one question', 'On Sunday evening after dinner', 'Reviewing progress and problem-solving barriers are core parts of successful programmes.', 'problem_solving', { starter: true }),
+];
+
+/** Short self-report automaticity index (adapted from the 4-item SRBAI). Each answered 1–5. */
+const AUTOMATICITY_ITEMS = [
+  'I do it automatically',
+  'I do it without having to consciously remember',
+  'I do it without thinking',
+  'I start doing it before I realise I’m doing it',
+];
+
+/**
+ * Small-win ladders: every habit can be done partly and still counts (it keeps the streak and the
+ * habit quest going). Habits listed here have a natural middle step; the rest get two levels —
+ * the "tiny" version and the full habit.
+ */
+const HABIT_STEPS = {
+  weigh_daily: ['Weighed in'], // nothing smaller to do — a single level
+  water_meals: ['Swapped one sugary drink', 'Swapped about half of them', 'No sugary drinks today'],
+  veg_half: ['Added veg to one meal', 'Half a plate of veg at one meal', 'Half-plate veg at every meal'],
+  walk_after_meal: ['Walked for 2 minutes', 'Walked for 5 minutes', 'Walked for 10 minutes'],
+  alcohol_limit: ['Alternated drinks with water', 'Had fewer than usual', 'Stuck to my plan'],
+  sleep_window: ['Started winding down 15 min earlier', 'In bed 30 min earlier', '7+ hours asleep'],
+  screens_off: ['Phone away 10 min before bed', 'Phone away 20 min before bed', 'Screens off 30 min before bed'],
+  protein_first: ['Protein first at one meal', 'Protein first at two meals', 'Protein first at every meal'],
+  stand_breaks: ['Stood up once this afternoon', 'Stood up a few times', 'Stood up every hour'],
+  step_goal: ['Took one extra short walk', 'Got halfway to my goal', 'Hit my step goal'],
+  breakfast_protein: ['Added some protein to breakfast', '15 g+ protein at breakfast', '25 g+ protein at breakfast'],
+};
+
+
+Object.assign(__m, { HABIT_CATEGORIES, HABITS, AUTOMATICITY_ITEMS, HABIT_STEPS });
+},
+/* js/engine/habits.js */ 10: function (__m, __req) {
+// Habit tracking: completion, forgiving streaks ("never miss twice"), and readiness to add a new habit.
+const { addDays, isoDate } = __req(0);
+const { HABITS, HABIT_STEPS } = __req(9);
+
+const MAX_ACTIVE = 3;
+
+/**
+ * Levels a habit can be logged at, smallest first; the last one is the full habit.
+ * XP: two levels → 7 / 15; three levels → 6 / 10 / 15.
+ */
+function habitLevels(id) {
+  const h = habitById(id);
+  if (!h) return [{ label: 'Done', xp: 15, full: true }];
+  const labels = HABIT_STEPS[id] || [h.tiny, h.title];
+  const xp = labels.length === 3 ? [6, 10, 15] : labels.length === 2 ? [7, 15] : [15];
+  return labels.map((label, i) => ({ label, xp: xp[i], full: i === labels.length - 1, small: i < labels.length - 1 }));
+}
+
+/** Stored log value → level index. `true` (older data) means the full habit; numbers are 1-based. */
+function levelIndex(id, value) {
+  const n = habitLevels(id).length;
+  if (value === true) return n - 1;
+  const k = Number(value);
+  return Number.isInteger(k) && k >= 1 ? Math.min(n, k) - 1 : -1;
+}
+
+/** Value to store for a level index (1-based so every logged value is truthy). */
+function levelValue(id, index) {
+  return index >= habitLevels(id).length - 1 ? true : index + 1;
+}
+
+function habitById(id) {
+  return HABITS.find((h) => h.id === id);
+}
+
+/**
+ * Forgiving streak: count back from today; a single missed day doesn't break it, two in a row does.
+ * log: {date: {habitId: true}}
+ */
+function streak(log, habitId, today = isoDate()) {
+  let count = 0;
+  let misses = 0;
+  let d = today;
+  // Today not done yet doesn't count against the streak.
+  if (!log[d]?.[habitId]) d = addDays(d, -1);
+  for (let i = 0; i < 400; i++) {
+    if (log[d]?.[habitId]) {
+      count++;
+      misses = 0;
+    } else {
+      misses++;
+      if (misses >= 2) break;
+    }
+    d = addDays(d, -1);
+  }
+  return count;
+}
+
+function completionRate(log, habitId, endDate, days = 7, since = null) {
+  let done = 0;
+  let total = 0;
+  for (let i = 0; i < days; i++) {
+    const d = addDays(endDate, -i);
+    if (since && d < since) break;
+    total++;
+    if (log[d]?.[habitId]) done++;
+  }
+  return total ? done / total : 0;
+}
+
+/**
+ * Is this habit "sticking"? Either a high automaticity rating (≥ 4/5 average) or ≥ 80% completion
+ * for 3 consecutive weeks. Used to suggest adding the next habit — one at a time.
+ */
+function isEstablished(active, log, today) {
+  if (active.automaticity != null && active.automaticity >= 4) return true;
+  for (let w = 0; w < 3; w++) {
+    if (completionRate(log, active.id, addDays(today, -7 * w), 7, active.started) < 0.8) return false;
+  }
+  return addDays(active.started, 20) <= today;
+}
+
+function suggestNext(activeIds, profile) {
+  const has = new Set(activeIds);
+  const order = [
+    'weigh_daily', 'log_meals', 'water_meals', 'veg_half', 'walk_after_meal', 'sleep_window', 'protein_first',
+    'strength_sessions', 'kitchen_closed', 'shopping_list', 'planned_treat', 'self_compassion', 'step_goal',
+  ];
+  // Personalise: emphasise the person's own stated struggles first.
+  const priority = [];
+  const s = new Set(profile.struggles || []);
+  if (s.has('evening')) priority.push('kitchen_closed', 'plate_not_package');
+  if (s.has('emotional')) priority.push('stress_reset', 'hunger_check', 'self_compassion');
+  if (s.has('drinks')) priority.push('water_meals', 'alcohol_limit');
+  if (s.has('portions')) priority.push('veg_half', 'plate_not_package', 'slow_down');
+  if (s.has('time')) priority.push('batch_cook', 'shopping_list');
+  if (s.has('sleep')) priority.push('sleep_window', 'screens_off');
+  if (s.has('motivation')) priority.push('clothes_ready', 'weekly_review');
+  return [...priority, ...order, ...HABITS.map((h) => h.id)].filter((id, i, arr) => arr.indexOf(id) === i && !has.has(id)).slice(0, 5);
+}
+
+Object.assign(__m, { MAX_ACTIVE, habitLevels, levelIndex, levelValue, habitById, streak, completionRate, isEstablished, suggestNext });
+},
+/* js/engine/game.js */ 11: function (__m, __req) {
 // Rewards: XP, levels, daily quests, a "showing up" streak and badges.
 //
 // Design rules (see Learn → "Why the app gives you points"):
@@ -2223,6 +2418,7 @@ Object.assign(__m, { screen, STOP_SIGNS });
 //   It is deterministic per item, so it can't be re-rolled.
 const { addDays, daysBetween, weekStart, hashString, parseDate } = __req(0);
 const { stepGoal, creditedMinutes } = __req(7);
+const { habitLevels, levelIndex } = __req(10);
 
 const XP = {
   meal: 10, // per meal you ate and logged — planned or "something else" (honesty pays the same)
@@ -2289,9 +2485,12 @@ function dayAwards(state, date, { habitsOnly = false } = {}) {
   if (meals.length && meals.every((m) => log[m.slot])) add(`full:${date}`, 'fullDay', 'Whole day logged', XP.fullDay);
   if (!habitsOnly && state.weights?.some((w) => w.date === date)) add(`weigh:${date}`, 'weigh', 'Weighed in', XP.weighIn);
   const hl = state.habits?.log?.[date] || {};
-  for (const id of Object.keys(hl)) {
+  for (const [id, value] of Object.entries(hl)) {
     if (habitsOnly && (id === 'weigh_daily' || id === 'log_meals')) continue;
-    add(`habit:${date}:${id}`, 'habit', 'Habit done', XP.habit, true);
+    // Small wins count: any level keeps the streak and the quest; XP scales with the level.
+    const levels = habitLevels(id);
+    const lvl = levels[levelIndex(id, value)] || levels[levels.length - 1];
+    add(`habit:${date}:${id}`, lvl.full ? 'habit' : 'habitSmall', lvl.full ? 'Habit done' : `Small win: ${lvl.label}`, lvl.xp, true);
   }
   (state.workouts?.log?.[date] || []).forEach((w, i) => {
     if (w.kind === 'strength') add(`strength:${date}:${i}`, 'strength', 'Strength session', XP.strength, true);
@@ -2381,6 +2580,7 @@ const BADGES = [
   { id: 'cardio_150', name: 'Guideline Hit', icon: 'move', how: 'Log 150+ active minutes in one week', check: (s) => s.bestWeekMinutes >= 150 },
   { id: 'cardio_250', name: 'Maintainer Pace', icon: 'move', how: 'Log 250+ active minutes in one week', check: (s) => s.bestWeekMinutes >= 250 },
   { id: 'steps_5', name: 'Step Up', icon: 'move', how: 'Reach your step goal on 5 days', check: (s) => s.stepDays >= 5 },
+  { id: 'small_wins_5', name: 'Small Steps', icon: 'habits', how: 'Log 5 small wins — every step counts', check: (s) => s.smallWins >= 5 },
   { id: 'habit_7', name: 'Habit Hatchling', icon: 'habits', how: 'Tick a habit 7 times', check: (s) => s.habitTicksMax >= 7 },
   { id: 'habit_graduate', name: 'Graduate', icon: 'habits', how: 'Graduate a habit once it’s automatic', check: (s) => s.graduated >= 1 },
   { id: 'checkin_1', name: 'Reflector', icon: 'calendar', how: 'Complete a weekly check-in', check: (s) => s.checkins >= 1 },
@@ -2402,7 +2602,7 @@ function summary(state, today, { habitsOnly = false, trendKg = null } = {}) {
   const activeDays = new Set();
   const byDay = {};
   let xp = 0;
-  const stats = { mealsLogged: 0, fullDays: 0, perfectDays: 0, strength: 0, stepDays: 0, weighIns: 0, checkins: (state.checkins || []).length, graduated: (state.habits?.retired || []).length };
+  const stats = { smallWins: 0, mealsLogged: 0, fullDays: 0, perfectDays: 0, strength: 0, stepDays: 0, weighIns: 0, checkins: (state.checkins || []).length, graduated: (state.habits?.retired || []).length };
   const recipes = new Set();
   const habitTicks = {};
   for (let i = span; i >= 0; i--) {
@@ -2420,6 +2620,7 @@ function summary(state, today, { habitsOnly = false, trendKg = null } = {}) {
       else if (a.kind === 'strength') stats.strength++;
       else if (a.kind === 'steps') stats.stepDays++;
       else if (a.kind === 'weigh') stats.weighIns++;
+      else if (a.kind === 'habitSmall') stats.smallWins = (stats.smallWins || 0) + 1;
     }
     const log = state.mealLog?.[date] || {};
     for (const m of mealsFor(state, date)) if (log[m.slot]?.status === 'ate') recipes.add(m.recipeId);
@@ -2465,7 +2666,7 @@ function summary(state, today, { habitsOnly = false, trendKg = null } = {}) {
 
 Object.assign(__m, { XP, levelStart, levelFromXp, LEVEL_TITLES, levelTitle, dayAwards, quests, showUpStreak, BADGES, summary });
 },
-/* js/engine/reminders.js */ 10: function (__m, __req) {
+/* js/engine/reminders.js */ 12: function (__m, __req) {
 // Reminder schedule: turns the plan and today's progress into specific, friendly notifications
 // for the next few days. Pure — the platform layer (js/notify.js) delivers them.
 //
@@ -2473,7 +2674,7 @@ Object.assign(__m, { XP, levelStart, levelFromXp, LEVEL_TITLES, levelTitle, dayA
 // anything already done; never shame; quiet by default at night; a few encouraging messages,
 // rotating so they don't go stale.
 const { addDays, weekStart, parseDate, hashString, isoDate } = __req(0);
-const { quests } = __req(9);
+const { quests } = __req(11);
 const { byId } = __req(5);
 
 const DEFAULT_REMINDERS = {
@@ -2620,61 +2821,7 @@ function buildReminders(state, now, ctx = {}) {
 
 Object.assign(__m, { DEFAULT_REMINDERS, ENCOURAGEMENTS, reminderId, buildReminders });
 },
-/* js/data/habits.js */ 11: function (__m, __req) {
-// Habit library. Each habit is small, specific and has a suggested cue (implementation intention:
-// "After I [cue], I will [behaviour]"). `tiny` is the version to fall back on during a hard day.
-// `ev` points to an evidence card id in learn.js.
-
-const H = (id, cat, title, tiny, cue, why, ev, extra = {}) => ({ id, cat, title, tiny, cue, why, ev, ...extra });
-
-const HABIT_CATEGORIES = {
-  monitor: 'Self-monitoring',
-  food: 'Eating',
-  move: 'Movement',
-  sleep: 'Sleep & stress',
-  env: 'Environment',
-  mind: 'Mindset',
-};
-
-const HABITS = [
-  H('weigh_daily', 'monitor', 'Weigh yourself each morning', 'Step on the scale and log the number — no judgement', 'After I use the bathroom in the morning', 'Daily weighing — looking at the trend, not single days — is linked with more weight loss.', 'self_monitoring', { starter: true }),
-  H('log_meals', 'monitor', 'Tick off meals in the app', 'Log just one meal', 'After I finish eating', 'Food self-monitoring is the behaviour most consistently linked with weight loss in lifestyle programmes.', 'self_monitoring', { starter: true }),
-  H('protein_first', 'food', 'Start each meal with the protein and veg', 'Eat a few bites of protein first', 'When I sit down to eat', 'Protein and fibre are the most filling parts of a meal and help preserve muscle while losing weight.', 'protein'),
-  H('veg_half', 'food', 'Fill half your plate with vegetables', 'Add one handful of veg to one meal', 'When I plate up dinner', 'Low-energy-density foods let you eat satisfying volumes for fewer calories.', 'fibre', { starter: true }),
-  H('water_meals', 'food', 'Drink water instead of sugary drinks', 'Swap one sugary drink for water or a zero-calorie drink', 'When I feel like a soda or juice', 'Each daily sugary drink is linked with extra weight gain each year; liquid calories don’t fill you up.', 'upf', { starter: true }),
-  H('plate_not_package', 'food', 'Eat from a plate, not the package', 'Put snacks in a bowl before eating', 'When I open a snack', 'Changing cues around you (stimulus control) is a core part of effective programmes.', 'stimulus_control'),
-  H('slow_down', 'food', 'Put your fork down between bites', 'Take one pause halfway through the meal', 'When I start a meal', 'Slowing down gives you a moment to notice fullness and choose deliberately.', 'mindful_eating'),
-  H('kitchen_closed', 'food', 'Close the kitchen after dinner', 'Brush teeth right after dinner', 'After I finish washing up', 'A clear “kitchen closed” cue makes evening grazing a decision rather than a habit.', 'stimulus_control'),
-  H('planned_treat', 'food', 'Plan your treats', 'Decide one treat ahead of time and enjoy it seated', 'When I plan tomorrow’s meals', 'Planning treats keeps you in charge and stops one slip turning into “I’ve blown it”.', 'flexible_restraint'),
-  H('breakfast_protein', 'food', 'Have 25 g+ protein at breakfast', 'Add a yogurt or egg to breakfast', 'When I make breakfast', 'Spreading protein across meals helps with fullness and muscle maintenance.', 'protein'),
-  H('alcohol_limit', 'food', 'Keep alcohol to planned days', 'Alternate each drink with a glass of water', 'When I am offered a drink', 'Alcohol adds calories and loosens food choices; limiting it helps both weight and health.', 'alcohol'),
-  H('walk_after_meal', 'move', '10-minute walk after a meal', 'Walk for 2 minutes after one meal', 'After I finish lunch', 'Short walks add up toward your weekly minutes and build the movement habit.', 'activity', { starter: true }),
-  H('step_goal', 'move', 'Hit your daily step goal', 'Take one extra short walk', 'When I check my phone at 6 pm', 'Raising steps gradually adds activity without needing gym time.', 'activity'),
-  H('stand_breaks', 'move', 'Stand up every hour', 'Stand and stretch once this afternoon', 'When a meeting or TV episode ends', 'Everyday movement (NEAT) differs hugely between people and is an easy place to add activity.', 'activity'),
-  H('strength_sessions', 'move', 'Do your planned strength session', 'Do one set of each exercise', 'When I get home from work on session days', 'Resistance training helps keep muscle while losing weight.', 'strength'),
-  H('clothes_ready', 'move', 'Lay out workout clothes the night before', 'Put your walking shoes by the door', 'After I brush my teeth at night', 'Reducing friction makes the planned behaviour the easy default.', 'stimulus_control'),
-  H('sleep_window', 'sleep', 'Aim for 7+ hours in bed asleep', 'Start your bedtime routine 15 minutes earlier', 'When my phone’s wind-down alarm goes off', 'In a trial, people who slept about an hour longer ate ~270 kcal a day less without trying.', 'sleep', { starter: true }),
-  H('screens_off', 'sleep', 'Screens off 30 minutes before bed', 'Put the phone on charge outside the bedroom', 'When I start my bedtime routine', 'Supports earlier, better-quality sleep.', 'sleep'),
-  H('stress_reset', 'sleep', 'Two-minute stress reset', 'Three slow breaths (in 4, out 6)', 'When I notice I want to eat but am not hungry', 'Stress and emotional eating are common triggers; a short alternative response breaks the loop.', 'stress'),
-  H('hunger_check', 'mind', 'Hunger check before eating', 'Rate hunger 1–10 before one snack', 'Before I open the fridge or cupboard', 'Distinguishing physical hunger from cravings or boredom helps you choose deliberately.', 'mindful_eating'),
-  H('shopping_list', 'env', 'Shop from your list', 'Bring the app’s list once this week', 'Before I leave for the shop', 'What is in the house is what gets eaten. Planning shopping supports planned eating.', 'stimulus_control'),
-  H('fruit_visible', 'env', 'Keep fruit on the counter, treats out of sight', 'Move one treat to a high cupboard', 'When I unpack groceries', 'Visibility and convenience shape what we eat more than willpower does.', 'stimulus_control'),
-  H('batch_cook', 'env', 'Batch-cook twice a week', 'Cook a double portion of tonight’s dinner', 'On Sunday afternoon and Wednesday evening', 'Having planned food ready removes the decision at the moment you are tired and hungry.', 'planning'),
-  H('self_compassion', 'mind', 'Treat slips like a friend would', 'Write one kind sentence to yourself after a slip', 'When I notice I went off plan', 'Self-compassion after a lapse reduces the “what-the-hell” effect that turns a slip into a relapse.', 'self_compassion'),
-  H('weekly_review', 'mind', 'Do the weekly check-in', 'Open the check-in and answer one question', 'On Sunday evening after dinner', 'Reviewing progress and problem-solving barriers are core parts of successful programmes.', 'problem_solving', { starter: true }),
-];
-
-/** Short self-report automaticity index (adapted from the 4-item SRBAI). Each answered 1–5. */
-const AUTOMATICITY_ITEMS = [
-  'I do it automatically',
-  'I do it without having to consciously remember',
-  'I do it without thinking',
-  'I start doing it before I realise I’m doing it',
-];
-
-Object.assign(__m, { HABIT_CATEGORIES, HABITS, AUTOMATICITY_ITEMS });
-},
-/* js/store.js */ 12: function (__m, __req) {
+/* js/store.js */ 13: function (__m, __req) {
 // App state: one JSON object in localStorage. Everything stays on this device.
 const { isoDate, weekStart, addDays, hashString } = __req(0);
 const { dailyTargets, estimateTdee } = __req(1);
@@ -2682,9 +2829,9 @@ const { latestTrend } = __req(2);
 const { planWeek } = __req(5);
 const { initialProgress, weekSchedule } = __req(7);
 const { screen } = __req(8);
-const { summary: gameSummaryRaw } = __req(9);
-const { DEFAULT_REMINDERS } = __req(10);
-const { HABITS } = __req(11);
+const { summary: gameSummaryRaw } = __req(11);
+const { DEFAULT_REMINDERS } = __req(12);
+const { HABITS } = __req(9);
 const { RECIPES } = __req(4);
 const { FOODS, DIETS, ALLERGENS } = __req(3);
 const { CARDIO, CHAINS } = __req(6);
@@ -2893,7 +3040,8 @@ function sanitize(s) {
     .slice(0, 3)
     .map((a) => ({ id: a.id, cue: String(a.cue ?? '').slice(0, 160), started: isoOr(a.started, isoDate()), automaticity: num(a.automaticity, 1, 5, null) }));
   s.habits.retired = (Array.isArray(s.habits.retired) ? s.habits.retired : []).filter((r) => r && habitIds.includes(r.id)).map((r) => ({ id: r.id, date: isoOr(r.date, isoDate()) }));
-  s.habits.log = dateMap(s.habits.log, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).filter((k) => habitIds.includes(k)).map((k) => [k, true])) : null));
+  // Habit log values: true (full habit) or a 1-based small-win level.
+  s.habits.log = dateMap(s.habits.log, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, x]) => habitIds.includes(k) && x).map(([k, x]) => [k, x === true ? true : Number.isInteger(x) && x >= 1 && x <= 3 ? x : true])) : null));
   s.mealLog = dateMap(s.mealLog, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([slot, e]) => /^(breakfast|lunch|dinner|snack\d?)$/.test(slot) && ['ate', 'skip', 'other'].includes(e?.status)).map(([slot, e]) => [slot, e.status === 'other' ? { status: 'other', kcal: num(e.kcal, 0, 10000, 0) } : { status: e.status }])) : null));
   const wl = s.workouts.log;
   s.workouts.log = dateMap(wl, (v) => (Array.isArray(v) ? v.filter((x) => x && ['strength', 'cardio', 'activity'].includes(x.kind)).map((x) => ({
@@ -3030,7 +3178,7 @@ function game(state, date = today()) {
 
 Object.assign(__m, { VERSION, emptyState, load, save, nativeRestoreCandidate, clearAll, migrate, sanitize, today, trendWeight, safety, habitsOnly, visibleHabits, calcWeight, targets, weekKey, weeksSinceStart, ensurePlan, ensureProgress, schedule, exportJson, importJson, game, estimateTdee });
 },
-/* js/ui/dom.js */ 13: function (__m, __req) {
+/* js/ui/dom.js */ 14: function (__m, __req) {
 // Rendering helpers. Views return HTML strings; every user-provided value goes through esc().
 const { kgToLb, cmToIn, lbToKg, inToCm, round } = __req(0);
 
@@ -3146,91 +3294,12 @@ function formData(form) {
 
 Object.assign(__m, { esc, html, units, fmtWeight, weightNum, toKg, fmtDelta, fmtHeight, heightFromFtIn, fmtNum, fmtDate, icon, chips, progressBar, formData });
 },
-/* js/engine/habits.js */ 14: function (__m, __req) {
-// Habit tracking: completion, forgiving streaks ("never miss twice"), and readiness to add a new habit.
-const { addDays, isoDate } = __req(0);
-const { HABITS } = __req(11);
-
-const MAX_ACTIVE = 3;
-
-function habitById(id) {
-  return HABITS.find((h) => h.id === id);
-}
-
-/**
- * Forgiving streak: count back from today; a single missed day doesn't break it, two in a row does.
- * log: {date: {habitId: true}}
- */
-function streak(log, habitId, today = isoDate()) {
-  let count = 0;
-  let misses = 0;
-  let d = today;
-  // Today not done yet doesn't count against the streak.
-  if (!log[d]?.[habitId]) d = addDays(d, -1);
-  for (let i = 0; i < 400; i++) {
-    if (log[d]?.[habitId]) {
-      count++;
-      misses = 0;
-    } else {
-      misses++;
-      if (misses >= 2) break;
-    }
-    d = addDays(d, -1);
-  }
-  return count;
-}
-
-function completionRate(log, habitId, endDate, days = 7, since = null) {
-  let done = 0;
-  let total = 0;
-  for (let i = 0; i < days; i++) {
-    const d = addDays(endDate, -i);
-    if (since && d < since) break;
-    total++;
-    if (log[d]?.[habitId]) done++;
-  }
-  return total ? done / total : 0;
-}
-
-/**
- * Is this habit "sticking"? Either a high automaticity rating (≥ 4/5 average) or ≥ 80% completion
- * for 3 consecutive weeks. Used to suggest adding the next habit — one at a time.
- */
-function isEstablished(active, log, today) {
-  if (active.automaticity != null && active.automaticity >= 4) return true;
-  for (let w = 0; w < 3; w++) {
-    if (completionRate(log, active.id, addDays(today, -7 * w), 7, active.started) < 0.8) return false;
-  }
-  return addDays(active.started, 20) <= today;
-}
-
-function suggestNext(activeIds, profile) {
-  const has = new Set(activeIds);
-  const order = [
-    'weigh_daily', 'log_meals', 'water_meals', 'veg_half', 'walk_after_meal', 'sleep_window', 'protein_first',
-    'strength_sessions', 'kitchen_closed', 'shopping_list', 'planned_treat', 'self_compassion', 'step_goal',
-  ];
-  // Personalise: emphasise the person's own stated struggles first.
-  const priority = [];
-  const s = new Set(profile.struggles || []);
-  if (s.has('evening')) priority.push('kitchen_closed', 'plate_not_package');
-  if (s.has('emotional')) priority.push('stress_reset', 'hunger_check', 'self_compassion');
-  if (s.has('drinks')) priority.push('water_meals', 'alcohol_limit');
-  if (s.has('portions')) priority.push('veg_half', 'plate_not_package', 'slow_down');
-  if (s.has('time')) priority.push('batch_cook', 'shopping_list');
-  if (s.has('sleep')) priority.push('sleep_window', 'screens_off');
-  if (s.has('motivation')) priority.push('clothes_ready', 'weekly_review');
-  return [...priority, ...order, ...HABITS.map((h) => h.id)].filter((id, i, arr) => arr.indexOf(id) === i && !has.has(id)).slice(0, 5);
-}
-
-Object.assign(__m, { MAX_ACTIVE, habitById, streak, completionRate, isEstablished, suggestNext });
-},
 /* js/views/shared.js */ 15: function (__m, __req) {
 // Pieces shared by several views.
-const { esc, icon, fmtNum } = __req(13);
+const { esc, icon, fmtNum } = __req(14);
 const { byId, scaledNutrition, formatQty, SLOT_LABEL, dayTotals, ingredientText } = __req(5);
 const { FOODS } = __req(3);
-const store = __req(12);
+const store = __req(13);
 const { daysBetween, weekStart, parseDate } = __req(0);
 
 function dayIndex(date) {
@@ -3341,9 +3410,9 @@ Object.assign(__m, { dayIndex, mealsFor, eatenSoFar, dayComplete, computeIntake,
 },
 /* js/demo.js */ 16: function (__m, __req) {
 // Demo profile with ~10 weeks of realistic history, so the app can be explored before real use.
-const { emptyState, ensurePlan, ensureProgress } = __req(12);
+const { emptyState, ensurePlan, ensureProgress } = __req(13);
 const { addDays, isoDate, round, rng, weekStart } = __req(0);
-const { HABITS } = __req(11);
+const { HABITS } = __req(9);
 const { computeIntake } = __req(15);
 
 function demoState() {
@@ -3405,14 +3474,14 @@ Object.assign(__m, { demoState });
 },
 /* js/views/onboarding.js */ 17: function (__m, __req) {
 // Onboarding wizard: about you → health check → food → movement → habits → your plan.
-const { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight } = __req(13);
+const { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight } = __req(14);
 const { ACTIVITY_LEVELS, PACES, dailyTargets, bmi, weightAtBmi, projectWeeks } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
-const { HABITS } = __req(11);
-const { suggestNext } = __req(14);
+const { HABITS } = __req(9);
+const { suggestNext } = __req(10);
 const { screen } = __req(8);
-const { emptyState, importJson } = __req(12);
+const { emptyState, importJson } = __req(13);
 const { isoDate, round, cmToIn } = __req(0);
 const { demoState } = __req(16);
 
@@ -3776,10 +3845,10 @@ Object.assign(__m, {  });
 },
 /* js/views/move.js */ 18: function (__m, __req) {
 // Movement: the week's schedule, strength session player with feedback, cardio logging.
-const { html, esc, icon, progressBar, fmtNum } = __req(13);
-const store = __req(12);
+const { html, esc, icon, progressBar, fmtNum } = __req(14);
+const store = __req(13);
 const { progressChain, stepOf, stepGoal, REP_RANGE, INTENSITY, creditedMinutes } = __req(7);
-const { chips } = __req(13);
+const { chips } = __req(14);
 const { CARDIO, WARMUP, COOLDOWN, CHAINS } = __req(6);
 const { STOP_SIGNS } = __req(8);
 const { addDays, weekStart } = __req(0);
@@ -4153,13 +4222,13 @@ Object.assign(__m, { isOpen, openSheet, closeSheet, updateSheet });
 /* js/views/sheets.js */ 20: function (__m, __req) {
 // Bottom-sheet flows shared by Today and Meals: a meal's detail + logging, weigh-in stepper,
 // steps, extra food and habit detail. Every reversible change offers Undo instead of asking first.
-const { esc, icon, fmtNum, fmtWeight, toKg, weightNum } = __req(13);
+const { esc, icon, fmtNum, fmtWeight, toKg, weightNum } = __req(14);
 const { openSheet, closeSheet, updateSheet } = __req(19);
-const store = __req(12);
+const store = __req(13);
 const { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } = __req(15);
 const { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } = __req(5);
 const { FOODS } = __req(3);
-const { habitById, streak } = __req(14);
+const { habitById, streak, habitLevels, levelIndex, levelValue } = __req(10);
 const { stepGoal } = __req(7);
 const { round, weekStart, isoDate, addDays } = __req(0);
 
@@ -4298,19 +4367,30 @@ function extraSheetHtml(state) {
 }
 
 // ---------- Habit ----------
+/** "How did it go?" — every level counts; the last is the full habit. */
+function habitLevelsHtml(state, id) {
+  const date = store.today();
+  const cur = levelIndex(id, state.habits.log[date]?.[id]);
+  const levels = habitLevels(id);
+  return `<div class="level-list" role="radiogroup" aria-label="How did it go?">${levels.map((l, i) => `<button type="button" class="level-opt ${cur === i ? 'on' : ''} ${l.full ? 'full' : ''}" role="radio" aria-checked="${cur === i}" data-action="sheetHabitLevel" data-id="${id}" data-level="${i}">
+      <span class="lv-dots" aria-hidden="true">${levels.map((_, j) => `<i class="${j <= i ? 'on' : ''}"></i>`).join('')}</span>
+      <span class="lv-label">${esc(l.label)}<small>${l.full ? 'The full habit' : i === 0 ? 'Small win — it still counts' : 'Getting there'}</small></span>
+      <span class="lv-xp">+${l.xp} XP</span></button>`).join('')}</div>
+    ${cur >= 0 ? `<button class="btn ghost small" data-action="sheetHabitLevel" data-id="${id}" data-level="-1">Not done today</button>` : ''}`;
+}
+
 function habitSheetHtml(state, id) {
   const a = state.habits.active.find((x) => x.id === id);
   const h = habitById(id);
   if (!a || !h) return '';
   const date = store.today();
-  const on = !!state.habits.log[date]?.[id];
   const st = streak(state.habits.log, id, date);
   return `<div class="sheet-head"><div><div class="over">Habit · ${st}-day streak</div><h2>${esc(h.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
-    <div class="card flat" style="margin:0 0 12px"><div class="eyebrow">Your plan</div><p style="margin:4px 0 0;font-weight:600">${esc(a.cue)} → ${esc(h.title.toLowerCase())}</p></div>
-    <p><strong>Hard day?</strong> ${esc(h.tiny)}.</p>
-    <p class="muted">${esc(h.why)}</p>
-    <div class="actions-grid"><button class="btn ${on ? '' : 'primary'} full" data-action="sheetHabitToggle" data-id="${id}">${on ? 'Mark as not done' : `${icon('check')}Done today`}</button></div>
-    <a class="btn ghost small" href="#/habits">Edit cue & see history</a>`;
+    <p class="muted" style="margin:-4px 0 12px">${esc(a.cue)} → ${esc(h.title.toLowerCase())}</p>
+    <div class="section-title" style="margin-top:0">How did it go today?</div>
+    ${habitLevelsHtml(state, id)}
+    <p class="muted" style="font-size:var(--text-sm);margin-top:14px">${esc(h.why)} <a href="#/learn/${esc(h.ev)}">Why this works</a></p>
+    <a class="btn ghost small" href="#/habits">Edit plan & history</a>`;
 }
 
 /** Actions to spread into a view's `actions`. */
@@ -4480,6 +4560,19 @@ const sheetActions = {
     closeSheet();
     toggleHabit(ctx, el.dataset.id);
   },
+  sheetHabitLevel(el, ev, ctx) {
+    const id = el.dataset.id;
+    const i = Number(el.dataset.level);
+    closeSheet();
+    setHabitLevel(ctx, id, i);
+  },
+  openSmallWin(el, ev, ctx) {
+    const id = el.dataset.id;
+    const h = habitById(id);
+    openSheet(`<div class="sheet-head"><div><div class="over">Small wins count</div><h2>${esc(h.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+      <p class="muted" style="margin:-4px 0 12px">Didn’t do all of it? Log what you did — it keeps your streak going.</p>
+      ${habitLevelsHtml(ctx.state, id)}`, { label: 'Log a small win' });
+  },
 };
 
 /** Re-sign the current plan after a change that shouldn't rebuild it (like starring a recipe). */
@@ -4491,29 +4584,43 @@ function keepCurrentPlan(st) {
   return st;
 }
 
+/** Check button: not done → full habit; small win → upgrade to full; full → clear (with Undo). */
 function toggleHabit(ctx, id) {
   const date = store.today();
-  ctx.update((st) => {
+  const cur = ctx.state.habits.log[date]?.[id];
+  const full = habitLevels(id).length - 1;
+  if (cur && levelIndex(id, cur) === full) setHabitLevel(ctx, id, -1);
+  else setHabitLevel(ctx, id, full);
+}
+
+/** Log a habit at a level index (−1 clears). */
+function setHabitLevel(ctx, id, index) {
+  const date = store.today();
+  const levels = habitLevels(id);
+  const apply = (st) => {
     const day = { ...(st.habits.log[date] || {}) };
-    if (day[id]) delete day[id];
-    else day[id] = true;
+    if (index < 0) delete day[id];
+    else day[id] = levelValue(id, index);
     st.habits.log[date] = day;
     return st;
-  });
+  };
+  if (index < 0) return ctx.undoable('Marked as not done', apply);
+  ctx.update(apply);
+  if (!levels[index].full) ctx.toast(`Small win! ${levels[index].label}. Every step counts.`);
 }
 
 
 
-Object.assign(__m, { slotIcon, mealRows, openMeal, sheetActions, toggleHabit, isoDate });
+Object.assign(__m, { slotIcon, mealRows, openMeal, habitLevelsHtml, sheetActions, toggleHabit, setHabitLevel, isoDate });
 },
 /* js/views/today.js */ 21: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
-const { esc, icon, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(13);
-const store = __req(12);
+const { esc, icon, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(14);
+const store = __req(13);
 const { mealsFor, eatenSoFar, proteinEaten, dayComplete, setMealStatus, safetyNotices, checkinDue, slotLabel, computeIntake } = __req(15);
 const { byId, scaledNutrition } = __req(5);
-const { habitById, streak } = __req(14);
+const { habitById, streak, habitLevels, levelIndex } = __req(10);
 const { stepGoal } = __req(7);
 const { CARDIO } = __req(6);
 const { daysBetween } = __req(0);
@@ -4600,18 +4707,28 @@ function food(state, date) {
 }
 
 // ---------- Habits ----------
+/** Habit row: check = full habit (or upgrade a small win); "Small win" logs a smaller level. */
+function habitRow(state, a, date, checkAction, openAction) {
+  const h = habitById(a.id);
+  const val = state.habits.log[date]?.[a.id];
+  const levels = habitLevels(a.id);
+  const idx = levelIndex(a.id, val);
+  const full = idx === levels.length - 1;
+  const partial = idx >= 0 && !full;
+  const st = streak(state.habits.log, a.id, date);
+  const sub = partial ? `<span style="color:var(--accent);font-weight:650">Small win · ${esc(levels[idx].label)}</span>` : esc(a.cue);
+  return `<li><div class="lrow ${full ? 'done' : ''}">
+      <button class="check ${full ? 'on' : partial ? 'partial' : ''}" data-action="${checkAction}" data-id="${a.id}" aria-pressed="${full}" aria-label="${partial ? 'Upgrade to full: ' : ''}${esc(h.title)}">${icon('check')}</button>
+      <button class="body row-btn" data-action="${openAction}" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${sub}</div></button>
+      <span class="trail" style="flex-direction:column;align-items:flex-end;gap:4px">${!full && levels.length > 1 ? `<button class="win-chip" data-action="openSmallWin" data-id="${a.id}">${partial ? 'Change' : 'Small win'}</button>` : ''}${st ? `<span class="tag" style="background:var(--warm-soft);color:color-mix(in srgb,var(--warm) 80%,var(--ink))">${icon('flame', 'tiny')}${st}</span>` : ''}</span></div></li>`;
+}
+
 function habits(state, date) {
   const active = store.visibleHabits(state);
   if (!active.length) return `<div class="section-head"><h2>Habits</h2><a href="#/habits">Choose one</a></div><div class="card empty-state">${icon('habits')}<strong>No habit yet</strong>Pick one small habit to start with.</div>`;
   const log = state.habits.log[date] || {};
   return `<div class="section-head"><h2>Habits</h2><a href="#/habits">Manage</a></div><div class="card tight"><ul class="rows">${active.map((a) => {
-    const h = habitById(a.id);
-    const on = !!log[a.id];
-    const st = streak(state.habits.log, a.id, date);
-    return `<li><div class="lrow ${on ? 'done' : ''}">
-      <button class="check ${on ? 'on' : ''}" data-action="habitCheck" data-id="${a.id}" aria-pressed="${on}" aria-label="${esc(h.title)}">${icon('check')}</button>
-      <button class="body row-btn" data-action="openHabit" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${esc(a.cue)}</div></button>
-      <span class="trail">${st ? `<span class="tag" style="background:var(--warm-soft);color:color-mix(in srgb,var(--warm) 80%,var(--ink))">${icon('flame', 'tiny')}${st}</span>` : ''}</span></div></li>`;
+    return habitRow(state, a, date, 'habitCheck', 'openHabit');
   }).join('')}</ul></div>`;
 }
 
@@ -4723,13 +4840,13 @@ __m.default = {
   },
 };
 
-Object.assign(__m, {  });
+Object.assign(__m, { habitRow });
 },
 /* js/views/meals.js */ 22: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
-const { html, esc, icon, chips, fmtDate, fmtNum } = __req(13);
+const { html, esc, icon, chips, fmtDate, fmtNum } = __req(14);
 const { mealRows } = __req(20);
-const store = __req(12);
+const store = __req(13);
 const { recipeDetails, mealMeta, slotLabel, totalsLine, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(15);
 const { markChosen } = __req(15);
 const { byId, swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL, dayTotals } = __req(5);
@@ -4916,7 +5033,7 @@ Object.assign(__m, {  });
 },
 /* js/ui/charts.js */ 23: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
-const { esc } = __req(13);
+const { esc } = __req(14);
 const { daysBetween, addDays } = __req(0);
 
 /**
@@ -5028,14 +5145,15 @@ Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
 /* js/views/habits.js */ 24: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
-const { esc, icon } = __req(13);
+const { esc, icon } = __req(14);
 const { habitGrid } = __req(23);
-const store = __req(12);
-const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(11);
-const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(14);
+const store = __req(13);
+const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
+const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(10);
 const { daysBetween } = __req(0);
 const { openSheet, closeSheet, updateSheet } = __req(19);
-const { toggleHabit } = __req(20);
+const { toggleHabit, habitLevelsHtml } = __req(20);
+const { habitLevels, levelIndex } = __req(10);
 
 let filter = 'all';
 
@@ -5059,6 +5177,9 @@ function manageSheet(state, id, mode = '') {
   }
   return `<div class="sheet-head"><div><div class="over">Habit · day ${days} of ~66</div><h2>${esc(h.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
     <div class="hero-pills" style="margin-bottom:12px"><span class="pill-stat streak">${icon('flame')}${st}-day streak</span><span class="pill-stat">${Math.round(rate * 100)}% last 7 days</span>${a.automaticity != null ? `<span class="pill-stat">automatic ${a.automaticity.toFixed(1)}/5</span>` : ''}${established ? '<span class="pill-stat" style="background:var(--accent-soft);color:var(--accent)">sticking</span>' : ''}</div>
+    <div class="section-title" style="margin-top:0">How did it go today?</div>
+    ${habitLevelsHtml(state, id)}
+    <div class="divider" style="margin:16px 0"></div>
     <div class="meter" aria-label="Days toward 66"><span style="width:${Math.min(100, (days / 66) * 100).toFixed(1)}%"></span></div>
     <p class="muted" style="font-size:var(--text-sm)">Habits take about 66 days to feel automatic on average (anywhere from 3 weeks to 8 months).</p>
     <form data-form="cue" data-id="${id}" style="margin-top:14px">
@@ -5092,9 +5213,12 @@ __m.default = {
       const on = !!log[a.id];
       const days = daysBetween(a.started, date) + 1;
       const st = streak(state.habits.log, a.id, date);
-      return `<li><div class="lrow ${on ? 'done' : ''}">
-        <button class="check ${on ? 'on' : ''}" data-action="toggle" data-id="${a.id}" aria-pressed="${on}" aria-label="${esc(h.title)} done today">${icon('check')}</button>
-        <button class="body row-btn" data-action="manage" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">After ${esc(a.cue.replace(/^after\s+/i, ''))}</div>
+      const idx = levelIndex(a.id, log[a.id]);
+      const fullDone = idx === habitLevels(a.id).length - 1;
+      const partial = idx >= 0 && !fullDone;
+      return `<li><div class="lrow ${fullDone ? 'done' : ''}">
+        <button class="check ${fullDone ? 'on' : partial ? 'partial' : ''}" data-action="toggle" data-id="${a.id}" aria-pressed="${fullDone}" aria-label="${esc(h.title)} done today">${icon('check')}</button>
+        <button class="body row-btn" data-action="manage" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${partial ? `<span style="color:var(--accent);font-weight:650">Small win · ${esc(habitLevels(a.id)[idx].label)}</span>` : `After ${esc(a.cue.replace(/^after\s+/i, ''))}`}</div>
           ${days > 66 ? `<span class="sub" style="display:block;color:var(--accent);font-weight:650;margin-top:4px">Habit formed ✓ · ${st}-day streak</span>` : `<span class="meter" style="display:block;height:5px;margin:8px 0 2px"><span style="width:${Math.min(100, (days / 66) * 100).toFixed(1)}%"></span></span><span class="sub" style="display:block;font-size:var(--text-xs)">Day ${days} of ~66 · ${st}-day streak</span>`}</button></div></li>`;
     }).join('');
     const libRows = library.map((h) => `<li><div class="lrow"><span class="body"><span class="title" style="display:block">${esc(h.title)}${suggested.includes(h.id) ? ' <span class="tag" style="background:var(--accent-soft);color:var(--accent);vertical-align:2px">suggested</span>' : ''}</span><span class="sub" style="display:block">${esc(h.cue)} · <a href="#/learn/${esc(h.ev)}">evidence</a></span></span>
@@ -5177,9 +5301,9 @@ Object.assign(__m, {  });
 },
 /* js/views/progress.js */ 25: function (__m, __req) {
 // Progress: weight trend chart, milestones, rate, activity history, waist, check-in history.
-const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(13);
+const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(14);
 const { weightChart, barChart } = __req(23);
-const store = __req(12);
+const store = __req(13);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
 const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
@@ -5596,10 +5720,10 @@ Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
 /* js/views/checkin.js */ 27: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
-const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(13);
-const store = __req(12);
+const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(14);
+const store = __req(13);
 const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(26);
-const { habitById, MAX_ACTIVE } = __req(14);
+const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
 let review = null; // {answers, result}
@@ -5894,7 +6018,7 @@ const LEARN = [
       'For eating, if–then plans work better for adding healthy foods than for cutting unhealthy ones — so habits here are mostly additions.',
       'A simple habit-based leaflet (“Ten Top Tips”) helped people lose weight in primary care and keep it off at 2 years.'],
     ['lally', 'gollwitzer', 'adriaanse', 'gardner', 'tentips'],
-    'Up to 3 active habits, each with a cue you can edit, a “tiny” fallback version, a 66-day horizon and a forgiving streak.'),
+    'Up to 3 active habits, each with a cue you can edit, a 66-day horizon and a forgiving streak. Every habit has small-win levels (e.g. “swapped one sugary drink”) that earn XP and keep the streak going.'),
   C('stimulus_control', 'Habits & mindset', 'Change the environment, not your willpower',
     'What is visible, convenient and already in the house shapes what you eat.',
     ['Stimulus control — changing cues around you — is a standard part of effective behavioural programmes.',
@@ -5988,7 +6112,7 @@ Object.assign(__m, { LEARN_SECTIONS, LEARN, LEARN_BY_ID });
 },
 /* js/views/learn.js */ 29: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
-const { html, esc, icon } = __req(13);
+const { html, esc, icon } = __req(14);
 const { LEARN, LEARN_SECTIONS } = __req(28);
 
 let section = 'all';
@@ -6039,7 +6163,7 @@ Object.assign(__m, {  });
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
 //   reliably without a server), so the Settings screen explains that the app is better for reminders.
-const { buildReminders } = __req(10);
+const { buildReminders } = __req(12);
 
 const MAX_WEB_DELAY = 24 * 3600 * 1000;
 let webTimers = [];
@@ -6173,15 +6297,15 @@ Object.assign(__m, { platform, permissionState, requestPermission, listen, sync,
 },
 /* js/views/settings.js */ 31: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
-const { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(13);
-const store = __req(12);
+const { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(14);
+const store = __req(13);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn } = __req(0);
 const notify = __req(30);
-const { DEFAULT_REMINDERS } = __req(10);
+const { DEFAULT_REMINDERS } = __req(12);
 
 const DAYS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
 let showBackup = false;
@@ -6520,8 +6644,8 @@ Object.assign(__m, {  });
 },
 /* js/views/shopping.js */ 32: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
-const { html, esc, icon } = __req(13);
-const store = __req(12);
+const { html, esc, icon } = __req(14);
+const store = __req(13);
 const { shoppingList, formatQty } = __req(5);
 const { weekStart } = __req(0);
 const { dayIndex } = __req(15);
@@ -6566,10 +6690,10 @@ Object.assign(__m, {  });
 },
 /* js/views/rewards.js */ 33: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
-const { html, esc, icon, fmtDate, progressBar } = __req(13);
+const { html, esc, icon, fmtDate, progressBar } = __req(14);
 const { ring, barChart } = __req(23);
-const store = __req(12);
-const { BADGES, XP, levelTitle } = __req(9);
+const store = __req(13);
+const { BADGES, XP, levelTitle } = __req(11);
 const { addDays, weekStart } = __req(0);
 
 __m.default = {
@@ -6683,7 +6807,7 @@ Object.assign(__m, { questsHtml });
 // Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
 // Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
 // after the user has interacted with the page.
-const { esc, icon } = __req(13);
+const { esc, icon } = __req(14);
 
 let lastPoint = null;
 document.addEventListener('pointerdown', (e) => (lastPoint = { x: e.clientX, y: e.clientY }), true);
@@ -6812,8 +6936,8 @@ Object.assign(__m, { floatXp, confetti, chime, buzz, showCelebration });
 },
 /* js/app.js */ 35: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
-const store = __req(12);
-const { icon, formData } = __req(13);
+const store = __req(13);
+const { icon, formData } = __req(14);
 const onboarding = __req(17).default;
 const todayView = __req(21).default;
 const meals = __req(22).default;
@@ -6826,7 +6950,7 @@ const settings = __req(31).default;
 const shopping = __req(32).default;
 const rewards = __req(33).default;
 const { floatXp, confetti, chime, buzz, showCelebration } = __req(34);
-const { BADGES } = __req(9);
+const { BADGES } = __req(11);
 const notify = __req(30);
 const { closeSheet } = __req(19);
 const { sheetActions } = __req(20);
@@ -6950,9 +7074,11 @@ function celebrate(before, after, prefs) {
   const perfect = fresh.some((a) => a.kind === 'perfect');
   const questsDoneBefore = before.quests.filter((q) => q.done).length;
   const questsDoneAfter = after.quests.filter((q) => q.done).length;
-  floatXp(gained, { lucky, label: lucky ? 'lucky!' : perfect ? 'perfect day' : '' });
+  const smallWin = fresh.some((a) => a.kind === 'habitSmall');
+  floatXp(gained, { lucky, label: lucky ? 'lucky!' : perfect ? 'perfect day' : smallWin ? 'small win' : '' });
   if (prefs.haptics) buzz(lucky || perfect ? [12, 40, 12] : 12);
-  let sound = lucky ? 'lucky' : 'tick';
+  let sound = lucky ? 'lucky' : smallWin ? 'quest' : 'tick';
+  if (smallWin && !perfect) confetti(0.35);
   if (questsDoneAfter > questsDoneBefore) sound = 'quest';
   if (perfect) {
     confetti(1.2);

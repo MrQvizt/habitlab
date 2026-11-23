@@ -6,7 +6,7 @@ import * as store from '../store.js';
 import { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } from './shared.js';
 import { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } from '../engine/meals.js';
 import { FOODS } from '../data/foods.js';
-import { habitById, streak } from '../engine/habits.js';
+import { habitById, streak, habitLevels, levelIndex, levelValue } from '../engine/habits.js';
 import { stepGoal } from '../engine/workouts.js';
 import { round, weekStart, isoDate, addDays } from '../engine/util.js';
 
@@ -145,19 +145,30 @@ function extraSheetHtml(state) {
 }
 
 // ---------- Habit ----------
+/** "How did it go?" — every level counts; the last is the full habit. */
+export function habitLevelsHtml(state, id) {
+  const date = store.today();
+  const cur = levelIndex(id, state.habits.log[date]?.[id]);
+  const levels = habitLevels(id);
+  return `<div class="level-list" role="radiogroup" aria-label="How did it go?">${levels.map((l, i) => `<button type="button" class="level-opt ${cur === i ? 'on' : ''} ${l.full ? 'full' : ''}" role="radio" aria-checked="${cur === i}" data-action="sheetHabitLevel" data-id="${id}" data-level="${i}">
+      <span class="lv-dots" aria-hidden="true">${levels.map((_, j) => `<i class="${j <= i ? 'on' : ''}"></i>`).join('')}</span>
+      <span class="lv-label">${esc(l.label)}<small>${l.full ? 'The full habit' : i === 0 ? 'Small win — it still counts' : 'Getting there'}</small></span>
+      <span class="lv-xp">+${l.xp} XP</span></button>`).join('')}</div>
+    ${cur >= 0 ? `<button class="btn ghost small" data-action="sheetHabitLevel" data-id="${id}" data-level="-1">Not done today</button>` : ''}`;
+}
+
 function habitSheetHtml(state, id) {
   const a = state.habits.active.find((x) => x.id === id);
   const h = habitById(id);
   if (!a || !h) return '';
   const date = store.today();
-  const on = !!state.habits.log[date]?.[id];
   const st = streak(state.habits.log, id, date);
   return `<div class="sheet-head"><div><div class="over">Habit · ${st}-day streak</div><h2>${esc(h.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
-    <div class="card flat" style="margin:0 0 12px"><div class="eyebrow">Your plan</div><p style="margin:4px 0 0;font-weight:600">${esc(a.cue)} → ${esc(h.title.toLowerCase())}</p></div>
-    <p><strong>Hard day?</strong> ${esc(h.tiny)}.</p>
-    <p class="muted">${esc(h.why)}</p>
-    <div class="actions-grid"><button class="btn ${on ? '' : 'primary'} full" data-action="sheetHabitToggle" data-id="${id}">${on ? 'Mark as not done' : `${icon('check')}Done today`}</button></div>
-    <a class="btn ghost small" href="#/habits">Edit cue & see history</a>`;
+    <p class="muted" style="margin:-4px 0 12px">${esc(a.cue)} → ${esc(h.title.toLowerCase())}</p>
+    <div class="section-title" style="margin-top:0">How did it go today?</div>
+    ${habitLevelsHtml(state, id)}
+    <p class="muted" style="font-size:var(--text-sm);margin-top:14px">${esc(h.why)} <a href="#/learn/${esc(h.ev)}">Why this works</a></p>
+    <a class="btn ghost small" href="#/habits">Edit plan & history</a>`;
 }
 
 /** Actions to spread into a view's `actions`. */
@@ -327,6 +338,19 @@ export const sheetActions = {
     closeSheet();
     toggleHabit(ctx, el.dataset.id);
   },
+  sheetHabitLevel(el, ev, ctx) {
+    const id = el.dataset.id;
+    const i = Number(el.dataset.level);
+    closeSheet();
+    setHabitLevel(ctx, id, i);
+  },
+  openSmallWin(el, ev, ctx) {
+    const id = el.dataset.id;
+    const h = habitById(id);
+    openSheet(`<div class="sheet-head"><div><div class="over">Small wins count</div><h2>${esc(h.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+      <p class="muted" style="margin:-4px 0 12px">Didn’t do all of it? Log what you did — it keeps your streak going.</p>
+      ${habitLevelsHtml(ctx.state, id)}`, { label: 'Log a small win' });
+  },
 };
 
 /** Re-sign the current plan after a change that shouldn't rebuild it (like starring a recipe). */
@@ -338,15 +362,29 @@ function keepCurrentPlan(st) {
   return st;
 }
 
+/** Check button: not done → full habit; small win → upgrade to full; full → clear (with Undo). */
 export function toggleHabit(ctx, id) {
   const date = store.today();
-  ctx.update((st) => {
+  const cur = ctx.state.habits.log[date]?.[id];
+  const full = habitLevels(id).length - 1;
+  if (cur && levelIndex(id, cur) === full) setHabitLevel(ctx, id, -1);
+  else setHabitLevel(ctx, id, full);
+}
+
+/** Log a habit at a level index (−1 clears). */
+export function setHabitLevel(ctx, id, index) {
+  const date = store.today();
+  const levels = habitLevels(id);
+  const apply = (st) => {
     const day = { ...(st.habits.log[date] || {}) };
-    if (day[id]) delete day[id];
-    else day[id] = true;
+    if (index < 0) delete day[id];
+    else day[id] = levelValue(id, index);
     st.habits.log[date] = day;
     return st;
-  });
+  };
+  if (index < 0) return ctx.undoable('Marked as not done', apply);
+  ctx.update(apply);
+  if (!levels[index].full) ctx.toast(`Small win! ${levels[index].label}. Every step counts.`);
 }
 
 export { isoDate };

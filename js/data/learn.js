@@ -148,7 +148,7 @@ export const LEARN = [
       'For eating, if–then plans work better for adding healthy foods than for cutting unhealthy ones — so habits here are mostly additions.',
       'A simple habit-based leaflet (“Ten Top Tips”) helped people lose weight in primary care and keep it off at 2 years.'],
     ['lally', 'gollwitzer', 'adriaanse', 'gardner', 'tentips'],
-    'Up to 3 active habits, each with a cue you can edit, a “tiny” fallback version, a 66-day horizon and a forgiving streak.'),
+    'Up to 3 active habits, each with a cue you can edit, a 66-day horizon and a forgiving streak. Every habit has small-win levels (e.g. “swapped one sugary drink”) that earn XP and keep the streak going.'),
   C('stimulus_control', 'Habits & mindset', 'Change the environment, not your willpower',
     'What is visible, convenient and already in the house shapes what you eat.',
     ['Stimulus control — changing cues around you — is a standard part of effective behavioural programmes.',

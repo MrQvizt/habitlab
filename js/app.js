@@ -137,9 +137,11 @@ function celebrate(before, after, prefs) {
   const perfect = fresh.some((a) => a.kind === 'perfect');
   const questsDoneBefore = before.quests.filter((q) => q.done).length;
   const questsDoneAfter = after.quests.filter((q) => q.done).length;
-  floatXp(gained, { lucky, label: lucky ? 'lucky!' : perfect ? 'perfect day' : '' });
+  const smallWin = fresh.some((a) => a.kind === 'habitSmall');
+  floatXp(gained, { lucky, label: lucky ? 'lucky!' : perfect ? 'perfect day' : smallWin ? 'small win' : '' });
   if (prefs.haptics) buzz(lucky || perfect ? [12, 40, 12] : 12);
-  let sound = lucky ? 'lucky' : 'tick';
+  let sound = lucky ? 'lucky' : smallWin ? 'quest' : 'tick';
+  if (smallWin && !perfect) confetti(0.35);
   if (questsDoneAfter > questsDoneBefore) sound = 'quest';
   if (perfect) {
     confetti(1.2);

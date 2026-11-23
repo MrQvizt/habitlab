@@ -4,7 +4,7 @@ import { esc, icon, fmtWeight, fmtDelta, fmtNum, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
 import { mealsFor, eatenSoFar, proteinEaten, dayComplete, setMealStatus, safetyNotices, checkinDue, slotLabel, computeIntake } from './shared.js';
 import { byId, scaledNutrition } from '../engine/meals.js';
-import { habitById, streak } from '../engine/habits.js';
+import { habitById, streak, habitLevels, levelIndex } from '../engine/habits.js';
 import { stepGoal } from '../engine/workouts.js';
 import { CARDIO } from '../data/exercises.js';
 import { daysBetween } from '../engine/util.js';
@@ -91,18 +91,28 @@ function food(state, date) {
 }
 
 // ---------- Habits ----------
+/** Habit row: check = full habit (or upgrade a small win); "Small win" logs a smaller level. */
+export function habitRow(state, a, date, checkAction, openAction) {
+  const h = habitById(a.id);
+  const val = state.habits.log[date]?.[a.id];
+  const levels = habitLevels(a.id);
+  const idx = levelIndex(a.id, val);
+  const full = idx === levels.length - 1;
+  const partial = idx >= 0 && !full;
+  const st = streak(state.habits.log, a.id, date);
+  const sub = partial ? `<span style="color:var(--accent);font-weight:650">Small win · ${esc(levels[idx].label)}</span>` : esc(a.cue);
+  return `<li><div class="lrow ${full ? 'done' : ''}">
+      <button class="check ${full ? 'on' : partial ? 'partial' : ''}" data-action="${checkAction}" data-id="${a.id}" aria-pressed="${full}" aria-label="${partial ? 'Upgrade to full: ' : ''}${esc(h.title)}">${icon('check')}</button>
+      <button class="body row-btn" data-action="${openAction}" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${sub}</div></button>
+      <span class="trail" style="flex-direction:column;align-items:flex-end;gap:4px">${!full && levels.length > 1 ? `<button class="win-chip" data-action="openSmallWin" data-id="${a.id}">${partial ? 'Change' : 'Small win'}</button>` : ''}${st ? `<span class="tag" style="background:var(--warm-soft);color:color-mix(in srgb,var(--warm) 80%,var(--ink))">${icon('flame', 'tiny')}${st}</span>` : ''}</span></div></li>`;
+}
+
 function habits(state, date) {
   const active = store.visibleHabits(state);
   if (!active.length) return `<div class="section-head"><h2>Habits</h2><a href="#/habits">Choose one</a></div><div class="card empty-state">${icon('habits')}<strong>No habit yet</strong>Pick one small habit to start with.</div>`;
   const log = state.habits.log[date] || {};
   return `<div class="section-head"><h2>Habits</h2><a href="#/habits">Manage</a></div><div class="card tight"><ul class="rows">${active.map((a) => {
-    const h = habitById(a.id);
-    const on = !!log[a.id];
-    const st = streak(state.habits.log, a.id, date);
-    return `<li><div class="lrow ${on ? 'done' : ''}">
-      <button class="check ${on ? 'on' : ''}" data-action="habitCheck" data-id="${a.id}" aria-pressed="${on}" aria-label="${esc(h.title)}">${icon('check')}</button>
-      <button class="body row-btn" data-action="openHabit" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${esc(a.cue)}</div></button>
-      <span class="trail">${st ? `<span class="tag" style="background:var(--warm-soft);color:color-mix(in srgb,var(--warm) 80%,var(--ink))">${icon('flame', 'tiny')}${st}</span>` : ''}</span></div></li>`;
+    return habitRow(state, a, date, 'habitCheck', 'openHabit');
   }).join('')}</ul></div>`;
 }
 

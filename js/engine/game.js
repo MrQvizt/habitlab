@@ -10,6 +10,7 @@
 //   It is deterministic per item, so it can't be re-rolled.
 import { addDays, daysBetween, weekStart, hashString, parseDate } from './util.js';
 import { stepGoal, creditedMinutes } from './workouts.js';
+import { habitLevels, levelIndex } from './habits.js';
 
 export const XP = {
   meal: 10, // per meal you ate and logged — planned or "something else" (honesty pays the same)
@@ -76,9 +77,12 @@ export function dayAwards(state, date, { habitsOnly = false } = {}) {
   if (meals.length && meals.every((m) => log[m.slot])) add(`full:${date}`, 'fullDay', 'Whole day logged', XP.fullDay);
   if (!habitsOnly && state.weights?.some((w) => w.date === date)) add(`weigh:${date}`, 'weigh', 'Weighed in', XP.weighIn);
   const hl = state.habits?.log?.[date] || {};
-  for (const id of Object.keys(hl)) {
+  for (const [id, value] of Object.entries(hl)) {
     if (habitsOnly && (id === 'weigh_daily' || id === 'log_meals')) continue;
-    add(`habit:${date}:${id}`, 'habit', 'Habit done', XP.habit, true);
+    // Small wins count: any level keeps the streak and the quest; XP scales with the level.
+    const levels = habitLevels(id);
+    const lvl = levels[levelIndex(id, value)] || levels[levels.length - 1];
+    add(`habit:${date}:${id}`, lvl.full ? 'habit' : 'habitSmall', lvl.full ? 'Habit done' : `Small win: ${lvl.label}`, lvl.xp, true);
   }
   (state.workouts?.log?.[date] || []).forEach((w, i) => {
     if (w.kind === 'strength') add(`strength:${date}:${i}`, 'strength', 'Strength session', XP.strength, true);
@@ -168,6 +172,7 @@ export const BADGES = [
   { id: 'cardio_150', name: 'Guideline Hit', icon: 'move', how: 'Log 150+ active minutes in one week', check: (s) => s.bestWeekMinutes >= 150 },
   { id: 'cardio_250', name: 'Maintainer Pace', icon: 'move', how: 'Log 250+ active minutes in one week', check: (s) => s.bestWeekMinutes >= 250 },
   { id: 'steps_5', name: 'Step Up', icon: 'move', how: 'Reach your step goal on 5 days', check: (s) => s.stepDays >= 5 },
+  { id: 'small_wins_5', name: 'Small Steps', icon: 'habits', how: 'Log 5 small wins — every step counts', check: (s) => s.smallWins >= 5 },
   { id: 'habit_7', name: 'Habit Hatchling', icon: 'habits', how: 'Tick a habit 7 times', check: (s) => s.habitTicksMax >= 7 },
   { id: 'habit_graduate', name: 'Graduate', icon: 'habits', how: 'Graduate a habit once it’s automatic', check: (s) => s.graduated >= 1 },
   { id: 'checkin_1', name: 'Reflector', icon: 'calendar', how: 'Complete a weekly check-in', check: (s) => s.checkins >= 1 },
@@ -189,7 +194,7 @@ export function summary(state, today, { habitsOnly = false, trendKg = null } = {
   const activeDays = new Set();
   const byDay = {};
   let xp = 0;
-  const stats = { mealsLogged: 0, fullDays: 0, perfectDays: 0, strength: 0, stepDays: 0, weighIns: 0, checkins: (state.checkins || []).length, graduated: (state.habits?.retired || []).length };
+  const stats = { smallWins: 0, mealsLogged: 0, fullDays: 0, perfectDays: 0, strength: 0, stepDays: 0, weighIns: 0, checkins: (state.checkins || []).length, graduated: (state.habits?.retired || []).length };
   const recipes = new Set();
   const habitTicks = {};
   for (let i = span; i >= 0; i--) {
@@ -207,6 +212,7 @@ export function summary(state, today, { habitsOnly = false, trendKg = null } = {
       else if (a.kind === 'strength') stats.strength++;
       else if (a.kind === 'steps') stats.stepDays++;
       else if (a.kind === 'weigh') stats.weighIns++;
+      else if (a.kind === 'habitSmall') stats.smallWins = (stats.smallWins || 0) + 1;
     }
     const log = state.mealLog?.[date] || {};
     for (const m of mealsFor(state, date)) if (log[m.slot]?.status === 'ate') recipes.add(m.recipeId);
