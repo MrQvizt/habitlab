@@ -6,6 +6,7 @@ import { planWeek } from './engine/meals.js';
 import { initialProgress, weekSchedule } from './engine/workouts.js';
 import { screen } from './engine/safety.js';
 import { summary as gameSummaryRaw } from './engine/game.js';
+import { DEFAULT_REMINDERS } from './engine/reminders.js';
 import { HABITS } from './data/habits.js';
 import { RECIPES } from './data/recipes.js';
 import { FOODS, DIETS, ALLERGENS } from './data/foods.js';
@@ -35,6 +36,7 @@ export function emptyState() {
     tdeeOffset: 0,
     flags: {},
     game: { badges: {}, sound: true, haptics: true, lastLevel: 1 },
+    reminders: { ...DEFAULT_REMINDERS },
   };
 }
 
@@ -74,6 +76,7 @@ export function migrate(s) {
   out.workouts = { ...base.workouts, ...(s.workouts || {}) };
   out.habits = { ...base.habits, ...(s.habits || {}) };
   out.game = { ...base.game, ...(s.game || {}) };
+  out.reminders = { ...base.reminders, ...(s.reminders || {}) };
   return sanitize(out);
 }
 
@@ -149,6 +152,9 @@ export function sanitize(s) {
     haptics: g.haptics !== false,
     lastLevel: num(g.lastLevel, 1, 1000, 1),
   };
+  const rm = s.reminders && typeof s.reminders === 'object' ? s.reminders : {};
+  const hhmm = (v, d) => (typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : d);
+  s.reminders = Object.fromEntries(Object.entries(DEFAULT_REMINDERS).map(([k, d]) => [k, typeof d === 'boolean' ? (k in rm ? !!rm[k] : d) : typeof d === 'number' ? num(rm[k], 0, 6, d) : hhmm(rm[k], d)]));
   s.kcalAdjust = num(s.kcalAdjust, -500, 500, 0);
   s.tdeeOffset = num(s.tdeeOffset, -1500, 1500, 0);
   s.calcWeightKg = num(s.calcWeightKg, 30, 400, null) ?? undefined;

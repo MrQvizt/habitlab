@@ -104,6 +104,12 @@ const shots = process.argv[3] || null;
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (over > 1) errors.push(`horizontal overflow ${over}px on ${route}`);
   }
+  // Reminders: enable with permission granted → reminders scheduled
+  await page.context().grantPermissions(['notifications'], { origin: new URL(base).origin }).catch(() => {});
+  await page.goto(base + '#/settings');
+  await page.check('form[data-form=reminders] input[name=enabled]');
+  await page.click('form[data-form=reminders] button.primary');
+  await page.waitForSelector('text=/On — \\d+ reminders scheduled/');
   // Gamification: XP chip present, rewards page renders, at least one celebration (level 2) happened.
   await page.goto(base + '#/rewards');
   await page.waitForSelector('text=Badges');

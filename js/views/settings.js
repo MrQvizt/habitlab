@@ -6,11 +6,46 @@ import { DIETS, ALLERGENS, FOODS } from '../data/foods.js';
 import { CARDIO } from '../data/exercises.js';
 import { initialProgress, availableSteps } from '../engine/workouts.js';
 import { round, cmToIn } from '../engine/util.js';
+import * as notify from '../notify.js';
+import { DEFAULT_REMINDERS } from '../engine/reminders.js';
 
 const DAYS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
 let showBackup = false;
+let reminderStatus = '';
 let pasteMode = false;
 const DISLIKES = Object.fromEntries(Object.entries(FOODS).map(([k, f]) => [k, f.name.replace(/,.*$/, '').replace(/ \(.*\)$/, '')]));
+
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+function remindersHtml(state) {
+  const r = { ...DEFAULT_REMINDERS, ...(state.reminders || {}) };
+  const p = notify.platform();
+  const where = p === 'native'
+    ? 'Reminders are scheduled on your phone and arrive even when the app is closed.'
+    : p === 'web'
+      ? 'In a browser, reminders only appear while Habit Lab is open. Install the Android app for reminders all day.'
+      : 'This browser doesn’t support notifications. Install the Android app for reminders.';
+  const time = (name, label, hint = '') => `<label class="field" style="margin:0"><span>${label}${hint ? ` <span class="hint">${hint}</span>` : ''}</span><input type="time" name="${name}" value="${esc(r[name])}"></label>`;
+  const tog = (name, label, hint) => `<label class="option"><input type="checkbox" name="${name}" value="1" ${r[name] ? 'checked' : ''}><div><strong>${label}</strong><small class="muted">${hint}</small></div></label>`;
+  return `<p class="muted" style="font-size:.9rem">Friendly, specific nudges through the day — skipped automatically once you’ve done the thing. ${esc(where)}</p>
+    <label class="option" style="margin-bottom:12px"><input type="checkbox" name="enabled" value="1" ${r.enabled ? 'checked' : ''}><div><strong>Turn on reminders</strong><small class="muted">You’ll be asked to allow notifications.</small></div></label>
+    <div class="grid two">
+      ${time('morning', 'Morning weigh-in & plan')}
+      ${time('move', 'Movement nudge', 'only on days with a session')}
+      ${time('breakfast', 'Log breakfast')}
+      ${time('lunch', 'Log lunch')}
+      ${time('dinner', 'Log dinner')}
+      ${time('evening', 'Evening wrap-up', 'only if quests are left')}
+      ${time('encourageAt', 'Encouragement')}
+      <div class="grid two" style="gap:8px">${time('checkinAt', 'Check-in reminder')}<label class="field" style="margin:0"><span>on</span><select name="checkinDay">${DAY_NAMES.map((d, i) => `<option value="${i}" ${Number(r.checkinDay) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label></div>
+    </div>
+    <div class="options" style="margin-top:12px">
+      ${tog('meals', 'Meal logging nudges', 'Breakfast, lunch and dinner — showing what’s planned.')}
+      ${tog('encourage', 'Daily encouragement', 'One short tip or pep talk each afternoon.')}
+      ${tog('checkin', 'Weekly check-in', 'A reminder on your chosen day.')}
+    </div>
+    <div class="row" style="margin-top:12px"><button class="btn primary">Save reminders</button><button type="button" class="btn" data-action="testNotify">Send a test</button>${reminderStatus ? `<span class="muted" style="font-size:.86rem">${esc(reminderStatus)}</span>` : ''}</div>`;
+}
 
 export default {
   render(state) {
@@ -75,6 +110,10 @@ export default {
         <div class="row"><button class="btn primary">Save</button><button type="button" class="btn ghost danger" data-action="resetProgress">Reset exercise levels</button></div>
       </form>
 
+      <form data-form="reminders" class="card" id="reminders"><h2>Reminders & encouragement</h2>
+        ${remindersHtml(state)}
+      </form>
+
       <div class="card"><h2>Appearance</h2><div class="segmented">${[['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" class="${theme === k ? 'on' : ''}" data-action="theme" data-value="${k}">${l}</button>`).join('')}</div></div>
 
       <div class="card"><h2>Your data</h2>
@@ -89,6 +128,36 @@ export default {
       <p class="footer-note">Habit Lab · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
   actions: {
+    async reminders(form, ev, ctx, data) {
+      const enabled = !!data.enabled;
+      if (enabled && (await notify.permissionState()) !== 'granted') {
+        const res = await notify.requestPermission();
+        if (res !== 'granted') {
+          reminderStatus = 'Notifications are blocked. Allow them for Habit Lab in your phone or browser settings.';
+          ctx.update((st) => ({ ...st, reminders: { ...st.reminders, enabled: false } }), { quiet: true });
+          return;
+        }
+      }
+      ctx.update((st) => {
+        const r = { ...st.reminders, enabled };
+        for (const k of ['morning', 'breakfast', 'lunch', 'dinner', 'move', 'evening', 'encourageAt', 'checkinAt']) if (data[k]) r[k] = data[k];
+        for (const k of ['meals', 'encourage', 'checkin']) r[k] = !!data[k];
+        r.checkinDay = Number(data.checkinDay);
+        st.reminders = r;
+        return st;
+      }, { quiet: true });
+      const res = await ctx.syncReminders();
+      reminderStatus = enabled ? `On — ${res?.scheduled ?? 0} reminders scheduled${res?.platform === 'web' ? ' for while this page is open' : ' for the next 7 days'}.` : 'Reminders are off.';
+      ctx.rerender();
+    },
+    async testNotify(el, ev, ctx) {
+      if ((await notify.permissionState()) !== 'granted' && (await notify.requestPermission()) !== 'granted') {
+        reminderStatus = 'Notifications are blocked. Allow them in your phone or browser settings.';
+        return ctx.rerender();
+      }
+      await notify.test();
+      ctx.toast('A test notification will arrive in about 5 seconds.');
+    },
     profile(form, ev, ctx, data) {
       ctx.update((st) => {
         const p = st.profile;

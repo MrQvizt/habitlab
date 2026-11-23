@@ -14,6 +14,7 @@ import shopping from './views/shopping.js';
 import rewards from './views/rewards.js';
 import { floatXp, confetti, chime, buzz, showCelebration } from './ui/celebrate.js';
 import { BADGES } from './engine/game.js';
+import * as notify from './notify.js';
 
 const VIEWS = { rewards, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 const NAV = [
@@ -43,6 +44,7 @@ const ctx = {
     }
     state = next;
     if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game));
+    scheduleSync();
     if (!store.save(state)) ctx.toast('Couldn’t save — your browser is blocking storage. Export your data in Settings to keep it.');
     if (render) renderRoute();
   },
@@ -245,8 +247,27 @@ try {
   /* ignore */
 }
 
+// Keep scheduled reminders in step with the plan and today's progress (debounced).
+let syncTimer = null;
+function scheduleSync() {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncReminders, 800);
+}
+export function syncReminders() {
+  if (!state.profile) return Promise.resolve(null);
+  const g = store.game(state);
+  return notify.sync(state, {
+    habitsOnly: store.habitsOnly(state),
+    streak: g?.streak || 0,
+    schedule: (date) => store.schedule(state, date).schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items,
+  });
+}
+notify.listen();
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
+
 window.addEventListener('hashchange', renderRoute);
 renderRoute();
+scheduleSync();
 
 // Flag when running inside a frame (e.g. an embedded preview): printing and downloads may be blocked there.
 try {
@@ -255,8 +276,9 @@ try {
   document.documentElement.classList.add('framed');
 }
 
-if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !document.documentElement.classList.contains('framed')) {
+if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !document.documentElement.classList.contains('framed') && notify.platform() !== 'native') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
 export { ctx };
+ctx.syncReminders = () => syncReminders();

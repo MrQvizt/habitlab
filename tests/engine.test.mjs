@@ -309,3 +309,26 @@ test('meal plan never dips below the calorie floor', () => {
   assert.equal(t.kcal, 1200);
   for (const diet of ['omnivore', 'vegan']) for (const day of planWeek(t, { diet }, '2026-11-23')) assert.ok(dayTotals(day).kcal >= 1200, `${diet} ${dayTotals(day).kcal}`);
 });
+
+test('reminders: specific, future-only, skip what is done, none when disabled', async () => {
+  const { buildReminders } = await import('../js/engine/reminders.js');
+  const { planWeek: pw } = await import('../js/engine/meals.js');
+  const t = dailyTargets(woman);
+  const now = new Date('2026-11-23T08:00:00');
+  const wk = '2026-11-23';
+  const state = { profile: { ...woman, startDate: wk }, plans: { [wk]: { days: pw(t, { diet: 'omnivore' }, wk) } }, mealLog: {}, weights: [], habits: { active: [], log: {} }, workouts: { log: {} }, steps: {}, checkins: [], reminders: { enabled: false } };
+  assert.equal(buildReminders(state, now).length, 0);
+  state.reminders = { enabled: true };
+  const sched = () => [{ kind: 'strength', variant: 'A', minutes: 30 }];
+  const list = buildReminders(state, now, { schedule: sched, days: 2 });
+  assert.ok(list.every((n) => n.at > now));
+  assert.ok(!list.some((n) => n.at.getDate() === 23 && n.at.getHours() === 7), 'morning already past');
+  const lunch = list.find((n) => n.title.startsWith('Lunch') && n.at.getDate() === 23);
+  assert.ok(lunch && /Planned: /.test(lunch.body));
+  state.mealLog = { [wk]: { lunch: { status: 'ate' } } };
+  state.workouts.log = { [wk]: [{ kind: 'strength', minutes: 30 }] };
+  const after = buildReminders(state, now, { schedule: sched, days: 1 });
+  assert.ok(!after.some((n) => n.title.startsWith('Lunch')), 'logged lunch skipped');
+  assert.ok(!after.some((n) => n.title === 'Strength time'), 'done session skipped');
+  assert.equal(new Set(list.map((n) => n.id)).size, list.length, 'ids unique');
+});
