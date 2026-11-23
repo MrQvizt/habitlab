@@ -85,7 +85,7 @@ export function buildReminders(state, now, ctx = {}) {
     const meals = mealsFor(state, date);
     const log = state.mealLog?.[date] || {};
     const dayItems = ctx.schedule ? ctx.schedule(date) : [];
-    const session = dayItems.find((it) => it.kind === 'strength') || dayItems.find((it) => it.kind === 'cardio');
+    const session = dayItems.find((it) => it.kind === 'strength') || dayItems.find((it) => it.kind === 'activity') || dayItems.find((it) => it.kind === 'cardio');
 
     // Morning: weigh-in + today's headline
     if (r.morning && !(isToday && (habitsOnly || qDone('weigh')))) {
@@ -109,8 +109,13 @@ export function buildReminders(state, now, ctx = {}) {
 
     // Movement
     if (r.move && session && !(isToday && qDone('move'))) {
-      const body = session.kind === 'strength' ? `Strength session ${session.variant} is on today’s plan — about ${session.minutes} minutes, +40 XP.` : `${session.minutes} minutes of ${session.label?.toLowerCase() || 'cardio'} today. Walking counts.`;
-      push(date, 'move', r.move, session.kind === 'strength' ? 'Strength time' : 'Time to move', body, session.kind === 'strength' ? `#/move/session/${session.variant}` : '#/move');
+      const body = session.kind === 'strength'
+        ? `Strength session ${session.variant} is on today’s plan — about ${session.minutes} minutes, +40 XP.`
+        : session.kind === 'activity'
+          ? `${session.name} today (${session.minutes} min). Tap Done afterwards for XP — it counts toward your week.`
+          : `${session.minutes} minutes of ${session.label?.toLowerCase() || 'cardio'} today. Walking counts.`;
+      const title = session.kind === 'strength' ? 'Strength time' : session.kind === 'activity' ? `Enjoy ${session.name.toLowerCase()}` : 'Time to move';
+      push(date, 'move', r.move, title, body, session.kind === 'strength' ? `#/move/session/${session.variant}` : '#/today');
     }
 
     // Encouragement (rotates by date)

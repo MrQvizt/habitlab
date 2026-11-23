@@ -319,6 +319,7 @@ details.recipe ul, details.recipe ol { margin: 8px 0; padding-left: 20px; font-s
 .week .pill { display: block; border-radius: 6px; padding: 2px 1px; margin: 2px 0; font-weight: 600; overflow-wrap: anywhere; font-size: 0.7rem; }
 .pill.strength { background: var(--accent-soft); color: var(--accent); }
 .pill.cardio { background: var(--info-soft); color: var(--info); }
+.pill.activity { background: var(--warm-soft); color: color-mix(in srgb, var(--warm) 75%, var(--ink)); }
 .pill.rest { color: var(--ink-3); font-weight: 400; }
 .pill.done::after { content: ' ✓'; }
 
@@ -1690,31 +1691,74 @@ function stepGoal(baseline, level = 0, age = 40) {
   return round(clamp((baseline || 4000) + 500 * (1 + (level || 0)), 2500, Math.max(cap, (baseline || 0))), 250);
 }
 
+const INTENSITY = {
+  easy: { label: 'Easy', hint: 'Chatty pace, e.g. a stroll or gentle gardening', factor: 0.5 },
+  moderate: { label: 'Moderate', hint: 'A bit out of breath, can still talk', factor: 1 },
+  vigorous: { label: 'Vigorous', hint: 'Hard to say more than a few words', factor: 2 },
+};
+
 /**
- * Build the week: strength sessions on non-consecutive available days, cardio on the rest.
- * @param profile {daysAvailable:[0..6], sessionMinutes, cardioPrefs:[...], ...}
+ * Minutes an activity contributes to the weekly cardio target. Guidelines count moderate minutes
+ * once and vigorous minutes twice (WHO); easy movement still helps, so it counts half here.
+ */
+function creditedMinutes(entry) {
+  if (!entry) return 0;
+  if (entry.kind === 'strength') return 0;
+  if (entry.kind === 'activity') return (entry.minutes || 0) * (INTENSITY[entry.intensity]?.factor ?? 1);
+  return entry.minutes || 0; // planned cardio
+}
+
+/**
+ * Build the week. One main thing per day:
+ * - the person's own regular activities (hobbies, walks with friends …) go on their days and count
+ *   toward the targets — strength-type ones replace app strength sessions;
+ * - app strength sessions go on available days without an activity, never on consecutive days;
+ * - app cardio fills only the minutes still missing, on days that have nothing else.
+ * @param profile {daysAvailable:[0..6], sessionMinutes, cardioPrefs:[...], activities:[...], ...}
  */
 function weekSchedule(profile, progress, weeksIn = 0) {
   const avail = (profile.daysAvailable?.length ? profile.daysAvailable : [0, 2, 4]).slice().sort((a, b) => a - b);
+  const activities = (profile.activities || []).filter((a) => a && a.days?.length && a.minutes > 0);
+  const actByDay = {};
+  for (const a of activities) for (const d of a.days) (actByDay[d] ||= []).push(a);
+  const strengthActDays = [...new Set(activities.filter((a) => a.strength).flatMap((a) => a.days))].sort((a, b) => a - b);
+
   // Rule 14: 2–3 whole-body sessions on non-consecutive days; week 1 is a single easy session.
-  let nStrength = weeksIn === 0 ? 1 : avail.length >= 4 ? 3 : 2;
-  let strengthDays = pickSpread(avail, Math.min(nStrength, avail.length));
-  while (strengthDays.length > 1 && minGap(strengthDays) < 2) strengthDays = pickSpread(avail, strengthDays.length - 1);
+  // Strength-type hobbies (climbing, a gym class …) count toward that number.
+  const wanted = weeksIn === 0 ? 1 : avail.length >= 4 ? 3 : 2;
+  const nStrength = Math.max(0, wanted - strengthActDays.length);
+  // Prefer available days with no activity and not next to a strength-type activity.
+  const near = (d) => strengthActDays.some((x) => Math.min(Math.abs(x - d), 7 - Math.abs(x - d)) < 2);
+  let pool = avail.filter((d) => !actByDay[d] && !near(d));
+  if (pool.length < nStrength) pool = avail.filter((d) => !actByDay[d]);
+  if (pool.length < nStrength) pool = avail;
+  let strengthDays = nStrength ? pickSpread(pool, Math.min(nStrength, pool.length)) : [];
+  while (strengthDays.length > 1 && minGap(strengthDays) < 2) strengthDays = pickSpread(pool, strengthDays.length - 1);
+
   const cardioMin = cardioTarget(profile.baselineCardioMin, weeksIn, profile.phase) + (profile.cardioBonus || 0);
-  const cardioDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => !strengthDays.includes(d) || avail.length <= 2);
-  // Strength sessions also include ~10 minutes of cardio-style warm-up/walk where time allows.
-  const perCardioDay = Math.max(10, round(cardioMin / Math.max(1, Math.min(cardioDays.length, 5)), 5));
+  const activityMin = activities.reduce((sum, a) => sum + creditedMinutes({ kind: 'activity', minutes: a.minutes, intensity: a.intensity }) * a.days.length, 0);
+  const needed = Math.max(0, cardioMin - activityMin);
   const modes = (profile.cardioPrefs?.length ? profile.cardioPrefs : ['walk']).filter((m) => CARDIO[m]);
+  // Free days: no strength, no activity; available days first, then (for walking) any day.
+  const free = [0, 1, 2, 3, 4, 5, 6].filter((d) => !strengthDays.includes(d) && !actByDay[d]);
+  const cardioDays = free.filter((d) => avail.includes(d) || modes.includes('walk'));
+  const nCardio = Math.min(cardioDays.length, 5);
+  const perCardioDay = needed > 0 && nCardio ? Math.max(10, round(needed / nCardio, 5)) : 0;
+  // Spread cardio across the chosen free days, preferring available ones.
+  const chosen = [...cardioDays].sort((a, b) => Number(avail.includes(b)) - Number(avail.includes(a)) || a - b).slice(0, nCardio);
+
   const schedule = [];
   let ci = 0;
-  let cardioLeft = cardioMin;
+  let cardioLeft = needed;
   for (let d = 0; d < 7; d++) {
     const day = { day: d, name: DAY_NAMES[d], items: [] };
+    for (const a of actByDay[d] || []) {
+      day.items.push({ kind: 'activity', id: a.id, name: a.name, minutes: a.minutes, intensity: a.intensity, strength: !!a.strength });
+    }
     if (strengthDays.includes(d)) {
       const variant = strengthDays.indexOf(d) % 2 === 0 ? 'A' : 'B';
       day.items.push({ kind: 'strength', variant, minutes: Math.min(profile.sessionMinutes || 30, 45), exercises: sessionExercises(progress, variant, profile) });
-    }
-    if (cardioDays.includes(d) && cardioLeft > 0 && (avail.includes(d) || modes.includes('walk'))) {
+    } else if (chosen.includes(d) && cardioLeft > 0) {
       const mins = Math.min(perCardioDay, cardioLeft);
       cardioLeft -= mins;
       const mode = modes[ci++ % modes.length];
@@ -1723,7 +1767,7 @@ function weekSchedule(profile, progress, weeksIn = 0) {
     if (!day.items.length) day.items.push({ kind: 'rest', minutes: 0 });
     schedule.push(day);
   }
-  return { schedule, cardioMin, strengthDays };
+  return { schedule, cardioMin, strengthDays, activityMin: Math.round(activityMin), strengthFromActivities: strengthActDays.length };
 }
 
 function minGap(days) {
@@ -1774,7 +1818,7 @@ function sessionExercises(progress, variant, profile) {
   return out;
 }
 
-Object.assign(__m, { REP_RANGE, TIME_RANGE, availableSteps, initialProgress, stepOf, progressChain, cardioTarget, stepGoal, weekSchedule, sessionExercises });
+Object.assign(__m, { REP_RANGE, TIME_RANGE, availableSteps, initialProgress, stepOf, progressChain, cardioTarget, stepGoal, INTENSITY, creditedMinutes, weekSchedule, sessionExercises });
 },
 /* js/engine/safety.js */ 8: function (__m, __req) {
 // Safety screen. This app is general education and self-management support, not medical care.
@@ -1821,7 +1865,7 @@ Object.assign(__m, { screen, STOP_SIGNS });
 // - A small, unpredictable "lucky bonus" (variable reward) makes ticking things off more fun.
 //   It is deterministic per item, so it can't be re-rolled.
 const { addDays, daysBetween, weekStart, hashString, parseDate } = __req(0);
-const { stepGoal } = __req(7);
+const { stepGoal, creditedMinutes } = __req(7);
 
 const XP = {
   meal: 10, // per meal logged (eaten, skipped or "something else" — honesty pays the same)
@@ -1886,6 +1930,7 @@ function dayAwards(state, date, { habitsOnly = false } = {}) {
   }
   (state.workouts?.log?.[date] || []).forEach((w, i) => {
     if (w.kind === 'strength') add(`strength:${date}:${i}`, 'strength', 'Strength session', XP.strength, true);
+    else if (w.kind === 'activity') add(`activity:${date}:${i}`, 'cardio', `${w.name || 'Activity'} (${w.minutes} min)`, Math.min(XP.cardioMax, XP.cardioBase + Math.floor((w.minutes || 0) / 3)), true);
     else if (w.kind === 'cardio') add(`cardio:${date}:${i}`, 'cardio', `${w.minutes} min ${w.mode || 'cardio'}`, Math.min(XP.cardioMax, XP.cardioBase + Math.floor((w.minutes || 0) / 3)), true);
   });
   const p = state.profile || {};
@@ -1913,7 +1958,7 @@ function quests(state, date, { habitsOnly = false } = {}) {
   const p = state.profile || {};
   const goal = stepGoal(p.baselineSteps, p.stepLevel || 0, p.age);
   const moved = (state.workouts?.log?.[date] || []).length > 0 || (state.steps?.[date] || 0) >= goal;
-  out.push({ id: 'move', label: 'Move today', hint: 'A session, a walk or your step goal', progress: moved ? 1 : 0, total: 1, done: moved, href: '#/move' });
+  out.push({ id: 'move', label: 'Move today', hint: 'A session, an activity, a walk or your step goal', progress: moved ? 1 : 0, total: 1, done: moved, href: '#/move' });
   if (!habitsOnly) {
     const w = state.weights?.some((x) => x.date === date);
     out.push({ id: 'weigh', label: 'Weigh in', progress: w ? 1 : 0, total: 1, done: !!w, href: '#/today' });
@@ -2022,7 +2067,7 @@ function summary(state, today, { habitsOnly = false, trendKg = null } = {}) {
   let bestWeek = 0;
   for (let w = weekStart(start); w <= today; w = addDays(w, 7)) {
     let m = 0;
-    for (let d = 0; d < 7; d++) for (const x of state.workouts?.log?.[addDays(w, d)] || []) m += x.minutes || 0;
+    for (let d = 0; d < 7; d++) for (const x of state.workouts?.log?.[addDays(w, d)] || []) m += creditedMinutes(x);
     bestWeek = Math.max(bestWeek, m);
   }
   stats.bestWeekMinutes = bestWeek;
@@ -2142,7 +2187,7 @@ function buildReminders(state, now, ctx = {}) {
     const meals = mealsFor(state, date);
     const log = state.mealLog?.[date] || {};
     const dayItems = ctx.schedule ? ctx.schedule(date) : [];
-    const session = dayItems.find((it) => it.kind === 'strength') || dayItems.find((it) => it.kind === 'cardio');
+    const session = dayItems.find((it) => it.kind === 'strength') || dayItems.find((it) => it.kind === 'activity') || dayItems.find((it) => it.kind === 'cardio');
 
     // Morning: weigh-in + today's headline
     if (r.morning && !(isToday && (habitsOnly || qDone('weigh')))) {
@@ -2166,8 +2211,13 @@ function buildReminders(state, now, ctx = {}) {
 
     // Movement
     if (r.move && session && !(isToday && qDone('move'))) {
-      const body = session.kind === 'strength' ? `Strength session ${session.variant} is on today’s plan — about ${session.minutes} minutes, +40 XP.` : `${session.minutes} minutes of ${session.label?.toLowerCase() || 'cardio'} today. Walking counts.`;
-      push(date, 'move', r.move, session.kind === 'strength' ? 'Strength time' : 'Time to move', body, session.kind === 'strength' ? `#/move/session/${session.variant}` : '#/move');
+      const body = session.kind === 'strength'
+        ? `Strength session ${session.variant} is on today’s plan — about ${session.minutes} minutes, +40 XP.`
+        : session.kind === 'activity'
+          ? `${session.name} today (${session.minutes} min). Tap Done afterwards for XP — it counts toward your week.`
+          : `${session.minutes} minutes of ${session.label?.toLowerCase() || 'cardio'} today. Walking counts.`;
+      const title = session.kind === 'strength' ? 'Strength time' : session.kind === 'activity' ? `Enjoy ${session.name.toLowerCase()}` : 'Time to move';
+      push(date, 'move', r.move, title, body, session.kind === 'strength' ? `#/move/session/${session.variant}` : '#/today');
     }
 
     // Encouragement (rotates by date)
@@ -2419,6 +2469,14 @@ function sanitize(s) {
       struggles: subset(p.struggles, ['evening', 'emotional', 'portions', 'drinks', 'time', 'sleep', 'motivation']),
       stepLevel: num(p.stepLevel, 0, 40, 0),
       cardioBonus: num(p.cardioBonus, 0, 300, 0),
+      activities: (Array.isArray(p.activities) ? p.activities : []).filter((a) => a && typeof a.name === 'string' && a.name.trim()).slice(0, 12).map((a, i) => ({
+        id: typeof a.id === 'string' && /^[a-z0-9_-]{1,24}$/i.test(a.id) ? a.id : `act${i}`,
+        name: a.name.trim().slice(0, 40),
+        days: subset((a.days || []).map(Number), [0, 1, 2, 3, 4, 5, 6]),
+        minutes: num(a.minutes, 5, 600, 30),
+        intensity: oneOf(a.intensity, ['easy', 'moderate', 'vigorous'], 'moderate'),
+        strength: !!a.strength,
+      })),
       habitsOnly: !!p.habitsOnly,
       demo: !!p.demo,
     };
@@ -2469,7 +2527,16 @@ function sanitize(s) {
   s.habits.log = dateMap(s.habits.log, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).filter((k) => habitIds.includes(k)).map((k) => [k, true])) : null));
   s.mealLog = dateMap(s.mealLog, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([slot, e]) => /^(breakfast|lunch|dinner|snack\d?)$/.test(slot) && ['ate', 'skip', 'other'].includes(e?.status)).map(([slot, e]) => [slot, e.status === 'other' ? { status: 'other', kcal: num(e.kcal, 0, 10000, 0) } : { status: e.status }])) : null));
   const wl = s.workouts.log;
-  s.workouts.log = dateMap(wl, (v) => (Array.isArray(v) ? v.filter((x) => x && ['strength', 'cardio'].includes(x.kind)).map((x) => ({ kind: x.kind, mode: x.kind === 'cardio' ? oneOf(x.mode, Object.keys(CARDIO), 'walk') : undefined, variant: x.kind === 'strength' ? oneOf(x.variant, ['A', 'B'], 'A') : undefined, minutes: num(x.minutes, 0, 600, 0), ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined })) : null));
+  s.workouts.log = dateMap(wl, (v) => (Array.isArray(v) ? v.filter((x) => x && ['strength', 'cardio', 'activity'].includes(x.kind)).map((x) => ({
+    kind: x.kind,
+    mode: x.kind === 'cardio' ? oneOf(x.mode, Object.keys(CARDIO), 'walk') : undefined,
+    variant: x.kind === 'strength' ? oneOf(x.variant, ['A', 'B'], 'A') : undefined,
+    name: x.kind === 'activity' ? String(x.name ?? 'Activity').slice(0, 40) : undefined,
+    actId: x.kind === 'activity' && typeof x.actId === 'string' ? x.actId.slice(0, 24) : undefined,
+    intensity: x.kind === 'activity' ? oneOf(x.intensity, ['easy', 'moderate', 'vigorous'], 'moderate') : undefined,
+    minutes: num(x.minutes, 0, 600, 0),
+    ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined,
+  })) : null));
   const prog = s.workouts.progress && typeof s.workouts.progress === 'object' ? s.workouts.progress : {};
   s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.slice(-30) : [] }]));
   // Plans reference recipes by id; drop any plan containing an unknown recipe (it will be rebuilt).
@@ -2688,11 +2755,18 @@ function progressBar(value, max, { label = '', tone = '' } = {}) {
   return `<div class="bar ${tone}" role="progressbar" aria-valuenow="${Math.round(value)}" aria-valuemin="0" aria-valuemax="${Math.round(max)}" aria-label="${esc(label)}"><span style="width:${pct.toFixed(1)}%"></span></div>`;
 }
 
-/** Read a form into a plain object; checkboxes with the same name become arrays. */
+/**
+ * Read a form into a plain object.
+ * - A group of checkboxes sharing a name (chips) becomes an array of the checked values ([] if none).
+ * - A single checkbox becomes its value when checked and is absent when not, so `!!data.x` is a
+ *   correct "is it ticked?" test. (An empty array would be truthy — that was a bug.)
+ */
 function formData(form) {
   const out = {};
   const fd = new FormData(form);
-  const multi = new Set([...form.querySelectorAll('input[type=checkbox]')].map((i) => i.name));
+  const counts = {};
+  for (const i of form.querySelectorAll('input[type=checkbox]')) counts[i.name] = (counts[i.name] || 0) + 1;
+  const multi = new Set(Object.keys(counts).filter((n) => counts[n] > 1 || form.querySelector(`input[type=checkbox][name="${CSS.escape(n)}"]`)?.closest('.chips')));
   for (const name of multi) out[name] = [];
   for (const [k, v] of fd.entries()) {
     if (multi.has(k)) out[k].push(v);
@@ -3119,6 +3193,7 @@ function movement() {
       <label class="field"><span>Average daily steps <span class="hint">From your phone or watch. Leave blank if unsure.</span></span>${num('baselineSteps', draft.baselineSteps ?? '', { min: 0, max: 40000, step: 100, required: false, placeholder: 'e.g. 4000' })}</label>
     </div>
     <fieldset><legend>Cardio you’d enjoy (or tolerate)</legend>${chips('cardioPrefs', Object.fromEntries(Object.entries(CARDIO).map(([k, c]) => [k, c.label])), draft.cardioPrefs || ['walk'])}</fieldset>
+    <p class="muted" style="font-size:.88rem">Already walk with friends, play a sport or dance? You can add those on the Move page — they count toward your week, so the app plans less on top.</p>
     ${nav()}
   </form>`;
 }
@@ -3552,7 +3627,270 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/views/today.js */ 20: function (__m, __req) {
+/* js/views/move.js */ 20: function (__m, __req) {
+// Movement: the week's schedule, strength session player with feedback, cardio logging.
+const { html, esc, icon, progressBar, fmtNum } = __req(13);
+const store = __req(12);
+const { progressChain, stepOf, stepGoal, REP_RANGE, INTENSITY, creditedMinutes } = __req(7);
+const { chips } = __req(13);
+const { CARDIO, WARMUP, COOLDOWN, CHAINS } = __req(6);
+const { STOP_SIGNS } = __req(8);
+const { addDays, weekStart } = __req(0);
+const { dayIndex } = __req(15);
+
+let ratings = {}; // chainKey -> rating, for the session in progress
+let showAddActivity = false;
+let logOther = false;
+const DAY_CHIPS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
+const ACTIVITY_IDEAS = ['Walking with friends', 'Dog walk', 'Football', 'Dancing', 'Swimming', 'Cycling to work', 'Gardening', 'Yoga class', 'Climbing', 'Tennis / padel', 'Gym class', 'Hiking'];
+
+/** First word, at most 7 characters, so it fits a narrow week-grid cell. */
+function shortName(name) {
+  const w = String(name).split(/\s+/)[0];
+  return w.length > 7 ? w.slice(0, 6) + '…' : w;
+}
+
+/** Was this planned item logged on that day? */
+function itemDone(logged, it) {
+  if (it.kind === 'activity') return logged.some((x) => x.kind === 'activity' && x.actId === it.id);
+  return logged.some((x) => x.kind === it.kind);
+}
+
+function activitiesCard(state) {
+  const acts = state.profile.activities || [];
+  const list = acts.length
+    ? `<ul class="list">${acts.map((a) => `<li class="row between nowrap"><div class="grow"><strong>${esc(a.name)}</strong><div class="muted" style="font-size:.86rem">${a.days.map((d) => DAY_CHIPS[d]).join(', ')} · ${a.minutes} min · ${esc(INTENSITY[a.intensity].label.toLowerCase())}${a.strength ? ' · builds strength' : ''}</div></div><button class="btn small ghost danger" data-action="removeActivity" data-id="${esc(a.id)}" aria-label="Remove ${esc(a.name)}">${icon('trash')}</button></li>`).join('')}</ul>`
+    : '<p class="muted" style="font-size:.9rem">Already walk with friends, play a sport, dance or garden? Add it and your plan counts it — you’ll get less extra cardio, and strength-type activities replace a strength session.</p>';
+  const form = showAddActivity
+    ? `<form data-form="addActivity" class="card flat" style="background:var(--surface-2);margin-top:10px">
+        <label class="field"><span>What do you do?</span><input type="text" name="name" list="activity-ideas" maxlength="40" required placeholder="e.g. Walking with friends"><datalist id="activity-ideas">${ACTIVITY_IDEAS.map((x) => `<option value="${esc(x)}"></option>`).join('')}</datalist></label>
+        <fieldset><legend>Which days?</legend>${chips('days', DAY_CHIPS, [])}</fieldset>
+        <div class="grid two">
+          <label class="field"><span>How long?</span><div class="inline-inputs"><input type="number" name="minutes" min="5" max="600" step="5" value="45" required inputmode="numeric"><span class="unit">min</span></div></label>
+          <label class="field"><span>How hard?</span><select name="intensity">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label} — ${esc(v.hint)}</option>`).join('')}</select></label>
+        </div>
+        <label class="option" style="margin-bottom:12px"><input type="checkbox" name="strength" value="1"><div><strong>It builds strength</strong><small class="muted">e.g. climbing, a weights or circuit class, heavy gardening. Counts as one of your strength sessions.</small></div></label>
+        <div class="row"><button class="btn primary">Add activity</button><button type="button" class="btn ghost" data-action="toggleAddActivity">Cancel</button></div>
+      </form>`
+    : `<button class="btn" data-action="toggleAddActivity" style="margin-top:8px">${icon('plus')}Add an activity you already do</button>`;
+  return `<div class="card" id="activities"><h2>Your regular activities</h2>${list}${form}</div>`;
+}
+
+
+function weekMinutes(state, wk) {
+  let cardio = 0;
+  let strength = 0;
+  for (let i = 0; i < 7; i++) {
+    for (const x of state.workouts.log[addDays(wk, i)] || []) {
+      cardio += creditedMinutes(x);
+      if (x.kind === 'strength') strength++;
+    }
+  }
+  return { cardio: Math.round(cardio), strength };
+}
+
+function dose(ex) {
+  const per = ex.perSide ? ' each side' : '';
+  return ex.type === 'time' ? `${ex.sets} × ${ex.reps} sec${per}` : `${ex.sets} × ${ex.reps}${per}`;
+}
+
+function overview(state) {
+  const date = store.today();
+  const wk = weekStart(date);
+  const { schedule, cardioMin, activityMin, strengthFromActivities } = store.schedule(state, date);
+  const done = weekMinutes(state, wk);
+  const strengthPlanned = schedule.reduce((a, d) => a + d.items.filter((i) => i.kind === 'strength').length, 0);
+  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
+  const ti = dayIndex(date);
+  const grid = schedule.map((d, i) => {
+    const dd = addDays(wk, i);
+    const logged = state.workouts.log[dd] || [];
+    const pills = d.items.map((it) => {
+      const isDone = itemDone(logged, it);
+      if (it.kind === 'rest') return '<span class="pill rest">rest</span>';
+      if (it.kind === 'activity') return `<span class="pill activity ${isDone ? 'done' : ''}" title="${esc(it.name)}, ${it.minutes} min">${esc(shortName(it.name))}</span>`;
+      if (it.kind === 'strength') return `<span class="pill strength ${isDone ? 'done' : ''}" title="Strength session ${it.variant}">Str ${it.variant}</span>`;
+      return `<span class="pill cardio ${isDone ? 'done' : ''}" title="${esc(CARDIO[it.mode].label)}">${it.minutes}′ ${esc(it.mode)}</span>`;
+    });
+    return `<div class="d ${i === ti ? 'today' : ''}"><b>${d.name}</b>${pills.join('')}</div>`;
+  });
+  const today = schedule[ti];
+  const prog = state.workouts.progress;
+  return html`<h1>Move</h1>
+    <p class="muted">Activity is for health, mood and keeping weight off — it doesn’t need to be earned or burned off with food. Start low, go slow, and let the plan build.</p>
+    <div class="grid two">
+      <div class="card"><h2>This week</h2>
+        <div class="macro"><span>Cardio</span>${progressBar(done.cardio, cardioMin, { label: 'Cardio minutes' })}<span>${done.cardio}/${cardioMin} min</span></div>
+        <div class="macro"><span>Strength</span>${progressBar(done.strength, strengthPlanned, { label: 'Strength sessions' })}<span>${done.strength}/${strengthPlanned}</span></div>
+        <p class="muted" style="font-size:.86rem;margin-top:8px">Weekly cardio target grows by about 10% a week toward 150, then 200+ minutes.${activityMin ? ` Your regular activities cover about ${activityMin} min of it${strengthFromActivities ? ` and ${strengthFromActivities} strength session${strengthFromActivities > 1 ? 's' : ''}` : ''}.` : ''} Daily steps goal: ${fmtNum(goal)}.</p>
+      </div>
+      <div class="card"><h2>Today</h2>${today.items.map((it) => {
+        if (it.kind === 'rest') return '<p class="muted">Rest day — gentle walking is still great.</p>';
+        if (it.kind === 'strength') return `<p><strong>Strength session ${it.variant}</strong> · ${it.exercises.length} exercises</p><a class="btn primary" href="#/move/session/${it.variant}">Start session</a>`;
+        if (it.kind === 'activity') {
+          const done = itemDone(state.workouts.log[date] || [], it);
+          return `<div class="row between"><div><strong>${esc(it.name)}</strong><div class="muted" style="font-size:.88rem">${it.minutes} min · your regular activity</div></div>${done ? '<span class="tag green">done ✓</span>' : `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`}</div>`;
+        }
+        return `<p><strong>${esc(CARDIO[it.mode].label)}</strong> · ${it.minutes} min</p><p class="muted" style="font-size:.88rem">${esc(CARDIO[it.mode].how)}</p>`;
+      }).join('')}</div>
+    </div>
+    <div class="card"><h2>Week plan</h2><div class="week">${grid.join('')}</div>
+      <p class="muted" style="font-size:.84rem;margin:8px 0 0">One main thing per day: your own activities, a strength session or a cardio session.</p></div>
+    ${activitiesCard(state)}
+    <div class="card"><div class="card-head"><h2>Log activity</h2></div>
+      <form data-form="logCardio" class="row">
+        <select name="mode" style="flex:1;min-width:150px" data-change="logMode">${Object.entries(CARDIO).map(([k, c]) => `<option value="${k}">${esc(c.label)}</option>`).join('')}${(state.profile.activities || []).map((a) => `<option value="act:${esc(a.id)}" ${logOther === 'act:' + a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}<option value="other" ${logOther === 'other' ? 'selected' : ''}>Something else…</option></select>
+        ${logOther === 'other' ? `<input type="text" name="name" maxlength="40" required placeholder="What was it?" style="flex:1;min-width:150px"><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
+        <input type="number" name="minutes" min="1" max="300" placeholder="minutes" required style="width:110px" inputmode="numeric">
+        <input type="date" name="date" value="${date}" max="${date}" style="width:160px">
+        <button class="btn primary">Log</button>
+      </form></div>
+    <div class="card"><h2>Your strength levels</h2><p class="muted" style="font-size:.88rem">Each movement moves up a level when it feels easy, and back down if it’s too hard or hurts.</p>
+      <table class="simple"><tr><th>Movement</th><th>Current exercise</th><th class="right">Dose</th></tr>
+      ${Object.entries(prog).map(([k, st]) => {
+        const s = stepOf(k, st.stepId);
+        return s ? `<tr><td>${esc(CHAINS[k].label)}</td><td>${esc(s.name)}${st.painFlag ? ' <span class="tag warm">eased back</span>' : ''}</td><td class="right">${dose({ ...s, sets: st.sets, reps: st.reps })}</td></tr>` : '';
+      }).join('')}</table>
+      <p class="muted" style="font-size:.85rem;margin-top:8px">Equipment, joints and days are in <a href="#/settings">Settings</a>.</p></div>
+    ${stopSigns()}`;
+}
+
+function stopSigns() {
+  return `<div class="notice warn">${icon('alert')}<div><strong>Stop and seek help if you get:</strong> ${STOP_SIGNS.map(esc).join('; ')}. Muscle effort and being out of breath are normal; pain is not.</div></div>`;
+}
+
+function session(state, variant) {
+  const date = store.today();
+  const { schedule } = store.schedule(state, date);
+  const item = schedule.flatMap((d) => d.items).find((i) => i.kind === 'strength' && i.variant === variant);
+  if (!item) return '<div class="empty">No session found. <a href="#/move">Back</a></div>';
+  const rateBtn = (chain, value, label) => `<button type="button" class="btn small ${ratings[chain] === value ? 'on' : ''}" data-action="rate" data-chain="${chain}" data-value="${value}" aria-pressed="${ratings[chain] === value}">${label}</button>`;
+  return html`<a href="#/move" class="btn ghost small">${icon('back')}Move</a>
+    <h1>Strength session ${esc(variant)}</h1>
+    <p class="muted">Rest 60–90 seconds between sets. Move slowly and with control; breathe out as you push. Stop 2–3 reps before you can’t do any more.</p>
+    <div class="card"><h3>Warm-up (5 min)</h3><ul style="padding-left:20px;margin:0">${WARMUP.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>
+    ${item.exercises.map((ex, i) => `<div class="exercise"><div class="row between"><h3 style="margin:0">${i + 1}. ${esc(ex.name)}</h3><span class="dose">${dose(ex)}</span></div>
+      <p>${esc(ex.how)}</p>
+      <div class="field-label" style="font-size:.85rem">How did it feel?</div>
+      <div class="rate">${rateBtn(ex.chain, 'easy', 'Too easy')}${rateBtn(ex.chain, 'right', 'Just right')}${rateBtn(ex.chain, 'hard', 'Too hard')}${rateBtn(ex.chain, 'pain', 'It hurt')}</div></div>`)}
+    <div class="card"><h3>Cool-down</h3><ul style="padding-left:20px;margin:0">${COOLDOWN.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>
+    <div class="row" style="margin:14px 0"><button class="btn primary" data-action="finish" data-variant="${esc(variant)}">${icon('check')}Finish session</button><span class="muted" style="font-size:.86rem">Unrated exercises count as “just right”.</span></div>
+    ${stopSigns()}`;
+}
+
+__m.default = {
+  render(state, params) {
+    if (params[0] === 'session') return session(state, params[1] || 'A');
+    ratings = {};
+    return overview(state);
+  },
+  actions: {
+    rate(el, ev, ctx) {
+      ratings[el.dataset.chain] = el.dataset.value;
+      el.parentElement.querySelectorAll('button').forEach((b) => {
+        b.classList.toggle('on', b === el);
+        b.setAttribute('aria-pressed', String(b === el));
+      });
+    },
+    finish(el, ev, ctx) {
+      const date = store.today();
+      const variant = el.dataset.variant;
+      const s = ctx.state;
+      const { schedule } = store.schedule(s, date);
+      const item = schedule.flatMap((d) => d.items).find((i) => i.kind === 'strength' && i.variant === variant);
+      const changes = [];
+      let pain = false;
+      ctx.update((st) => {
+        for (const ex of item.exercises) {
+          const rating = ratings[ex.chain] || 'right';
+          if (rating === 'pain') pain = true;
+          const before = st.workouts.progress[ex.chain];
+          const after = progressChain(before, ex.chain, rating, st.profile, date);
+          if (after.stepId !== before.stepId) changes.push(`${stepOf(ex.chain, before.stepId).name} → ${stepOf(ex.chain, after.stepId).name}`);
+          st.workouts.progress[ex.chain] = after;
+        }
+        st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'strength', variant, ratings: { ...ratings }, minutes: item.minutes }];
+        if (st.habits.active.some((a) => a.id === 'strength_sessions')) st.habits.log[date] = { ...(st.habits.log[date] || {}), strength_sessions: true };
+        return st;
+      }, { render: false });
+      ratings = {};
+      ctx.toast(pain ? 'Logged. The painful exercise has been eased back — if pain persists, check with a physio or doctor.' : changes.length ? `Level up! ${changes[0]}` : 'Session logged. Great work.');
+      ctx.go('#/move');
+    },
+    logCardio(form, ev, ctx, data) {
+      const minutes = Number(data.minutes);
+      if (!(minutes > 0)) return;
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
+      let entry = { kind: 'cardio', mode: data.mode, minutes };
+      if (data.mode === 'other') entry = { kind: 'activity', name: (data.name || 'Activity').trim().slice(0, 40), intensity: data.intensity || 'moderate', minutes };
+      else if (data.mode?.startsWith('act:')) {
+        const a = (ctx.state.profile.activities || []).find((x) => 'act:' + x.id === data.mode);
+        if (a) entry = { kind: 'activity', actId: a.id, name: a.name, intensity: a.intensity, minutes };
+      }
+      logOther = false;
+      ctx.update((st) => {
+        st.workouts.log[date] = [...(st.workouts.log[date] || []), entry];
+        return st;
+      });
+      ctx.toast(`${minutes} minutes logged.`);
+    },
+    logMode(el, ev, ctx) {
+      const v = el.value;
+      const next = v === 'other' ? 'other' : v.startsWith('act:') ? v : false;
+      if (next !== logOther) {
+        logOther = next;
+        ctx.rerender();
+      }
+    },
+    toggleAddActivity(el, ev, ctx) {
+      showAddActivity = !showAddActivity;
+      ctx.rerender();
+      if (showAddActivity) document.querySelector('form[data-form=addActivity] input[name=name]')?.focus();
+    },
+    addActivity(form, ev, ctx, data) {
+      const days = (data.days || []).map(Number);
+      if (!days.length) return ctx.toast('Pick at least one day.');
+      const name = (data.name || '').trim();
+      if (!name) return;
+      showAddActivity = false;
+      ctx.update((st) => {
+        const list = st.profile.activities || [];
+        const id = 'a' + Date.now().toString(36);
+        st.profile.activities = [...list, { id, name: name.slice(0, 40), days, minutes: Math.max(5, Math.min(600, Number(data.minutes) || 30)), intensity: data.intensity || 'moderate', strength: !!data.strength }].slice(0, 12);
+        return st;
+      });
+      ctx.toast('Added — your week plan now counts it.');
+    },
+    async removeActivity(el, ev, ctx) {
+      const a = (ctx.state.profile.activities || []).find((x) => x.id === el.dataset.id);
+      if (!a || !(await ctx.confirm(`Remove “${a.name}” from your regular activities? Past logs are kept.`, { ok: 'Remove' }))) return;
+      ctx.update((st) => {
+        st.profile.activities = (st.profile.activities || []).filter((x) => x.id !== a.id);
+        return st;
+      });
+    },
+    activityDone(el, ev, ctx) {
+      logPlannedActivity(ctx, el.dataset.id);
+    },
+  },
+};
+void REP_RANGE;
+
+/** Log today's planned regular activity (shared with the Today screen). */
+function logPlannedActivity(ctx, id) {
+  const a = (ctx.state.profile.activities || []).find((x) => x.id === id);
+  if (!a) return;
+  const date = store.today();
+  ctx.update((st) => {
+    st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'activity', actId: a.id, name: a.name, intensity: a.intensity, minutes: a.minutes }];
+    return st;
+  });
+  ctx.toast(`${a.name} logged — nice!`);
+}
+
+Object.assign(__m, { itemDone, logPlannedActivity });
+},
+/* js/views/today.js */ 21: function (__m, __req) {
 // Today: weigh-in, today's meals (tick off), movement, habits.
 const { html, esc, icon, fmtWeight, fmtDelta, toKg, fmtNum, progressBar, weightNum, fmtDate } = __req(13);
 const { ring } = __req(18);
@@ -3565,6 +3903,7 @@ const { stepGoal } = __req(7);
 const { round, addDays, weekStart } = __req(0);
 const { CARDIO } = __req(6);
 const { questsHtml } = __req(19);
+const { itemDone, logPlannedActivity } = __req(20);
 
 function greeting() {
   const h = new Date().getHours();
@@ -3635,8 +3974,9 @@ function moveCard(state, date) {
   const steps = state.steps[date];
   const items = d.items
     .map((it) => {
-      const isDone = done.some((x) => x.kind === it.kind);
+      const isDone = itemDone(done, it);
       if (it.kind === 'rest') return '<p class="muted">Rest day. A relaxed walk is still a good idea.</p>';
+      if (it.kind === 'activity') return `<div class="row between"><div><strong>${esc(it.name)}</strong><div class="muted" style="font-size:.88rem">${it.minutes} min · your regular activity</div></div>${isDone ? '<span class="tag green">done ✓</span>' : `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`}</div>`;
       if (it.kind === 'strength') return `<div class="row between"><div><strong>Strength session ${it.variant}</strong><div class="muted" style="font-size:.88rem">${it.exercises.length} exercises · about ${it.minutes} min</div></div>${isDone ? '<span class="tag green">done ✓</span>' : `<a class="btn small primary" href="#/move/session/${it.variant}">Start</a>`}</div>`;
       return `<div class="row between"><div><strong>${esc(CARDIO[it.mode].label)}</strong><div class="muted" style="font-size:.88rem">${it.minutes} minutes, at a pace where you can talk</div></div>${isDone ? '<span class="tag green">done ✓</span>' : `<button class="btn small primary" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}">Done</button>`}</div>`;
     })
@@ -3789,6 +4129,9 @@ __m.default = {
       });
       ctx.toast('Steps saved.');
     },
+    activityDone(el, ev, ctx) {
+      logPlannedActivity(ctx, el.dataset.id);
+    },
     cardioDone(el, ev, ctx) {
       const date = store.today();
       ctx.update((st) => {
@@ -3826,7 +4169,7 @@ function setMeal(ctx, slot, fn) {
 
 Object.assign(__m, { addDays });
 },
-/* js/views/meals.js */ 21: function (__m, __req) {
+/* js/views/meals.js */ 22: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 const { html, esc, icon, chips, fmtDate } = __req(13);
 const store = __req(12);
@@ -4020,166 +4363,6 @@ function keepPlan(st) {
   if (old) st.plans[wk] = { ...plan, days: old.days };
   return st;
 }
-
-Object.assign(__m, {  });
-},
-/* js/views/move.js */ 22: function (__m, __req) {
-// Movement: the week's schedule, strength session player with feedback, cardio logging.
-const { html, esc, icon, progressBar, fmtNum } = __req(13);
-const store = __req(12);
-const { progressChain, stepOf, stepGoal, REP_RANGE } = __req(7);
-const { CARDIO, WARMUP, COOLDOWN, CHAINS } = __req(6);
-const { STOP_SIGNS } = __req(8);
-const { addDays, weekStart } = __req(0);
-const { dayIndex } = __req(15);
-
-let ratings = {}; // chainKey -> rating, for the session in progress
-
-function weekMinutes(state, wk) {
-  let cardio = 0;
-  let strength = 0;
-  for (let i = 0; i < 7; i++) {
-    for (const x of state.workouts.log[addDays(wk, i)] || []) {
-      if (x.kind === 'cardio') cardio += x.minutes || 0;
-      if (x.kind === 'strength') strength++;
-    }
-  }
-  return { cardio, strength };
-}
-
-function dose(ex) {
-  const per = ex.perSide ? ' each side' : '';
-  return ex.type === 'time' ? `${ex.sets} × ${ex.reps} sec${per}` : `${ex.sets} × ${ex.reps}${per}`;
-}
-
-function overview(state) {
-  const date = store.today();
-  const wk = weekStart(date);
-  const { schedule, cardioMin } = store.schedule(state, date);
-  const done = weekMinutes(state, wk);
-  const strengthPlanned = schedule.reduce((a, d) => a + d.items.filter((i) => i.kind === 'strength').length, 0);
-  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
-  const ti = dayIndex(date);
-  const grid = schedule.map((d, i) => {
-    const dd = addDays(wk, i);
-    const logged = state.workouts.log[dd] || [];
-    const pills = d.items.map((it) => {
-      const isDone = logged.some((x) => x.kind === it.kind);
-      if (it.kind === 'rest') return '<span class="pill rest">rest</span>';
-      if (it.kind === 'strength') return `<span class="pill strength ${isDone ? 'done' : ''}" title="Strength session ${it.variant}">Str ${it.variant}</span>`;
-      return `<span class="pill cardio ${isDone ? 'done' : ''}" title="${esc(CARDIO[it.mode].label)}">${it.minutes}′ ${esc(it.mode)}</span>`;
-    });
-    return `<div class="d ${i === ti ? 'today' : ''}"><b>${d.name}</b>${pills.join('')}</div>`;
-  });
-  const today = schedule[ti];
-  const prog = state.workouts.progress;
-  return html`<h1>Move</h1>
-    <p class="muted">Activity is for health, mood and keeping weight off — it doesn’t need to be earned or burned off with food. Start low, go slow, and let the plan build.</p>
-    <div class="grid two">
-      <div class="card"><h2>This week</h2>
-        <div class="macro"><span>Cardio</span>${progressBar(done.cardio, cardioMin, { label: 'Cardio minutes' })}<span>${done.cardio}/${cardioMin} min</span></div>
-        <div class="macro"><span>Strength</span>${progressBar(done.strength, strengthPlanned, { label: 'Strength sessions' })}<span>${done.strength}/${strengthPlanned}</span></div>
-        <p class="muted" style="font-size:.86rem;margin-top:8px">Weekly cardio target grows by about 10% a week toward 150, then 200+ minutes. Daily steps goal: ${fmtNum(goal)}.</p>
-      </div>
-      <div class="card"><h2>Today</h2>${today.items.map((it) => {
-        if (it.kind === 'rest') return '<p class="muted">Rest day — gentle walking is still great.</p>';
-        if (it.kind === 'strength') return `<p><strong>Strength session ${it.variant}</strong> · ${it.exercises.length} exercises</p><a class="btn primary" href="#/move/session/${it.variant}">Start session</a>`;
-        return `<p><strong>${esc(CARDIO[it.mode].label)}</strong> · ${it.minutes} min</p><p class="muted" style="font-size:.88rem">${esc(CARDIO[it.mode].how)}</p>`;
-      }).join('')}</div>
-    </div>
-    <div class="card"><h2>Week plan</h2><div class="week">${grid.join('')}</div></div>
-    <div class="card"><div class="card-head"><h2>Log activity</h2></div>
-      <form data-form="logCardio" class="row">
-        <select name="mode" style="flex:1;min-width:150px">${Object.entries(CARDIO).map(([k, c]) => `<option value="${k}">${esc(c.label)}</option>`).join('')}</select>
-        <input type="number" name="minutes" min="1" max="300" placeholder="minutes" required style="width:110px" inputmode="numeric">
-        <input type="date" name="date" value="${date}" max="${date}" style="width:160px">
-        <button class="btn primary">Log</button>
-      </form></div>
-    <div class="card"><h2>Your strength levels</h2><p class="muted" style="font-size:.88rem">Each movement moves up a level when it feels easy, and back down if it’s too hard or hurts.</p>
-      <table class="simple"><tr><th>Movement</th><th>Current exercise</th><th class="right">Dose</th></tr>
-      ${Object.entries(prog).map(([k, st]) => {
-        const s = stepOf(k, st.stepId);
-        return s ? `<tr><td>${esc(CHAINS[k].label)}</td><td>${esc(s.name)}${st.painFlag ? ' <span class="tag warm">eased back</span>' : ''}</td><td class="right">${dose({ ...s, sets: st.sets, reps: st.reps })}</td></tr>` : '';
-      }).join('')}</table>
-      <p class="muted" style="font-size:.85rem;margin-top:8px">Equipment, joints and days are in <a href="#/settings">Settings</a>.</p></div>
-    ${stopSigns()}`;
-}
-
-function stopSigns() {
-  return `<div class="notice warn">${icon('alert')}<div><strong>Stop and seek help if you get:</strong> ${STOP_SIGNS.map(esc).join('; ')}. Muscle effort and being out of breath are normal; pain is not.</div></div>`;
-}
-
-function session(state, variant) {
-  const date = store.today();
-  const { schedule } = store.schedule(state, date);
-  const item = schedule.flatMap((d) => d.items).find((i) => i.kind === 'strength' && i.variant === variant);
-  if (!item) return '<div class="empty">No session found. <a href="#/move">Back</a></div>';
-  const rateBtn = (chain, value, label) => `<button type="button" class="btn small ${ratings[chain] === value ? 'on' : ''}" data-action="rate" data-chain="${chain}" data-value="${value}" aria-pressed="${ratings[chain] === value}">${label}</button>`;
-  return html`<a href="#/move" class="btn ghost small">${icon('back')}Move</a>
-    <h1>Strength session ${esc(variant)}</h1>
-    <p class="muted">Rest 60–90 seconds between sets. Move slowly and with control; breathe out as you push. Stop 2–3 reps before you can’t do any more.</p>
-    <div class="card"><h3>Warm-up (5 min)</h3><ul style="padding-left:20px;margin:0">${WARMUP.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>
-    ${item.exercises.map((ex, i) => `<div class="exercise"><div class="row between"><h3 style="margin:0">${i + 1}. ${esc(ex.name)}</h3><span class="dose">${dose(ex)}</span></div>
-      <p>${esc(ex.how)}</p>
-      <div class="field-label" style="font-size:.85rem">How did it feel?</div>
-      <div class="rate">${rateBtn(ex.chain, 'easy', 'Too easy')}${rateBtn(ex.chain, 'right', 'Just right')}${rateBtn(ex.chain, 'hard', 'Too hard')}${rateBtn(ex.chain, 'pain', 'It hurt')}</div></div>`)}
-    <div class="card"><h3>Cool-down</h3><ul style="padding-left:20px;margin:0">${COOLDOWN.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>
-    <div class="row" style="margin:14px 0"><button class="btn primary" data-action="finish" data-variant="${esc(variant)}">${icon('check')}Finish session</button><span class="muted" style="font-size:.86rem">Unrated exercises count as “just right”.</span></div>
-    ${stopSigns()}`;
-}
-
-__m.default = {
-  render(state, params) {
-    if (params[0] === 'session') return session(state, params[1] || 'A');
-    ratings = {};
-    return overview(state);
-  },
-  actions: {
-    rate(el, ev, ctx) {
-      ratings[el.dataset.chain] = el.dataset.value;
-      el.parentElement.querySelectorAll('button').forEach((b) => {
-        b.classList.toggle('on', b === el);
-        b.setAttribute('aria-pressed', String(b === el));
-      });
-    },
-    finish(el, ev, ctx) {
-      const date = store.today();
-      const variant = el.dataset.variant;
-      const s = ctx.state;
-      const { schedule } = store.schedule(s, date);
-      const item = schedule.flatMap((d) => d.items).find((i) => i.kind === 'strength' && i.variant === variant);
-      const changes = [];
-      let pain = false;
-      ctx.update((st) => {
-        for (const ex of item.exercises) {
-          const rating = ratings[ex.chain] || 'right';
-          if (rating === 'pain') pain = true;
-          const before = st.workouts.progress[ex.chain];
-          const after = progressChain(before, ex.chain, rating, st.profile, date);
-          if (after.stepId !== before.stepId) changes.push(`${stepOf(ex.chain, before.stepId).name} → ${stepOf(ex.chain, after.stepId).name}`);
-          st.workouts.progress[ex.chain] = after;
-        }
-        st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'strength', variant, ratings: { ...ratings }, minutes: item.minutes }];
-        if (st.habits.active.some((a) => a.id === 'strength_sessions')) st.habits.log[date] = { ...(st.habits.log[date] || {}), strength_sessions: true };
-        return st;
-      }, { render: false });
-      ratings = {};
-      ctx.toast(pain ? 'Logged. The painful exercise has been eased back — if pain persists, check with a physio or doctor.' : changes.length ? `Level up! ${changes[0]}` : 'Session logged. Great work.');
-      ctx.go('#/move');
-    },
-    logCardio(form, ev, ctx, data) {
-      const minutes = Number(data.minutes);
-      if (!(minutes > 0)) return;
-      const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
-      ctx.update((st) => {
-        st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'cardio', mode: data.mode, minutes }];
-        return st;
-      });
-      ctx.toast(`${minutes} minutes logged.`);
-    },
-  },
-};
-void REP_RANGE;
 
 Object.assign(__m, {  });
 },
@@ -5807,9 +5990,9 @@ Object.assign(__m, { floatXp, confetti, chime, buzz, showCelebration });
 const store = __req(12);
 const { icon, formData } = __req(13);
 const onboarding = __req(17).default;
-const todayView = __req(20).default;
-const meals = __req(21).default;
-const move = __req(22).default;
+const todayView = __req(21).default;
+const meals = __req(22).default;
+const move = __req(20).default;
 const habits = __req(23).default;
 const progress = __req(24).default;
 const checkin = __req(26).default;

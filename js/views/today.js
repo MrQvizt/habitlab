@@ -10,6 +10,7 @@ import { stepGoal } from '../engine/workouts.js';
 import { round, addDays, weekStart } from '../engine/util.js';
 import { CARDIO } from '../data/exercises.js';
 import { questsHtml } from './rewards.js';
+import { itemDone, logPlannedActivity } from './move.js';
 
 function greeting() {
   const h = new Date().getHours();
@@ -80,8 +81,9 @@ function moveCard(state, date) {
   const steps = state.steps[date];
   const items = d.items
     .map((it) => {
-      const isDone = done.some((x) => x.kind === it.kind);
+      const isDone = itemDone(done, it);
       if (it.kind === 'rest') return '<p class="muted">Rest day. A relaxed walk is still a good idea.</p>';
+      if (it.kind === 'activity') return `<div class="row between"><div><strong>${esc(it.name)}</strong><div class="muted" style="font-size:.88rem">${it.minutes} min · your regular activity</div></div>${isDone ? '<span class="tag green">done ✓</span>' : `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`}</div>`;
       if (it.kind === 'strength') return `<div class="row between"><div><strong>Strength session ${it.variant}</strong><div class="muted" style="font-size:.88rem">${it.exercises.length} exercises · about ${it.minutes} min</div></div>${isDone ? '<span class="tag green">done ✓</span>' : `<a class="btn small primary" href="#/move/session/${it.variant}">Start</a>`}</div>`;
       return `<div class="row between"><div><strong>${esc(CARDIO[it.mode].label)}</strong><div class="muted" style="font-size:.88rem">${it.minutes} minutes, at a pace where you can talk</div></div>${isDone ? '<span class="tag green">done ✓</span>' : `<button class="btn small primary" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}">Done</button>`}</div>`;
     })
@@ -233,6 +235,9 @@ export default {
         return st;
       });
       ctx.toast('Steps saved.');
+    },
+    activityDone(el, ev, ctx) {
+      logPlannedActivity(ctx, el.dataset.id);
     },
     cardioDone(el, ev, ctx) {
       const date = store.today();

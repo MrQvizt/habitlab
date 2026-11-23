@@ -332,3 +332,26 @@ test('reminders: specific, future-only, skip what is done, none when disabled', 
   assert.ok(!after.some((n) => n.title === 'Strength time'), 'done session skipped');
   assert.equal(new Set(list.map((n) => n.id)).size, list.length, 'ids unique');
 });
+
+test('schedule: never strength and app cardio on the same day; activities reduce planned work', async () => {
+  const days = [0, 1, 2, 3, 4, 5, 6];
+  const subsets = [];
+  for (let mask = 1; mask < 128; mask++) subsets.push(days.filter((d) => mask & (1 << d)));
+  for (const avail of subsets) for (const w of [0, 3]) {
+    const p = { equipment: [], limitations: [], daysAvailable: avail, sessionMinutes: 30, baselineCardioMin: 90, cardioPrefs: ['walk', 'cycle'], phase: 'lose' };
+    const { schedule } = weekSchedule(p, initialProgress(p), w);
+    for (const d of schedule) {
+      const kinds = d.items.map((i) => i.kind);
+      assert.ok(!(kinds.includes('strength') && kinds.includes('cardio')), `${avail} week ${w}: ${d.name} has ${kinds}`);
+    }
+  }
+  const base = { equipment: [], limitations: [], daysAvailable: [0, 2, 4, 5], sessionMinutes: 30, baselineCardioMin: 120, cardioPrefs: ['walk'], phase: 'lose' };
+  const without = weekSchedule(base, initialProgress(base), 3);
+  const acts = [{ id: 'w', name: 'Walk with friends', days: [5], minutes: 60, intensity: 'moderate' }, { id: 'c', name: 'Climbing', days: [2], minutes: 60, intensity: 'vigorous', strength: true }];
+  const withActs = weekSchedule({ ...base, activities: acts }, initialProgress(base), 3);
+  const sum = (s, k) => s.schedule.flatMap((d) => d.items).filter((i) => i.kind === k).reduce((a, i) => a + (k === 'strength' ? 1 : i.minutes), 0);
+  assert.equal(withActs.activityMin, 180);
+  assert.ok(sum(withActs, 'cardio') < sum(without, 'cardio'));
+  assert.equal(sum(withActs, 'strength'), sum(without, 'strength') - 1);
+  for (const d of withActs.schedule) if (d.items.some((i) => i.kind === 'activity')) assert.ok(!d.items.some((i) => i.kind === 'strength' || i.kind === 'cardio'), `${d.name} doubled up`);
+});

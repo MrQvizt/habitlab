@@ -314,6 +314,7 @@ details.recipe ul, details.recipe ol { margin: 8px 0; padding-left: 20px; font-s
 .week .pill { display: block; border-radius: 6px; padding: 2px 1px; margin: 2px 0; font-weight: 600; overflow-wrap: anywhere; font-size: 0.7rem; }
 .pill.strength { background: var(--accent-soft); color: var(--accent); }
 .pill.cardio { background: var(--info-soft); color: var(--info); }
+.pill.activity { background: var(--warm-soft); color: color-mix(in srgb, var(--warm) 75%, var(--ink)); }
 .pill.rest { color: var(--ink-3); font-weight: 400; }
 .pill.done::after { content: ' ✓'; }
 

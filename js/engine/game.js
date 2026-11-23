@@ -9,7 +9,7 @@
 // - A small, unpredictable "lucky bonus" (variable reward) makes ticking things off more fun.
 //   It is deterministic per item, so it can't be re-rolled.
 import { addDays, daysBetween, weekStart, hashString, parseDate } from './util.js';
-import { stepGoal } from './workouts.js';
+import { stepGoal, creditedMinutes } from './workouts.js';
 
 export const XP = {
   meal: 10, // per meal logged (eaten, skipped or "something else" — honesty pays the same)
@@ -74,6 +74,7 @@ export function dayAwards(state, date, { habitsOnly = false } = {}) {
   }
   (state.workouts?.log?.[date] || []).forEach((w, i) => {
     if (w.kind === 'strength') add(`strength:${date}:${i}`, 'strength', 'Strength session', XP.strength, true);
+    else if (w.kind === 'activity') add(`activity:${date}:${i}`, 'cardio', `${w.name || 'Activity'} (${w.minutes} min)`, Math.min(XP.cardioMax, XP.cardioBase + Math.floor((w.minutes || 0) / 3)), true);
     else if (w.kind === 'cardio') add(`cardio:${date}:${i}`, 'cardio', `${w.minutes} min ${w.mode || 'cardio'}`, Math.min(XP.cardioMax, XP.cardioBase + Math.floor((w.minutes || 0) / 3)), true);
   });
   const p = state.profile || {};
@@ -101,7 +102,7 @@ export function quests(state, date, { habitsOnly = false } = {}) {
   const p = state.profile || {};
   const goal = stepGoal(p.baselineSteps, p.stepLevel || 0, p.age);
   const moved = (state.workouts?.log?.[date] || []).length > 0 || (state.steps?.[date] || 0) >= goal;
-  out.push({ id: 'move', label: 'Move today', hint: 'A session, a walk or your step goal', progress: moved ? 1 : 0, total: 1, done: moved, href: '#/move' });
+  out.push({ id: 'move', label: 'Move today', hint: 'A session, an activity, a walk or your step goal', progress: moved ? 1 : 0, total: 1, done: moved, href: '#/move' });
   if (!habitsOnly) {
     const w = state.weights?.some((x) => x.date === date);
     out.push({ id: 'weigh', label: 'Weigh in', progress: w ? 1 : 0, total: 1, done: !!w, href: '#/today' });
@@ -210,7 +211,7 @@ export function summary(state, today, { habitsOnly = false, trendKg = null } = {
   let bestWeek = 0;
   for (let w = weekStart(start); w <= today; w = addDays(w, 7)) {
     let m = 0;
-    for (let d = 0; d < 7; d++) for (const x of state.workouts?.log?.[addDays(w, d)] || []) m += x.minutes || 0;
+    for (let d = 0; d < 7; d++) for (const x of state.workouts?.log?.[addDays(w, d)] || []) m += creditedMinutes(x);
     bestWeek = Math.max(bestWeek, m);
   }
   stats.bestWeekMinutes = bestWeek;

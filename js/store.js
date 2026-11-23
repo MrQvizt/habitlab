@@ -161,6 +161,14 @@ export function sanitize(s) {
       struggles: subset(p.struggles, ['evening', 'emotional', 'portions', 'drinks', 'time', 'sleep', 'motivation']),
       stepLevel: num(p.stepLevel, 0, 40, 0),
       cardioBonus: num(p.cardioBonus, 0, 300, 0),
+      activities: (Array.isArray(p.activities) ? p.activities : []).filter((a) => a && typeof a.name === 'string' && a.name.trim()).slice(0, 12).map((a, i) => ({
+        id: typeof a.id === 'string' && /^[a-z0-9_-]{1,24}$/i.test(a.id) ? a.id : `act${i}`,
+        name: a.name.trim().slice(0, 40),
+        days: subset((a.days || []).map(Number), [0, 1, 2, 3, 4, 5, 6]),
+        minutes: num(a.minutes, 5, 600, 30),
+        intensity: oneOf(a.intensity, ['easy', 'moderate', 'vigorous'], 'moderate'),
+        strength: !!a.strength,
+      })),
       habitsOnly: !!p.habitsOnly,
       demo: !!p.demo,
     };
@@ -211,7 +219,16 @@ export function sanitize(s) {
   s.habits.log = dateMap(s.habits.log, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).filter((k) => habitIds.includes(k)).map((k) => [k, true])) : null));
   s.mealLog = dateMap(s.mealLog, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([slot, e]) => /^(breakfast|lunch|dinner|snack\d?)$/.test(slot) && ['ate', 'skip', 'other'].includes(e?.status)).map(([slot, e]) => [slot, e.status === 'other' ? { status: 'other', kcal: num(e.kcal, 0, 10000, 0) } : { status: e.status }])) : null));
   const wl = s.workouts.log;
-  s.workouts.log = dateMap(wl, (v) => (Array.isArray(v) ? v.filter((x) => x && ['strength', 'cardio'].includes(x.kind)).map((x) => ({ kind: x.kind, mode: x.kind === 'cardio' ? oneOf(x.mode, Object.keys(CARDIO), 'walk') : undefined, variant: x.kind === 'strength' ? oneOf(x.variant, ['A', 'B'], 'A') : undefined, minutes: num(x.minutes, 0, 600, 0), ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined })) : null));
+  s.workouts.log = dateMap(wl, (v) => (Array.isArray(v) ? v.filter((x) => x && ['strength', 'cardio', 'activity'].includes(x.kind)).map((x) => ({
+    kind: x.kind,
+    mode: x.kind === 'cardio' ? oneOf(x.mode, Object.keys(CARDIO), 'walk') : undefined,
+    variant: x.kind === 'strength' ? oneOf(x.variant, ['A', 'B'], 'A') : undefined,
+    name: x.kind === 'activity' ? String(x.name ?? 'Activity').slice(0, 40) : undefined,
+    actId: x.kind === 'activity' && typeof x.actId === 'string' ? x.actId.slice(0, 24) : undefined,
+    intensity: x.kind === 'activity' ? oneOf(x.intensity, ['easy', 'moderate', 'vigorous'], 'moderate') : undefined,
+    minutes: num(x.minutes, 0, 600, 0),
+    ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined,
+  })) : null));
   const prog = s.workouts.progress && typeof s.workouts.progress === 'object' ? s.workouts.progress : {};
   s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.slice(-30) : [] }]));
   // Plans reference recipes by id; drop any plan containing an unknown recipe (it will be rebuilt).

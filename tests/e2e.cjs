@@ -68,6 +68,35 @@ const shots = process.argv[3] || null;
     await page.waitForTimeout(250);
     await snap('05-' + route);
   }
+  // Regular activity: add one for today, see it planned, log it, check XP/quest credit
+  const todayIdx = await page.evaluate(() => (new Date().getDay() + 6) % 7);
+  const dayName = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][todayIdx];
+  await page.goto(base + '#/move');
+  await page.click('button:has-text("Add an activity you already do")');
+  await page.fill('form[data-form=addActivity] input[name=name]', 'Walking with friends');
+  await page.click(`form[data-form=addActivity] label.chip:has-text("${dayName}")`);
+  await page.click('form[data-form=addActivity] button.primary');
+  await page.waitForSelector('#activities >> text=Walking with friends');
+  await page.goto(base + '#/today');
+  await page.click('button[data-action=activityDone]');
+  await page.waitForSelector('text=Walking with friends logged');
+  await page.goto(base + '#/move');
+  await page.selectOption('form[data-form=logCardio] select[name=mode]', 'other');
+  await page.fill('form[data-form=logCardio] input[name=name]', 'Padel');
+  await page.fill('form[data-form=logCardio] input[name=minutes]', '40');
+  await page.click('form[data-form=logCardio] button.primary');
+  await page.waitForSelector('text=40 minutes logged');
+  await snap('09-move-activities');
+  const savedAct = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).profile.activities[0]);
+  if (savedAct.strength) errors.push('unticked "builds strength" was saved as true');
+
+  // Regression: saving Settings → About you must not switch on habits-only mode (single checkbox read as [])
+  await page.goto(base + '#/settings');
+  await page.click('form[data-form=profile] button.primary');
+  await page.waitForTimeout(200);
+  const ho = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).profile.habitsOnly);
+  if (ho) errors.push('saving profile turned on habits-only mode');
+
   // Strength session
   await page.goto(base + '#/move/session/A');
   await page.waitForSelector('text=Finish session');

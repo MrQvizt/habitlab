@@ -91,11 +91,18 @@ export function progressBar(value, max, { label = '', tone = '' } = {}) {
   return `<div class="bar ${tone}" role="progressbar" aria-valuenow="${Math.round(value)}" aria-valuemin="0" aria-valuemax="${Math.round(max)}" aria-label="${esc(label)}"><span style="width:${pct.toFixed(1)}%"></span></div>`;
 }
 
-/** Read a form into a plain object; checkboxes with the same name become arrays. */
+/**
+ * Read a form into a plain object.
+ * - A group of checkboxes sharing a name (chips) becomes an array of the checked values ([] if none).
+ * - A single checkbox becomes its value when checked and is absent when not, so `!!data.x` is a
+ *   correct "is it ticked?" test. (An empty array would be truthy — that was a bug.)
+ */
 export function formData(form) {
   const out = {};
   const fd = new FormData(form);
-  const multi = new Set([...form.querySelectorAll('input[type=checkbox]')].map((i) => i.name));
+  const counts = {};
+  for (const i of form.querySelectorAll('input[type=checkbox]')) counts[i.name] = (counts[i.name] || 0) + 1;
+  const multi = new Set(Object.keys(counts).filter((n) => counts[n] > 1 || form.querySelector(`input[type=checkbox][name="${CSS.escape(n)}"]`)?.closest('.chips')));
   for (const name of multi) out[name] = [];
   for (const [k, v] of fd.entries()) {
     if (multi.has(k)) out[k].push(v);
