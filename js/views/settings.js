@@ -125,7 +125,7 @@ export default {
         ${showBackup ? `<div style="margin-top:14px"><label class="field"><span>Your backup <span class="hint">If no file downloaded, copy this text and save it somewhere safe (a note or an email to yourself).</span></span><textarea id="backup-out" class="backup" readonly>${esc(store.exportJson(state))}</textarea></label><button class="btn small" data-action="copyBackup">Copy to clipboard</button></div>` : ''}
         ${pasteMode ? `<form data-form="pasteImport" style="margin-top:14px"><label class="field"><span>Paste backup text</span><textarea id="backup-in" name="text" class="backup" required></textarea></label><button class="btn primary small">Import</button></form>` : ''}
       </div>
-      <p class="footer-note">Habit Lab · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
+      <p class="footer-note">Habit Lab${window.HABITLAB_VERSION ? ` ${esc(window.HABITLAB_VERSION)}` : ''} · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
   actions: {
     async reminders(form, ev, ctx, data) {

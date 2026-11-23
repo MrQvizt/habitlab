@@ -268,6 +268,12 @@ document.addEventListener('visibilitychange', () => document.visibilityState ===
 window.addEventListener('hashchange', renderRoute);
 renderRoute();
 scheduleSync();
+// Android app: recover from the native copy if the WebView's storage is empty or older.
+store.nativeRestoreCandidate(state).then((restored) => {
+  if (!restored) return;
+  ctx.set(restored, { quiet: true });
+  ctx.toast('Your saved progress was restored.');
+});
 
 // Flag when running inside a frame (e.g. an embedded preview): printing and downloads may be blocked there.
 try {

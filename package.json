@@ -1,0 +1,21 @@
+{
+  "name": "habit-lab",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Evidence-based adaptive habit coach for weight loss: meal plans, workouts and habits.",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "android:sync": "node tools/build.mjs && npx cap sync android",
+    "android:apk": "node tools/build.mjs && npx cap sync android && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/local-notifications": "^7.0.0",
+    "@capacitor/preferences": "^7.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  }
+}

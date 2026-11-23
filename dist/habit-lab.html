@@ -373,13 +373,65 @@ table.simple th { color: var(--ink-3); font-weight: 600; font-size: 0.8rem; bord
 .btn.danger-solid { background: var(--danger); border-color: var(--danger); color: var(--surface); }
 html.framed .print-only-host { display: none !important; }
 textarea.backup { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; min-height: 140px; }
+
+/* ---------- Rewards ---------- */
+:root { --gold: #b7791f; --gold-soft: #fbefd3; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --gold: #f2c14e; --gold-soft: #3a3016; } }
+:root[data-theme='dark'] { --gold: #f2c14e; --gold-soft: #3a3016; }
+
+.xp-chip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); text-decoration: none; color: var(--ink); font-weight: 700; font-size: 0.85rem; }
+.xp-chip .lvl { display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 0.8rem; }
+.xp-chip .mini { width: 56px; height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.xp-chip .mini span { display: block; height: 100%; background: var(--gold); border-radius: 999px; }
+.xp-chip .flame { color: var(--warm); display: inline-flex; align-items: center; gap: 2px; font-variant-numeric: tabular-nums; }
+.xp-chip .flame .icon { width: 16px; height: 16px; }
+@media (max-width: 420px) { .xp-chip .mini { width: 34px; } }
+
+.quests { display: grid; gap: 8px; }
+@media (min-width: 680px) { .quests { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); } }
+.quest { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); text-decoration: none; color: var(--ink); min-width: 0; }
+.quest.done { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.quest .ql { font-size: 0.88rem; font-weight: 600; line-height: 1.3; }
+.quest .qp { font-size: 0.78rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.quest .qring { flex: none; }
+.perfect-banner { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--gold-soft); color: color-mix(in srgb, var(--gold) 75%, var(--ink)); font-weight: 700; margin-top: 10px; }
+
+.xp-float { position: fixed; z-index: 120; pointer-events: none; font-weight: 800; font-size: 0.95rem; color: var(--accent); background: var(--surface); border: 1px solid var(--line); padding: 3px 9px; border-radius: 999px; box-shadow: var(--shadow); animation: xpRise 1.25s ease-out forwards; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.xp-float.lucky { color: var(--gold); border-color: var(--gold); background: var(--gold-soft); }
+@keyframes xpRise { 0% { transform: translateY(6px) scale(0.8); opacity: 0; } 15% { transform: translateY(0) scale(1.08); opacity: 1; } 100% { transform: translateY(-60px) scale(1); opacity: 0; } }
+.confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 110; }
+.check.on { animation: pop 0.32s ease-out; }
+@keyframes pop { 0% { transform: scale(0.7); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+
+.medal { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--gold-soft), color-mix(in srgb, var(--gold) 55%, var(--surface))); color: color-mix(in srgb, var(--gold) 40%, var(--ink)); border: 2px solid var(--gold); box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--gold) 35%, transparent); margin: 0 auto 8px; }
+.medal .icon { width: 24px; height: 24px; }
+.medal.locked { background: var(--surface-2); border-color: var(--line); color: var(--ink-3); box-shadow: none; filter: grayscale(1); }
+.medal.big { width: 84px; height: 84px; }
+.medal.big .icon { width: 38px; height: 38px; }
+.badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.badge-card { text-align: center; padding: 12px 8px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); }
+.badge-card strong { display: block; font-size: 0.86rem; line-height: 1.25; }
+.badge-card small { display: block; font-size: 0.74rem; color: var(--ink-3); margin-top: 3px; line-height: 1.3; }
+.badge-card.locked strong { color: var(--ink-3); }
+.celebrate-modal { text-align: center; }
+.celebrate-modal .kicker { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.75rem; font-weight: 800; color: var(--gold); }
+.celebrate-modal h2 { font-size: 1.5rem; margin: 4px 0 6px; }
+.celebrate-modal p { font-weight: 400; }
+.level-hero { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.level-hero .ring-fg { stroke: var(--gold); }
+.feed li { display: flex; justify-content: space-between; gap: 10px; font-size: 0.9rem; padding: 6px 0; }
+.feed .xp { font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.feed .xp.lucky { color: var(--gold); }
+
+@media (max-width: 420px) { .hide-narrow { display: none; } }
 </style>
 </head>
 <body>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
 <div class="toast" role="status" aria-live="polite"></div>
-<script>(function () {
+<script>window.HABITLAB_VERSION = "1.1.0";
+(function () {
 'use strict';
 const __defs = {
 /* js/engine/util.js */ 0: function (__m, __req) {
@@ -1764,7 +1816,399 @@ const STOP_SIGNS = [
 
 Object.assign(__m, { screen, STOP_SIGNS });
 },
-/* js/data/habits.js */ 9: function (__m, __req) {
+/* js/engine/game.js */ 9: function (__m, __req) {
+// Rewards: XP, levels, daily quests, a "showing up" streak and badges.
+//
+// Design rules (see Learn → "Why the app gives you points"):
+// - Reward the behaviours that predict success — logging, moving, habits, check-ins — never eating
+//   less or a lower number on the scale. Logging a meal earns the same XP whatever you ate,
+//   so there's never a reason to log dishonestly.
+// - XP is *derived* from what's logged, not stored, so un-ticking and re-ticking can't farm points
+//   and nothing is lost if the plan is rebuilt.
+// - A small, unpredictable "lucky bonus" (variable reward) makes ticking things off more fun.
+//   It is deterministic per item, so it can't be re-rolled.
+const { addDays, daysBetween, weekStart, hashString, parseDate } = __req(0);
+const { stepGoal } = __req(7);
+
+const XP = {
+  meal: 10, // per meal logged (eaten, skipped or "something else" — honesty pays the same)
+  fullDay: 20, // every planned meal logged
+  weighIn: 5,
+  habit: 15,
+  strength: 40,
+  cardioBase: 10, // + 1 XP per 3 minutes, capped
+  cardioMax: 40,
+  steps: 15, // daily step goal reached
+  checkin: 50,
+  perfectDay: 25, // all daily quests done
+  lucky: 10,
+  badge: 50,
+};
+
+// Level n starts at 50·n·(n−1) XP: 0, 100, 300, 600, 1000, 1500 …  A full, active day is ~150–200 XP.
+function levelStart(n) {
+  return 50 * n * (n - 1);
+}
+function levelFromXp(xp) {
+  let n = 1;
+  while (levelStart(n + 1) <= xp) n++;
+  return n;
+}
+
+const LEVEL_TITLES = [
+  'First Step', 'Starter', 'Mover', 'Planner', 'Builder', 'Steady', 'Committed', 'Momentum', 'Consistent', 'Strong',
+  'Resilient', 'Trailblazer', 'Habit Pro', 'Unstoppable', 'Role Model', 'Veteran', 'Master Planner', 'Iron Will', 'Lifer', 'Legend',
+];
+function levelTitle(n) {
+  return n <= LEVEL_TITLES.length ? LEVEL_TITLES[n - 1] : `Legend ${n - LEVEL_TITLES.length + 1}`;
+}
+
+const isLucky = (key) => hashString(key) % 6 === 0; // about 1 in 6 items
+
+function mealsFor(state, date) {
+  const plan = state.plans?.[weekStart(date)];
+  const di = (parseDate(date).getDay() + 6) % 7;
+  return plan?.days?.[di] || [];
+}
+
+/**
+ * Everything that earned XP on one day.
+ * @returns [{key, kind, label, xp, lucky?}]
+ */
+function dayAwards(state, date, { habitsOnly = false } = {}) {
+  const out = [];
+  const add = (key, kind, label, xp, luckyOk = false) => {
+    out.push({ key, kind, label, xp });
+    if (luckyOk && isLucky(key)) out.push({ key: `${key}:lucky`, kind: 'lucky', label: 'Lucky bonus!', xp: XP.lucky, lucky: true });
+  };
+  const log = state.mealLog?.[date] || {};
+  const meals = mealsFor(state, date);
+  for (const m of meals) if (log[m.slot]) add(`meal:${date}:${m.slot}`, 'meal', `Logged ${m.slot.replace(/\d$/, '')}`, XP.meal, true);
+  if (meals.length && meals.every((m) => log[m.slot])) add(`full:${date}`, 'fullDay', 'Whole day logged', XP.fullDay);
+  if (!habitsOnly && state.weights?.some((w) => w.date === date)) add(`weigh:${date}`, 'weigh', 'Weighed in', XP.weighIn);
+  const hl = state.habits?.log?.[date] || {};
+  for (const id of Object.keys(hl)) {
+    if (habitsOnly && (id === 'weigh_daily' || id === 'log_meals')) continue;
+    add(`habit:${date}:${id}`, 'habit', 'Habit done', XP.habit, true);
+  }
+  (state.workouts?.log?.[date] || []).forEach((w, i) => {
+    if (w.kind === 'strength') add(`strength:${date}:${i}`, 'strength', 'Strength session', XP.strength, true);
+    else if (w.kind === 'cardio') add(`cardio:${date}:${i}`, 'cardio', `${w.minutes} min ${w.mode || 'cardio'}`, Math.min(XP.cardioMax, XP.cardioBase + Math.floor((w.minutes || 0) / 3)), true);
+  });
+  const p = state.profile || {};
+  const goal = stepGoal(p.baselineSteps, p.stepLevel || 0, p.age);
+  if ((state.steps?.[date] || 0) >= goal) add(`steps:${date}`, 'steps', 'Step goal reached', XP.steps);
+  if (state.checkins?.some((c) => c.date === date)) add(`checkin:${date}`, 'checkin', 'Weekly check-in', XP.checkin);
+  if (quests(state, date, { habitsOnly }).every((q) => q.done)) add(`perfect:${date}`, 'perfect', 'Perfect day', XP.perfectDay);
+  return out;
+}
+
+/**
+ * Today's quests. Each is a small, achievable target — completing them all is a "perfect day".
+ */
+function quests(state, date, { habitsOnly = false } = {}) {
+  const out = [];
+  const meals = mealsFor(state, date);
+  const log = state.mealLog?.[date] || {};
+  const logged = meals.filter((m) => log[m.slot]).length;
+  out.push({ id: 'meals', label: 'Log every meal', progress: logged, total: meals.length || 1, done: meals.length > 0 && logged === meals.length, href: '#/today' });
+  const active = (state.habits?.active || []).filter((a) => !(habitsOnly && (a.id === 'weigh_daily' || a.id === 'log_meals')));
+  if (active.length) {
+    const doneH = active.filter((a) => state.habits.log?.[date]?.[a.id]).length;
+    out.push({ id: 'habits', label: active.length === 1 ? 'Do your habit' : `Do your ${active.length} habits`, progress: doneH, total: active.length, done: doneH === active.length, href: '#/habits' });
+  }
+  const p = state.profile || {};
+  const goal = stepGoal(p.baselineSteps, p.stepLevel || 0, p.age);
+  const moved = (state.workouts?.log?.[date] || []).length > 0 || (state.steps?.[date] || 0) >= goal;
+  out.push({ id: 'move', label: 'Move today', hint: 'A session, a walk or your step goal', progress: moved ? 1 : 0, total: 1, done: moved, href: '#/move' });
+  if (!habitsOnly) {
+    const w = state.weights?.some((x) => x.date === date);
+    out.push({ id: 'weigh', label: 'Weigh in', progress: w ? 1 : 0, total: 1, done: !!w, href: '#/today' });
+  }
+  return out;
+}
+
+/** Forgiving "showing up" streak: a day counts if anything was logged; one missed day is forgiven. */
+function showUpStreak(activeDays, today) {
+  let count = 0;
+  let misses = 0;
+  let d = activeDays.has(today) ? today : addDays(today, -1);
+  for (let i = 0; i < 1000; i++) {
+    if (activeDays.has(d)) {
+      count++;
+      misses = 0;
+    } else if (++misses >= 2) break;
+    d = addDays(d, -1);
+  }
+  return count;
+}
+
+function bestStreak(activeDays) {
+  const days = [...activeDays].sort();
+  let best = 0;
+  let cur = 0;
+  let prev = null;
+  for (const d of days) {
+    const gap = prev ? daysBetween(prev, d) : 1;
+    cur = gap <= 2 ? cur + 1 : 1; // forgive one missed day
+    best = Math.max(best, cur);
+    prev = d;
+  }
+  return best;
+}
+
+// ---------- Badges ----------
+// Each badge: id, name, how (shown when locked), check(stats) → boolean. Weight badges are hidden in habits-only mode.
+const BADGES = [
+  { id: 'first_log', name: 'First Bite', icon: 'meals', how: 'Log your first meal', check: (s) => s.mealsLogged >= 1 },
+  { id: 'full_day', name: 'Full Picture', icon: 'check', how: 'Log every meal in a day', check: (s) => s.fullDays >= 1 },
+  { id: 'full_days_7', name: 'Food Diarist', icon: 'meals', how: 'Log every meal on 7 days', check: (s) => s.fullDays >= 7 },
+  { id: 'full_days_30', name: 'Data Devotee', icon: 'meals', how: 'Log every meal on 30 days', check: (s) => s.fullDays >= 30 },
+  { id: 'perfect_day', name: 'Perfect Day', icon: 'star', how: 'Complete all daily quests', check: (s) => s.perfectDays >= 1 },
+  { id: 'perfect_10', name: 'Perfectionist (the good kind)', icon: 'star', how: 'Complete all daily quests on 10 days', check: (s) => s.perfectDays >= 10 },
+  { id: 'streak_3', name: 'Hat Trick', icon: 'flame', how: 'Show up 3 days running', check: (s) => s.bestStreak >= 3 },
+  { id: 'streak_7', name: 'One Week Strong', icon: 'flame', how: 'Show up 7 days running', check: (s) => s.bestStreak >= 7 },
+  { id: 'streak_30', name: 'Month of Momentum', icon: 'flame', how: 'Show up 30 days running', check: (s) => s.bestStreak >= 30 },
+  { id: 'streak_66', name: 'Habit Formed', icon: 'flame', how: 'Show up 66 days running — the median time for a habit to stick', check: (s) => s.bestStreak >= 66 },
+  { id: 'streak_100', name: 'Centurion', icon: 'flame', how: 'Show up 100 days running', check: (s) => s.bestStreak >= 100 },
+  { id: 'first_strength', name: 'First Rep', icon: 'move', how: 'Finish a strength session', check: (s) => s.strength >= 1 },
+  { id: 'strength_10', name: 'Getting Strong', icon: 'move', how: 'Finish 10 strength sessions', check: (s) => s.strength >= 10 },
+  { id: 'strength_30', name: 'Iron Habit', icon: 'move', how: 'Finish 30 strength sessions', check: (s) => s.strength >= 30 },
+  { id: 'level_up_move', name: 'Level Up', icon: 'progress', how: 'Move up to a harder exercise', check: (s) => s.exerciseLevelUps >= 1 },
+  { id: 'cardio_150', name: 'Guideline Hit', icon: 'move', how: 'Log 150+ active minutes in one week', check: (s) => s.bestWeekMinutes >= 150 },
+  { id: 'cardio_250', name: 'Maintainer Pace', icon: 'move', how: 'Log 250+ active minutes in one week', check: (s) => s.bestWeekMinutes >= 250 },
+  { id: 'steps_5', name: 'Step Up', icon: 'move', how: 'Reach your step goal on 5 days', check: (s) => s.stepDays >= 5 },
+  { id: 'habit_7', name: 'Habit Hatchling', icon: 'habits', how: 'Tick a habit 7 times', check: (s) => s.habitTicksMax >= 7 },
+  { id: 'habit_graduate', name: 'Graduate', icon: 'habits', how: 'Graduate a habit once it’s automatic', check: (s) => s.graduated >= 1 },
+  { id: 'checkin_1', name: 'Reflector', icon: 'calendar', how: 'Complete a weekly check-in', check: (s) => s.checkins >= 1 },
+  { id: 'checkin_8', name: 'Two Months In', icon: 'calendar', how: 'Complete 8 weekly check-ins', check: (s) => s.checkins >= 8 },
+  { id: 'recipes_10', name: 'Explorer', icon: 'meals', how: 'Eat 10 different recipes', check: (s) => s.distinctRecipes >= 10 },
+  { id: 'recipes_25', name: 'Home Chef', icon: 'meals', how: 'Eat 25 different recipes', check: (s) => s.distinctRecipes >= 25 },
+  { id: 'weigh_7', name: 'Trend Spotter', icon: 'scale', how: 'Log 7 weigh-ins', check: (s) => s.weighIns >= 7, weight: true },
+  { id: 'milestone_5', name: '5% Health Win', icon: 'progress', how: 'Reach a 5% loss — real health benefits start here', check: (s) => s.lostPct >= 5, weight: true },
+  { id: 'milestone_10', name: '10% Health Win', icon: 'progress', how: 'Reach a 10% loss', check: (s) => s.lostPct >= 10, weight: true },
+];
+
+/**
+ * Full rewards summary, derived from state.
+ */
+function summary(state, today, { habitsOnly = false, trendKg = null } = {}) {
+  const p = state.profile || {};
+  const start = p.startDate || today;
+  const span = Math.min(800, Math.max(0, daysBetween(start, today)));
+  const activeDays = new Set();
+  const byDay = {};
+  let xp = 0;
+  const stats = { mealsLogged: 0, fullDays: 0, perfectDays: 0, strength: 0, stepDays: 0, weighIns: 0, checkins: (state.checkins || []).length, graduated: (state.habits?.retired || []).length };
+  const recipes = new Set();
+  const habitTicks = {};
+  for (let i = span; i >= 0; i--) {
+    const date = addDays(today, -i);
+    const awards = dayAwards(state, date, { habitsOnly });
+    if (!awards.length) continue;
+    activeDays.add(date);
+    const dayXp = awards.reduce((a, x) => a + x.xp, 0);
+    byDay[date] = { xp: dayXp, awards };
+    xp += dayXp;
+    for (const a of awards) {
+      if (a.kind === 'meal') stats.mealsLogged++;
+      else if (a.kind === 'fullDay') stats.fullDays++;
+      else if (a.kind === 'perfect') stats.perfectDays++;
+      else if (a.kind === 'strength') stats.strength++;
+      else if (a.kind === 'steps') stats.stepDays++;
+      else if (a.kind === 'weigh') stats.weighIns++;
+    }
+    const log = state.mealLog?.[date] || {};
+    for (const m of mealsFor(state, date)) if (log[m.slot]?.status === 'ate') recipes.add(m.recipeId);
+    for (const id of Object.keys(state.habits?.log?.[date] || {})) habitTicks[id] = (habitTicks[id] || 0) + 1;
+  }
+  stats.distinctRecipes = recipes.size;
+  stats.habitTicksMax = Math.max(0, ...Object.values(habitTicks));
+  stats.bestStreak = bestStreak(activeDays);
+  stats.exerciseLevelUps = Object.values(state.workouts?.progress || {}).filter((c) => (c.history || []).some((h) => h.stepId && h.stepId !== c.stepId)).length;
+  let bestWeek = 0;
+  for (let w = weekStart(start); w <= today; w = addDays(w, 7)) {
+    let m = 0;
+    for (let d = 0; d < 7; d++) for (const x of state.workouts?.log?.[addDays(w, d)] || []) m += x.minutes || 0;
+    bestWeek = Math.max(bestWeek, m);
+  }
+  stats.bestWeekMinutes = bestWeek;
+  const trend = trendKg ?? p.weightKg;
+  stats.lostPct = p.startWeightKg && trend ? ((p.startWeightKg - trend) / p.startWeightKg) * 100 : 0;
+
+  const earnedNow = BADGES.filter((b) => !(habitsOnly && b.weight) && b.check(stats)).map((b) => b.id);
+  // Badges once earned are kept (stored with the date), even if a log is later un-ticked.
+  const kept = Object.keys(state.game?.badges || {});
+  const badges = [...new Set([...kept, ...earnedNow])];
+  xp += badges.length * XP.badge;
+  const level = levelFromXp(xp);
+  return {
+    xp,
+    level,
+    title: levelTitle(level),
+    levelStart: levelStart(level),
+    nextLevelAt: levelStart(level + 1),
+    streak: showUpStreak(activeDays, today),
+    bestStreak: stats.bestStreak,
+    todayXp: byDay[today]?.xp || 0,
+    byDay,
+    stats,
+    badges,
+    newBadges: earnedNow.filter((id) => !kept.includes(id)),
+    quests: quests(state, today, { habitsOnly }),
+  };
+}
+
+Object.assign(__m, { XP, levelStart, levelFromXp, LEVEL_TITLES, levelTitle, dayAwards, quests, showUpStreak, BADGES, summary });
+},
+/* js/engine/reminders.js */ 10: function (__m, __req) {
+// Reminder schedule: turns the plan and today's progress into specific, friendly notifications
+// for the next few days. Pure — the platform layer (js/notify.js) delivers them.
+//
+// Principles: specific beats generic ("Lunch: Greek salad with chicken" > "Time to eat"); skip
+// anything already done; never shame; quiet by default at night; a few encouraging messages,
+// rotating so they don't go stale.
+const { addDays, weekStart, parseDate, hashString, isoDate } = __req(0);
+const { quests } = __req(9);
+const { byId } = __req(5);
+
+const DEFAULT_REMINDERS = {
+  enabled: false,
+  morning: '07:30', // weigh-in + today's plan
+  meals: true, // a nudge to log each main meal
+  breakfast: '09:00',
+  lunch: '13:00',
+  dinner: '19:30',
+  move: '17:30', // today's session / walk
+  encourage: true, // one encouraging note mid-afternoon
+  encourageAt: '15:30',
+  evening: '21:00', // streak saver: quests left
+  checkin: true, // weekly check-in reminder
+  checkinDay: 6, // 0 = Monday … 6 = Sunday
+  checkinAt: '18:00',
+};
+
+const ENCOURAGEMENTS = [
+  ['Small wins add up', 'Every meal you log and every walk you take is a vote for the person you’re becoming.'],
+  ['One slip changes nothing', 'Missing a day doesn’t break a habit. Just don’t miss twice.'],
+  ['Protein tip', 'A palm of protein at your next meal helps you stay full for longer.'],
+  ['Water check', 'Thirst can feel like hunger. A glass of water now?'],
+  ['Move a little', 'Two minutes of walking still counts. Stand up, stretch, step outside.'],
+  ['You’re doing the hard part', 'Showing up on ordinary days is how lasting change happens.'],
+  ['Plateaus are normal', 'The trend matters more than any single day on the scale.'],
+  ['Be kind to yourself', 'Talk to yourself the way you’d talk to a friend who’s trying.'],
+  ['Plan the next meal', 'Deciding ahead is easier than deciding hungry. Peek at your plan.'],
+  ['Sleep is a superpower', 'An earlier night tonight makes tomorrow’s choices easier.'],
+  ['Halfway through the day', 'Check your quests — a couple of taps could make today a perfect day.'],
+  ['Veg first', 'Starting with vegetables fills you up on fewer calories.'],
+];
+
+const DAY_SLOTS = ['morning', 'breakfast', 'lunch', 'move', 'encourage', 'dinner', 'evening', 'checkin'];
+
+/** Notification id: stable per (date, slot) so rescheduling replaces rather than duplicates. */
+function reminderId(date, slot) {
+  const d = parseDate(date);
+  const dayNum = Math.floor(d.getTime() / 86400000) % 1000;
+  return 100000 + dayNum * 10 + DAY_SLOTS.indexOf(slot);
+}
+
+function at(date, hhmm) {
+  const [h, m] = String(hhmm || '12:00').split(':').map(Number);
+  const d = parseDate(date);
+  d.setHours(h || 0, m || 0, 0, 0);
+  return d;
+}
+
+function mealsFor(state, date) {
+  const plan = state.plans?.[weekStart(date)];
+  return plan?.days?.[(parseDate(date).getDay() + 6) % 7] || [];
+}
+
+/**
+ * @param state app state
+ * @param now Date
+ * @param ctx {habitsOnly, schedule(date) → day items, streak, days = 7}
+ * @returns [{id, at: Date, title, body, route}] sorted by time, only in the future
+ */
+function buildReminders(state, now, ctx = {}) {
+  const r = { ...DEFAULT_REMINDERS, ...(state.reminders || {}) };
+  if (!r.enabled || !state.profile) return [];
+  const habitsOnly = !!ctx.habitsOnly;
+  const days = ctx.days ?? 7;
+  const today = isoDate(now);
+  const out = [];
+  const push = (date, slot, time, title, body, route) => {
+    const when = at(date, time);
+    if (when > now) out.push({ id: reminderId(date, slot), at: when, title, body, route });
+  };
+  for (let i = 0; i < days; i++) {
+    const date = addDays(today, i);
+    const isToday = i === 0;
+    const q = isToday ? quests(state, date, { habitsOnly }) : null;
+    const qDone = (id) => !!q?.find((x) => x.id === id)?.done;
+    const meals = mealsFor(state, date);
+    const log = state.mealLog?.[date] || {};
+    const dayItems = ctx.schedule ? ctx.schedule(date) : [];
+    const session = dayItems.find((it) => it.kind === 'strength') || dayItems.find((it) => it.kind === 'cardio');
+
+    // Morning: weigh-in + today's headline
+    if (r.morning && !(isToday && (habitsOnly || qDone('weigh')))) {
+      const first = meals[0] ? byId(meals[0].recipeId)?.name : null;
+      push(date, 'morning', r.morning, habitsOnly ? 'Good morning' : 'Good morning — weigh in',
+        habitsOnly ? `Today starts with ${first || 'a good breakfast'}. Your quests are ready.` : `Step on the scale for +5 XP, then ${first ? `breakfast: ${first}` : 'check today’s plan'}.`, '#/today');
+    } else if (r.morning && habitsOnly && !isToday) {
+      push(date, 'morning', r.morning, 'Good morning', 'Your quests for today are ready.', '#/today');
+    }
+
+    // Meal logging nudges
+    if (r.meals) {
+      for (const slot of ['breakfast', 'lunch', 'dinner']) {
+        const m = meals.find((x) => x.slot === slot);
+        if (!m || (isToday && log[slot])) continue;
+        const name = byId(m.recipeId)?.name || slot;
+        const label = slot[0].toUpperCase() + slot.slice(1);
+        push(date, slot, r[slot], `${label}: log it for +10 XP`, `Planned: ${name}. Ate something else? Log that instead — it’s worth the same.`, '#/today');
+      }
+    }
+
+    // Movement
+    if (r.move && session && !(isToday && qDone('move'))) {
+      const body = session.kind === 'strength' ? `Strength session ${session.variant} is on today’s plan — about ${session.minutes} minutes, +40 XP.` : `${session.minutes} minutes of ${session.label?.toLowerCase() || 'cardio'} today. Walking counts.`;
+      push(date, 'move', r.move, session.kind === 'strength' ? 'Strength time' : 'Time to move', body, session.kind === 'strength' ? `#/move/session/${session.variant}` : '#/move');
+    }
+
+    // Encouragement (rotates by date)
+    if (r.encourage) {
+      const [t, b] = ENCOURAGEMENTS[hashString(date) % ENCOURAGEMENTS.length];
+      push(date, 'encourage', r.encourageAt, t, b, '#/today');
+    }
+
+    // Evening streak saver (today: only if quests are left; future days: generic)
+    if (r.evening) {
+      if (isToday) {
+        const left = q.filter((x) => !x.done);
+        if (left.length) {
+          const streak = ctx.streak || 0;
+          push(date, 'evening', r.evening, streak >= 2 ? `Keep your ${streak}-day streak going` : 'Quick wrap-up',
+            `${left.length} quest${left.length > 1 ? 's' : ''} left: ${left.map((x) => x.label.toLowerCase()).join(', ')}. Finish them all for a perfect day.`, '#/today');
+        }
+      } else {
+        push(date, 'evening', r.evening, 'Wrap up your day', 'Tick off anything you haven’t logged — a perfect day is +25 XP.', '#/today');
+      }
+    }
+
+    // Weekly check-in
+    if (r.checkin && (parseDate(date).getDay() + 6) % 7 === Number(r.checkinDay)) {
+      const last = (state.checkins || []).map((c) => c.date).sort().pop();
+      if (!(isToday && last === date)) push(date, 'checkin', r.checkinAt, 'Weekly check-in (+50 XP)', 'Two minutes to look back at your week and tune the plan.', '#/checkin');
+    }
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+
+Object.assign(__m, { DEFAULT_REMINDERS, ENCOURAGEMENTS, reminderId, buildReminders });
+},
+/* js/data/habits.js */ 11: function (__m, __req) {
 // Habit library. Each habit is small, specific and has a suggested cue (implementation intention:
 // "After I [cue], I will [behaviour]"). `tiny` is the version to fall back on during a hard day.
 // `ev` points to an evidence card id in learn.js.
@@ -1818,7 +2262,7 @@ const AUTOMATICITY_ITEMS = [
 
 Object.assign(__m, { HABIT_CATEGORIES, HABITS, AUTOMATICITY_ITEMS });
 },
-/* js/store.js */ 10: function (__m, __req) {
+/* js/store.js */ 12: function (__m, __req) {
 // App state: one JSON object in localStorage. Everything stays on this device.
 const { isoDate, weekStart, addDays, hashString } = __req(0);
 const { dailyTargets, estimateTdee } = __req(1);
@@ -1826,7 +2270,9 @@ const { latestTrend } = __req(2);
 const { planWeek } = __req(5);
 const { initialProgress, weekSchedule } = __req(7);
 const { screen } = __req(8);
-const { HABITS } = __req(9);
+const { summary: gameSummaryRaw } = __req(9);
+const { DEFAULT_REMINDERS } = __req(10);
+const { HABITS } = __req(11);
 const { RECIPES } = __req(4);
 const { FOODS, DIETS, ALLERGENS } = __req(3);
 const { CARDIO, CHAINS } = __req(6);
@@ -1854,6 +2300,8 @@ function emptyState() {
     kcalAdjust: 0,
     tdeeOffset: 0,
     flags: {},
+    game: { badges: {}, sound: true, haptics: true, lastLevel: 1 },
+    reminders: { ...DEFAULT_REMINDERS },
   };
 }
 
@@ -1869,13 +2317,55 @@ function load() {
 }
 
 function save(state) {
+  state.savedAt = Date.now();
   memory = structuredClone(state);
+  mirrorToNative(state);
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
     return true;
   } catch (e) {
     return false;
   }
+}
+
+// ---------- Native mirror (Android app) ----------
+// In the Android app, every save is also copied to the app's native preferences. WebView storage
+// survives app updates, but this second copy protects against it ever being cleared, and native
+// preferences are included in Android's automatic backup (so data can follow you to a new phone).
+const NATIVE_KEY = 'habitlab.state';
+function nativePrefs() {
+  const cap = typeof window !== 'undefined' ? window.Capacitor : null;
+  return cap?.isNativePlatform?.() ? cap.Plugins?.Preferences || null : null;
+}
+let mirrorTimer = null;
+function mirrorToNative(state) {
+  const prefs = nativePrefs();
+  if (!prefs) return;
+  clearTimeout(mirrorTimer);
+  const json = JSON.stringify(state);
+  mirrorTimer = setTimeout(() => prefs.set({ key: NATIVE_KEY, value: json }).catch(() => {}), 400);
+}
+
+/**
+ * If the native copy is newer than what the WebView has (or the WebView is empty), return it.
+ * Resolves null otherwise, or when not running in the Android app.
+ */
+async function nativeRestoreCandidate(current) {
+  const prefs = nativePrefs();
+  if (!prefs) return null;
+  try {
+    const { value } = await prefs.get({ key: NATIVE_KEY });
+    if (!value) {
+      if (current?.profile) mirrorToNative(current); // first run of a version with the mirror: seed it
+      return null;
+    }
+    const stored = migrate(JSON.parse(value));
+    if (!stored.profile) return null;
+    if (!current?.profile || (stored.savedAt || 0) > (current.savedAt || 0)) return stored;
+  } catch (e) {
+    /* unreadable copy: ignore */
+  }
+  return null;
 }
 
 function clearAll() {
@@ -1892,6 +2382,8 @@ function migrate(s) {
   const out = { ...base, ...s, prefs: { ...base.prefs, ...(s.prefs || {}) } };
   out.workouts = { ...base.workouts, ...(s.workouts || {}) };
   out.habits = { ...base.habits, ...(s.habits || {}) };
+  out.game = { ...base.game, ...(s.game || {}) };
+  out.reminders = { ...base.reminders, ...(s.reminders || {}) };
   return sanitize(out);
 }
 
@@ -1960,6 +2452,17 @@ function sanitize(s) {
   s.steps = dateMap(s.steps, (v) => num(v, 0, 200000));
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
+  const g = s.game && typeof s.game === 'object' ? s.game : {};
+  s.game = {
+    badges: Object.fromEntries(Object.entries(g.badges || {}).filter(([k, v]) => /^[a-z0-9_]+$/.test(k) && ISO.test(v))),
+    sound: g.sound !== false,
+    haptics: g.haptics !== false,
+    lastLevel: num(g.lastLevel, 1, 1000, 1),
+  };
+  const rm = s.reminders && typeof s.reminders === 'object' ? s.reminders : {};
+  const hhmm = (v, d) => (typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : d);
+  s.reminders = Object.fromEntries(Object.entries(DEFAULT_REMINDERS).map(([k, d]) => [k, typeof d === 'boolean' ? (k in rm ? !!rm[k] : d) : typeof d === 'number' ? num(rm[k], 0, 6, d) : hhmm(rm[k], d)]));
+  s.savedAt = num(s.savedAt, 0, 1e13, 0);
   s.kcalAdjust = num(s.kcalAdjust, -500, 500, 0);
   s.tdeeOffset = num(s.tdeeOffset, -1500, 1500, 0);
   s.calcWeightKg = num(s.calcWeightKg, 30, 400, null) ?? undefined;
@@ -2088,11 +2591,17 @@ function importJson(text) {
   return migrate(s);
 }
 
+/** Rewards summary (XP, level, streak, quests, badges) for a date. */
+function game(state, date = today()) {
+  if (!state.profile) return null;
+  return gameSummaryRaw(state, date, { habitsOnly: habitsOnly(state), trendKg: trendWeight(state) });
+}
 
 
-Object.assign(__m, { VERSION, emptyState, load, save, clearAll, migrate, sanitize, today, trendWeight, safety, habitsOnly, visibleHabits, calcWeight, targets, weekKey, weeksSinceStart, ensurePlan, ensureProgress, schedule, exportJson, importJson, estimateTdee });
+
+Object.assign(__m, { VERSION, emptyState, load, save, nativeRestoreCandidate, clearAll, migrate, sanitize, today, trendWeight, safety, habitsOnly, visibleHabits, calcWeight, targets, weekKey, weeksSinceStart, ensurePlan, ensureProgress, schedule, exportJson, importJson, game, estimateTdee });
 },
-/* js/ui/dom.js */ 11: function (__m, __req) {
+/* js/ui/dom.js */ 13: function (__m, __req) {
 // Rendering helpers. Views return HTML strings; every user-provided value goes through esc().
 const { kgToLb, cmToIn, lbToKg, inToCm, round } = __req(0);
 
@@ -2201,10 +2710,10 @@ function formData(form) {
 
 Object.assign(__m, { esc, html, units, fmtWeight, weightNum, toKg, fmtDelta, fmtHeight, heightFromFtIn, fmtNum, fmtDate, icon, chips, progressBar, formData });
 },
-/* js/engine/habits.js */ 12: function (__m, __req) {
+/* js/engine/habits.js */ 14: function (__m, __req) {
 // Habit tracking: completion, forgiving streaks ("never miss twice"), and readiness to add a new habit.
 const { addDays, isoDate } = __req(0);
-const { HABITS } = __req(9);
+const { HABITS } = __req(11);
 
 const MAX_ACTIVE = 3;
 
@@ -2280,12 +2789,12 @@ function suggestNext(activeIds, profile) {
 
 Object.assign(__m, { MAX_ACTIVE, habitById, streak, completionRate, isEstablished, suggestNext });
 },
-/* js/views/shared.js */ 13: function (__m, __req) {
+/* js/views/shared.js */ 15: function (__m, __req) {
 // Pieces shared by several views.
-const { esc, icon, fmtNum } = __req(11);
+const { esc, icon, fmtNum } = __req(13);
 const { byId, scaledNutrition, formatQty, SLOT_LABEL, dayTotals } = __req(5);
 const { FOODS } = __req(3);
-const store = __req(10);
+const store = __req(12);
 const { daysBetween, weekStart, parseDate } = __req(0);
 
 function dayIndex(date) {
@@ -2394,12 +2903,12 @@ function markChosen(meals, previous, slot) {
 
 Object.assign(__m, { dayIndex, mealsFor, eatenSoFar, dayComplete, computeIntake, proteinEaten, recipeDetails, mealMeta, slotLabel, totalsLine, safetyNotices, checkinDue, setMealStatus, markChosen });
 },
-/* js/demo.js */ 14: function (__m, __req) {
+/* js/demo.js */ 16: function (__m, __req) {
 // Demo profile with ~10 weeks of realistic history, so the app can be explored before real use.
-const { emptyState, ensurePlan, ensureProgress } = __req(10);
+const { emptyState, ensurePlan, ensureProgress } = __req(12);
 const { addDays, isoDate, round, rng, weekStart } = __req(0);
-const { HABITS } = __req(9);
-const { computeIntake } = __req(13);
+const { HABITS } = __req(11);
+const { computeIntake } = __req(15);
 
 function demoState() {
   const today = isoDate();
@@ -2458,18 +2967,18 @@ function demoState() {
 
 Object.assign(__m, { demoState });
 },
-/* js/views/onboarding.js */ 15: function (__m, __req) {
+/* js/views/onboarding.js */ 17: function (__m, __req) {
 // Onboarding wizard: about you → health check → food → movement → habits → your plan.
-const { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight } = __req(11);
+const { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight } = __req(13);
 const { ACTIVITY_LEVELS, PACES, dailyTargets, bmi, weightAtBmi, projectWeeks } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
-const { HABITS } = __req(9);
-const { suggestNext } = __req(12);
+const { HABITS } = __req(11);
+const { suggestNext } = __req(14);
 const { screen } = __req(8);
-const { emptyState, importJson } = __req(10);
+const { emptyState, importJson } = __req(12);
 const { isoDate, round, cmToIn } = __req(0);
-const { demoState } = __req(14);
+const { demoState } = __req(16);
 
 let draft = { step: 0, units: 'metric' };
 
@@ -2813,7 +3322,7 @@ __m.default = {
       if (!file) return;
       file.text().then((text) => {
         try {
-          ctx.set(importJson(text), { render: false });
+          ctx.set(importJson(text), { render: false, quiet: true });
           ctx.toast('Backup imported.');
           ctx.go('#/today');
         } catch (e) {
@@ -2826,9 +3335,9 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 16: function (__m, __req) {
+/* js/ui/charts.js */ 18: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
-const { esc } = __req(11);
+const { esc } = __req(13);
 const { daysBetween, addDays } = __req(0);
 
 /**
@@ -2938,18 +3447,131 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/today.js */ 17: function (__m, __req) {
+/* js/views/rewards.js */ 19: function (__m, __req) {
+// Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
+const { html, esc, icon, fmtDate, progressBar } = __req(13);
+const { ring, barChart } = __req(18);
+const store = __req(12);
+const { BADGES, XP, levelTitle } = __req(9);
+const { addDays, weekStart } = __req(0);
+
+__m.default = {
+  render(state) {
+    const date = store.today();
+    const g = store.game(state);
+    const hide = store.habitsOnly(state);
+    const into = g.xp - g.levelStart;
+    const need = g.nextLevelAt - g.levelStart;
+    const badgeList = BADGES.filter((b) => !(hide && b.weight));
+    const earned = new Set(g.badges);
+    const wk = weekStart(date);
+    const weeks = Array.from({ length: 8 }, (_, i) => addDays(wk, -7 * (7 - i))).map((w) => {
+      let x = 0;
+      for (let d = 0; d < 7; d++) x += g.byDay[addDays(w, d)]?.xp || 0;
+      return { label: `${Number(w.slice(8))}/${Number(w.slice(5, 7))}`, value: x };
+    });
+    const recentDays = Object.keys(g.byDay).sort().reverse().slice(0, 5);
+    return html`<h1>Rewards</h1>
+      <p class="muted">Points for showing up — logging, moving, habits and check-ins. You never earn points for eating less or for the number on the scale: consistency is what changes weight in the long run.</p>
+      <div class="card"><div class="level-hero">
+        ${ring(into, need, { size: 128, label: `Lv ${g.level}`, sub: `${into.toLocaleString()}/${need.toLocaleString()} XP` })}
+        <div class="grow" style="min-width:200px">
+          <div class="kicker" style="text-transform:uppercase;letter-spacing:.08em;font-size:.75rem;font-weight:800;color:var(--gold)">Level ${g.level}</div>
+          <h2 style="font-size:1.5rem;margin:2px 0 6px">${esc(g.title)}</h2>
+          <p class="muted" style="margin:0 0 10px">${(g.nextLevelAt - g.xp).toLocaleString()} XP to level ${g.level + 1} · ${esc(levelTitle(g.level + 1))}</p>
+          <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+            <div class="stat"><span class="v">${g.xp.toLocaleString()}</span><span class="l">total XP</span></div>
+            <div class="stat"><span class="v" style="color:var(--warm)">${g.streak}</span><span class="l">day streak (best ${g.bestStreak})</span></div>
+            <div class="stat"><span class="v">${g.todayXp}</span><span class="l">XP today</span></div>
+          </div>
+        </div></div></div>
+
+      <div class="card"><div class="card-head"><h2>Today’s quests</h2><span class="muted" style="font-size:.86rem">All done = perfect day, +${XP.perfectDay} XP</span></div>${questsHtml(g)}</div>
+
+      <div class="card"><div class="card-head"><h2>Badges</h2><span class="muted" style="font-size:.86rem">${badgeList.filter((b) => earned.has(b.id)).length} of ${badgeList.length}</span></div>
+        <div class="badges">${badgeList.map((b) => {
+          const on = earned.has(b.id);
+          const when = state.game.badges[b.id];
+          return `<div class="badge-card ${on ? '' : 'locked'}" title="${esc(b.how)}"><div class="medal ${on ? '' : 'locked'}">${icon(b.icon)}</div><strong>${esc(b.name)}</strong><small>${on ? (when ? `Earned ${esc(fmtDate(when, { day: 'numeric', month: 'short' }))}` : 'Earned') : esc(b.how)}</small></div>`;
+        }).join('')}</div></div>
+
+      <div class="grid two">
+        <div class="card"><h2>XP per week</h2>${barChart(weeks, { unit: ' XP' })}</div>
+        <div class="card"><h2>Recent</h2>${recentDays.length ? recentDays.map((d) => `<h3 style="font-size:.9rem;margin:10px 0 2px">${esc(fmtDate(d))} <span class="muted" style="font-weight:400">· ${g.byDay[d].xp} XP</span></h3><ul class="list feed">${summarise(g.byDay[d].awards).map((a) => `<li><span>${esc(a.label)}</span><span class="xp ${a.lucky ? 'lucky' : ''}">+${a.xp}</span></li>`).join('')}</ul>`).join('') : '<p class="muted">Tick off a meal or a habit to earn your first XP.</p>'}</div>
+      </div>
+
+      <div class="card"><h2>How to earn XP</h2>
+        <table class="simple"><tr><th>Action</th><th class="right">XP</th></tr>
+        ${[
+          ['Log a meal (eaten, skipped or something else — same XP)', XP.meal],
+          ['Log every meal in a day', XP.fullDay],
+          ['Do a habit', XP.habit],
+          ['Strength session', XP.strength],
+          ['Cardio session', `${XP.cardioBase}–${XP.cardioMax}`],
+          ['Reach your step goal', XP.steps],
+          ...(hide ? [] : [['Weigh in', XP.weighIn]]),
+          ['Weekly check-in', XP.checkin],
+          ['Perfect day (all quests)', XP.perfectDay],
+          ['Each badge', XP.badge],
+          ['Lucky bonus (random, about 1 in 6 ticks)', XP.lucky],
+        ].map(([a, x]) => `<tr><td>${esc(a)}</td><td class="right">+${x}</td></tr>`).join('')}</table>
+        <p class="muted" style="font-size:.85rem;margin-top:8px">Your streak counts days you log anything. Missing one day doesn’t break it — missing two does. <a href="#/learn/gamification">Why points help</a></p></div>
+
+      <div class="card"><h2>Feedback</h2>
+        <label class="option"><input type="checkbox" data-change="pref" data-key="sound" ${state.game.sound ? 'checked' : ''}><div><strong>Sounds</strong><small class="muted">A short chime when you earn XP.</small></div></label>
+        <label class="option" style="margin-top:8px"><input type="checkbox" data-change="pref" data-key="haptics" ${state.game.haptics ? 'checked' : ''}><div><strong>Vibration</strong><small class="muted">A tiny buzz on supported phones.</small></div></label>
+      </div>`;
+  },
+  actions: {
+    pref(el, ev, ctx) {
+      ctx.update((st) => {
+        st.game = { ...st.game, [el.dataset.key]: el.checked };
+        return st;
+      }, { quiet: true });
+    },
+  },
+};
+
+/** Collapse repeated award kinds into one line each (e.g. "Habit done ×3"). */
+function summarise(awards) {
+  const out = [];
+  const seen = {};
+  for (const a of awards) {
+    const k = a.lucky ? 'lucky' : a.label;
+    if (seen[k]) {
+      seen[k].xp += a.xp;
+      seen[k].n++;
+    } else out.push((seen[k] = { ...a, n: 1 }));
+  }
+  return out.map((a) => ({ ...a, label: a.n > 1 ? `${a.label} ×${a.n}` : a.label }));
+}
+
+function questsHtml(g) {
+  const done = g.quests.filter((q) => q.done).length;
+  return `<div class="quests">${g.quests.map((q) => {
+    const pct = q.total ? q.progress / q.total : 0;
+    const r = 13;
+    const c = 2 * Math.PI * r;
+    return `<a class="quest ${q.done ? 'done' : ''}" href="${q.href}"><svg class="qring" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="${r}" class="ring-bg" style="stroke-width:5"/><circle cx="17" cy="17" r="${r}" class="ring-fg" style="stroke-width:5" stroke-dasharray="${(c * pct).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 17 17)"/>${q.done ? '<path d="M11 17l4 4 8-8" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>' : ''}</svg>
+      <span><span class="ql">${esc(q.label)}</span><br><span class="qp">${q.done ? 'Done' : `${q.progress}/${q.total}`}</span></span></a>`;
+  }).join('')}</div>${done === g.quests.length ? `<div class="perfect-banner">${icon('star')} Perfect day — every quest complete!</div>` : `<div class="muted" style="font-size:.84rem;margin-top:8px">${done}/${g.quests.length} quests · ${progressBar(done, g.quests.length, { label: 'Quests', tone: 'warm' })}</div>`}`;
+}
+
+Object.assign(__m, { questsHtml });
+},
+/* js/views/today.js */ 20: function (__m, __req) {
 // Today: weigh-in, today's meals (tick off), movement, habits.
-const { html, esc, icon, fmtWeight, fmtDelta, toKg, fmtNum, progressBar, weightNum, fmtDate } = __req(11);
-const { ring } = __req(16);
-const store = __req(10);
-const { mealsFor, computeIntake, eatenSoFar, dayComplete, setMealStatus, proteinEaten, recipeDetails, mealMeta, slotLabel, safetyNotices, checkinDue, dayIndex } = __req(13);
-const { markChosen } = __req(13);
+const { html, esc, icon, fmtWeight, fmtDelta, toKg, fmtNum, progressBar, weightNum, fmtDate } = __req(13);
+const { ring } = __req(18);
+const store = __req(12);
+const { mealsFor, computeIntake, eatenSoFar, dayComplete, setMealStatus, proteinEaten, recipeDetails, mealMeta, slotLabel, safetyNotices, checkinDue, dayIndex } = __req(15);
+const { markChosen } = __req(15);
 const { byId, swapMeal } = __req(5);
-const { habitById, streak } = __req(12);
+const { habitById, streak } = __req(14);
 const { stepGoal } = __req(7);
 const { round, addDays, weekStart } = __req(0);
 const { CARDIO } = __req(6);
+const { questsHtml } = __req(19);
 
 function greeting() {
   const h = new Date().getHours();
@@ -3048,6 +3670,11 @@ function habitsCard(state, date) {
     }).join('')}</ul></div>`;
 }
 
+function questCard(state) {
+  const g = store.game(state);
+  return `<div class="card"><div class="card-head"><h2>${icon('star')} Today’s quests</h2><a href="#/rewards" class="muted">Level ${g.level} · ${g.todayXp} XP today →</a></div>${questsHtml(g)}</div>`;
+}
+
 function firstWeek(state, date) {
   if (state.flags?.firstWeekDone || store.weeksSinceStart(state, date) > 0 || state.profile.demo) return '';
   const hide = store.habitsOnly(state);
@@ -3081,6 +3708,7 @@ __m.default = {
     const showNumbers = !store.habitsOnly(state);
     return html`<h1>${greeting()}</h1><p class="muted">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · week ${store.weeksSinceStart(state, date) + 1}</p>
       ${banners(state, date)}
+      ${questCard(state)}
       ${firstWeek(state, date)}
       <div class="grid two">
         <div>${showNumbers ? weighCard(state, date, u) : ''}${habitsCard(state, date)}${moveCard(state, date)}</div>
@@ -3205,12 +3833,12 @@ function setMeal(ctx, slot, fn) {
 
 Object.assign(__m, { addDays });
 },
-/* js/views/meals.js */ 18: function (__m, __req) {
+/* js/views/meals.js */ 21: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
-const { html, esc, icon, chips, fmtDate } = __req(11);
-const store = __req(10);
-const { recipeDetails, mealMeta, slotLabel, totalsLine, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(13);
-const { markChosen } = __req(13);
+const { html, esc, icon, chips, fmtDate } = __req(13);
+const store = __req(12);
+const { recipeDetails, mealMeta, slotLabel, totalsLine, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(15);
+const { markChosen } = __req(15);
 const { byId, swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL } = __req(5);
 const { RECIPES } = __req(4);
 const { rng } = __req(0);
@@ -3402,15 +4030,15 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/views/move.js */ 19: function (__m, __req) {
+/* js/views/move.js */ 22: function (__m, __req) {
 // Movement: the week's schedule, strength session player with feedback, cardio logging.
-const { html, esc, icon, progressBar, fmtNum } = __req(11);
-const store = __req(10);
+const { html, esc, icon, progressBar, fmtNum } = __req(13);
+const store = __req(12);
 const { progressChain, stepOf, stepGoal, REP_RANGE } = __req(7);
 const { CARDIO, WARMUP, COOLDOWN, CHAINS } = __req(6);
 const { STOP_SIGNS } = __req(8);
 const { addDays, weekStart } = __req(0);
-const { dayIndex } = __req(13);
+const { dayIndex } = __req(15);
 
 let ratings = {}; // chainKey -> rating, for the session in progress
 
@@ -3562,13 +4190,13 @@ void REP_RANGE;
 
 Object.assign(__m, {  });
 },
-/* js/views/habits.js */ 20: function (__m, __req) {
+/* js/views/habits.js */ 23: function (__m, __req) {
 // Habits: active habits with if-then cues, 66-day horizon, forgiving streaks, automaticity check, library.
-const { html, esc, icon, progressBar } = __req(11);
-const { habitGrid } = __req(16);
-const store = __req(10);
-const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
-const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(12);
+const { html, esc, icon, progressBar } = __req(13);
+const { habitGrid } = __req(18);
+const store = __req(12);
+const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(11);
+const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(14);
 const { daysBetween } = __req(0);
 
 let filter = 'all';
@@ -3705,11 +4333,11 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/progress.js */ 21: function (__m, __req) {
+/* js/views/progress.js */ 24: function (__m, __req) {
 // Progress: weight trend chart, milestones, rate, activity history, waist, check-in history.
-const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(11);
-const { weightChart, barChart } = __req(16);
-const store = __req(10);
+const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(13);
+const { weightChart, barChart } = __req(18);
+const store = __req(12);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
 const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
@@ -3844,7 +4472,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, {  });
 },
-/* js/engine/adjust.js */ 22: function (__m, __req) {
+/* js/engine/adjust.js */ 25: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -4120,12 +4748,12 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 23: function (__m, __req) {
+/* js/views/checkin.js */ 26: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
-const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(11);
-const store = __req(10);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(22);
-const { habitById, MAX_ACTIVE } = __req(12);
+const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(13);
+const store = __req(12);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(25);
+const { habitById, MAX_ACTIVE } = __req(14);
 const { daysBetween, round } = __req(0);
 
 let review = null; // {answers, result}
@@ -4261,7 +4889,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/data/learn.js */ 24: function (__m, __req) {
+/* js/data/learn.js */ 27: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -4306,6 +4934,8 @@ const S = {
   perri: ['Perri et al. 2001 — problem-solving therapy', 'https://researchdiscovery.drexel.edu/esploro/outputs/journalArticle/Relapse-Prevention-Training-and-Problem-Solving-Therapy/991014877884804721'],
   unick: ['Unick et al. 2015 — early weight loss predicts later', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC4481874'],
   compassion: ['Brenton-Peters et al. — self-compassion and eating', 'https://eprints.whiterose.ac.uk/160045/3/Self-compassion%20and%20eating%20-%20CPR%20%28final%29.pdf'],
+  mazeas: ['Mazeas et al., JMIR 2022 — gamification and physical activity (meta-analysis)', 'https://jmir.org/2022/1/e26779'],
+  stepup: ['Patel et al., JAMA Intern Med 2019 — STEP UP gamification trial', 'https://pubmed.ncbi.nlm.nih.gov/31498375/'],
   stigma: ['Rubino et al., Nat Med 2020 — ending weight stigma', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC7154011'],
   tasali: ['Tasali et al., JAMA Intern Med 2022 — sleep extension RCT', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8822469'],
   cappuccio: ['Cappuccio et al. 2008 — short sleep and obesity', 'https://pubmed.ncbi.nlm.nih.gov/18517032/'],
@@ -4428,6 +5058,14 @@ const LEARN = [
       'Weight stigma — including self-blame — harms health and makes care harder. There are no “bad foods” or “cheat days” here: just meals that are more or less helpful for your goal.'],
     ['compassion', 'stigma'],
     'If you follow the plan less one week, the app makes it easier — it never cuts calories as a punishment.'),
+  C('gamification', 'Habits & mindset', 'Why the app gives you points',
+    'Points, levels and streaks make the small daily actions feel rewarding while habits are still forming.',
+    ['A meta-analysis of 16 randomised trials found gamified programmes increased physical activity, with a small-to-medium effect that persisted after follow-up.',
+      'In the STEP UP trial of adults with overweight or obesity, points and levels with social support, collaboration or competition all increased daily steps.',
+      'Rewards here go only to the behaviours that predict success — logging, moving, habits and check-ins — never to eating less or to weight lost, which could encourage under-eating or dishonest logging.',
+      'Points are a scaffold. As habits become automatic, they matter less, and that’s the goal.'],
+    ['mazeas', 'stepup', 'harvey'],
+    'XP for each logged meal (whatever you ate), habit, session and check-in; daily quests; a forgiving streak; and badges.'),
   C('mindful_eating', 'Habits & mindset', 'Slowing down and checking in with hunger',
     'Pausing before and during eating helps you choose deliberately.',
     ['In the ultra-processed food trial, people ate faster on the ultra-processed meals as well as eating more.',
@@ -4494,10 +5132,10 @@ const LEARN_BY_ID = Object.fromEntries(LEARN.map((c) => [c.id, c]));
 
 Object.assign(__m, { LEARN_SECTIONS, LEARN, LEARN_BY_ID });
 },
-/* js/views/learn.js */ 25: function (__m, __req) {
+/* js/views/learn.js */ 28: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
-const { html, esc, icon } = __req(11);
-const { LEARN, LEARN_SECTIONS } = __req(24);
+const { html, esc, icon } = __req(13);
+const { LEARN, LEARN_SECTIONS } = __req(27);
 
 let section = 'all';
 let openAll = false;
@@ -4541,20 +5179,192 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/settings.js */ 26: function (__m, __req) {
+/* js/notify.js */ 29: function (__m, __req) {
+// Notification delivery.
+// - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
+// - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
+//   reliably without a server), so the Settings screen explains that the app is better for reminders.
+const { buildReminders } = __req(10);
+
+const MAX_WEB_DELAY = 24 * 3600 * 1000;
+let webTimers = [];
+let listening = false;
+
+function platform() {
+  const cap = window.Capacitor;
+  if (cap?.isNativePlatform?.()) return 'native';
+  if ('Notification' in window) return 'web';
+  return 'none';
+}
+
+function plugin() {
+  const cap = window.Capacitor;
+  return cap?.Plugins?.LocalNotifications || cap?.registerPlugin?.('LocalNotifications') || null;
+}
+
+async function permissionState() {
+  try {
+    if (platform() === 'native') return (await plugin().checkPermissions()).display; // granted | denied | prompt
+    if (platform() === 'web') return Notification.permission === 'default' ? 'prompt' : Notification.permission;
+  } catch (e) {
+    /* fall through */
+  }
+  return 'denied';
+}
+
+async function requestPermission() {
+  try {
+    if (platform() === 'native') {
+      const ln = plugin();
+      const res = await ln.requestPermissions();
+      if (ln.createChannel) {
+        await ln.createChannel({ id: 'reminders', name: 'Reminders & encouragement', description: 'Daily quests, meal logging and movement nudges', importance: 4, vibration: true }).catch(() => {});
+      }
+      return res.display;
+    }
+    if (platform() === 'web') return await Notification.requestPermission();
+  } catch (e) {
+    /* ignore */
+  }
+  return 'denied';
+}
+
+/** Route taps on notifications to the right screen. */
+function listen() {
+  if (listening || platform() !== 'native') return;
+  listening = true;
+  try {
+    plugin().addListener('localNotificationActionPerformed', (e) => {
+      const route = e?.notification?.extra?.route;
+      if (route) location.hash = route;
+    });
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+/**
+ * Replace all scheduled reminders with a fresh set built from the current state.
+ * @param ctx passed through to buildReminders ({habitsOnly, schedule, streak})
+ */
+async function sync(state, ctx) {
+  const list = buildReminders(state, new Date(), ctx);
+  const p = platform();
+  if (p === 'native') {
+    const ln = plugin();
+    try {
+      if ((await ln.checkPermissions()).display !== 'granted') return { scheduled: 0, platform: p };
+      const pending = await ln.getPending();
+      const ours = (pending.notifications || []).filter((n) => n.id >= 100000);
+      if (ours.length) await ln.cancel({ notifications: ours.map((n) => ({ id: n.id })) });
+      if (list.length) {
+        await ln.schedule({
+          notifications: list.map((n) => ({
+            id: n.id,
+            title: n.title,
+            body: n.body,
+            channelId: 'reminders',
+            schedule: { at: n.at, allowWhileIdle: true },
+            extra: { route: n.route },
+            smallIcon: 'ic_stat_notify',
+            iconColor: '#1b6e52',
+          })),
+        });
+      }
+      return { scheduled: list.length, platform: p };
+    } catch (e) {
+      return { scheduled: 0, platform: p, error: String(e?.message || e) };
+    }
+  }
+  if (p === 'web') {
+    webTimers.forEach(clearTimeout);
+    webTimers = [];
+    if (Notification.permission !== 'granted') return { scheduled: 0, platform: p };
+    const now = Date.now();
+    for (const n of list) {
+      const delay = n.at - now;
+      if (delay <= 0 || delay > MAX_WEB_DELAY) continue;
+      webTimers.push(setTimeout(() => showWeb(n), delay));
+    }
+    return { scheduled: webTimers.length, platform: p };
+  }
+  return { scheduled: 0, platform: p };
+}
+
+function showWeb(n) {
+  try {
+    const note = new Notification(n.title, { body: n.body, icon: 'icons/icon-192.png', tag: String(n.id) });
+    note.onclick = () => {
+      window.focus();
+      location.hash = n.route;
+      note.close();
+    };
+  } catch (e) {
+    /* some browsers only allow notifications via a service worker; ignore */
+  }
+}
+
+/** Fire one notification a few seconds from now so the user can see what reminders look like. */
+async function test() {
+  const n = { id: 99999, title: 'Habit Lab reminders are on', body: 'This is what a nudge looks like. Tap to open today’s quests.', route: '#/today', at: new Date(Date.now() + 5000) };
+  if (platform() === 'native') {
+    await plugin().schedule({ notifications: [{ id: n.id, title: n.title, body: n.body, channelId: 'reminders', schedule: { at: n.at, allowWhileIdle: true }, extra: { route: n.route }, smallIcon: 'ic_stat_notify', iconColor: '#1b6e52' }] });
+  } else if (platform() === 'web' && Notification.permission === 'granted') {
+    setTimeout(() => showWeb(n), 5000);
+  }
+}
+
+Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
+},
+/* js/views/settings.js */ 30: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
-const { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(11);
-const store = __req(10);
+const { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(13);
+const store = __req(12);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn } = __req(0);
+const notify = __req(29);
+const { DEFAULT_REMINDERS } = __req(10);
 
 const DAYS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
 let showBackup = false;
+let reminderStatus = '';
 let pasteMode = false;
 const DISLIKES = Object.fromEntries(Object.entries(FOODS).map(([k, f]) => [k, f.name.replace(/,.*$/, '').replace(/ \(.*\)$/, '')]));
+
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+function remindersHtml(state) {
+  const r = { ...DEFAULT_REMINDERS, ...(state.reminders || {}) };
+  const p = notify.platform();
+  const where = p === 'native'
+    ? 'Reminders are scheduled on your phone and arrive even when the app is closed.'
+    : p === 'web'
+      ? 'In a browser, reminders only appear while Habit Lab is open. Install the Android app for reminders all day.'
+      : 'This browser doesn’t support notifications. Install the Android app for reminders.';
+  const time = (name, label, hint = '') => `<label class="field" style="margin:0"><span>${label}${hint ? ` <span class="hint">${hint}</span>` : ''}</span><input type="time" name="${name}" value="${esc(r[name])}"></label>`;
+  const tog = (name, label, hint) => `<label class="option"><input type="checkbox" name="${name}" value="1" ${r[name] ? 'checked' : ''}><div><strong>${label}</strong><small class="muted">${hint}</small></div></label>`;
+  return `<p class="muted" style="font-size:.9rem">Friendly, specific nudges through the day — skipped automatically once you’ve done the thing. ${esc(where)}</p>
+    <label class="option" style="margin-bottom:12px"><input type="checkbox" name="enabled" value="1" ${r.enabled ? 'checked' : ''}><div><strong>Turn on reminders</strong><small class="muted">You’ll be asked to allow notifications.</small></div></label>
+    <div class="grid two">
+      ${time('morning', 'Morning weigh-in & plan')}
+      ${time('move', 'Movement nudge', 'only on days with a session')}
+      ${time('breakfast', 'Log breakfast')}
+      ${time('lunch', 'Log lunch')}
+      ${time('dinner', 'Log dinner')}
+      ${time('evening', 'Evening wrap-up', 'only if quests are left')}
+      ${time('encourageAt', 'Encouragement')}
+      <div class="grid two" style="gap:8px">${time('checkinAt', 'Check-in reminder')}<label class="field" style="margin:0"><span>on</span><select name="checkinDay">${DAY_NAMES.map((d, i) => `<option value="${i}" ${Number(r.checkinDay) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label></div>
+    </div>
+    <div class="options" style="margin-top:12px">
+      ${tog('meals', 'Meal logging nudges', 'Breakfast, lunch and dinner — showing what’s planned.')}
+      ${tog('encourage', 'Daily encouragement', 'One short tip or pep talk each afternoon.')}
+      ${tog('checkin', 'Weekly check-in', 'A reminder on your chosen day.')}
+    </div>
+    <div class="row" style="margin-top:12px"><button class="btn primary">Save reminders</button><button type="button" class="btn" data-action="testNotify">Send a test</button>${reminderStatus ? `<span class="muted" style="font-size:.86rem">${esc(reminderStatus)}</span>` : ''}</div>`;
+}
 
 __m.default = {
   render(state) {
@@ -4619,6 +5429,10 @@ __m.default = {
         <div class="row"><button class="btn primary">Save</button><button type="button" class="btn ghost danger" data-action="resetProgress">Reset exercise levels</button></div>
       </form>
 
+      <form data-form="reminders" class="card" id="reminders"><h2>Reminders & encouragement</h2>
+        ${remindersHtml(state)}
+      </form>
+
       <div class="card"><h2>Appearance</h2><div class="segmented">${[['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" class="${theme === k ? 'on' : ''}" data-action="theme" data-value="${k}">${l}</button>`).join('')}</div></div>
 
       <div class="card"><h2>Your data</h2>
@@ -4630,9 +5444,39 @@ __m.default = {
         ${showBackup ? `<div style="margin-top:14px"><label class="field"><span>Your backup <span class="hint">If no file downloaded, copy this text and save it somewhere safe (a note or an email to yourself).</span></span><textarea id="backup-out" class="backup" readonly>${esc(store.exportJson(state))}</textarea></label><button class="btn small" data-action="copyBackup">Copy to clipboard</button></div>` : ''}
         ${pasteMode ? `<form data-form="pasteImport" style="margin-top:14px"><label class="field"><span>Paste backup text</span><textarea id="backup-in" name="text" class="backup" required></textarea></label><button class="btn primary small">Import</button></form>` : ''}
       </div>
-      <p class="footer-note">Habit Lab · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
+      <p class="footer-note">Habit Lab${window.HABITLAB_VERSION ? ` ${esc(window.HABITLAB_VERSION)}` : ''} · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
   actions: {
+    async reminders(form, ev, ctx, data) {
+      const enabled = !!data.enabled;
+      if (enabled && (await notify.permissionState()) !== 'granted') {
+        const res = await notify.requestPermission();
+        if (res !== 'granted') {
+          reminderStatus = 'Notifications are blocked. Allow them for Habit Lab in your phone or browser settings.';
+          ctx.update((st) => ({ ...st, reminders: { ...st.reminders, enabled: false } }), { quiet: true });
+          return;
+        }
+      }
+      ctx.update((st) => {
+        const r = { ...st.reminders, enabled };
+        for (const k of ['morning', 'breakfast', 'lunch', 'dinner', 'move', 'evening', 'encourageAt', 'checkinAt']) if (data[k]) r[k] = data[k];
+        for (const k of ['meals', 'encourage', 'checkin']) r[k] = !!data[k];
+        r.checkinDay = Number(data.checkinDay);
+        st.reminders = r;
+        return st;
+      }, { quiet: true });
+      const res = await ctx.syncReminders();
+      reminderStatus = enabled ? `On — ${res?.scheduled ?? 0} reminders scheduled${res?.platform === 'web' ? ' for while this page is open' : ' for the next 7 days'}.` : 'Reminders are off.';
+      ctx.rerender();
+    },
+    async testNotify(el, ev, ctx) {
+      if ((await notify.permissionState()) !== 'granted' && (await notify.requestPermission()) !== 'granted') {
+        reminderStatus = 'Notifications are blocked. Allow them in your phone or browser settings.';
+        return ctx.rerender();
+      }
+      await notify.test();
+      ctx.toast('A test notification will arrive in about 5 seconds.');
+    },
     profile(form, ev, ctx, data) {
       ctx.update((st) => {
         const p = st.profile;
@@ -4742,7 +5586,7 @@ __m.default = {
         try {
           const data = store.importJson(text);
           if (!(await ctx.confirm('Replace all current data with this backup?', { ok: 'Replace', danger: true }))) return;
-          ctx.set(data);
+          ctx.set(data, { quiet: true });
           ctx.toast('Backup imported.');
         } catch (e) {
           ctx.toast(e.message || 'Couldn’t read that file.');
@@ -4769,7 +5613,7 @@ __m.default = {
         const st = store.importJson(data.text);
         if (!(await ctx.confirm('Replace all current data with this backup?', { ok: 'Replace', danger: true }))) return;
         pasteMode = false;
-        ctx.set(st);
+        ctx.set(st, { quiet: true });
         ctx.toast('Backup imported.');
       } catch (e) {
         ctx.toast(e instanceof SyntaxError ? 'That text isn’t a complete backup — copy the whole thing.' : e.message);
@@ -4788,13 +5632,13 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 27: function (__m, __req) {
+/* js/views/shopping.js */ 31: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
-const { html, esc, icon } = __req(11);
-const store = __req(10);
+const { html, esc, icon } = __req(13);
+const store = __req(12);
 const { shoppingList, formatQty } = __req(5);
 const { weekStart } = __req(0);
-const { dayIndex } = __req(13);
+const { dayIndex } = __req(15);
 
 const AISLE_ORDER = ['Produce', 'Frozen', 'Meat & fish', 'Dairy & eggs', 'Bakery', 'Canned & dry'];
 
@@ -4834,22 +5678,157 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/app.js */ 28: function (__m, __req) {
-// Habit Lab — app shell: routing, persistence and event delegation.
-const store = __req(10);
-const { icon, formData } = __req(11);
-const onboarding = __req(15).default;
-const todayView = __req(17).default;
-const meals = __req(18).default;
-const move = __req(19).default;
-const habits = __req(20).default;
-const progress = __req(21).default;
-const checkin = __req(23).default;
-const learn = __req(25).default;
-const settings = __req(26).default;
-const shopping = __req(27).default;
+/* js/ui/celebrate.js */ 32: function (__m, __req) {
+// Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
+// Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
+// after the user has interacted with the page.
+const { esc, icon } = __req(13);
 
-const VIEWS = { start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+let lastPoint = null;
+document.addEventListener('pointerdown', (e) => (lastPoint = { x: e.clientX, y: e.clientY }), true);
+
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/** "+10 XP" rising from where the user tapped. */
+function floatXp(amount, { lucky = false, label = '' } = {}) {
+  const el = document.createElement('div');
+  el.className = `xp-float${lucky ? ' lucky' : ''}`;
+  el.textContent = `+${amount} XP${label ? ` · ${label}` : ''}`;
+  const p = lastPoint || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  el.style.left = `${Math.min(window.innerWidth - 90, Math.max(10, p.x - 30))}px`;
+  el.style.top = `${p.y - 20}px`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), reducedMotion() ? 1200 : 1300);
+}
+
+/** Confetti burst from the tap point (or top centre). */
+function confetti(power = 1) {
+  if (reducedMotion()) return;
+  const canvas = document.createElement('canvas');
+  canvas.className = 'confetti';
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const css = getComputedStyle(document.documentElement);
+  const colors = ['--accent', '--warm', '--info', '--danger', '--chart-trend'].map((v) => css.getPropertyValue(v).trim() || '#1b6e52');
+  colors.push('#f2c14e');
+  const origin = lastPoint || { x: window.innerWidth / 2, y: window.innerHeight / 3 };
+  const n = Math.round(70 * power);
+  const parts = Array.from({ length: n }, () => {
+    const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.1;
+    const v = (5 + Math.random() * 7) * Math.sqrt(power);
+    return { x: origin.x, y: origin.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 3 + Math.random() * 4, c: colors[(Math.random() * colors.length) | 0], rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.3, shape: Math.random() < 0.5 };
+  });
+  const t0 = performance.now();
+  const frame = (t) => {
+    const age = (t - t0) / 1000;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const p of parts) {
+      p.vy += 0.28;
+      p.vx *= 0.985;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vr;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - age / 1.6);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      if (p.shape) ctx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r);
+      else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.r / 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    if (age < 1.6) requestAnimationFrame(frame);
+    else canvas.remove();
+  };
+  requestAnimationFrame(frame);
+}
+
+let audio = null;
+/** Short synthesized chime. kind: 'tick' | 'quest' | 'level' | 'badge' | 'lucky'. */
+function chime(kind = 'tick') {
+  try {
+    audio ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+    const notes = { tick: [880], lucky: [988, 1319], quest: [784, 988, 1175], badge: [659, 880, 1109, 1319], level: [523, 659, 784, 1047, 1319] }[kind] || [880];
+    const now = audio.currentTime;
+    notes.forEach((f, i) => {
+      const o = audio.createOscillator();
+      const g = audio.createGain();
+      o.type = 'triangle';
+      o.frequency.value = f;
+      const t = now + i * 0.085;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(kind === 'tick' ? 0.06 : 0.09, t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+      o.connect(g).connect(audio.destination);
+      o.start(t);
+      o.stop(t + 0.3);
+    });
+  } catch (e) {
+    /* audio unavailable */
+  }
+}
+
+function buzz(ms = 12) {
+  try {
+    navigator.vibrate?.(ms);
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+/** Celebration dialog for a level-up or a new badge. */
+function showCelebration({ kicker, title, body, iconName = 'star', ok = 'Nice!' }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-wrap';
+  wrap.innerHTML = `<div class="modal celebrate-modal" role="dialog" aria-modal="true" aria-labelledby="cel-title">
+    <div class="medal big">${icon(iconName)}</div>
+    <div class="kicker">${esc(kicker)}</div>
+    <h2 id="cel-title">${esc(title)}</h2>
+    <p class="muted-2">${esc(body)}</p>
+    <button class="btn primary" type="button">${esc(ok)}</button></div>`;
+  const close = () => wrap.remove();
+  wrap.addEventListener('click', (e) => (e.target === wrap || e.target.closest('button')) && close());
+  document.addEventListener('keydown', function onKey(e) {
+    if (e.key === 'Escape') {
+      close();
+      document.removeEventListener('keydown', onKey);
+    }
+  });
+  document.body.appendChild(wrap);
+  wrap.querySelector('button').focus();
+}
+
+Object.assign(__m, { floatXp, confetti, chime, buzz, showCelebration });
+},
+/* js/app.js */ 33: function (__m, __req) {
+// Habit Lab — app shell: routing, persistence and event delegation.
+const store = __req(12);
+const { icon, formData } = __req(13);
+const onboarding = __req(17).default;
+const todayView = __req(20).default;
+const meals = __req(21).default;
+const move = __req(22).default;
+const habits = __req(23).default;
+const progress = __req(24).default;
+const checkin = __req(26).default;
+const learn = __req(28).default;
+const settings = __req(30).default;
+const shopping = __req(31).default;
+const rewards = __req(19).default;
+const { floatXp, confetti, chime, buzz, showCelebration } = __req(32);
+const { BADGES } = __req(9);
+const notify = __req(29);
+
+const VIEWS = { rewards, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -4868,8 +5847,16 @@ const ctx = {
   get state() {
     return state;
   },
-  set(next, { render = true } = {}) {
+  set(next, { render = true, quiet = false } = {}) {
+    const before = state.profile ? store.game(state) : null;
+    const after = next.profile ? store.game(next) : null;
+    if (after?.newBadges.length) {
+      next = { ...next, game: { ...next.game, badges: { ...next.game.badges } } };
+      for (const id of after.newBadges) next.game.badges[id] = store.today();
+    }
     state = next;
+    if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game));
+    scheduleSync();
     if (!store.save(state)) ctx.toast('Couldn’t save — your browser is blocking storage. Export your data in Settings to keep it.');
     if (render) renderRoute();
   },
@@ -4929,6 +5916,43 @@ function dialog({ message, ok, danger = false, input = null }) {
   });
 }
 
+/** Turn the difference between two reward summaries into feedback. */
+function celebrate(before, after, prefs) {
+  const gained = after.xp - before.xp;
+  if (gained <= 0) return;
+  const todayBefore = new Set((before.byDay[store.today()]?.awards || []).map((a) => a.key));
+  const fresh = (after.byDay[store.today()]?.awards || []).filter((a) => !todayBefore.has(a.key));
+  const lucky = fresh.some((a) => a.lucky);
+  const perfect = fresh.some((a) => a.kind === 'perfect');
+  const questsDoneBefore = before.quests.filter((q) => q.done).length;
+  const questsDoneAfter = after.quests.filter((q) => q.done).length;
+  floatXp(gained, { lucky, label: lucky ? 'lucky!' : perfect ? 'perfect day' : '' });
+  if (prefs.haptics) buzz(lucky || perfect ? [12, 40, 12] : 12);
+  let sound = lucky ? 'lucky' : 'tick';
+  if (questsDoneAfter > questsDoneBefore) sound = 'quest';
+  if (perfect) {
+    confetti(1.2);
+    sound = 'badge';
+    toast('Perfect day! Every quest done — +25 XP bonus.');
+  }
+  const newBadges = after.newBadges.map((id) => BADGES.find((b) => b.id === id)).filter(Boolean);
+  if (after.level > before.level) {
+    sound = 'level';
+    confetti(1.6);
+    showCelebration({ kicker: `Level ${after.level}`, title: after.title, body: `You’ve earned ${after.xp.toLocaleString()} XP by showing up. ${(after.nextLevelAt - after.xp).toLocaleString()} XP to level ${after.level + 1}.`, iconName: 'star', ok: 'Keep going' });
+  } else if (newBadges.length) {
+    sound = 'badge';
+    confetti(1);
+    const b = newBadges[0];
+    showCelebration({ kicker: 'Badge unlocked', title: b.name, body: `${b.how}. +${50 * newBadges.length} XP${newBadges.length > 1 ? ` (and ${newBadges.length - 1} more badge${newBadges.length > 2 ? 's' : ''})` : ''}.`, iconName: b.icon, ok: 'Nice!' });
+  }
+  if (prefs.sound) chime(sound);
+}
+
+function toast(msg) {
+  ctx.toast(msg);
+}
+
 function parseRoute() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   return { name: parts[0] || 'today', params: parts.slice(1) };
@@ -4937,9 +5961,16 @@ function parseRoute() {
 function navHtml(active, kind) {
   const links = NAV.map(([id, label, ic]) => `<a href="#/${id}" class="${kind === 'side' ? 'nav ' : ''}${active === id ? 'active' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`).join('');
   if (kind === 'side') {
-    return `<a class="brand" href="#/today"><span class="logo">HL</span>Habit Lab</a>${links}<div class="spacer"></div><a href="#/checkin" class="nav ${active === 'checkin' ? 'active' : ''}">${icon('calendar')}<span>Weekly check-in</span></a><a href="#/settings" class="nav ${active === 'settings' ? 'active' : ''}">${icon('settings')}<span>Settings</span></a>`;
+    return `<a class="brand" href="#/today"><span class="logo">HL</span>Habit Lab</a>${links}<a href="#/rewards" class="nav ${active === 'rewards' ? 'active' : ''}">${icon('star')}<span>Rewards</span></a><div class="spacer"></div><a href="#/checkin" class="nav ${active === 'checkin' ? 'active' : ''}">${icon('calendar')}<span>Weekly check-in</span></a><a href="#/settings" class="nav ${active === 'settings' ? 'active' : ''}">${icon('settings')}<span>Settings</span></a>`;
   }
   return links;
+}
+
+function xpChip() {
+  const g = store.game(state);
+  if (!g) return '';
+  const pct = Math.round(((g.xp - g.levelStart) / (g.nextLevelAt - g.levelStart)) * 100);
+  return `<a class="xp-chip" href="#/rewards" aria-label="Level ${g.level}, ${g.xp} XP, ${g.streak}-day streak. Open rewards"><span class="lvl">${g.level}</span><span class="mini"><span style="width:${pct}%"></span></span><span class="flame">${icon('flame')}${g.streak}</span></a>`;
 }
 
 let lastRoute = '';
@@ -4963,7 +5994,7 @@ function renderRoute() {
   document.querySelector('.bottomnav').style.display = hasShell ? '' : 'none';
   document.querySelector('.sidebar').style.display = hasShell ? '' : 'none';
   const top = hasShell
-    ? `<div class="topbar no-print"><a class="brand" href="#/today"><span class="logo">HL</span>Habit Lab</a><div class="row nowrap"><a class="btn small" href="#/checkin">${icon('calendar')}Check-in</a><a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
+    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span class="hide-narrow">Habit Lab</span></a><div class="row nowrap">${xpChip()}<a class="btn small" href="#/checkin" aria-label="Weekly check-in">${icon('calendar')}<span class="hide-narrow">Check-in</span></a><a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
     : '';
   main.innerHTML = top + view.render(state, params, ctx);
   view.after?.(main, ctx, params);
@@ -5028,8 +6059,33 @@ try {
   /* ignore */
 }
 
+// Keep scheduled reminders in step with the plan and today's progress (debounced).
+let syncTimer = null;
+function scheduleSync() {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncReminders, 800);
+}
+function syncReminders() {
+  if (!state.profile) return Promise.resolve(null);
+  const g = store.game(state);
+  return notify.sync(state, {
+    habitsOnly: store.habitsOnly(state),
+    streak: g?.streak || 0,
+    schedule: (date) => store.schedule(state, date).schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items,
+  });
+}
+notify.listen();
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
+
 window.addEventListener('hashchange', renderRoute);
 renderRoute();
+scheduleSync();
+// Android app: recover from the native copy if the WebView's storage is empty or older.
+store.nativeRestoreCandidate(state).then((restored) => {
+  if (!restored) return;
+  ctx.set(restored, { quiet: true });
+  ctx.toast('Your saved progress was restored.');
+});
 
 // Flag when running inside a frame (e.g. an embedded preview): printing and downloads may be blocked there.
 try {
@@ -5038,13 +6094,14 @@ try {
   document.documentElement.classList.add('framed');
 }
 
-if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !document.documentElement.classList.contains('framed')) {
+if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !document.documentElement.classList.contains('framed') && notify.platform() !== 'native') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
 
+ctx.syncReminders = () => syncReminders();
 
-Object.assign(__m, { ctx });
+Object.assign(__m, { syncReminders, ctx });
 }
 };
 const __cache = {};
@@ -5054,7 +6111,7 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(28);
+__req(33);
 })();</script>
 </body>
 </html>

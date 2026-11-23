@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Habit Lab</string>
+    <string name="title_activity_main">Habit Lab</string>
+    <string name="package_name">com.mrqvizt.habitlab</string>
+    <string name="custom_url_scheme">com.mrqvizt.habitlab</string>
+</resources>

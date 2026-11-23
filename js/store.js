@@ -52,13 +52,55 @@ export function load() {
 }
 
 export function save(state) {
+  state.savedAt = Date.now();
   memory = structuredClone(state);
+  mirrorToNative(state);
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
     return true;
   } catch (e) {
     return false;
   }
+}
+
+// ---------- Native mirror (Android app) ----------
+// In the Android app, every save is also copied to the app's native preferences. WebView storage
+// survives app updates, but this second copy protects against it ever being cleared, and native
+// preferences are included in Android's automatic backup (so data can follow you to a new phone).
+const NATIVE_KEY = 'habitlab.state';
+function nativePrefs() {
+  const cap = typeof window !== 'undefined' ? window.Capacitor : null;
+  return cap?.isNativePlatform?.() ? cap.Plugins?.Preferences || null : null;
+}
+let mirrorTimer = null;
+function mirrorToNative(state) {
+  const prefs = nativePrefs();
+  if (!prefs) return;
+  clearTimeout(mirrorTimer);
+  const json = JSON.stringify(state);
+  mirrorTimer = setTimeout(() => prefs.set({ key: NATIVE_KEY, value: json }).catch(() => {}), 400);
+}
+
+/**
+ * If the native copy is newer than what the WebView has (or the WebView is empty), return it.
+ * Resolves null otherwise, or when not running in the Android app.
+ */
+export async function nativeRestoreCandidate(current) {
+  const prefs = nativePrefs();
+  if (!prefs) return null;
+  try {
+    const { value } = await prefs.get({ key: NATIVE_KEY });
+    if (!value) {
+      if (current?.profile) mirrorToNative(current); // first run of a version with the mirror: seed it
+      return null;
+    }
+    const stored = migrate(JSON.parse(value));
+    if (!stored.profile) return null;
+    if (!current?.profile || (stored.savedAt || 0) > (current.savedAt || 0)) return stored;
+  } catch (e) {
+    /* unreadable copy: ignore */
+  }
+  return null;
 }
 
 export function clearAll() {
@@ -155,6 +197,7 @@ export function sanitize(s) {
   const rm = s.reminders && typeof s.reminders === 'object' ? s.reminders : {};
   const hhmm = (v, d) => (typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : d);
   s.reminders = Object.fromEntries(Object.entries(DEFAULT_REMINDERS).map(([k, d]) => [k, typeof d === 'boolean' ? (k in rm ? !!rm[k] : d) : typeof d === 'number' ? num(rm[k], 0, 6, d) : hhmm(rm[k], d)]));
+  s.savedAt = num(s.savedAt, 0, 1e13, 0);
   s.kcalAdjust = num(s.kcalAdjust, -500, 500, 0);
   s.tdeeOffset = num(s.tdeeOffset, -1500, 1500, 0);
   s.calcWeightKg = num(s.calcWeightKg, 30, 400, null) ?? undefined;

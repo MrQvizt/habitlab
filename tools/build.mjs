@@ -75,7 +75,8 @@ new Function(js);
 
 const css = readFileSync(join(root, 'css/styles.css'), 'utf8');
 const icon = 'data:image/svg+xml,' + encodeURIComponent(readFileSync(join(root, 'icons/icon.svg'), 'utf8').trim());
-const safeJs = js.replace(/<\/script/gi, '<\\/script');
+const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
+const safeJs = `window.HABITLAB_VERSION = ${JSON.stringify(version)};\n` + js.replace(/<\/script/gi, '<\\/script');
 const headBits = `<title>Habit Lab</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Evidence-based adaptive habit coach for weight loss: meal plans, workouts and habits that adjust to your weekly check-ins.">
@@ -90,4 +91,8 @@ const bodyBits = `<div class="app"><nav class="sidebar" aria-label="Main"></nav>
 mkdirSync(join(root, 'dist'), { recursive: true });
 writeFileSync(join(root, 'dist/habit-lab.html'), `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n${headBits}\n</head>\n<body>\n${bodyBits}\n</body>\n</html>\n`);
 writeFileSync(join(root, 'dist/embed.html'), `${headBits}\n${bodyBits}\n`);
+// www/ is what the Android app (Capacitor) packages.
+mkdirSync(join(root, 'www/icons'), { recursive: true });
+writeFileSync(join(root, 'www/index.html'), readFileSync(join(root, 'dist/habit-lab.html')));
+for (const f of ['icon-192.png', 'icon-512.png', 'icon.svg']) writeFileSync(join(root, 'www/icons', f), readFileSync(join(root, 'icons', f)));
 console.log(`built dist/habit-lab.html: ${modules.size} modules, ${(js.length / 1024).toFixed(0)} KB of JS`);

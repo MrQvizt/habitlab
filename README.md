@@ -24,6 +24,54 @@ straight from disk (double-click it), with no server needed. The bundler is a ~1
 
 Click **Explore with demo data** on the welcome screen to see ten weeks of sample history, including a plateau.
 
+## Android app
+
+Install `habit-lab.apk` from the [latest release](https://github.com/MrQvizt/habitlab/releases/tag/latest). GitHub Actions builds it on every push to `main`.
+
+1. Open the link on your phone and download the APK.
+2. Open the file and allow installs from your browser when Android asks.
+3. In the app, go to **Settings → Reminders & encouragement** and turn reminders on.
+
+### Updating without losing progress
+
+Download the new `habit-lab.apk` and open it. Android shows **Update** rather than Install, and all your data stays.
+Several things guarantee this:
+
+- **Same signing key:** every build is signed with `android/app/debug-shared.keystore`. Android only accepts an update signed with the key of the installed version.
+- **Rising version code:** each build's version code is the number of git commits, so a newer build always counts as an upgrade.
+- **Fixed app address:** the app's internal address is pinned (`https://localhost`, in `capacitor.config.json`). Saved data is tied to that address.
+- **Native backup copy:** every save is also copied to Android's native app storage. If the web storage is ever empty or older, the app restores from that copy at startup. The native storage is also included in Android's automatic backup.
+- **Old data upgrades:** older saved data is migrated to the current format when the app loads.
+- **Manual backup:** **Settings → Your data → Export backup** saves a file you can import on any device.
+
+Never uninstall to update: uninstalling erases the app's data. If an update is ever refused, export a backup first.
+
+To build it yourself, you need Node 22, JDK 21 and the Android SDK (platform 35):
+
+```bash
+npm ci
+echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+npm run android:apk            # → android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+The Android app is the same web app wrapped with [Capacitor](https://capacitorjs.com/). Reminders use native scheduled
+notifications, so they arrive even when the app is closed. The shared debug key is `android/app/debug-shared.keystore`.
+It is fine for sideloading, but publishing to the Play Store would need a private release key.
+
+## Rewards and reminders
+
+- **Rewards:** you earn XP for logging meals, doing habits, moving, weighing in and doing the weekly check-in.
+  - A logged meal earns the same XP whatever you ate.
+  - Nothing rewards eating less or a lower weight.
+  - There are daily quests, with a "perfect day" bonus for completing them all.
+  - Levels and 27 badges mark progress.
+  - The streak counts days you log anything, and missing a single day doesn't break it.
+  - Occasional lucky bonuses add variety.
+  - Celebrations (confetti, chimes, a short vibration) respect your device's reduced-motion setting. Sound and vibration can be turned off.
+- **Reminders:** specific nudges such as "Lunch: Greek salad with chicken" or "Strength session A".
+  - The schedule: morning weigh-in, meal logging, movement, an afternoon encouragement, an evening streak saver and a weekly check-in.
+  - Each reminder is skipped once you've done the thing, and all times are configurable.
+
 ## What it does
 
 | Area | How it adapts |
@@ -51,11 +99,12 @@ tools/       build.mjs: zero-dependency bundler → dist/habit-lab.html
 ## Tests
 
 ```bash
-node --test tests/*.test.mjs                # 36 engine + store tests, incl. simulated multi-week users
+node --test tests/*.test.mjs                # 37 engine + store tests, incl. simulated multi-week users
 python3 -m http.server 8765 &               # then, with Playwright available:
 node tests/e2e.cjs http://localhost:8765/   # onboarding → every page → session → check-in; no console errors, no overflow
 node tests/demo.cjs http://localhost:8765/  # demo data → plateau check-in flow
 node tests/e2e.cjs file://$PWD/dist/habit-lab.html   # same walkthrough against the single-file build
+node tests/native.cjs                       # Android code path with a simulated notifications plugin
 ```
 
 ## Disclaimer
