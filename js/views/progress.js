@@ -56,7 +56,7 @@ export default {
         ${p.goalWeightKg ? `<li><strong>Your goal: ${fmtWeight(p.goalWeightKg, u)}</strong> <span class="muted">— BMI ${bmi(p.goalWeightKg, p.heightCm).toFixed(1)}</span></li>` : ''}
       </ul><p class="muted" style="font-size:.85rem">Current BMI ${bmi(trend, p.heightCm).toFixed(1)} (${bmiCategory(bmi(trend, p.heightCm))}). BMI is a rough screening number — waist size, blood tests and how you feel matter too.</p></div>`;
 
-    return html`<h1>Progress</h1>
+    return html`<header class="page-head"><div><div class="eyebrow">Since ${fmtDate(p.startDate, { day: 'numeric', month: 'short' })}</div><h1>Progress</h1></div><a class="btn tonal small" href="#/rewards">${icon('star')}Rewards</a></header>
       ${weightSection}
       <div class="grid two">
         <div class="card"><h2>Consistency (last 28 days)</h2>

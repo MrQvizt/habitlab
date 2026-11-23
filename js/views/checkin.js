@@ -23,8 +23,8 @@ function form(state) {
   const u = state.profile.units === 'imperial' ? 'imperial' : 'metric';
   const hide = store.habitsOnly(state);
   const weighedToday = state.weights.some((w) => w.date === date);
-  return html`<h1>Weekly check-in</h1>
-    <p class="muted">Two minutes. Be honest — there are no wrong answers, and the plan only changes in small steps.</p>
+  return html`<header class="page-head"><div><div class="eyebrow">Weekly</div><h1>Check-in</h1></div></header>
+    <p class="muted" style="margin:-8px 0 14px">Be honest — there are no wrong answers, and the plan only changes in small steps.</p>
     <form data-form="review" class="card">
       ${!hide && !weighedToday ? `<label class="field"><span>Today’s weight (optional)</span><div class="inline-inputs"><input type="number" name="w" step="0.1" inputmode="decimal"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div></label>` : ''}
       ${scale('adherence', 'How closely did you follow the plan this week?', 'not at all', 'nearly always', 3)}
@@ -37,7 +37,7 @@ function form(state) {
       </div>
       <fieldset><legend>What got in the way? <span class="hint">Pick any — you’ll get a specific plan for each.</span></legend>${chips('barriers', Object.fromEntries(Object.entries(BARRIER_OPTIONS).map(([k, b]) => [k, b.label])), [])}</fieldset>
       ${edScreenDue(state, date) ? `<fieldset><legend>Over the past few weeks, have you… <span class="hint">A routine monthly wellbeing check.</span></legend>${chips('edFlags', { binge: 'felt out of control while eating?', compensate: 'tried to make up for eating (vomiting, laxatives, over-exercising)?', worth: 'felt your weight decides your worth?' }, [])}</fieldset><input type="hidden" name="edScreened" value="1">` : ''}
-      <button class="btn primary">See my adjustments ${icon('chevron')}</button>
+      <div class="action-bar"><span class="muted" style="font-size:var(--text-sm)">Two minutes · +50 XP</span><button class="btn primary">See my adjustments ${icon('chevron')}</button></div>
     </form>`;
 }
 
@@ -58,7 +58,7 @@ function results(state) {
     if (!actionable) return `<div class="rec"><strong>${esc(r.title)}</strong><p>${esc(hide ? stripNumbers(r.body) : r.body)}</p>${habitBtn}</div>`;
     return `<div class="rec"><label><input type="checkbox" name="accept" value="${r.id}" ${r.preselect || r.type === 'kcal' ? 'checked' : ''}><div><strong>${esc(hide ? stripNumbers(r.title) : r.title)}</strong><p>${esc(hide ? stripNumbers(r.body) : r.body)}</p></div></label></div>`;
   }).join('');
-  return html`<h1>This week’s review</h1>
+  return html`<header class="page-head"><div><div class="eyebrow">Check-in</div><h1>This week’s review</h1></div></header>
     ${hide ? '' : `<div class="stats card">
       <div class="stat"><span class="v">${fmtWeight(result.trendKg, u)}</span><span class="l">trend weight</span></div>
       <div class="stat"><span class="v">${result.rate == null ? '–' : fmtDelta(result.rate, u, 2)}</span><span class="l">per week</span></div>
@@ -66,7 +66,7 @@ function results(state) {
       <div class="stat"><span class="v">${Math.floor(result.weeksIn) + 1}</span><span class="l">week</span></div></div>`}
     <form data-form="apply">
       ${recHtml}
-      <div class="row" style="margin-top:14px"><button class="btn primary">${icon('check')}Apply selected</button><button type="button" class="btn ghost" data-action="redo">Change my answers</button></div>
+      <div class="action-bar"><button type="button" class="btn ghost" data-action="redo">Change answers</button><button class="btn primary">${icon('check')}Apply selected</button></div>
       <p class="muted" style="font-size:.85rem;margin-top:10px">Changes are small on purpose. Your meal plan rebuilds automatically for the rest of the week.</p>
     </form>`;
 }

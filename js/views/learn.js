@@ -11,7 +11,7 @@ export default {
     if (focus && LEARN.some((c) => c.id === focus)) section = 'all';
     const cards = LEARN.filter((c) => section === 'all' || c.section === section);
     return html`${state.profile ? '' : '<a class="btn ghost small" href="#/start">' + icon('back') + 'Back</a>'}
-      <h1>The evidence</h1>
+      <header class="page-head"><div><div class="eyebrow">Learn</div><h1>The evidence</h1></div></header>
       <p class="muted">Every feature in Habit Lab is based on guidelines, trials and reviews. Here’s what they say, in plain language, with links to the sources. The full research brief is in <code>RESEARCH.md</code> in the project.</p>
       <div class="row" style="margin-bottom:14px;align-items:flex-start"><div class="segmented">${[['all', 'All'], ...LEARN_SECTIONS.map((s) => [s, s])].map(([k, l]) => `<button type="button" class="${section === k ? 'on' : ''}" data-action="section" data-value="${esc(k)}">${esc(l)}</button>`)}</div><button type="button" class="btn small" data-action="toggleAll">${openAll ? 'Collapse all' : 'Expand all'}</button></div>
       ${cards.map((c) => `<article class="card learn-card" id="learn-${c.id}" ${focus === c.id ? 'style="border-color:var(--accent)"' : ''}>

@@ -30,7 +30,7 @@ function stepper() {
 }
 
 function nav(final = false) {
-  return `<div class="row between" style="margin-top:18px"><button type="button" class="btn ghost" data-action="back">${icon('back')}Back</button><button class="btn primary" type="submit">${final ? 'Start my plan' : 'Continue'}${final ? '' : icon('chevron')}</button></div>`;
+  return `<div class="action-bar"><button type="button" class="btn ghost" data-action="back">${icon('back')}Back</button><button class="btn primary" type="submit">${final ? 'Start my plan' : 'Continue'}${final ? '' : icon('chevron')}</button></div>`;
 }
 
 function num(name, value, { min, max, step = 'any', unit = '', placeholder = '', required = true } = {}) {
@@ -65,7 +65,7 @@ function about() {
   const u = draft.units;
   const imperial = u === 'imperial';
   const hIn = draft.heightCm ? Math.round(cmToIn(draft.heightCm)) : null;
-  return html`<h1>About you</h1><p class="muted">Used to estimate your energy needs. You can change any of this later.</p>
+  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>About you</h1></div></header><p class="muted">Used to estimate your energy needs. You can change any of this later.</p>
   <form data-form="step" class="card">
     <fieldset><legend>Units</legend><div class="segmented" role="radiogroup">
       <button type="button" class="${!imperial ? 'on' : ''}" data-action="units" data-value="metric">kg / cm</button>
@@ -89,7 +89,7 @@ function about() {
 
 function health() {
   const med = new Set(draft.medical || []);
-  return html`<h1>Health check</h1><p class="muted">A few questions so the plan stays safe for you. Answers stay on this device.</p>
+  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Health check</h1></div></header><p class="muted">A few questions so the plan stays safe for you. Answers stay on this device.</p>
   <form data-form="step" class="card">
     <fieldset><legend>Do any of these apply?</legend><div class="options">
       ${[
@@ -116,7 +116,7 @@ function health() {
 }
 
 function food() {
-  return html`<h1>Food</h1><p class="muted">No diet is “best” — the one you can stick with is. Same calories, your choice of foods.</p>
+  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Food</h1></div></header><p class="muted">No diet is “best” — the one you can stick with is. Same calories, your choice of foods.</p>
   <form data-form="step" class="card">
     <fieldset><legend>What do you eat?</legend>${chips('diet', Object.fromEntries(Object.entries(DIETS).map(([k, d]) => [k, d.label])), draft.diet || 'omnivore', { multi: false })}</fieldset>
     <fieldset><legend>Allergies or intolerances</legend>${chips('allergies', ALLERGENS, draft.allergies || [])}</fieldset>
@@ -142,7 +142,7 @@ function food() {
 }
 
 function movement() {
-  return html`<h1>Movement</h1><p class="muted">Start low, go slow. Some activity beats none, and the plan grows with you.</p>
+  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Movement</h1></div></header><p class="muted">Start low, go slow. Some activity beats none, and the plan grows with you.</p>
   <form data-form="step" class="card">
     <fieldset><legend>Strength training experience</legend><div class="options">
       ${[['none', 'New to it', 'We’ll start with chair and wall exercises.'], ['some', 'Some experience', 'I’ve done bodyweight or gym work before.'], ['regular', 'I train regularly', 'Comfortable with squats, push-ups, weights.']].map(([v, l, h]) => `<label class="option"><input type="radio" name="experience" value="${v}" ${(draft.experience || 'none') === v ? 'checked' : ''}><div><strong>${l}</strong><small class="muted">${h}</small></div></label>`)}
@@ -165,7 +165,7 @@ function habitsStep() {
   const profile = { struggles: draft.struggles || [] };
   const suggested = suggestNext([], profile).slice(0, 4);
   const picked = draft.habitPicks || suggested.slice(0, 2);
-  return html`<h1>Your first habits</h1><p class="muted">Habits take around 2 months to feel automatic (anywhere from 3 weeks to 8 months). Starting with one or two small ones works better than changing everything at once.</p>
+  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Your first habits</h1></div></header><p class="muted">Habits take around 2 months to feel automatic (anywhere from 3 weeks to 8 months). Starting with one or two small ones works better than changing everything at once.</p>
   <form data-form="step" class="card">
     <fieldset><legend>What tends to get in the way?</legend>${chips('struggles', STRUGGLES, draft.struggles || [])}
       <div style="margin-top:8px"><button type="button" class="btn small" data-action="refreshHabits">Update suggestions</button></div></fieldset>
@@ -191,7 +191,7 @@ function planStep() {
       <small class="muted">${pace.hint} ≈ ${fmtWeight(t.expectedWeeklyLossKg, u, 2)}/week to start${weeks ? `; goal in roughly ${weeks} weeks${weeks > 52 ? ` (${(weeks / 52).toFixed(1)} years)` : ''}` : ''}.${t.hitFloor ? ' Held at the safe minimum.' : ''}</small></div></label>`;
   });
   const t = dailyTargets({ ...p, pace: draft.pace || 'steady' });
-  return html`<h1>Your plan</h1>
+  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Your plan</h1></div></header>
   ${s.flags.map((f) => `<div class="notice ${f.level === 'block' ? 'block' : f.level === 'warn' ? 'warn' : 'info'}">${icon(f.level === 'info' ? 'info' : 'alert')}<div>${esc(f.text)}</div></div>`)}
   ${(draft.edFlags || []).length && !s.blocked ? `<div class="notice block">${icon('alert')}<div>Some of your answers suggest calorie counting may not be helpful right now. The app will hide calorie numbers and focus on regular meals, movement and wellbeing habits. Please consider talking to your doctor, or an eating-disorder charity such as Beat (UK) or ANAD (US).</div></div>` : ''}
   <form data-form="step" class="card">

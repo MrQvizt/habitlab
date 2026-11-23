@@ -47,21 +47,41 @@ const shots = process.argv[3] || null;
   await page.waitForSelector('text=Choose your pace');
   await snap('03-plan');
   await page.click('button:has-text("Start my plan")');
-  await page.waitForSelector('text=Today’s food');
+  await page.waitForSelector('text=Add something else you ate');
   await snap('04-today');
 
-  // Interact on Today
-  await page.fill('input[name=w]', '107.6');
-  await page.click('form[data-form=weigh] button');
-  await page.click('.meal button.check >> nth=0');
-  await page.click('button:has-text("Swap") >> nth=1');
-  await page.click('button:has-text("Ate something else") >> nth=2');
-  await page.fill('#modal-input', '450');
-  await page.click('.modal button.primary');
-  await page.waitForSelector('text=ate something else (450 kcal)');
-  await page.click('.habit-item button.check >> nth=0');
-  await page.fill('input[name=steps]', '5200');
-  await page.click('form[data-form=steps] button');
+  // Interact on Today: weigh-in sheet with stepper
+  await page.click('button[data-action=openWeigh] >> nth=0');
+  await page.click('.sheet button[data-action=sheetStep][data-d^="-"]');
+  await page.click('.sheet button:has-text("Save weigh-in")');
+  await page.waitForSelector('text=Weigh-in saved');
+  // Quick tick + Undo
+  await page.click('.tg-food button[data-action=mealCheck] >> nth=0');
+  await page.waitForSelector('.toast.show >> text=Meal logged');
+  await page.click('.toast button:has-text("Undo")');
+  if (await page.locator('.tg-food button[data-action=mealCheck].on').count()) errors.push('undo did not clear the meal tick');
+  await page.click('.tg-food button[data-action=mealCheck] >> nth=0');
+  // Meal sheet: swap, then "something else" with quick chips
+  await page.click('.tg-food button[data-action=openMeal] >> nth=1');
+  await page.waitForSelector('.sheet.open');
+  await page.click('.sheet button:has-text("Swap")');
+  await page.waitForSelector('.toast.show >> text=Swapped for');
+  await page.click('.sheet button:has-text("Something else")');
+  await page.click('.sheet .quick-chips button:has-text("700")');
+  await page.click('.sheet button:has-text("Save")');
+  await page.waitForSelector('text=Something else · 700 kcal');
+  // Escape closes a sheet
+  await page.click('.tg-food button[data-action=openMeal] >> nth=2');
+  await page.waitForSelector('.sheet.open');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  if (await page.locator('.sheet').count()) errors.push('Escape did not close the sheet');
+  // Habit row + steps sheet
+  await page.click('button[data-action=habitCheck] >> nth=0');
+  await page.click('button[data-action=openSteps]');
+  await page.fill('.sheet input[name=steps]', '5200');
+  await page.click('.sheet button:has-text("Save steps")');
+  await page.waitForSelector('text=5,200 steps');
 
   for (const route of ['meals', 'shopping', 'move', 'habits', 'progress', 'learn', 'settings', 'checkin']) {
     await page.goto(base + '#/' + route);
@@ -109,7 +129,7 @@ const shots = process.argv[3] || null;
   await page.waitForSelector('text=Apply selected');
   await snap('06-checkin-results');
   await page.click('button:has-text("Apply selected")');
-  await page.waitForSelector('text=Today’s food');
+  await page.waitForSelector('text=Add something else you ate');
 
   // Backup export shows a copyable box; reset uses the in-page dialog (cancel keeps data)
   await page.goto(base + '#/settings');
@@ -118,7 +138,7 @@ const shots = process.argv[3] || null;
   await page.click('button:has-text("Delete everything")');
   await page.click('.modal button:has-text("Cancel")');
   await page.goto(base + '#/today');
-  await page.waitForSelector('text=Today’s food');
+  await page.waitForSelector('text=Add something else you ate');
 
   // Desktop layout
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -138,7 +158,9 @@ const shots = process.argv[3] || null;
   if (base.startsWith('http')) {
     await page.context().grantPermissions(['notifications'], { origin: new URL(base).origin });
     await page.goto(base + '#/settings');
+    await page.evaluate(() => document.querySelector('form[data-form=reminders] input[name=enabled]').closest('label').scrollIntoView({ block: 'center' }));
     await page.check('form[data-form=reminders] input[name=enabled]');
+    await page.evaluate(() => document.querySelector('form[data-form=reminders] button.primary').scrollIntoView({ block: 'center' }));
     await page.click('form[data-form=reminders] button.primary');
     await page.waitForSelector('text=/On — \\d+ reminders scheduled/');
   }

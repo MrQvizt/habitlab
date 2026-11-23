@@ -61,7 +61,7 @@ export default {
     } catch (e) {
       /* ignore */
     }
-    return html`<h1>Settings</h1>
+    return html`<header class="page-head"><div><div class="eyebrow">Habit Lab</div><h1>Settings</h1></div></header>
       ${hide ? '' : `<div class="card"><h2>Your numbers</h2><div class="stats">
         <div class="stat"><span class="v">${t.kcal.toLocaleString()}</span><span class="l">kcal/day target</span></div>
         <div class="stat"><span class="v">${t.tdee.toLocaleString()}</span><span class="l">estimated needs (${t.tdeeSource === 'learned' ? 'learned' : 'formula'})</span></div>

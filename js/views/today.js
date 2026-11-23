@@ -1,261 +1,204 @@
-// Today: weigh-in, today's meals (tick off), movement, habits.
-import { html, esc, icon, fmtWeight, fmtDelta, toKg, fmtNum, progressBar, weightNum, fmtDate } from '../ui/dom.js';
-import { ring } from '../ui/charts.js';
+// Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
+// Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
+import { esc, icon, fmtWeight, fmtDelta, fmtNum, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
-import { mealsFor, computeIntake, eatenSoFar, dayComplete, setMealStatus, proteinEaten, recipeDetails, mealMeta, slotLabel, safetyNotices, checkinDue, dayIndex } from './shared.js';
-import { markChosen } from './shared.js';
-import { byId, swapMeal } from '../engine/meals.js';
+import { mealsFor, eatenSoFar, proteinEaten, dayComplete, setMealStatus, safetyNotices, checkinDue, slotLabel, computeIntake } from './shared.js';
+import { byId, scaledNutrition } from '../engine/meals.js';
 import { habitById, streak } from '../engine/habits.js';
 import { stepGoal } from '../engine/workouts.js';
-import { round, addDays, weekStart } from '../engine/util.js';
 import { CARDIO } from '../data/exercises.js';
-import { questsHtml } from './rewards.js';
 import { itemDone, logPlannedActivity } from './move.js';
+import { slotIcon, toggleHabit, mealRows } from './sheets.js';
+
+const SLOT_HOUR = { breakfast: 7, snack: 10, lunch: 12, snack2: 15, dinner: 18, snack3: 20 };
 
 function greeting() {
   const h = new Date().getHours();
-  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  return h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 }
 
-function weighCard(state, date, u) {
-  const todays = state.weights.find((w) => w.date === date);
-  const trend = store.trendWeight(state);
-  const start = state.profile.startWeightKg;
-  const lost = start - trend;
-  return `<div class="card"><div class="card-head"><h2>${icon('scale')} Weigh-in</h2><a href="#/progress" class="muted">Trend ${fmtWeight(trend, u)}</a></div>
-    <form data-form="weigh" class="row nowrap">
-      <div class="inline-inputs grow"><input type="number" inputmode="decimal" step="0.1" name="w" aria-label="Today's weight" placeholder="${todays ? round(weightNum(todays.kg, u), 0.1) : 'Today’s weight'}" required><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div>
-      <button class="btn primary">${todays ? 'Update' : 'Log'}</button>
-    </form>
-    <p class="muted" style="margin:8px 0 0;font-size:.88rem">${todays ? `Logged ${fmtWeight(todays.kg, u)} today. ` : 'Same time each morning, after the bathroom, before eating. '}${Math.abs(lost) >= 0.1 ? `Trend change since you started: <strong>${fmtDelta(-lost, u)}</strong>.` : 'Daily numbers bounce around with water — the trend is what counts.'}</p></div>`;
+// ---------- Hero: quests ring + XP + streak ----------
+function hero(state) {
+  const g = store.game(state);
+  const done = g.quests.filter((q) => q.done).length;
+  const total = g.quests.length;
+  const r = 40;
+  const c = 2 * Math.PI * r;
+  const off = c * (1 - done / Math.max(1, total));
+  const title = done === total ? 'Perfect day!' : done === 0 ? 'Let’s get going' : `${total - done} quest${total - done > 1 ? 's' : ''} to a perfect day`;
+  return `<section class="hero-today" aria-label="Today's progress">
+    <div class="hero-top">
+      <div class="hero-ring"><svg viewBox="0 0 92 92" aria-hidden="true"><circle class="bg" cx="46" cy="46" r="${r}"/><circle class="fg" cx="46" cy="46" r="${r}" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg>
+        <div class="center"><div><b>${done}/${total}</b><span>quests</span></div></div></div>
+      <div class="hero-meta"><h2>${title}</h2>
+        <div class="hero-pills">
+          <a class="pill-stat xp" href="#/rewards">${icon('star')}${g.todayXp} XP today</a>
+          <a class="pill-stat streak" href="#/rewards">${icon('flame')}${g.streak}-day streak</a>
+          <a class="pill-stat" href="#/rewards">Level ${g.level}</a>
+        </div></div>
+    </div>
+    <div class="scroll-x quest-chips" role="list">${g.quests.map((q) => `<a role="listitem" class="qchip ${q.done ? 'done' : ''}" href="${q.href}"><span class="dot">${q.done ? icon('check') : ''}</span>${esc(q.label)}${q.total > 1 && !q.done ? ` <span class="num" style="opacity:.7">${q.progress}/${q.total}</span>` : ''}</a>`).join('')}</div>
+  </section>`;
 }
 
-function foodCard(state, date, u, showNumbers) {
+// ---------- Next up: the single most useful thing to do now ----------
+function nextUp(state, date) {
+  const h = new Date().getHours();
+  const hide = store.habitsOnly(state);
+  const log = state.mealLog[date] || {};
+  const meals = mealsFor(state, date);
+  const card = (eyebrow, t, s, btn, done = false) => `<section class="next-card ${done ? 'done' : ''}" aria-label="Next up"><div class="body"><div class="eyebrow">${eyebrow}</div><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ''}</div>${btn || ''}</section>`;
+  const btn = (label, attrs) => `<button class="btn small" ${attrs}>${label}</button>`;
+  if (!hide && h < 12 && !state.weights.some((w) => w.date === date)) return card('Next up', 'Weigh in', 'Ten seconds · +5 XP', btn('Log', 'data-action="openWeigh"'));
+  const due = meals.find((m) => !log[m.slot] && (SLOT_HOUR[m.slot] ?? 12) <= h + 1);
+  if (due) return card(`Next up · ${slotLabel(due.slot)}`, esc(byId(due.recipeId).name), 'Log it, whatever you ate · +10 XP', btn('Log', `data-action="openMeal" data-slot="${due.slot}" data-date="${date}"`));
+  const { schedule } = store.schedule(state, date);
+  const items = schedule[(new Date().getDay() + 6) % 7].items;
+  const move = items.find((it) => it.kind !== 'rest' && !itemDone(state.workouts.log[date] || [], it));
+  if (move && h >= 7) {
+    if (move.kind === 'strength') return card('Next up · Movement', `Strength session ${move.variant}`, `About ${move.minutes} min · +40 XP`, `<a class="btn small" href="#/move/session/${move.variant}">Start</a>`);
+    if (move.kind === 'activity') return card('Next up · Movement', esc(move.name), `${move.minutes} min · tap Done afterwards`, btn('Done', `data-action="activityDone" data-id="${esc(move.id)}"`));
+    return card('Next up · Movement', `${move.minutes} min ${esc(CARDIO[move.mode].label.toLowerCase())}`, 'At a pace where you can talk', btn('Done', `data-action="cardioDone" data-mode="${move.mode}" data-min="${move.minutes}"`));
+  }
+  const habit = store.visibleHabits(state).find((a) => !state.habits.log[date]?.[a.id]);
+  if (habit) return card('Next up · Habit', esc(habitById(habit.id).title), esc(habit.cue), btn('Open', `data-action="openHabit" data-id="${habit.id}"`));
+  if (checkinDue(state, date)) return card('Next up', 'Weekly check-in', 'Two minutes · +50 XP', `<a class="btn small" href="#/checkin">Start</a>`);
+  const later = meals.find((m) => !log[m.slot]);
+  if (later) return card(`Later · ${slotLabel(later.slot)}`, esc(byId(later.recipeId).name), 'Tap to see the recipe', btn('View', `data-action="openMeal" data-slot="${later.slot}" data-date="${date}"`));
+  return card('All done', 'Everything’s ticked off for today', 'Rest up — see you tomorrow.', '', true);
+}
+
+// ---------- Food ----------
+function food(state, date) {
   const t = store.targets(state, date);
   const meals = mealsFor(state, date);
   const log = state.mealLog[date] || {};
+  const show = !store.habitsOnly(state);
   const eaten = eatenSoFar(state, date);
-  const complete = dayComplete(state, date);
   const p = proteinEaten(state, date);
   const extras = state.extras[date] || [];
-  const list = meals
-    .map((m) => {
-      const r = byId(m.recipeId);
-      const st = log[m.slot]?.status;
-      return `<li class="meal ${st === 'ate' ? 'done' : ''}">
-        <div><div class="slot">${slotLabel(m.slot)}${st === 'skip' ? ' · skipped' : st === 'other' ? ` · ate something else${showNumbers ? ` (${fmtNum(log[m.slot].kcal)} kcal)` : ''}` : ''}</div>
-          <div class="name">${esc(r.name)}</div>${mealMeta(m, showNumbers)}</div>
-        <div class="actions">
-          <button class="check ${st === 'ate' ? 'on' : ''}" data-action="ate" data-slot="${m.slot}" aria-label="Mark ${esc(r.name)} as eaten" title="I ate this">${icon('check')}</button>
-        </div>
-        <div class="row" style="grid-column:1/-1;gap:6px">
-          <button class="btn small ghost" data-action="swap" data-slot="${m.slot}">${icon('swap')}Swap</button>
-          <button class="btn small ghost" data-action="other" data-slot="${m.slot}">Ate something else</button>
-          <button class="btn small ghost" data-action="skip" data-slot="${m.slot}">Skipped</button>
-        </div>
-        ${recipeDetails(m, u)}
-      </li>`;
-    })
-    .join('');
-  return `<div class="card"><div class="card-head"><h2>${icon('meals')} Today’s food</h2><a href="#/meals/${dayIndex(date)}" class="muted">Full plan →</a></div>
-    ${showNumbers ? `<div class="row nowrap" style="gap:18px;align-items:center">
-      ${ring(eaten, t.kcal, { label: fmtNum(eaten), sub: `of ${fmtNum(t.kcal)} kcal` })}
-      <div class="grow">
-        <div class="macro"><span>Protein</span>${progressBar(p, t.proteinG, { label: 'Protein' })}<span>${Math.round(p)}/${t.proteinG} g</span></div>
-        <p class="muted" style="font-size:.85rem;margin:8px 0 0">${complete ? '✓ Day fully logged — this helps the app learn your real energy needs.' : 'Tick each meal (or mark it skipped / something else). Rough is fine — logging often matters more than logging perfectly.'}</p>
-      </div></div>` : '<p class="muted">Regular meals, with protein and vegetables at each. Tick them off as you go.</p>'}
-    <ul class="list" style="margin-top:8px">${list}</ul>
-    ${extras.length ? `<div class="muted" style="font-size:.88rem;margin-top:6px">Extras: ${extras.map((x, i) => `${esc(x.label || 'extra')}${showNumbers ? ` (${fmtNum(x.kcal)} kcal)` : ''} <button class="btn small ghost" data-action="rmExtra" data-i="${i}" aria-label="Remove">${icon('x')}</button>`).join(' · ')}</div>` : ''}
-    <form data-form="extra" class="row" style="margin-top:10px">
-      <input type="text" name="label" placeholder="Anything else? e.g. latte, biscuit" aria-label="Extra food" class="grow" style="flex:2;min-width:150px">
-      ${showNumbers ? '<input type="number" name="kcal" inputmode="numeric" placeholder="kcal" aria-label="Calories" style="width:90px" min="0" max="3000">' : ''}
-      <button class="btn small">${icon('plus')}Add</button>
-    </form></div>`;
+  const rows = mealRows(state, date);
+  const extraRows = extras.map((x, i) => `<li><div class="lrow"><span class="slot-ico">${icon('plus')}</span><div class="body"><div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`).join('');
+  const summary = show
+    ? `<div class="kcal-sum"><div class="row between nowrap"><div><span class="big">${fmtNum(eaten)}</span> <span class="of">/ ${fmtNum(t.kcal)} kcal</span></div><span class="of">${Math.max(0, t.kcal - eaten).toLocaleString()} left</span></div>
+        <div class="meter" role="progressbar" aria-label="Calories eaten" aria-valuenow="${eaten}" aria-valuemax="${t.kcal}"><span style="width:${Math.min(100, (eaten / t.kcal) * 100).toFixed(1)}%"></span></div>
+        <div class="meter-legend"><span>Protein ${Math.round(p)} / ${t.proteinG} g</span><span>${dayComplete(state, date) ? '✓ Whole day logged' : 'Tick meals as you go'}</span></div></div>`
+    : '';
+  return `<div class="section-head"><h2>Food</h2><a href="#/meals">Week plan</a></div>
+    <div class="card tight">${summary}<ul class="rows">${rows}${extraRows}
+      <li><button class="lrow" data-action="openExtra" style="min-height:54px"><span class="slot-ico" style="background:var(--accent-tint);color:var(--accent)">${icon('plus')}</span><span class="body"><span class="title" style="color:var(--accent)">Add something else you ate</span></span></button></li></ul></div>`;
 }
 
-function moveCard(state, date) {
-  const { schedule } = store.schedule(state, date);
-  const d = schedule[dayIndex(date)];
-  const done = state.workouts.log[date] || [];
-  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
-  const steps = state.steps[date];
-  const items = d.items
-    .map((it) => {
-      const isDone = itemDone(done, it);
-      if (it.kind === 'rest') return '<p class="muted">Rest day. A relaxed walk is still a good idea.</p>';
-      if (it.kind === 'activity') return `<div class="row between"><div><strong>${esc(it.name)}</strong><div class="muted" style="font-size:.88rem">${it.minutes} min · your regular activity</div></div>${isDone ? '<span class="tag green">done ✓</span>' : `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`}</div>`;
-      if (it.kind === 'strength') return `<div class="row between"><div><strong>Strength session ${it.variant}</strong><div class="muted" style="font-size:.88rem">${it.exercises.length} exercises · about ${it.minutes} min</div></div>${isDone ? '<span class="tag green">done ✓</span>' : `<a class="btn small primary" href="#/move/session/${it.variant}">Start</a>`}</div>`;
-      return `<div class="row between"><div><strong>${esc(CARDIO[it.mode].label)}</strong><div class="muted" style="font-size:.88rem">${it.minutes} minutes, at a pace where you can talk</div></div>${isDone ? '<span class="tag green">done ✓</span>' : `<button class="btn small primary" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}">Done</button>`}</div>`;
-    })
-    .join('<hr style="border:0;border-top:1px solid var(--line);margin:10px 0">');
-  return `<div class="card"><div class="card-head"><h2>${icon('move')} Movement</h2><a href="#/move" class="muted">This week →</a></div>${items}
-    <form data-form="steps" class="row nowrap" style="margin-top:12px">
-      <div class="grow"><div class="row between" style="font-size:.88rem"><span>Steps today</span><span class="muted">goal ${fmtNum(goal)}</span></div>${progressBar(steps || 0, goal, { label: 'Steps' })}</div>
-      <input type="number" name="steps" inputmode="numeric" min="0" max="100000" placeholder="${steps ?? 'steps'}" aria-label="Steps today" style="width:100px">
-      <button class="btn small">Save</button></form></div>`;
-}
-
-function habitsCard(state, date) {
+// ---------- Habits ----------
+function habits(state, date) {
   const active = store.visibleHabits(state);
-  if (!active.length) return `<div class="card"><h2>${icon('habits')} Habits</h2><p class="muted">No active habits. <a href="#/habits">Choose one</a> — small and specific works best.</p></div>`;
+  if (!active.length) return `<div class="section-head"><h2>Habits</h2><a href="#/habits">Choose one</a></div><div class="card empty-state">${icon('habits')}<strong>No habit yet</strong>Pick one small habit to start with.</div>`;
   const log = state.habits.log[date] || {};
-  return `<div class="card"><div class="card-head"><h2>${icon('habits')} Habits</h2><a href="#/habits" class="muted">Manage →</a></div><ul class="list">
-    ${active.map((a) => {
-      const h = habitById(a.id);
-      const on = !!log[a.id];
-      const st = streak(state.habits.log, a.id, date);
-      return `<li class="habit-item"><button class="check ${on ? 'on' : ''}" data-action="habit" data-id="${a.id}" aria-pressed="${on}" aria-label="${esc(h.title)}">${icon('check')}</button>
-        <div class="grow"><strong>${esc(h.title)}</strong><p>${esc(a.cue)} → ${esc(h.title.toLowerCase())}. <em>Hard day? ${esc(h.tiny)}.</em></p></div>
-        <span class="tag ${st >= 3 ? 'green' : ''}" title="Forgiving streak: one missed day doesn't break it">${icon('flame', 'tiny')} ${st}</span></li>`;
-    }).join('')}</ul></div>`;
+  return `<div class="section-head"><h2>Habits</h2><a href="#/habits">Manage</a></div><div class="card tight"><ul class="rows">${active.map((a) => {
+    const h = habitById(a.id);
+    const on = !!log[a.id];
+    const st = streak(state.habits.log, a.id, date);
+    return `<li><div class="lrow ${on ? 'done' : ''}">
+      <button class="check ${on ? 'on' : ''}" data-action="habitCheck" data-id="${a.id}" aria-pressed="${on}" aria-label="${esc(h.title)}">${icon('check')}</button>
+      <button class="body row-btn" data-action="openHabit" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${esc(a.cue)}</div></button>
+      <span class="trail">${st ? `<span class="tag" style="background:var(--warm-soft);color:color-mix(in srgb,var(--warm) 80%,var(--ink))">${icon('flame', 'tiny')}${st}</span>` : ''}</span></div></li>`;
+  }).join('')}</ul></div>`;
 }
 
-function questCard(state) {
-  const g = store.game(state);
-  return `<div class="card"><div class="card-head"><h2>${icon('star')} Today’s quests</h2><a href="#/rewards" class="muted">Level ${g.level} · ${g.todayXp} XP today →</a></div>${questsHtml(g)}</div>`;
+// ---------- Movement + weigh-in ----------
+function movement(state, date) {
+  const { schedule } = store.schedule(state, date);
+  const items = schedule[(new Date().getDay() + 6) % 7].items;
+  const logged = state.workouts.log[date] || [];
+  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
+  const steps = state.steps[date] || 0;
+  const hide = store.habitsOnly(state);
+  const todays = state.weights.find((w) => w.date === date);
+  const u = state.profile.units === 'imperial' ? 'imperial' : 'metric';
+  const trend = store.trendWeight(state);
+  const rows = items.map((it) => {
+    const done = itemDone(logged, it);
+    if (it.kind === 'rest') return `<li><div class="lrow"><span class="slot-ico">${icon('move')}</span><div class="body"><div class="title">Rest day</div><div class="sub">A relaxed walk still counts</div></div></div></li>`;
+    const doneTag = '<span class="tag" style="background:var(--accent-soft);color:var(--accent)">Done</span>';
+    if (it.kind === 'strength') return `<li><a class="lrow" href="#/move/session/${it.variant}" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('move')}</span><div class="body"><div class="title">Strength session ${it.variant}</div><div class="sub">${it.exercises.length} exercises · ~${it.minutes} min</div></div><span class="trail">${done ? doneTag : `<span class="btn small primary">Start</span>`}</span></a></li>`;
+    if (it.kind === 'activity') return `<li><div class="lrow"><span class="slot-ico" style="background:var(--warm-soft);color:color-mix(in srgb,var(--warm) 80%,var(--ink))">${icon('flame')}</span><div class="body"><div class="title">${esc(it.name)}</div><div class="sub">${it.minutes} min · your activity</div></div><span class="trail">${done ? doneTag : `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`}</span></div></li>`;
+    return `<li><div class="lrow"><span class="slot-ico" style="background:var(--info-soft);color:var(--info)">${icon('move')}</span><div class="body"><div class="title">${esc(CARDIO[it.mode].label)}</div><div class="sub">${it.minutes} min · chatty pace</div></div><span class="trail">${done ? doneTag : `<button class="btn small primary" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}">Done</button>`}</span></div></li>`;
+  }).join('');
+  const pct = Math.min(100, (steps / goal) * 100);
+  const stepsRow = `<li><button class="lrow" data-action="openSteps"><span class="slot-ico">${icon('progress')}</span><span class="body"><span class="title">${steps ? `${fmtNum(steps)} steps` : 'Add today’s steps'}</span><span class="meter" style="display:block;height:6px;margin:6px 0 0"><span style="width:${pct.toFixed(1)}%"></span></span><span class="sub" style="display:block">Goal ${fmtNum(goal)}</span></span><span class="trail">${icon('chevron')}</span></button></li>`;
+  const weighRow = hide ? '' : `<li><button class="lrow" data-action="openWeigh"><span class="slot-ico">${icon('scale')}</span><span class="body"><span class="title">${todays ? `Weighed in · ${fmtWeight(todays.kg, u)}` : 'Weigh in'}</span><span class="sub" style="display:block">Trend ${fmtWeight(trend, u)}${Math.abs(state.profile.startWeightKg - trend) >= 0.1 ? ` · ${fmtDelta(trend - state.profile.startWeightKg, u)} since start` : ''}</span></span><span class="trail">${todays ? '<span class="tag" style="background:var(--accent-soft);color:var(--accent)">Done</span>' : icon('chevron')}</span></button></li>`;
+  return `<div class="section-head"><h2>Movement & body</h2><a href="#/move">This week</a></div><div class="card tight"><ul class="rows">${rows}${stepsRow}${weighRow}</ul></div>`;
 }
 
 function firstWeek(state, date) {
   if (state.flags?.firstWeekDone || store.weeksSinceStart(state, date) > 0 || state.profile.demo) return '';
   const hide = store.habitsOnly(state);
   const steps = [
-    hide ? null : ['Weigh in each morning', 'Same time, after the bathroom. You need about 4 weigh-ins before the trend means anything.', state.weights.length >= 4],
-    ['Tick off what you eat', 'Rough is fine. Mark meals as eaten, skipped or “something else”.', Object.values(state.mealLog || {}).some((d) => Object.keys(d).length)],
-    ['Do one easy strength session', 'Week 1 has a single short session — it should feel easy.', Object.values(state.workouts.log || {}).some((l) => l.some((x) => x.kind === 'strength'))],
-    ['Make one habit specific', 'Edit its cue so it matches something you really do every day.', state.habits.active.some((a) => a.cue !== (habitById(a.id)?.cue))],
-    ['Do your first check-in in 7 days', 'That is when the plan starts adjusting to you.', false],
+    hide ? null : ['Weigh in each morning', state.weights.length >= 4],
+    ['Tick off what you eat', Object.values(state.mealLog || {}).some((d) => Object.keys(d).length)],
+    ['Do one easy strength session', Object.values(state.workouts.log || {}).some((l) => l.some((x) => x.kind === 'strength'))],
+    ['Make one habit’s cue specific', state.habits.active.some((a) => a.cue !== habitById(a.id)?.cue)],
+    ['Do your first check-in in 7 days', false],
   ].filter(Boolean);
-  return `<div class="card" style="border-color:var(--accent)"><div class="card-head"><h2>Your first week</h2><button class="btn small ghost" data-action="dismissFirstWeek">Hide</button></div>
-    <p class="muted" style="font-size:.9rem">Small and consistent beats perfect. Here’s all you need to do:</p>
-    <ul class="list">${steps.map(([t, d, done]) => `<li class="habit-item"><span class="check ${done ? 'on' : ''}" aria-hidden="true">${icon('check')}</span><div class="grow"><strong>${t}</strong><p>${d}</p></div></li>`).join('')}</ul></div>`;
+  const done = steps.filter((s) => s[1]).length;
+  return `<details class="card" style="padding:14px 16px"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('star')}</span><span class="grow"><strong>Your first week</strong><span class="sub" style="display:block;font-size:var(--text-sm);color:var(--ink-3)">${done} of ${steps.length} done · small and consistent beats perfect</span></span>${icon('chevron')}</summary>
+    <ul class="rows" style="margin-top:8px">${steps.map(([t, ok]) => `<li class="row nowrap" style="padding:8px 0;gap:10px"><span class="check ${ok ? 'on' : ''}" style="width:26px;height:26px" aria-hidden="true">${icon('check')}</span><span>${t}</span></li>`).join('')}</ul>
+    <button class="btn small ghost" data-action="dismissFirstWeek" style="margin-top:6px">Hide this</button></details>`;
 }
 
 function banners(state, date) {
   const out = [safetyNotices(state)];
-  if (state.profile.demo) out.push(`<div class="notice info">${icon('info')}<div class="grow">You’re exploring <strong>demo data</strong>. <button class="btn small" data-action="endDemo">Start my own plan</button></div></div>`);
-  if (checkinDue(state, date)) out.push(`<div class="notice ok">${icon('calendar')}<div class="grow"><strong>Your weekly check-in is ready.</strong> Two minutes to review the week and adjust your plan. <a href="#/checkin">Start check-in →</a></div></div>`);
-  if (state.dietBreakUntil && date <= state.dietBreakUntil) out.push(`<div class="notice info">${icon('info')}<div>Planned maintenance phase until ${fmtDate(state.dietBreakUntil)}: calories are at your estimated needs. Keep the habits going.</div></div>`);
+  if (state.profile.demo) out.push(`<div class="notice info">${icon('info')}<div class="grow">You’re exploring <strong>demo data</strong>.</div><button class="btn small" data-action="endDemo">Start my own plan</button></div>`);
+  if (checkinDue(state, date)) out.push(`<a class="notice ok" href="#/checkin" style="text-decoration:none">${icon('calendar')}<div class="grow"><strong>Weekly check-in is ready</strong> · two minutes to tune your plan</div>${icon('chevron')}</a>`);
+  if (state.dietBreakUntil && date <= state.dietBreakUntil) out.push(`<div class="notice info">${icon('info')}<div>Planned maintenance phase until ${fmtDate(state.dietBreakUntil)}: calories are at your estimated needs.</div></div>`);
   const calc = state.calcWeightKg ?? state.profile.weightKg;
   const trend = store.trendWeight(state);
-  if (Math.abs(trend - calc) >= 2) out.push(`<div class="notice info">${icon('info')}<div class="grow">Your trend has moved ${fmtWeight(Math.abs(trend - calc), state.profile.units === 'imperial' ? 'imperial' : 'metric')} since targets were last calculated, so they’ve been refreshed for your new weight. <button class="btn small" data-action="ackRecalc">OK</button></div></div>`);
+  if (Math.abs(trend - calc) >= 2) out.push(`<div class="notice info">${icon('info')}<div class="grow">Targets refreshed for your new weight.</div><button class="btn small" data-action="ackRecalc">OK</button></div>`);
   return out.join('');
 }
 
 export default {
   render(state) {
     const date = store.today();
-    const u = state.profile.units === 'imperial' ? 'imperial' : 'metric';
-    const showNumbers = !store.habitsOnly(state);
-    return html`<h1>${greeting()}</h1><p class="muted">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · week ${store.weeksSinceStart(state, date) + 1}</p>
+    return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${greeting()}</h1></div></header>
       ${banners(state, date)}
-      ${questCard(state)}
-      ${firstWeek(state, date)}
-      <div class="grid two">
-        <div>${showNumbers ? weighCard(state, date, u) : ''}${habitsCard(state, date)}${moveCard(state, date)}</div>
-        <div>${foodCard(state, date, u, showNumbers)}</div>
+      <div class="today-grid">
+        <div class="tg-hero">${hero(state)}${nextUp(state, date)}</div>
+        <div class="tg-food">${food(state, date)}</div>
+        <div class="tg-rest">${habits(state, date)}${movement(state, date)}${firstWeek(state, date)}</div>
       </div>`;
   },
   actions: {
-    weigh(form, ev, ctx, data) {
-      const s = ctx.state;
-      const u = s.profile.units === 'imperial' ? 'imperial' : 'metric';
-      const kg = toKg(Number(data.w), u);
-      if (!(kg > 30 && kg < 400)) return ctx.toast('That number looks off — please check it.');
-      const date = store.today();
-      const prev = store.trendWeight(s);
-      if (prev && Math.abs(kg - prev) > 8) ctx.toast('That’s a big jump from your trend — double-check the units.');
-      ctx.update((st) => {
-        st.weights = st.weights.filter((w) => w.date !== date).concat({ date, kg: round(kg, 0.01) }).sort((a, b) => (a.date < b.date ? -1 : 1));
-        st.habits.log[date] = { ...(st.habits.log[date] || {}), ...(st.habits.active.some((a) => a.id === 'weigh_daily') ? { weigh_daily: true } : {}) };
-        return st;
-      });
-      ctx.toast('Logged. It’s the trend that matters, not any single day.');
-    },
-    ate(el, ev, ctx) {
-      setMeal(ctx, el.dataset.slot, (cur) => (cur?.status === 'ate' ? null : { status: 'ate' }));
-    },
-    skip(el, ev, ctx) {
-      setMeal(ctx, el.dataset.slot, (cur) => (cur?.status === 'skip' ? null : { status: 'skip' }));
-    },
-    async other(el, ev, ctx) {
-      const show = !store.habitsOnly(ctx.state);
-      const v = show ? await ctx.ask('Roughly how many calories was it? A rough guess is fine.', { value: '500' }) : '0';
-      if (v == null) return;
-      setMeal(ctx, el.dataset.slot, () => ({ status: 'other', kcal: Math.max(0, Number(v) || 0) }));
-    },
-    swap(el, ev, ctx) {
-      const date = store.today();
-      const s = ctx.state;
-      const wk = weekStart(date);
-      const di = dayIndex(date);
-      const t = store.targets(s, date);
-      const meals = markChosen(swapMeal(t, s.prefs, s.plans[wk].days[di], el.dataset.slot, `${date}|${Date.now()}`), s.plans[wk].days[di], el.dataset.slot);
-      ctx.update((st) => {
-        st.plans[wk].days[di] = meals;
-        return st;
-      });
-      ctx.toast('Swapped. Portions re-balanced to keep the day on target.');
-    },
-    extra(form, ev, ctx, data) {
-      const date = store.today();
-      if (!data.label && !data.kcal) return;
-      ctx.update((st) => {
-        st.extras[date] = [...(st.extras[date] || []), { label: data.label || 'Extra', kcal: Number(data.kcal) || 0 }];
-        st.intake[date] = computeIntake(st, date);
-        return st;
-      });
+    habitCheck(el, ev, ctx) {
+      toggleHabit(ctx, el.dataset.id);
     },
     rmExtra(el, ev, ctx) {
       const date = store.today();
-      ctx.update((st) => {
+      ctx.undoable('Removed', (st) => {
         st.extras[date] = (st.extras[date] || []).filter((_, i) => i !== Number(el.dataset.i));
         st.intake[date] = computeIntake(st, date);
         return st;
       });
-    },
-    habit(el, ev, ctx) {
-      const date = store.today();
-      const id = el.dataset.id;
-      ctx.update((st) => {
-        const day = { ...(st.habits.log[date] || {}) };
-        if (day[id]) delete day[id];
-        else day[id] = true;
-        st.habits.log[date] = day;
-        return st;
-      });
-    },
-    steps(form, ev, ctx, data) {
-      const n = Number(data.steps);
-      if (!(n >= 0)) return;
-      const date = store.today();
-      ctx.update((st) => {
-        st.steps[date] = Math.round(n);
-        const goal = stepGoal(st.profile.baselineSteps, st.profile.stepLevel || 0, st.profile.age);
-        if (n >= goal && st.habits.active.some((a) => a.id === 'step_goal')) st.habits.log[date] = { ...(st.habits.log[date] || {}), step_goal: true };
-        return st;
-      });
-      ctx.toast('Steps saved.');
     },
     activityDone(el, ev, ctx) {
       logPlannedActivity(ctx, el.dataset.id);
     },
     cardioDone(el, ev, ctx) {
       const date = store.today();
-      ctx.update((st) => {
+      ctx.undoable('Nice work — logged', (st) => {
         st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'cardio', mode: el.dataset.mode, minutes: Number(el.dataset.min) }];
         return st;
       });
-      ctx.toast('Nice work. Every session counts.');
     },
     dismissFirstWeek(el, ev, ctx) {
-      ctx.update((st) => {
+      ctx.undoable('Hidden', (st) => {
         st.flags = { ...(st.flags || {}), firstWeekDone: true };
         return st;
       });
     },
     async endDemo(el, ev, ctx) {
       if (!(await ctx.confirm('Clear the demo data and set up your own plan?', { ok: 'Start my own plan' }))) return;
-      ctx.set(store.emptyState(), { render: false });
+      ctx.set(store.emptyState(), { render: false, quiet: true });
       ctx.go('#/start');
     },
     ackRecalc(el, ev, ctx) {
@@ -266,10 +209,3 @@ export default {
     },
   },
 };
-
-function setMeal(ctx, slot, fn) {
-  const date = store.today();
-  ctx.update((st) => setMealStatus(st, date, slot, fn));
-}
-
-export { addDays };

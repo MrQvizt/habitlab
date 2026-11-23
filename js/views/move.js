@@ -86,8 +86,8 @@ function overview(state) {
   });
   const today = schedule[ti];
   const prog = state.workouts.progress;
-  return html`<h1>Move</h1>
-    <p class="muted">Activity is for health, mood and keeping weight off — it doesn’t need to be earned or burned off with food. Start low, go slow, and let the plan build.</p>
+  return html`<header class="page-head"><div><div class="eyebrow">Week ${store.weeksSinceStart(state, date) + 1}</div><h1>Move</h1></div></header>
+    <p class="muted" style="margin:-8px 0 14px">For health, mood and keeping weight off — not to earn food. Start low, go slow; the plan builds with you.</p>
     <div class="grid two">
       <div class="card"><h2>This week</h2>
         <div class="macro"><span>Cardio</span>${progressBar(done.cardio, cardioMin, { label: 'Cardio minutes' })}<span>${done.cardio}/${cardioMin} min</span></div>
@@ -115,13 +115,13 @@ function overview(state) {
         <input type="date" name="date" value="${date}" max="${date}" style="width:160px">
         <button class="btn primary">Log</button>
       </form></div>
-    <div class="card"><h2>Your strength levels</h2><p class="muted" style="font-size:.88rem">Each movement moves up a level when it feels easy, and back down if it’s too hard or hurts.</p>
+    <details class="card"><summary class="row nowrap" style="cursor:pointer;list-style:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('progress')}</span><span class="grow"><strong>Your strength levels</strong><span style="display:block;font-size:var(--text-sm);color:var(--ink-3)">Each exercise levels up when it feels easy</span></span>${icon('chevron')}</summary><p class="muted" style="font-size:.88rem;margin-top:12px">Each movement moves up a level when it feels easy, and back down if it’s too hard or hurts.</p><div style="overflow-x:auto">
       <table class="simple"><tr><th>Movement</th><th>Current exercise</th><th class="right">Dose</th></tr>
       ${Object.entries(prog).map(([k, st]) => {
         const s = stepOf(k, st.stepId);
         return s ? `<tr><td>${esc(CHAINS[k].label)}</td><td>${esc(s.name)}${st.painFlag ? ' <span class="tag warm">eased back</span>' : ''}</td><td class="right">${dose({ ...s, sets: st.sets, reps: st.reps })}</td></tr>` : '';
-      }).join('')}</table>
-      <p class="muted" style="font-size:.85rem;margin-top:8px">Equipment, joints and days are in <a href="#/settings">Settings</a>.</p></div>
+      }).join('')}</table></div>
+      <p class="muted" style="font-size:.85rem;margin-top:8px">Equipment, joints and days are in <a href="#/settings">Settings</a>.</p></details>
     ${stopSigns()}`;
 }
 

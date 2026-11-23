@@ -3,7 +3,8 @@
   "appName": "Habit Lab",
   "webDir": "www",
   "android": {
-    "backgroundColor": "#f6f4ef"
+    "backgroundColor": "#f6f4ef",
+    "adjustMarginsForEdgeToEdge": "auto"
   },
   "plugins": {
     "LocalNotifications": {

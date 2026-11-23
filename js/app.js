@@ -15,6 +15,8 @@ import rewards from './views/rewards.js';
 import { floatXp, confetti, chime, buzz, showCelebration } from './ui/celebrate.js';
 import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
+import { closeSheet } from './ui/sheet.js';
+import { sheetActions } from './views/sheets.js';
 
 const VIEWS = { rewards, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 const NAV = [
@@ -23,7 +25,6 @@ const NAV = [
   ['move', 'Move', 'move'],
   ['habits', 'Habits', 'habits'],
   ['progress', 'Progress', 'progress'],
-  ['learn', 'Learn', 'learn'],
 ];
 
 let state = store.load();
@@ -52,15 +53,37 @@ const ctx = {
     ctx.set(fn(structuredClone(state)) ?? state, opts);
   },
   go(hash) {
+    closeSheet(true);
     if (location.hash === hash) renderRoute();
     else location.hash = hash;
   },
-  toast(msg) {
-    toastEl.textContent = msg;
+  /** Snackbar. opts.action = {label, run} adds a button (e.g. Undo). */
+  toast(msg, opts = {}) {
+    toastEl.innerHTML = '';
+    const span = document.createElement('span');
+    span.textContent = msg;
+    toastEl.append(span);
+    if (opts.action) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = opts.action.label;
+      b.onclick = () => {
+        toastEl.classList.remove('show');
+        opts.action.run();
+      };
+      toastEl.append(b);
+    }
     toastEl.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3200);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), opts.action ? 5000 : 3000);
   },
+  /** Apply a change and offer Undo (restores the previous state exactly, without celebrations). */
+  undoable(msg, fn) {
+    const prev = structuredClone(state);
+    ctx.update(fn);
+    ctx.toast(msg, { action: { label: 'Undo', run: () => ctx.set(prev, { quiet: true }) } });
+  },
+  closeSheet: () => closeSheet(),
   rerender: () => renderRoute(),
   /** In-page replacement for confirm(): resolves true/false. */
   confirm(message, { ok = 'OK', danger = false } = {}) {
@@ -149,7 +172,8 @@ function parseRoute() {
 function navHtml(active, kind) {
   const links = NAV.map(([id, label, ic]) => `<a href="#/${id}" class="${kind === 'side' ? 'nav ' : ''}${active === id ? 'active' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`).join('');
   if (kind === 'side') {
-    return `<a class="brand" href="#/today"><span class="logo">HL</span>Habit Lab</a>${links}<a href="#/rewards" class="nav ${active === 'rewards' ? 'active' : ''}">${icon('star')}<span>Rewards</span></a><div class="spacer"></div><a href="#/checkin" class="nav ${active === 'checkin' ? 'active' : ''}">${icon('calendar')}<span>Weekly check-in</span></a><a href="#/settings" class="nav ${active === 'settings' ? 'active' : ''}">${icon('settings')}<span>Settings</span></a>`;
+    const extra = [['rewards', 'Rewards', 'star'], ['learn', 'Learn', 'learn'], ['checkin', 'Weekly check-in', 'calendar'], ['settings', 'Settings', 'settings']];
+    return `<a class="brand" href="#/today"><span class="logo">HL</span>Habit Lab</a>${links}<div class="sep"></div>${extra.map(([id, label, ic]) => `<a href="#/${id}" class="nav ${active === id ? 'active' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`).join('')}<div class="spacer"></div>`;
   }
   return links;
 }
@@ -181,8 +205,9 @@ function renderRoute() {
   document.querySelector('.bottomnav').innerHTML = hasShell ? navHtml(name, 'bottom') : '';
   document.querySelector('.bottomnav').style.display = hasShell ? '' : 'none';
   document.querySelector('.sidebar').style.display = hasShell ? '' : 'none';
+  document.body.classList.toggle('no-nav', !hasShell);
   const top = hasShell
-    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span class="hide-narrow">Habit Lab</span></a><div class="row nowrap">${xpChip()}<a class="btn small" href="#/checkin" aria-label="Weekly check-in">${icon('calendar')}<span class="hide-narrow">Check-in</span></a><a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
+    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span class="hide-narrow">Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}<a class="icon-btn" href="#/learn" aria-label="Learn: the evidence">${icon('learn')}</a><a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
     : '';
   main.innerHTML = top + view.render(state, params, ctx);
   view.after?.(main, ctx, params);
@@ -209,6 +234,7 @@ function dispatch(kind, el, ev) {
 }
 
 const GLOBAL = {
+  ...sheetActions,
   theme(el) {
     const t = el.dataset.value;
     if (t === 'auto') document.documentElement.removeAttribute('data-theme');
@@ -224,7 +250,7 @@ const GLOBAL = {
 
 document.addEventListener('click', (ev) => {
   const el = ev.target.closest('[data-action]');
-  if (!el || !main.parentElement.contains(el) && !document.querySelector('.bottomnav').contains(el)) return;
+  if (!el || !(main.parentElement.contains(el) || document.querySelector('.bottomnav').contains(el) || el.closest('.sheet'))) return;
   if (dispatch('action', el, ev)) ev.preventDefault();
 });
 document.addEventListener('submit', (ev) => {
@@ -232,7 +258,7 @@ document.addEventListener('submit', (ev) => {
   if (!form) return;
   ev.preventDefault();
   const view = currentView();
-  const handler = view.actions?.[form.dataset.form];
+  const handler = view.actions?.[form.dataset.form] || GLOBAL[form.dataset.form];
   if (handler) handler(form, ev, ctx, formData(form));
 });
 document.addEventListener('change', (ev) => {
@@ -265,7 +291,14 @@ export function syncReminders() {
 notify.listen();
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
 
-window.addEventListener('hashchange', renderRoute);
+function navigate() {
+  closeSheet(true);
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (document.startViewTransition && !reduce) document.startViewTransition(renderRoute);
+  else renderRoute();
+}
+window.addEventListener('hashchange', navigate);
+window.addEventListener('scroll', () => document.querySelector('.topbar')?.classList.toggle('scrolled', window.scrollY > 4), { passive: true });
 renderRoute();
 scheduleSync();
 // Android app: recover from the native copy if the WebView's storage is empty or older.

@@ -38,6 +38,7 @@ const url = process.argv[2] || 'file://' + path.join(__dirname, '..', 'www', 'in
   await page.addLocatorHandler(page.locator('.celebrate-modal'), async () => page.click('.celebrate-modal button'));
   await page.goto(url + '#/settings');
   await page.waitForSelector('text=arrive even when the app is closed');
+  await page.evaluate(() => document.querySelector('form[data-form=reminders]').scrollIntoView({ block: 'center' }));
   await page.check('form[data-form=reminders] input[name=enabled]');
   await page.click('form[data-form=reminders] button.primary');
   await page.waitForSelector('text=/On — \\d+ reminders scheduled for the next 7 days/');
@@ -55,13 +56,13 @@ const url = process.argv[2] || 'file://' + path.join(__dirname, '..', 'www', 'in
   // Logging a meal reschedules (debounced) and drops that meal's reminder for today.
   const before = ln.schedule.length;
   await page.goto(url + '#/today');
-  await page.click('.meal button.check >> nth=0');
+  await page.click('.tg-food button[data-action=mealCheck] >> nth=0');
   await page.waitForTimeout(1500);
   const after = await page.evaluate(() => window.__ln.schedule.length);
   if (after <= before) errors.push('no reschedule after logging');
   // A tap on a notification routes to its screen.
   await page.evaluate(() => window.__ln.listeners.localNotificationActionPerformed({ notification: { extra: { route: '#/checkin' } } }));
-  await page.waitForSelector('h1:has-text("Weekly check-in")');
+  await page.waitForSelector('h1:has-text("Check-in")');
   // Updates keep progress: wipe the WebView's storage, relaunch, and the native copy is restored.
   await page.waitForTimeout(800);
   const xpBefore = await page.textContent('.xp-chip');

@@ -1,9 +1,10 @@
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
-import { html, esc, icon, chips, fmtDate } from '../ui/dom.js';
+import { html, esc, icon, chips, fmtDate, fmtNum } from '../ui/dom.js';
+import { mealRows } from './sheets.js';
 import * as store from '../store.js';
 import { recipeDetails, mealMeta, slotLabel, totalsLine, dayIndex, setMealStatus, eatenSoFar, dayComplete } from './shared.js';
 import { markChosen } from './shared.js';
-import { byId, swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL } from '../engine/meals.js';
+import { byId, swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL, dayTotals } from '../engine/meals.js';
 import { RECIPES } from '../data/recipes.js';
 import { rng } from '../engine/util.js';
 import { addDays, weekStart } from '../engine/util.js';
@@ -50,27 +51,18 @@ export default {
       const dd = addDays(wk, i);
       return `<a href="#/meals/${i}" class="${i === di ? 'on' : ''} ${dd === date ? 'today' : ''}">${d}<b>${Number(dd.slice(8))}</b></a>`;
     }).join('');
-    return html`<div class="card-head"><h1>Meal plan</h1><a class="btn" href="#/shopping">${icon('cart')}Shopping list</a></div>
-      <p class="muted">${showNumbers ? `Each day is built to about <strong>${t.kcal.toLocaleString()} kcal</strong> with <strong>${t.proteinG} g protein</strong> and <strong>${t.fiberG}+ g fibre</strong>. ` : ''}Portions are scaled to you. Swap anything you don’t fancy.</p>
-      <nav class="daytabs" aria-label="Days">${tabs}</nav>
-      <div class="card">
-        ${canLog && dayDate < date && !dayComplete(state, dayDate) ? `<div class="notice info">${icon('info')}<div>Forgot to log? Tick what you ate${showNumbers ? '' : ''} — complete days help the app learn your real energy needs.</div></div>` : ''}
-        <div class="card-head"><h2>${fmtDate(addDays(wk, di), { weekday: 'long', day: 'numeric', month: 'short' })}</h2><span class="muted" style="font-size:.86rem">${totalsLine(meals, showNumbers)}${canLog && showNumbers ? ` · logged ${eatenSoFar(state, dayDate).toLocaleString()} kcal${dayComplete(state, dayDate) ? ' ✓' : ''}` : ''}</span></div>
-        <ul class="list">${meals.map((m) => {
-          const r = byId(m.recipeId);
-          return `<li class="meal"><div><div class="slot">${slotLabel(m.slot)}</div><div class="name">${esc(r.name)}</div>${mealMeta(m, showNumbers)}</div>
-            <div class="actions">
-              ${canLog ? `<button class="check ${log[m.slot]?.status === 'ate' ? 'on' : ''}" data-action="ate" data-slot="${m.slot}" data-date="${dayDate}" aria-label="Mark eaten" title="I ate this">${icon('check')}</button>` : ''}
-              <button class="icon-btn ${favs.has(r.id) ? 'on' : ''}" data-action="fav" data-id="${r.id}" aria-pressed="${favs.has(r.id)}" aria-label="Favourite" title="${favs.has(r.id) ? 'Favourite — shown more often' : 'Mark as favourite'}" style="${favs.has(r.id) ? 'color:var(--warm)' : ''}">${icon('star')}</button>
-              <button class="btn small" data-action="swap" data-slot="${m.slot}" data-day="${di}">${icon('swap')}Swap</button>
-            </div>
-            <div class="row" style="grid-column:1/-1">${canLog ? `<button class="btn small ghost ${log[m.slot]?.status === 'skip' ? 'on' : ''}" data-action="skip" data-slot="${m.slot}" data-date="${dayDate}">Skipped</button><button class="btn small ghost ${log[m.slot]?.status === 'other' ? 'on' : ''}" data-action="other" data-slot="${m.slot}" data-date="${dayDate}">Ate something else</button>` : ''}<a class="btn small ghost" href="#/meals/recipes/${m.slot}/${di}">Choose a recipe</a><button class="btn small ghost" data-action="block" data-id="${r.id}" data-slot="${m.slot}" data-day="${di}">Don’t suggest this again</button></div>
-            ${recipeDetails(m, u)}</li>`;
-        }).join('')}</ul>
+    const totals = dayTotals(meals);
+    return html`<header class="page-head"><div><div class="eyebrow">This week</div><h1>Meal plan</h1></div><a class="btn tonal" href="#/shopping">${icon('cart')}Shopping list</a></header>
+      <nav class="scroll-x daytabs" aria-label="Days">${tabs}</nav>
+      ${canLog && dayDate < date && !dayComplete(state, dayDate) ? `<div class="notice info">${icon('info')}<div>Forgot to log this day? Tick what you ate — complete days help the app learn your real energy needs.</div></div>` : ''}
+      <div class="section-head"><h2>${fmtDate(dayDate, { weekday: 'long', day: 'numeric', month: 'short' })}</h2>${showNumbers ? `<span class="meta">${fmtNum(totals.kcal, 10)} kcal · ${Math.round(totals.p)} g protein · ${Math.round(totals.fib)} g fibre</span>` : ''}</div>
+      <div class="card tight">
+        ${canLog && showNumbers ? `<div class="kcal-sum"><div class="row between nowrap"><div><span class="big">${fmtNum(eatenSoFar(state, dayDate))}</span> <span class="of">/ ${fmtNum(t.kcal)} kcal logged</span></div><span class="of">${dayComplete(state, dayDate) ? '✓ Complete' : ''}</span></div><div class="meter"><span style="width:${Math.min(100, (eatenSoFar(state, dayDate) / t.kcal) * 100).toFixed(1)}%"></span></div></div>` : ''}
+        <ul class="rows">${mealRows(state, dayDate)}</ul>
       </div>
-      <div class="card">
-        <h2>Plan settings</h2>
-        <form data-form="prefs">
+      <p class="muted" style="font-size:var(--text-sm);margin:-4px 4px 18px">${showNumbers ? `Built to about ${t.kcal.toLocaleString()} kcal, ${t.proteinG} g protein and ${t.fiberG}+ g fibre. ` : ''}Tap a meal for the recipe, to swap it or to log it.</p>
+      <details class="card"><summary class="row nowrap" style="cursor:pointer;list-style:none"><span class="slot-ico">${icon('settings')}</span><span class="grow"><strong>Plan settings</strong><span class="sub" style="display:block;font-size:var(--text-sm);color:var(--ink-3)">${esc(DIETS[state.prefs.diet]?.label || '')} · ${esc(state.prefs.variety || 'medium')} variety · up to ${state.prefs.maxMinutesWeekday} min on weekdays</span></span>${icon('chevron')}</summary>
+        <form data-form="prefs" style="margin-top:16px">
           <div class="grid two">
             <fieldset><legend>Diet</legend>${chips('diet', Object.fromEntries(Object.entries(DIETS).map(([k, d]) => [k, d.label])), state.prefs.diet, { multi: false })}</fieldset>
             <fieldset><legend>Variety</legend>${chips('variety', { low: 'Low (repeat meals)', medium: 'Medium', high: 'High' }, state.prefs.variety || 'medium', { multi: false })}</fieldset>
@@ -80,13 +72,13 @@ export default {
           <div class="row"><button class="btn primary">Save & rebuild plan</button><button type="button" class="btn" data-action="regen">${icon('swap')}Give me a different week</button></div>
           <p class="muted" style="font-size:.85rem;margin-top:10px">Allergies and disliked foods are in <a href="#/settings">Settings</a>. ${state.prefs.blockedRecipes?.length ? `${state.prefs.blockedRecipes.length} recipe(s) hidden — <button type="button" class="btn small ghost" data-action="unblock">show them again</button>` : ''}</p>
         </form>
-      </div>
-      <div class="card flat"><h3>Why the plan looks like this</h3><ul class="muted-2" style="padding-left:20px;margin:0;font-size:.93rem">
+      </details>
+      <details class="card flat"><summary class="row nowrap" style="cursor:pointer;list-style:none"><span class="grow"><strong>Why the plan looks like this</strong></span>${icon('chevron')}</summary><ul class="muted-2" style="padding-left:20px;margin:12px 0 0;font-size:.93rem">
         <li><strong>Protein first:</strong> it’s the most filling nutrient and protects muscle while you lose fat.</li>
         <li><strong>Lots of vegetables, beans and fruit:</strong> high-volume, low-energy-density foods let you eat satisfying portions.</li>
         <li><strong>Mostly minimally processed:</strong> in a controlled trial, people ate ~500 kcal/day more on ultra-processed food without noticing.</li>
         <li><strong>Repeats and leftovers on purpose:</strong> fewer decisions makes the plan easier to follow — and following it is what works.</li>
-      </ul></div>`;
+      </ul></details>`;
   },
   after(root) {
     root.querySelector('.daytabs a.on')?.scrollIntoView({ block: 'nearest', inline: 'center' });

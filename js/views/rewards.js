@@ -21,7 +21,7 @@ export default {
       return { label: `${Number(w.slice(8))}/${Number(w.slice(5, 7))}`, value: x };
     });
     const recentDays = Object.keys(g.byDay).sort().reverse().slice(0, 5);
-    return html`<h1>Rewards</h1>
+    return html`<header class="page-head"><div><div class="eyebrow">Level ${g.level} · ${esc(g.title)}</div><h1>Rewards</h1></div></header>
       <p class="muted">Points for showing up — logging, moving, habits and check-ins. You never earn points for eating less or for the number on the scale: consistency is what changes weight in the long run.</p>
       <div class="card"><div class="level-hero">
         ${ring(into, need, { size: 128, label: `Lv ${g.level}`, sub: `${into.toLocaleString()}/${need.toLocaleString()} XP` })}

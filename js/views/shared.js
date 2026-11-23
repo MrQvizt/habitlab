@@ -1,6 +1,6 @@
 // Pieces shared by several views.
 import { esc, icon, fmtNum } from '../ui/dom.js';
-import { byId, scaledNutrition, formatQty, SLOT_LABEL, dayTotals } from '../engine/meals.js';
+import { byId, scaledNutrition, formatQty, SLOT_LABEL, dayTotals, ingredientText } from '../engine/meals.js';
 import { FOODS } from '../data/foods.js';
 import * as store from '../store.js';
 import { daysBetween, weekStart, parseDate } from '../engine/util.js';
@@ -52,7 +52,7 @@ export function proteinEaten(state, date) {
 export function recipeDetails(m, units = 'metric', open = false) {
   const r = byId(m.recipeId);
   return `<details class="recipe" ${open ? 'open' : ''}><summary>Recipe & ingredients</summary>
-    <ul class="ingredients">${r.ingredients.map(([fid, g]) => `<li>${esc(formatQty(fid, g * m.scale, units))} ${esc(FOODS[fid].name.toLowerCase())}</li>`).join('')}</ul>
+    <ul class="ingredients">${r.ingredients.map(([fid, g]) => `<li>${esc(ingredientText(fid, g * m.scale, units))}</li>`).join('')}</ul>
     <ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
     <small class="muted">Season freely with herbs, spices, garlic, lemon, vinegar, mustard and salt to taste.</small></details>`;
 }
