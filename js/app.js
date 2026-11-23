@@ -182,7 +182,7 @@ function xpChip() {
   const g = store.game(state);
   if (!g) return '';
   const pct = Math.round(((g.xp - g.levelStart) / (g.nextLevelAt - g.levelStart)) * 100);
-  return `<a class="xp-chip" href="#/rewards" aria-label="Level ${g.level}, ${g.xp} XP, ${g.streak}-day streak. Open rewards"><span class="lvl">${g.level}</span><span class="mini"><span style="width:${pct}%"></span></span><span class="flame">${icon('flame')}${g.streak}</span></a>`;
+  return `<a class="xp-chip" href="#/rewards" aria-label="Level ${g.level}, ${g.xp} XP, ${g.streak}-day streak. Open rewards"><span class="lvl">Lv ${g.level}</span><span class="mini" aria-hidden="true"><span style="width:${pct}%"></span></span><span class="flame">${icon('flame')}${g.streak}</span></a>`;
 }
 
 let lastRoute = '';
@@ -207,7 +207,7 @@ function renderRoute() {
   document.querySelector('.sidebar').style.display = hasShell ? '' : 'none';
   document.body.classList.toggle('no-nav', !hasShell);
   const top = hasShell
-    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span class="hide-narrow">Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}<a class="icon-btn" href="#/learn" aria-label="Learn: the evidence">${icon('learn')}</a><a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
+    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span>Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}<a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
     : '';
   main.innerHTML = top + view.render(state, params, ctx);
   view.after?.(main, ctx, params);
@@ -291,11 +291,17 @@ export function syncReminders() {
 notify.listen();
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
 
+let transitioning = false;
 function navigate() {
   closeSheet(true);
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  if (document.startViewTransition && !reduce) document.startViewTransition(renderRoute);
-  else renderRoute();
+  if (document.startViewTransition && !reduce && !transitioning) {
+    transitioning = true;
+    const t = document.startViewTransition(renderRoute);
+    // A quick second navigation skips the running transition; that's expected, not an error.
+    for (const p of [t.ready, t.updateCallbackDone, t.finished]) p?.catch(() => {});
+    t.finished.finally(() => (transitioning = false));
+  } else renderRoute();
 }
 window.addEventListener('hashchange', navigate);
 window.addEventListener('scroll', () => document.querySelector('.topbar')?.classList.toggle('scrolled', window.scrollY > 4), { passive: true });

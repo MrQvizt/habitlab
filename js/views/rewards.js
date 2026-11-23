@@ -21,6 +21,12 @@ export default {
       return { label: `${Number(w.slice(8))}/${Number(w.slice(5, 7))}`, value: x };
     });
     const recentDays = Object.keys(g.byDay).sort().reverse().slice(0, 5);
+    const sortedBadges = [...badgeList.filter((b) => earned.has(b.id)), ...badgeList.filter((b) => !earned.has(b.id))];
+    const badgeCard = (b) => {
+      const on = earned.has(b.id);
+      const when = state.game.badges[b.id];
+      return `<div class="badge-card ${on ? '' : 'locked'}" title="${esc(b.how)}"><div class="medal ${on ? '' : 'locked'}">${icon(b.icon)}</div><strong>${esc(b.name)}</strong><small>${on ? (when ? `Earned ${esc(fmtDate(when, { day: 'numeric', month: 'short' }))}` : 'Earned') : esc(b.how)}</small></div>`;
+    };
     return html`<header class="page-head"><div><div class="eyebrow">Level ${g.level} · ${esc(g.title)}</div><h1>Rewards</h1></div></header>
       <p class="muted">Points for showing up — logging, moving, habits and check-ins. You never earn points for eating less or for the number on the scale: consistency is what changes weight in the long run.</p>
       <div class="card"><div class="level-hero">
@@ -38,19 +44,18 @@ export default {
 
       <div class="card"><div class="card-head"><h2>Today’s quests</h2><span class="muted" style="font-size:.86rem">All done = perfect day, +${XP.perfectDay} XP</span></div>${questsHtml(g)}</div>
 
-      <div class="card"><div class="card-head"><h2>Badges</h2><span class="muted" style="font-size:.86rem">${badgeList.filter((b) => earned.has(b.id)).length} of ${badgeList.length}</span></div>
-        <div class="badges">${badgeList.map((b) => {
-          const on = earned.has(b.id);
-          const when = state.game.badges[b.id];
-          return `<div class="badge-card ${on ? '' : 'locked'}" title="${esc(b.how)}"><div class="medal ${on ? '' : 'locked'}">${icon(b.icon)}</div><strong>${esc(b.name)}</strong><small>${on ? (when ? `Earned ${esc(fmtDate(when, { day: 'numeric', month: 'short' }))}` : 'Earned') : esc(b.how)}</small></div>`;
-        }).join('')}</div></div>
-
-      <div class="grid two">
-        <div class="card"><h2>XP per week</h2>${barChart(weeks, { unit: ' XP' })}</div>
-        <div class="card"><h2>Recent</h2>${recentDays.length ? recentDays.map((d) => `<h3 style="font-size:.9rem;margin:10px 0 2px">${esc(fmtDate(d))} <span class="muted" style="font-weight:400">· ${g.byDay[d].xp} XP</span></h3><ul class="list feed">${summarise(g.byDay[d].awards).map((a) => `<li><span>${esc(a.label)}</span><span class="xp ${a.lucky ? 'lucky' : ''}">+${a.xp}</span></li>`).join('')}</ul>`).join('') : '<p class="muted">Tick off a meal or a habit to earn your first XP.</p>'}</div>
+      <div class="section-head"><h2>Badges</h2><span class="meta">${badgeList.filter((b) => earned.has(b.id)).length} of ${badgeList.length} earned</span></div>
+      <div class="card">
+        <div class="badges">${sortedBadges.slice(0, 6).map(badgeCard).join('')}</div>
+        <details style="margin-top:12px"><summary class="btn small ghost" style="list-style:none">See all ${badgeList.length} badges</summary><div class="badges" style="margin-top:10px">${sortedBadges.slice(6).map(badgeCard).join('')}</div></details>
       </div>
 
-      <div class="card"><h2>How to earn XP</h2>
+      <div class="grid two">
+        <div class="card"><h2>XP per week</h2>${barChart(weeks, { unit: ' XP', width: window.innerWidth < 600 ? 360 : 640, height: 190 })}</div>
+        <div class="card"><h2>Recent</h2>${recentDays.length ? recentDays.map((d, i) => `<details ${i === 0 ? 'open' : ''} style="border-top:${i ? '1px solid var(--line)' : '0'};padding:8px 0"><summary class="row between nowrap" style="cursor:pointer;list-style:none"><strong style="font-size:var(--text-md)">${esc(fmtDate(d))}</strong><span class="xp" style="font-weight:750;color:var(--accent)">+${g.byDay[d].xp} XP</span></summary><ul class="list feed" style="margin-top:4px">${summarise(g.byDay[d].awards).map((a) => `<li><span>${esc(a.label)}</span><span class="xp ${a.lucky ? 'lucky' : ''}">+${a.xp}</span></li>`).join('')}</ul></details>`).join('') : '<p class="muted">Tick off a meal or a habit to earn your first XP.</p>'}</div>
+      </div>
+
+      <details class="card"><summary class="row nowrap" style="cursor:pointer;list-style:none"><strong class="grow">How to earn XP</strong>${icon('chevron')}</summary><div style="margin-top:10px">
         <table class="simple"><tr><th>Action</th><th class="right">XP</th></tr>
         ${[
           ['Log a meal (eaten, skipped or something else — same XP)', XP.meal],
@@ -65,12 +70,9 @@ export default {
           ['Each badge', XP.badge],
           ['Lucky bonus (random, about 1 in 6 ticks)', XP.lucky],
         ].map(([a, x]) => `<tr><td>${esc(a)}</td><td class="right">+${x}</td></tr>`).join('')}</table>
-        <p class="muted" style="font-size:.85rem;margin-top:8px">Your streak counts days you log anything. Missing one day doesn’t break it — missing two does. <a href="#/learn/gamification">Why points help</a></p></div>
+        <p class="muted" style="font-size:.85rem;margin-top:8px">Your streak counts days you log anything. Missing one day doesn’t break it — missing two does. <a href="#/learn/gamification">Why points help</a></p></div></details>
 
-      <div class="card"><h2>Feedback</h2>
-        <label class="option"><input type="checkbox" data-change="pref" data-key="sound" ${state.game.sound ? 'checked' : ''}><div><strong>Sounds</strong><small class="muted">A short chime when you earn XP.</small></div></label>
-        <label class="option" style="margin-top:8px"><input type="checkbox" data-change="pref" data-key="haptics" ${state.game.haptics ? 'checked' : ''}><div><strong>Vibration</strong><small class="muted">A tiny buzz on supported phones.</small></div></label>
-      </div>`;
+`;
   },
   actions: {
     pref(el, ev, ctx) {
@@ -104,5 +106,5 @@ export function questsHtml(g) {
     const c = 2 * Math.PI * r;
     return `<a class="quest ${q.done ? 'done' : ''}" href="${q.href}"><svg class="qring" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="${r}" class="ring-bg" style="stroke-width:5"/><circle cx="17" cy="17" r="${r}" class="ring-fg" style="stroke-width:5" stroke-dasharray="${(c * pct).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 17 17)"/>${q.done ? '<path d="M11 17l4 4 8-8" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>' : ''}</svg>
       <span><span class="ql">${esc(q.label)}</span><br><span class="qp">${q.done ? 'Done' : `${q.progress}/${q.total}`}</span></span></a>`;
-  }).join('')}</div>${done === g.quests.length ? `<div class="perfect-banner">${icon('star')} Perfect day — every quest complete!</div>` : `<div class="muted" style="font-size:.84rem;margin-top:8px">${done}/${g.quests.length} quests · ${progressBar(done, g.quests.length, { label: 'Quests', tone: 'warm' })}</div>`}`;
+  }).join('')}</div>${done === g.quests.length ? `<div class="perfect-banner">${icon('star')} Perfect day — every quest complete!</div>` : `<div class="muted" style="font-size:.84rem;margin-top:8px">${done} of ${g.quests.length} quests done</div>${progressBar(done, g.quests.length, { label: 'Quests', tone: 'warm' })}`}`;
 }

@@ -52,7 +52,7 @@ export default {
       return `<a href="#/meals/${i}" class="${i === di ? 'on' : ''} ${dd === date ? 'today' : ''}">${d}<b>${Number(dd.slice(8))}</b></a>`;
     }).join('');
     const totals = dayTotals(meals);
-    return html`<header class="page-head"><div><div class="eyebrow">This week</div><h1>Meal plan</h1></div><a class="btn tonal" href="#/shopping">${icon('cart')}Shopping list</a></header>
+    return html`<header class="page-head"><div><div class="eyebrow">This week</div><h1>Meal plan</h1></div><a class="btn tonal small" href="#/shopping" aria-label="Shopping list">${icon('cart')}List</a></header>
       <nav class="scroll-x daytabs" aria-label="Days">${tabs}</nav>
       ${canLog && dayDate < date && !dayComplete(state, dayDate) ? `<div class="notice info">${icon('info')}<div>Forgot to log this day? Tick what you ate — complete days help the app learn your real energy needs.</div></div>` : ''}
       <div class="section-head"><h2>${fmtDate(dayDate, { weekday: 'long', day: 'numeric', month: 'short' })}</h2>${showNumbers ? `<span class="meta">${fmtNum(totals.kcal, 10)} kcal · ${Math.round(totals.p)} g protein · ${Math.round(totals.fib)} g fibre</span>` : ''}</div>

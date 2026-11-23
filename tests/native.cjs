@@ -36,7 +36,7 @@ const url = process.argv[2] || 'file://' + path.join(__dirname, '..', 'www', 'in
   await page.click('text=Explore with demo data');
   await page.waitForSelector('text=demo data');
   await page.addLocatorHandler(page.locator('.celebrate-modal'), async () => page.click('.celebrate-modal button'));
-  await page.goto(url + '#/settings');
+  await page.goto(url + '#/settings/reminders');
   await page.waitForSelector('text=arrive even when the app is closed');
   await page.evaluate(() => document.querySelector('form[data-form=reminders]').scrollIntoView({ block: 'center' }));
   await page.check('form[data-form=reminders] input[name=enabled]');

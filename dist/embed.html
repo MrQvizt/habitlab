@@ -693,6 +693,66 @@ body.no-nav .toast { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
 .segmented input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
 .segmented label { min-width: 40px; justify-content: center; display: inline-flex; align-items: center; min-height: 36px; padding: 6px 10px; border-radius: 999px; font-weight: 650; font-size: var(--text-sm); color: var(--ink-2); cursor: pointer; transition: all var(--dur) var(--ease); }
 .option input { z-index: 2; }
+
+/* Action bar inside a card: fade into the card surface and span its full width */
+.card .action-bar { margin: 18px -18px -18px; padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px) * 0); border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: linear-gradient(to top, var(--surface) 75%, color-mix(in srgb, var(--surface) 0%, transparent)); }
+body.no-nav .card .action-bar { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+
+.quest-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.quest-grid .qchip { white-space: normal; line-height: 1.25; min-height: 44px; }
+.hero-today .hero-ring { width: 80px; height: 80px; }
+.hero-ring .center b { font-size: var(--text-xl); }
+
+@media (max-width: 600px) {
+  .hg-row { grid-template-columns: 1fr; gap: 4px; }
+  .hg-name { font-size: var(--text-sm); white-space: normal; }
+  .hg-row + .hg-row { margin-top: 8px; }
+}
+.hg-cells { gap: 3px; }
+
+/* Check-in scales */
+.scale { margin-bottom: 20px; }
+.scale legend { font-size: var(--text-base); font-weight: 650; color: var(--ink); margin-bottom: 10px; }
+.scale-opts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.scale-opts label { position: relative; }
+.scale-opts input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; z-index: 1; }
+.scale-opts span { display: grid; place-items: center; min-height: 48px; border-radius: var(--radius-sm); border: 1.5px solid var(--line-strong); background: var(--surface); font-weight: 700; font-size: var(--text-lg); color: var(--ink-2); transition: all var(--dur) var(--ease); }
+.yn .scale-opts span { font-size: var(--text-base); }
+.scale-opts input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.scale-opts input:focus-visible + span { outline: 3px solid color-mix(in srgb, var(--accent) 50%, transparent); outline-offset: 2px; }
+.scale-ends { display: flex; justify-content: space-between; font-size: var(--text-xs); color: var(--ink-3); margin-top: 6px; font-weight: 600; }
+form:has(.scale:not(:has(input:checked))) .action-bar .btn.primary { opacity: 0.45; pointer-events: none; }
+form .all-done { display: none; }
+form:not(:has(.scale:not(:has(input:checked)))) .need-all { display: none; }
+form:not(:has(.scale:not(:has(input:checked)))) .all-done { display: inline; }
+
+/* Switch (Material-style toggle) */
+.switch { position: relative; display: inline-block; width: 52px; height: 32px; flex: none; }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+.switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--surface-3); border: 2px solid var(--line-strong); transition: all var(--dur) var(--ease); }
+.switch span::after { content: ''; position: absolute; top: 50%; left: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--ink-3); transform: translateY(-50%); transition: all 200ms var(--ease-out); }
+.switch input:checked + span { background: var(--accent); border-color: var(--accent); }
+.switch input:checked + span::after { left: 24px; width: 22px; height: 22px; background: var(--accent-ink); }
+.switch input:focus-visible + span { outline: 3px solid color-mix(in srgb, var(--accent) 50%, transparent); outline-offset: 2px; }
+form:has(input[name=enabled]:not(:checked)) .reminder-list { opacity: 0.5; }
+.meal-times { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; padding-left: 64px; }
+.meal-times label { display: flex; flex-direction: column; gap: 3px; font-size: var(--text-xs); color: var(--ink-3); font-weight: 600; }
+.meal-times input { min-width: 0; padding: 8px; }
+@media (max-width: 400px) { .meal-times { padding-left: 0; } }
+
+/* Header XP pill: 44px target, readable bar */
+.xp-chip { min-height: 44px; padding: 6px 12px 6px 6px; gap: 10px; }
+.xp-chip .lvl { min-width: 0; padding: 0 9px; height: 30px; font-size: var(--text-xs); letter-spacing: 0.02em; }
+.xp-chip .mini { width: 52px; height: 8px; }
+@media (max-width: 380px) { .xp-chip .mini { display: none; } .topbar .brand span:last-child { display: none; } }
+
+.grid { margin-bottom: 14px; }
+.grid:last-child { margin-bottom: 0; }
+/* Dark mode: calmer "Next up" */
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .next-card:not(.done) { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); color: var(--ink); box-shadow: none; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); } :root:not([data-theme='light']) .next-card:not(.done) .eyebrow { color: var(--accent); } :root:not([data-theme='light']) .next-card:not(.done) .btn { background: var(--accent); color: var(--accent-ink); } }
+:root[data-theme='dark'] .next-card:not(.done) { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); color: var(--ink); box-shadow: none; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+:root[data-theme='dark'] .next-card:not(.done) .eyebrow { color: var(--accent); }
+:root[data-theme='dark'] .next-card:not(.done) .btn { background: var(--accent); color: var(--accent-ink); }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -2394,14 +2454,17 @@ const { byId } = __req(5);
 
 const DEFAULT_REMINDERS = {
   enabled: false,
+  morningOn: true,
   morning: '07:30', // weigh-in + today's plan
   meals: true, // a nudge to log each main meal
   breakfast: '09:00',
   lunch: '13:00',
   dinner: '19:30',
+  moveOn: true,
   move: '17:30', // today's session / walk
   encourage: true, // one encouraging note mid-afternoon
   encourageAt: '15:30',
+  eveningOn: true,
   evening: '21:00', // streak saver: quests left
   checkin: true, // weekly check-in reminder
   checkinDay: 6, // 0 = Monday … 6 = Sunday
@@ -2472,11 +2535,11 @@ function buildReminders(state, now, ctx = {}) {
     const session = dayItems.find((it) => it.kind === 'strength') || dayItems.find((it) => it.kind === 'activity') || dayItems.find((it) => it.kind === 'cardio');
 
     // Morning: weigh-in + today's headline
-    if (r.morning && !(isToday && (habitsOnly || qDone('weigh')))) {
+    if (r.morningOn && r.morning && !(isToday && (habitsOnly || qDone('weigh')))) {
       const first = meals[0] ? byId(meals[0].recipeId)?.name : null;
       push(date, 'morning', r.morning, habitsOnly ? 'Good morning' : 'Good morning — weigh in',
         habitsOnly ? `Today starts with ${first || 'a good breakfast'}. Your quests are ready.` : `Step on the scale for +5 XP, then ${first ? `breakfast: ${first}` : 'check today’s plan'}.`, '#/today');
-    } else if (r.morning && habitsOnly && !isToday) {
+    } else if (r.morningOn && r.morning && habitsOnly && !isToday) {
       push(date, 'morning', r.morning, 'Good morning', 'Your quests for today are ready.', '#/today');
     }
 
@@ -2492,7 +2555,7 @@ function buildReminders(state, now, ctx = {}) {
     }
 
     // Movement
-    if (r.move && session && !(isToday && qDone('move'))) {
+    if (r.moveOn && r.move && session && !(isToday && qDone('move'))) {
       const body = session.kind === 'strength'
         ? `Strength session ${session.variant} is on today’s plan — about ${session.minutes} minutes, +40 XP.`
         : session.kind === 'activity'
@@ -2509,7 +2572,7 @@ function buildReminders(state, now, ctx = {}) {
     }
 
     // Evening streak saver (today: only if quests are left; future days: generic)
-    if (r.evening) {
+    if (r.eveningOn && r.evening) {
       if (isToday) {
         const left = q.filter((x) => !x.done);
         if (left.length) {
@@ -3357,26 +3420,28 @@ function num(name, value, { min, max, step = 'any', unit = '', placeholder = '',
 }
 
 function welcome() {
+  const feat = (ic, t, d) => `<li class="row nowrap" style="align-items:flex-start;gap:14px;padding:12px 0"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon(ic)}</span><span><strong style="display:block">${t}</strong><span class="muted" style="font-size:var(--text-md)">${d}</span></span></li>`;
   return html`
-  <div class="hero">
-    <div class="row"><span class="logo">HL</span><strong>Habit Lab</strong></div>
-    <h1 style="margin-top:14px">Lose weight by building habits that last</h1>
-    <p class="muted-2">A meal plan, a workout plan and a small set of habits — built from the research on what actually works for people with obesity, and adjusted every week from your check-ins.</p>
-    <div class="row"><button class="btn primary" data-action="next">Get started ${icon('chevron')}</button><button class="btn" data-action="demo">Explore with demo data</button></div>
+  <section style="padding:28px 4px 8px">
+    <span class="logo" style="width:56px;height:56px;border-radius:16px;font-size:22px">HL</span>
+    <h1 style="margin-top:18px;font-size:var(--text-3xl);line-height:1.1">Lose weight by building habits that last</h1>
+    <p class="muted-2" style="font-size:var(--text-lg);margin-top:10px">Meals, movement and a few small habits — built from the research on what works, and adjusted every week to you.</p>
+  </section>
+  <div class="card"><ul class="rows" style="margin:-6px 0">
+    ${feat('meals', 'Meals that fit you', 'Matched to your calories, protein, diet, allergies, time and budget — with a shopping list.')}
+    ${feat('move', 'Workouts that progress', 'Start where you are, even from a chair. Each exercise adapts to your feedback.')}
+    ${feat('habits', 'One habit at a time', '“After I…, I will…” habits with a forgiving streak.')}
+    ${feat('star', 'Rewards for showing up', 'XP, quests and badges for logging and moving — never for eating less.')}
+  </ul></div>
+  <div class="card flat" style="font-size:var(--text-md)">
+    <p style="margin:0 0 8px"><strong>Private.</strong> <span class="muted-2">Everything stays on this device — no account, nothing sent anywhere.</span></p>
+    <p style="margin:0 0 8px"><strong>Not medical care.</strong> <span class="muted-2">If you have a condition or take medication, check with your doctor.</span></p>
+    <p style="margin:0"><strong>Evidence-based.</strong> <span class="muted-2">See <a href="#/learn">the research</a> behind every feature.</span></p>
   </div>
-  <div class="grid three">
-    <div class="card flat"><h3>${icon('meals')} Meals that fit you</h3><p class="muted">Recipes matched to your calories, protein, diet, allergies, time and budget — plus a shopping list.</p></div>
-    <div class="card flat"><h3>${icon('move')} Workouts that progress</h3><p class="muted">Start where you are — even from a chair. Each exercise gets easier or harder based on your feedback.</p></div>
-    <div class="card flat"><h3>${icon('habits')} One habit at a time</h3><p class="muted">Small “after I…, I will…” habits, tracked with a forgiving streak. Add the next once one sticks.</p></div>
-  </div>
-  <div class="card flat">
-    <h3>Before you start</h3>
-    <ul class="muted-2" style="padding-left:20px;margin:0">
-      <li><strong>Private by design.</strong> Everything stays in this browser. No account, no server, nothing is sent anywhere.</li>
-      <li><strong>Not medical care.</strong> This is a self-management tool based on published guidelines. If you have a medical condition or take medication, check with your doctor.</li>
-      <li><strong>Built on evidence.</strong> See the <a href="#/learn">Learn</a> section for the research behind each feature.</li>
-    </ul>
-    <p style="margin-top:12px" class="muted">Moving from another device? <label class="btn small" style="display:inline-flex"><input type="file" accept="application/json,.json" data-change="importFile" hidden>Import a backup</label></p>
+  <p class="muted" style="text-align:center;font-size:var(--text-sm)">Moving from another device? <label class="btn small ghost" style="display:inline-flex;color:var(--accent)"><input type="file" accept="application/json,.json" data-change="importFile" hidden>Import a backup</label></p>
+  <div class="action-bar" style="flex-direction:column;align-items:stretch">
+    <button class="btn primary large" data-action="next" style="max-width:none">Get started</button>
+    <button class="btn ghost" data-action="demo">Explore with demo data first</button>
   </div>`;
 }
 
@@ -3515,7 +3580,7 @@ function planStep() {
   ${(draft.edFlags || []).length && !s.blocked ? `<div class="notice block">${icon('alert')}<div>Some of your answers suggest calorie counting may not be helpful right now. The app will hide calorie numbers and focus on regular meals, movement and wellbeing habits. Please consider talking to your doctor, or an eating-disorder charity such as Beat (UK) or ANAD (US).</div></div>` : ''}
   <form data-form="step" class="card">
     ${habitsOnly ? `<p>You’ll get balanced, regular meals, gentle movement and habit tracking — without calorie targets.</p><input type="hidden" name="pace" value="steady">` : `
-    <fieldset><legend>Choose your pace</legend><div class="options">${paceCards}</div></fieldset>
+    <fieldset><legend>Choose your pace</legend><div class="options">${paceCards.join('')}</div></fieldset>
     <div class="stats">
       <div class="stat"><span class="v">${t.rmr.toLocaleString()}</span><span class="l">resting energy (kcal)</span></div>
       <div class="stat"><span class="v">${t.tdee.toLocaleString()}</span><span class="l">estimated daily needs</span></div>
@@ -3777,11 +3842,6 @@ function overview(state) {
   return html`<header class="page-head"><div><div class="eyebrow">Week ${store.weeksSinceStart(state, date) + 1}</div><h1>Move</h1></div></header>
     <p class="muted" style="margin:-8px 0 14px">For health, mood and keeping weight off — not to earn food. Start low, go slow; the plan builds with you.</p>
     <div class="grid two">
-      <div class="card"><h2>This week</h2>
-        <div class="macro"><span>Cardio</span>${progressBar(done.cardio, cardioMin, { label: 'Cardio minutes' })}<span>${done.cardio}/${cardioMin} min</span></div>
-        <div class="macro"><span>Strength</span>${progressBar(done.strength, strengthPlanned, { label: 'Strength sessions' })}<span>${done.strength}/${strengthPlanned}</span></div>
-        <p class="muted" style="font-size:.86rem;margin-top:8px">Weekly cardio target grows by about 10% a week toward 150, then 200+ minutes.${activityMin ? ` Your regular activities cover about ${activityMin} min of it${strengthFromActivities ? ` and ${strengthFromActivities} strength session${strengthFromActivities > 1 ? 's' : ''}` : ''}.` : ''} Daily steps goal: ${fmtNum(goal)}.</p>
-      </div>
       <div class="card"><h2>Today</h2>${today.items.map((it) => {
         if (it.kind === 'rest') return '<p class="muted">Rest day — gentle walking is still great.</p>';
         if (it.kind === 'strength') return `<p><strong>Strength session ${it.variant}</strong> · ${it.exercises.length} exercises</p><a class="btn primary" href="#/move/session/${it.variant}">Start session</a>`;
@@ -3791,6 +3851,11 @@ function overview(state) {
         }
         return `<p><strong>${esc(CARDIO[it.mode].label)}</strong> · ${it.minutes} min</p><p class="muted" style="font-size:.88rem">${esc(CARDIO[it.mode].how)}</p>`;
       }).join('')}</div>
+      <div class="card"><h2>This week</h2>
+        <div class="macro"><span>Cardio</span>${progressBar(done.cardio, cardioMin, { label: 'Cardio minutes' })}<span>${done.cardio}/${cardioMin} min</span></div>
+        <div class="macro"><span>Strength</span>${progressBar(done.strength, strengthPlanned, { label: 'Strength sessions' })}<span>${done.strength}/${strengthPlanned}</span></div>
+        <p class="muted" style="font-size:.86rem;margin-top:8px">Target grows ~10% a week toward 150+ min.${activityMin ? ` Your regular activities cover about ${activityMin} min of it${strengthFromActivities ? ` and ${strengthFromActivities} strength session${strengthFromActivities > 1 ? 's' : ''}` : ''}.` : ''} Daily steps goal: ${fmtNum(goal)}.</p>
+      </div>
     </div>
     <div class="card"><h2>Week plan</h2><div class="week">${grid.join('')}</div>
       <p class="muted" style="font-size:.84rem;margin:8px 0 0">One main thing per day: your own activities, a strength session or a cardio session.</p></div>
@@ -4072,7 +4137,7 @@ const { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } = __req(5)
 const { FOODS } = __req(3);
 const { habitById, streak } = __req(14);
 const { stepGoal } = __req(7);
-const { round, weekStart, isoDate } = __req(0);
+const { round, weekStart, isoDate, addDays } = __req(0);
 
 const SLOT_ICON = { breakfast: 'today', lunch: 'meals', dinner: 'meals', snack: 'star', snack2: 'star', snack3: 'star' };
 const slotIcon = (slot) => SLOT_ICON[slot] || 'meals';
@@ -4155,7 +4220,13 @@ function openMeal(ctx, date, slot) {
 }
 
 // ---------- Weigh-in ----------
-function weighSheetHtml(state) {
+function dateChips(name = 'date') {
+  const t = store.today();
+  const opts = [[t, 'Today'], [addDays(t, -1), 'Yesterday'], [addDays(t, -2), new Date(addDays(t, -2) + 'T12:00').toLocaleDateString(undefined, { weekday: 'long' })]];
+  return `<div class="segmented" role="radiogroup" aria-label="Date" style="margin:4px 0 6px">${opts.map(([v, l], i) => `<label><input type="radio" name="${name}" value="${v}" ${i === 0 ? 'checked' : ''}><span>${esc(l)}</span></label>`).join('')}</div>`;
+}
+
+function weighSheetHtml(state, withDate = false) {
   const u = units(state);
   const date = store.today();
   const todays = state.weights.find((w) => w.date === date);
@@ -4165,6 +4236,7 @@ function weighSheetHtml(state) {
   return `<div class="sheet-head"><div><div class="over">Weigh-in</div><h2>${todays ? 'Update today’s weight' : 'Today’s weight'}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
     <p class="muted" style="margin:0">Same time each morning, after the bathroom. Daily numbers bounce with water — the trend is what counts.</p>
     <form data-form="sheetWeigh">
+      ${withDate ? dateChips() : ''}
       <div class="stepper">
         <button type="button" data-action="sheetStep" data-d="${-step}" aria-label="Decrease">−</button>
         <div class="val"><input name="w" type="number" inputmode="decimal" step="${step}" value="${v}" aria-label="Weight in ${u === 'imperial' ? 'pounds' : 'kilograms'}"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div>
@@ -4300,7 +4372,30 @@ const sheetActions = {
     ctx.toast(`Swapped for ${byId(meals.find((m) => m.slot === slot).recipeId).name}`, { action: { label: 'Undo', run: () => (ctx.set(prev, { quiet: true }), closeSheet()) } });
   },
   openWeigh(el, ev, ctx) {
-    openSheet(weighSheetHtml(ctx.state), { label: 'Weigh-in' });
+    openSheet(weighSheetHtml(ctx.state, el.dataset.pickDate === '1'), { label: 'Weigh-in' });
+  },
+  openWaist(el, ev, ctx) {
+    const u = units(ctx.state);
+    const last = (ctx.state.waist || []).slice(-1)[0]?.cm ?? 100;
+    const v = u === 'imperial' ? round(last / 2.54, 0.5) : round(last, 0.5);
+    openSheet(`<div class="sheet-head"><div><div class="over">Waist</div><h2>Waist measurement</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+      <p class="muted" style="margin:0">Around your middle, level with your belly button, breathing out.</p>
+      <form data-form="sheetWaist"><div class="stepper"><button type="button" data-action="sheetStep" data-d="-0.5" aria-label="Decrease">−</button>
+        <div class="val"><input name="v" type="number" inputmode="decimal" step="0.5" value="${v.toFixed(1)}" aria-label="Waist"><span class="unit">${u === 'imperial' ? 'in' : 'cm'}</span></div>
+        <button type="button" data-action="sheetStep" data-d="0.5" aria-label="Increase">+</button></div>
+        <button class="btn primary large block" style="margin-top:14px">Save</button></form>`, { label: 'Waist' });
+  },
+  sheetWaist(form, ev, ctx, data) {
+    const u = units(ctx.state);
+    const v = Number(data.v);
+    if (!(v > 20)) return;
+    const cm = u === 'imperial' ? round(v * 2.54, 0.5) : v;
+    const date = store.today();
+    closeSheet();
+    ctx.undoable('Waist saved', (st) => {
+      st.waist = (st.waist || []).filter((w) => w.date !== date).concat({ date, cm });
+      return st;
+    });
   },
   sheetStep(el) {
     const input = el.closest('form').querySelector('input[type=number]');
@@ -4317,7 +4412,7 @@ const sheetActions = {
     const u = units(ctx.state);
     const kg = toKg(Number(data.w), u);
     if (!(kg > 30 && kg < 400)) return ctx.toast('That number looks off — please check it.');
-    const date = store.today();
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
     const prevTrend = store.trendWeight(ctx.state);
     closeSheet();
     ctx.undoable(Math.abs(kg - prevTrend) > 8 ? 'Saved — that’s a big jump; double-check the units.' : 'Weigh-in saved', (st) => {
@@ -4397,6 +4492,7 @@ const { byId, scaledNutrition } = __req(5);
 const { habitById, streak } = __req(14);
 const { stepGoal } = __req(7);
 const { CARDIO } = __req(6);
+const { daysBetween } = __req(0);
 const { itemDone, logPlannedActivity } = __req(18);
 const { slotIcon, toggleHabit, mealRows } = __req(20);
 
@@ -4427,7 +4523,7 @@ function hero(state) {
           <a class="pill-stat" href="#/rewards">Level ${g.level}</a>
         </div></div>
     </div>
-    <div class="scroll-x quest-chips" role="list">${g.quests.map((q) => `<a role="listitem" class="qchip ${q.done ? 'done' : ''}" href="${q.href}"><span class="dot">${q.done ? icon('check') : ''}</span>${esc(q.label)}${q.total > 1 && !q.done ? ` <span class="num" style="opacity:.7">${q.progress}/${q.total}</span>` : ''}</a>`).join('')}</div>
+    <div class="quest-grid" role="list">${g.quests.map((q) => `<a role="listitem" class="qchip ${q.done ? 'done' : ''}" href="${q.href}"><span class="dot">${q.done ? icon('check') : ''}</span>${esc(q.label)}${q.total > 1 && !q.done ? ` <span class="num" style="opacity:.7">${q.progress}/${q.total}</span>` : ''}</a>`).join('')}</div>
   </section>`;
 }
 
@@ -4509,14 +4605,14 @@ function movement(state, date) {
   const rows = items.map((it) => {
     const done = itemDone(logged, it);
     if (it.kind === 'rest') return `<li><div class="lrow"><span class="slot-ico">${icon('move')}</span><div class="body"><div class="title">Rest day</div><div class="sub">A relaxed walk still counts</div></div></div></li>`;
-    const doneTag = '<span class="tag" style="background:var(--accent-soft);color:var(--accent)">Done</span>';
+    const doneTag = `<span class="check on" style="width:30px;height:30px;animation:none" aria-label="Done">${icon('check')}</span>`;
     if (it.kind === 'strength') return `<li><a class="lrow" href="#/move/session/${it.variant}" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('move')}</span><div class="body"><div class="title">Strength session ${it.variant}</div><div class="sub">${it.exercises.length} exercises · ~${it.minutes} min</div></div><span class="trail">${done ? doneTag : `<span class="btn small primary">Start</span>`}</span></a></li>`;
     if (it.kind === 'activity') return `<li><div class="lrow"><span class="slot-ico" style="background:var(--warm-soft);color:color-mix(in srgb,var(--warm) 80%,var(--ink))">${icon('flame')}</span><div class="body"><div class="title">${esc(it.name)}</div><div class="sub">${it.minutes} min · your activity</div></div><span class="trail">${done ? doneTag : `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`}</span></div></li>`;
     return `<li><div class="lrow"><span class="slot-ico" style="background:var(--info-soft);color:var(--info)">${icon('move')}</span><div class="body"><div class="title">${esc(CARDIO[it.mode].label)}</div><div class="sub">${it.minutes} min · chatty pace</div></div><span class="trail">${done ? doneTag : `<button class="btn small primary" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}">Done</button>`}</span></div></li>`;
   }).join('');
   const pct = Math.min(100, (steps / goal) * 100);
   const stepsRow = `<li><button class="lrow" data-action="openSteps"><span class="slot-ico">${icon('progress')}</span><span class="body"><span class="title">${steps ? `${fmtNum(steps)} steps` : 'Add today’s steps'}</span><span class="meter" style="display:block;height:6px;margin:6px 0 0"><span style="width:${pct.toFixed(1)}%"></span></span><span class="sub" style="display:block">Goal ${fmtNum(goal)}</span></span><span class="trail">${icon('chevron')}</span></button></li>`;
-  const weighRow = hide ? '' : `<li><button class="lrow" data-action="openWeigh"><span class="slot-ico">${icon('scale')}</span><span class="body"><span class="title">${todays ? `Weighed in · ${fmtWeight(todays.kg, u)}` : 'Weigh in'}</span><span class="sub" style="display:block">Trend ${fmtWeight(trend, u)}${Math.abs(state.profile.startWeightKg - trend) >= 0.1 ? ` · ${fmtDelta(trend - state.profile.startWeightKg, u)} since start` : ''}</span></span><span class="trail">${todays ? '<span class="tag" style="background:var(--accent-soft);color:var(--accent)">Done</span>' : icon('chevron')}</span></button></li>`;
+  const weighRow = hide ? '' : `<li><button class="lrow" data-action="openWeigh"><span class="slot-ico">${icon('scale')}</span><span class="body"><span class="title">${todays ? `Weighed in · ${fmtWeight(todays.kg, u)}` : 'Weigh in'}</span><span class="sub" style="display:block">Trend ${fmtWeight(trend, u)}${Math.abs(state.profile.startWeightKg - trend) >= 0.1 ? ` · ${fmtDelta(trend - state.profile.startWeightKg, u)} since start` : ''}</span></span><span class="trail">${todays ? `<span class="check on" style="width:30px;height:30px;animation:none" aria-label="Done">${icon('check')}</span>` : icon('chevron')}</span></button></li>`;
   return `<div class="section-head"><h2>Movement & body</h2><a href="#/move">This week</a></div><div class="card tight"><ul class="rows">${rows}${stepsRow}${weighRow}</ul></div>`;
 }
 
@@ -4538,8 +4634,11 @@ function firstWeek(state, date) {
 
 function banners(state, date) {
   const out = [safetyNotices(state)];
-  if (state.profile.demo) out.push(`<div class="notice info">${icon('info')}<div class="grow">You’re exploring <strong>demo data</strong>.</div><button class="btn small" data-action="endDemo">Start my own plan</button></div>`);
-  if (checkinDue(state, date)) out.push(`<a class="notice ok" href="#/checkin" style="text-decoration:none">${icon('calendar')}<div class="grow"><strong>Weekly check-in is ready</strong> · two minutes to tune your plan</div>${icon('chevron')}</a>`);
+  if (state.profile.demo) out.push(`<div class="notice info" style="align-items:center;padding:8px 8px 8px 14px">${icon('info')}<div class="grow">Exploring demo data</div><button class="btn small" data-action="endDemo">Start my own</button></div>`);
+  const last = state.checkins.length ? state.checkins[state.checkins.length - 1].date : state.profile.startDate;
+  const overdue = daysBetween(last, date) >= 9;
+  const checkinDay = (new Date(date + 'T12:00').getDay() + 6) % 7 === Number(state.reminders?.checkinDay ?? 6);
+  if (checkinDue(state, date) && (overdue || checkinDay) && !nextUp(state, date).includes('Weekly check-in')) out.push(`<a class="notice ok" href="#/checkin" style="text-decoration:none;align-items:center">${icon('calendar')}<div class="grow"><strong>Weekly check-in</strong> · two minutes, +50 XP</div>${icon('chevron')}</a>`);
   if (state.dietBreakUntil && date <= state.dietBreakUntil) out.push(`<div class="notice info">${icon('info')}<div>Planned maintenance phase until ${fmtDate(state.dietBreakUntil)}: calories are at your estimated needs.</div></div>`);
   const calc = state.calcWeightKg ?? state.profile.weightKg;
   const trend = store.trendWeight(state);
@@ -4553,7 +4652,7 @@ __m.default = {
     return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${greeting()}</h1></div></header>
       ${banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${hero(state)}${nextUp(state, date)}</div>
+        <div class="tg-hero">${nextUp(state, date)}${hero(state)}</div>
         <div class="tg-food">${food(state, date)}</div>
         <div class="tg-rest">${habits(state, date)}${movement(state, date)}${firstWeek(state, date)}</div>
       </div>`;
@@ -4657,7 +4756,7 @@ __m.default = {
       return `<a href="#/meals/${i}" class="${i === di ? 'on' : ''} ${dd === date ? 'today' : ''}">${d}<b>${Number(dd.slice(8))}</b></a>`;
     }).join('');
     const totals = dayTotals(meals);
-    return html`<header class="page-head"><div><div class="eyebrow">This week</div><h1>Meal plan</h1></div><a class="btn tonal" href="#/shopping">${icon('cart')}Shopping list</a></header>
+    return html`<header class="page-head"><div><div class="eyebrow">This week</div><h1>Meal plan</h1></div><a class="btn tonal small" href="#/shopping" aria-label="Shopping list">${icon('cart')}List</a></header>
       <nav class="scroll-x daytabs" aria-label="Days">${tabs}</nav>
       ${canLog && dayDate < date && !dayComplete(state, dayDate) ? `<div class="notice info">${icon('info')}<div>Forgot to log this day? Tick what you ate — complete days help the app learn your real energy needs.</div></div>` : ''}
       <div class="section-head"><h2>${fmtDate(dayDate, { weekday: 'long', day: 'numeric', month: 'short' })}</h2>${showNumbers ? `<span class="meta">${fmtNum(totals.kcal, 10)} kcal · ${Math.round(totals.p)} g protein · ${Math.round(totals.fib)} g fibre</span>` : ''}</div>
@@ -4960,7 +5059,8 @@ __m.default = {
     const full = state.habits.active.length >= MAX_ACTIVE;
     const suggested = suggestNext(activeIds.concat(state.habits.retired.map((r) => r.id)), state.profile).slice(0, 3);
     const hideNumbers = store.habitsOnly(state);
-    const library = HABITS.filter((h) => (filter === 'all' || h.cat === filter) && !activeIds.includes(h.id) && !(hideNumbers && (h.id === 'weigh_daily' || h.id === 'log_meals')));
+    const retiredIds = state.habits.retired.map((r) => r.id);
+    const library = HABITS.filter((h) => (filter === 'all' || h.cat === filter) && !activeIds.includes(h.id) && !retiredIds.includes(h.id) && !(hideNumbers && (h.id === 'weigh_daily' || h.id === 'log_meals')));
     const names = Object.fromEntries(HABITS.map((h) => [h.id, h.title]));
     const log = state.habits.log[date] || {};
     const rows = active.map((a) => {
@@ -4971,18 +5071,18 @@ __m.default = {
       return `<li><div class="lrow ${on ? 'done' : ''}">
         <button class="check ${on ? 'on' : ''}" data-action="toggle" data-id="${a.id}" aria-pressed="${on}" aria-label="${esc(h.title)} done today">${icon('check')}</button>
         <button class="body row-btn" data-action="manage" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">After ${esc(a.cue.replace(/^after\s+/i, ''))}</div>
-          <span class="meter" style="display:block;height:5px;margin:8px 0 2px"><span style="width:${Math.min(100, (days / 66) * 100).toFixed(1)}%"></span></span><span class="sub" style="display:block;font-size:var(--text-xs)">Day ${days} of ~66${isEstablished(a, state.habits.log, date) ? ' · sticking' : ''}</span></button>
-        <span class="trail">${st ? `<span class="pill-stat streak" style="padding:3px 8px">${icon('flame')}${st}</span>` : ''}</span></div></li>`;
+          ${days > 66 ? `<span class="sub" style="display:block;color:var(--accent);font-weight:650;margin-top:4px">Habit formed ✓ · ${st}-day streak</span>` : `<span class="meter" style="display:block;height:5px;margin:8px 0 2px"><span style="width:${Math.min(100, (days / 66) * 100).toFixed(1)}%"></span></span><span class="sub" style="display:block;font-size:var(--text-xs)">Day ${days} of ~66 · ${st}-day streak</span>`}</button></div></li>`;
     }).join('');
     const libRows = library.map((h) => `<li><div class="lrow"><span class="body"><span class="title" style="display:block">${esc(h.title)}${suggested.includes(h.id) ? ' <span class="tag" style="background:var(--accent-soft);color:var(--accent);vertical-align:2px">suggested</span>' : ''}</span><span class="sub" style="display:block">${esc(h.cue)} · <a href="#/learn/${esc(h.ev)}">evidence</a></span></span>
       <button class="btn small ${full ? '' : 'tonal'}" data-action="add" data-id="${h.id}" ${full ? 'disabled' : ''} aria-label="Add ${esc(h.title)}">${icon('plus')}Add</button></div></li>`).join('');
+    const libraryBlock = () => `<div class="scroll-x" style="margin-bottom:10px">${[['all', 'All'], ...Object.entries(HABIT_CATEGORIES)].map(([k, l]) => `<button type="button" class="qchip ${filter === k ? 'done' : ''}" style="padding-left:12px" data-action="filter" data-value="${k}" aria-pressed="${filter === k}">${esc(l)}</button>`).join('')}</div>
+      <div class="card tight" style="${full ? 'box-shadow:none;margin:0' : ''}"><ul class="rows">${libRows || '<li class="empty-state">Nothing else in this category.</li>'}</ul></div>`;
     return `<header class="page-head"><div><div class="eyebrow">${state.habits.active.length} of ${MAX_ACTIVE} active</div><h1>Habits</h1></div></header>
       <p class="muted" style="margin:-8px 0 14px">Small actions tied to something you already do. One missed day doesn’t matter — just don’t miss twice.</p>
       ${active.length ? `<div class="card tight"><ul class="rows">${rows}</ul></div>` : `<div class="card empty-state">${icon('habits')}<strong>No active habits</strong>Pick one small habit from the library below.</div>`}
       ${active.length ? `<div class="section-head"><h2>Last 4 weeks</h2></div><div class="card">${habitGrid(active.map((a) => a.id), state.habits.log, date, 28, names)}</div>` : ''}
-      <div class="section-head"><h2>Add a habit</h2><span class="meta">${full ? 'Graduate or stop one to add more' : active.length && !allEstablished ? 'Tip: add one when the current ones feel easy' : 'Start with one or two'}</span></div>
-      <div class="scroll-x" style="margin-bottom:10px">${[['all', 'All'], ...Object.entries(HABIT_CATEGORIES)].map(([k, l]) => `<button type="button" class="qchip ${filter === k ? 'done' : ''}" style="padding-left:12px" data-action="filter" data-value="${k}" aria-pressed="${filter === k}">${esc(l)}</button>`).join('')}</div>
-      <div class="card tight"><ul class="rows">${libRows || '<li class="empty-state">Nothing else in this category.</li>'}</ul></div>
+      ${full ? `<details class="card" style="margin-top:22px"><summary class="row nowrap" style="cursor:pointer;list-style:none"><span class="slot-ico">${icon('plus')}</span><span class="grow"><strong>Browse habits (${library.length})</strong><span style="display:block;font-size:var(--text-sm);color:var(--ink-3)">All 3 slots are in use — graduate or stop one to add another</span></span>${icon('chevron')}</summary><div style="margin-top:12px">${libraryBlock()}</div></details>`
+        : `<div class="section-head"><h2>Add a habit</h2><span class="meta">${active.length && !allEstablished ? 'Add one when the current ones feel easy' : 'Start with one or two'}</span></div>${libraryBlock()}`}
       ${state.habits.retired.length ? `<div class="section-head"><h2>Graduated</h2><span class="meta">part of your routine now</span></div><div class="card tight"><ul class="rows">${state.habits.retired.map((r) => `<li><div class="lrow"><span class="check on" aria-hidden="true">${icon('check')}</span><span class="body"><span class="title" style="display:block">${esc(names[r.id])}</span><span class="sub" style="display:block">Automatic since ${esc(r.date)}</span></span></div></li>`).join('')}</ul></div>` : ''}`;
   },
   actions: {
@@ -5077,6 +5177,7 @@ __m.default = {
     const rate = weeklyRate(state.weights, date, 21);
     const ms = milestones(start);
     const conv = (kg) => weightNum(kg, u);
+    const narrow = typeof window !== 'undefined' && window.innerWidth < 600;
 
     // Activity minutes per week (last 8 weeks)
     const wk = weekStart(date);
@@ -5094,11 +5195,11 @@ __m.default = {
         <div class="stat"><span class="v">${fmtWeight(trend, u)}</span><span class="l">trend weight</span></div>
         <div class="stat"><span class="v">${fmtDelta(-lost, u)}</span><span class="l">since ${fmtDate(p.startDate, { day: 'numeric', month: 'short' })}</span></div>
         <div class="stat"><span class="v">${pct >= 0 ? pct.toFixed(1) : '0.0'}%</span><span class="l">of starting weight</span></div>
-        <div class="stat"><span class="v">${rate == null ? '–' : `${fmtDelta(rate, u, 2)}`}</span><span class="l">per week (last 3 weeks)</span></div>
+        <div class="stat"><span class="v">${rate == null ? '–' : Math.abs(rate) < 0.05 ? 'Steady' : `${rate < 0 ? 'Down' : 'Up'} ${fmtWeight(Math.abs(rate), u, 2)}`}</span><span class="l">${rate == null ? 'need more weigh-ins' : 'a week, last 3 weeks'}</span></div>
       </div>
       <div class="card">
         <div class="card-head"><h2>Weight trend</h2><div class="segmented">${[['4w', '4 weeks'], ['12w', '12 weeks'], ['all', 'All']].map(([k, l]) => `<button type="button" class="${range === k ? 'on' : ''}" data-action="range" data-value="${k}">${l}</button>`).join('')}</div></div>
-        ${weightChart(shown, { goal: p.phase === 'maintain' ? null : p.goalWeightKg, band: p.phase === 'maintain' && state.maintainKg ? { lo: state.maintainKg - 2, hi: state.maintainKg + 2 } : null, milestones: p.phase === 'maintain' ? [] : ms, conv, unitLabel: u === 'imperial' ? 'lb' : 'kg' })}
+        ${weightChart(shown, { width: narrow ? 360 : 640, height: narrow ? 230 : 240, goal: p.phase === 'maintain' ? null : p.goalWeightKg, band: p.phase === 'maintain' && state.maintainKg ? { lo: state.maintainKg - 2, hi: state.maintainKg + 2 } : null, milestones: p.phase === 'maintain' ? [] : ms, conv, unitLabel: u === 'imperial' ? 'lb' : 'kg' })}
         ${p.phase === 'maintain' && state.maintainKg ? `<p style="font-size:.9rem;margin-top:6px"><strong>Maintenance:</strong> keep your trend between ${fmtWeight(state.maintainKg - 2, u)} and ${fmtWeight(state.maintainKg + 2, u)}. If it drifts above, the check-in starts a short reset plan.</p>` : ''}
         <p class="muted" style="font-size:.85rem;margin-top:6px">Dots are daily weigh-ins; the line is your smoothed trend. Water, salt, hormones and digestion move daily weight by 1–2 kg — the line shows what’s really happening.</p>
       </div>
@@ -5110,7 +5211,7 @@ __m.default = {
         ${p.goalWeightKg ? `<li><strong>Your goal: ${fmtWeight(p.goalWeightKg, u)}</strong> <span class="muted">— BMI ${bmi(p.goalWeightKg, p.heightCm).toFixed(1)}</span></li>` : ''}
       </ul><p class="muted" style="font-size:.85rem">Current BMI ${bmi(trend, p.heightCm).toFixed(1)} (${bmiCategory(bmi(trend, p.heightCm))}). BMI is a rough screening number — waist size, blood tests and how you feel matter too.</p></div>`;
 
-    return html`<header class="page-head"><div><div class="eyebrow">Since ${fmtDate(p.startDate, { day: 'numeric', month: 'short' })}</div><h1>Progress</h1></div><a class="btn tonal small" href="#/rewards">${icon('star')}Rewards</a></header>
+    return html`<header class="page-head"><div><div class="eyebrow">Since ${fmtDate(p.startDate, { day: 'numeric', month: 'short' })}</div><h1>Progress</h1></div></header>
       ${weightSection}
       <div class="grid two">
         <div class="card"><h2>Consistency (last 28 days)</h2>
@@ -5119,17 +5220,13 @@ __m.default = {
             <div class="stat"><span class="v">${loggedDays}</span><span class="l">days with meals logged</span></div>
           </div>
           <p class="muted" style="font-size:.86rem;margin-top:8px">Logging often — even roughly — is one of the strongest predictors of success. These numbers matter more than the scale.</p></div>
-        <div class="card"><h2>Active minutes per week</h2>${barChart(mins, { target: 150, unit: ' min' })}</div>
+        <div class="card"><h2>Active minutes per week</h2>${barChart(mins, { target: 150, unit: ' min', width: narrow ? 360 : 640, height: narrow ? 190 : 180 })}</div>
       </div>
       ${hide ? '' : `<div class="grid two">
-        <div class="card"><h2>Weigh-ins</h2>
-          <form data-form="addWeight" class="row"><input type="date" name="date" value="${date}" max="${date}" required style="width:160px" aria-label="Date"><div class="inline-inputs grow"><input type="number" name="w" step="0.1" inputmode="decimal" required placeholder="weight" aria-label="Weight"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div><button class="btn small primary">Add</button></form>
-          <table class="simple" style="margin-top:10px"><tr><th>Date</th><th class="right">Weight</th><th class="right">Trend</th><th></th></tr>
-          ${series.filter((s) => s.kg != null).slice(-12).reverse().map((s) => `<tr><td>${fmtDate(s.date)}</td><td class="right">${fmtWeight(s.kg, u)}</td><td class="right muted">${fmtWeight(s.trend, u)}</td><td class="right"><button class="btn small ghost" data-action="delWeight" data-date="${s.date}" aria-label="Delete">${icon('trash')}</button></td></tr>`).join('')}
-          </table></div>
-        <div class="card"><h2>Waist</h2><p class="muted" style="font-size:.88rem">Measure around your middle, level with your belly button, breathing out. Often drops even when the scale stalls.</p>
-          <form data-form="addWaist" class="row"><div class="inline-inputs grow"><input type="number" name="v" step="0.5" inputmode="decimal" required aria-label="Waist"><span class="unit">${u === 'imperial' ? 'in' : 'cm'}</span></div><button class="btn small primary">Add</button></form>
-          <table class="simple" style="margin-top:10px">${(state.waist || []).slice(-8).reverse().map((w) => `<tr><td>${fmtDate(w.date)}</td><td class="right">${u === 'imperial' ? `${round(cmToIn(w.cm), 0.5)} in` : `${w.cm} cm`}</td></tr>`).join('')}</table></div>
+        <div class="card"><div class="card-head"><h2>Weigh-ins</h2><button class="btn small tonal" data-action="openWeigh" data-pick-date="1">${icon('plus')}Add</button></div>
+          ${weighTable(series.filter((s) => s.kg != null).reverse(), u)}</div>
+        <div class="card"><div class="card-head"><h2>Waist</h2><button class="btn small tonal" data-action="openWaist">${icon('plus')}Add</button></div><p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Often drops even when the scale stalls.</p>
+          ${(state.waist || []).length ? `<table class="simple">${(state.waist || []).slice(-5).reverse().map((w) => `<tr><td>${fmtDate(w.date)}</td><td class="right num">${u === 'imperial' ? `${round(cmToIn(w.cm), 0.5)} in` : `${w.cm} cm`}</td></tr>`).join('')}</table>` : '<p class="muted" style="font-size:var(--text-sm)">No measurements yet.</p>'}</div>
       </div>`}
       <div class="card"><h2>Check-in history</h2>${state.checkins.length ? `<table class="simple"><tr><th>Date</th><th>Rate</th><th>Changes</th></tr>${state.checkins.slice().reverse().map((c) => `<tr><td>${fmtDate(c.date)}</td><td>${c.rate == null || hide ? '–' : fmtDelta(c.rate, u, 2) + '/wk'}</td><td style="font-size:.86rem">${esc(describe(c.applied, hide))}</td></tr>`).join('')}</table>` : '<p class="muted">Your weekly check-ins will appear here.</p>'}</div>`;
   },
@@ -5150,7 +5247,7 @@ __m.default = {
     },
     delWeight(el, ev, ctx) {
       if (ctx.state.weights.length <= 1) return ctx.toast('Keep at least one weigh-in.');
-      ctx.update((st) => {
+      ctx.undoable('Weigh-in deleted', (st) => {
         st.weights = st.weights.filter((w) => w.date !== el.dataset.date);
         return st;
       });
@@ -5168,6 +5265,13 @@ __m.default = {
     },
   },
 };
+
+function weighTable(rows, u) {
+  const row = (s) => `<tr><td>${fmtDate(s.date)}</td><td class="right num">${fmtWeight(s.kg, u)}</td><td class="right muted num">${fmtWeight(s.trend, u)}</td><td class="right" style="width:44px"><button class="icon-btn" data-action="delWeight" data-date="${s.date}" aria-label="Delete weigh-in on ${fmtDate(s.date)}">${icon('trash')}</button></td></tr>`;
+  if (!rows.length) return '<p class="muted">No weigh-ins yet.</p>';
+  return `<table class="simple"><tr><th>Date</th><th class="right">Weight</th><th class="right">Trend</th><th></th></tr>${rows.slice(0, 5).map(row).join('')}</table>
+    ${rows.length > 5 ? `<details><summary class="btn small ghost" style="list-style:none;margin-top:6px">Show all ${rows.length}</summary><table class="simple">${rows.slice(5).map(row).join('')}</table></details>` : ''}`;
+}
 
 function describe(applied = [], hide) {
   if (!applied.length) return 'No changes';
@@ -5476,10 +5580,15 @@ const { daysBetween, round } = __req(0);
 
 let review = null; // {answers, result}
 
-function scale(name, label, lo, hi, value = 3) {
-  return `<fieldset><legend>${esc(label)}</legend><div class="row" style="gap:6px;align-items:center"><span class="muted" style="font-size:.8rem;width:70px">${esc(lo)}</span>
-    <div class="segmented">${[1, 2, 3, 4, 5].map((v) => `<label style="padding:5px 10px;cursor:pointer;border-radius:999px"><input type="radio" name="${name}" value="${v}" ${v === value ? 'checked' : ''}> ${v}</label>`).join('')}</div>
-    <span class="muted" style="font-size:.8rem">${esc(hi)}</span></div></fieldset>`;
+function scale(name, label, lo, hi) {
+  return `<fieldset class="scale"><legend>${esc(label)}</legend>
+    <div class="scale-opts">${[1, 2, 3, 4, 5].map((v) => `<label><input type="radio" name="${name}" value="${v}" required><span>${v}</span></label>`).join('')}</div>
+    <div class="scale-ends"><span>${esc(lo)}</span><span>${esc(hi)}</span></div></fieldset>`;
+}
+
+function yesNo(name, label) {
+  return `<fieldset class="scale yn"><legend>${esc(label)}</legend><div class="scale-opts" style="grid-template-columns:1fr 1fr">
+    <label><input type="radio" name="${name}" value="no" required><span>No</span></label><label><input type="radio" name="${name}" value="yes" required><span>Yes</span></label></div></fieldset>`;
 }
 
 function edScreenDue(state, date) {
@@ -5496,17 +5605,20 @@ function form(state) {
     <p class="muted" style="margin:-8px 0 14px">Be honest — there are no wrong answers, and the plan only changes in small steps.</p>
     <form data-form="review" class="card">
       ${!hide && !weighedToday ? `<label class="field"><span>Today’s weight (optional)</span><div class="inline-inputs"><input type="number" name="w" step="0.1" inputmode="decimal"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div></label>` : ''}
-      ${scale('adherence', 'How closely did you follow the plan this week?', 'not at all', 'nearly always', 3)}
-      ${scale('hunger', 'How hungry have you felt?', 'rarely', 'very often', 3)}
-      ${scale('energy', 'Energy levels', 'exhausted', 'great', 3)}
-      ${scale('stress', 'Stress', 'calm', 'very stressed', 3)}
+      ${scale('adherence', 'How closely did you follow the plan this week?', 'Not at all', 'Nearly always')}
+      ${scale('hunger', 'How hungry have you felt?', 'Rarely', 'Very often')}
+      ${scale('energy', 'How has your energy been?', 'Exhausted', 'Great')}
+      ${scale('stress', 'How stressed have you felt?', 'Calm', 'Very stressed')}
       <div class="grid two">
         <label class="field"><span>Average sleep per night</span><div class="inline-inputs"><input type="number" name="sleepHours" min="2" max="14" step="0.5" value="7" inputmode="decimal"><span class="unit">hours</span></div></label>
         <label class="field"><span>Alcoholic drinks per day (average)</span><div class="inline-inputs"><input type="number" name="drinksPerDay" min="0" max="20" step="0.5" value="0" inputmode="decimal"><span class="unit">drinks</span></div></label>
       </div>
       <fieldset><legend>What got in the way? <span class="hint">Pick any — you’ll get a specific plan for each.</span></legend>${chips('barriers', Object.fromEntries(Object.entries(BARRIER_OPTIONS).map(([k, b]) => [k, b.label])), [])}</fieldset>
-      ${edScreenDue(state, date) ? `<fieldset><legend>Over the past few weeks, have you… <span class="hint">A routine monthly wellbeing check.</span></legend>${chips('edFlags', { binge: 'felt out of control while eating?', compensate: 'tried to make up for eating (vomiting, laxatives, over-exercising)?', worth: 'felt your weight decides your worth?' }, [])}</fieldset><input type="hidden" name="edScreened" value="1">` : ''}
-      <div class="action-bar"><span class="muted" style="font-size:var(--text-sm)">Two minutes · +50 XP</span><button class="btn primary">See my adjustments ${icon('chevron')}</button></div>
+      ${edScreenDue(state, date) ? `<div class="card flat" style="margin:6px 0 18px"><div class="eyebrow" style="margin-bottom:8px">Monthly wellbeing check · over the past few weeks, have you…</div>
+        ${yesNo('ed_binge', 'Felt out of control while eating?')}
+        ${yesNo('ed_compensate', 'Tried to make up for eating (vomiting, laxatives, over-exercising)?')}
+        ${yesNo('ed_worth', 'Felt your weight decides your worth?')}</div><input type="hidden" name="edScreened" value="1">` : ''}
+      <div class="action-bar"><span class="muted need-all" style="font-size:var(--text-sm)">Answer each question to continue</span><span class="muted all-done" style="font-size:var(--text-sm)">+50 XP</span><button class="btn primary">See my adjustments ${icon('chevron')}</button></div>
     </form>`;
 }
 
@@ -5569,7 +5681,7 @@ __m.default = {
         sleepHours: Number(data.sleepHours),
         drinksPerDay: Number(data.drinksPerDay),
         barriers: data.barriers || [],
-        edFlags: data.edFlags || [],
+        edFlags: ['binge', 'compensate', 'worth'].filter((k) => data['ed_' + k] === 'yes'),
         edScreened: !!data.edScreened,
       };
       review = { answers, result: weeklyReview(s, answers, date, { habitsOnly: store.habitsOnly(s) }) };
@@ -5865,8 +5977,9 @@ __m.default = {
     const cards = LEARN.filter((c) => section === 'all' || c.section === section);
     return html`${state.profile ? '' : '<a class="btn ghost small" href="#/start">' + icon('back') + 'Back</a>'}
       <header class="page-head"><div><div class="eyebrow">Learn</div><h1>The evidence</h1></div></header>
-      <p class="muted">Every feature in Habit Lab is based on guidelines, trials and reviews. Here’s what they say, in plain language, with links to the sources. The full research brief is in <code>RESEARCH.md</code> in the project.</p>
-      <div class="row" style="margin-bottom:14px;align-items:flex-start"><div class="segmented">${[['all', 'All'], ...LEARN_SECTIONS.map((s) => [s, s])].map(([k, l]) => `<button type="button" class="${section === k ? 'on' : ''}" data-action="section" data-value="${esc(k)}">${esc(l)}</button>`)}</div><button type="button" class="btn small" data-action="toggleAll">${openAll ? 'Collapse all' : 'Expand all'}</button></div>
+      <p class="muted">Every feature in Habit Lab is based on guidelines, trials and reviews. Here’s what they say, in plain language, with links to the sources.</p>
+      <div class="scroll-x" style="margin-bottom:12px">${[['all', 'All'], ...LEARN_SECTIONS.map((s) => [s, s])].map(([k, l]) => `<button type="button" class="qchip ${section === k ? 'done' : ''}" style="padding-left:12px" data-action="section" data-value="${esc(k)}" aria-pressed="${section === k}">${esc(l)}</button>`).join('')}</div>
+      <div class="row between" style="margin:0 2px 10px"><span class="muted" style="font-size:var(--text-sm)">${cards.length} topics</span><button type="button" class="btn small ghost" data-action="toggleAll">${openAll ? 'Collapse all' : 'Expand all'}</button></div>
       ${cards.map((c) => `<article class="card learn-card" id="learn-${c.id}" ${focus === c.id ? 'style="border-color:var(--accent)"' : ''}>
         <span class="tag">${esc(c.section)}</span>
         <h3 style="margin-top:6px">${esc(c.title)}</h3>
@@ -6058,34 +6171,33 @@ function remindersHtml(state) {
   const r = { ...DEFAULT_REMINDERS, ...(state.reminders || {}) };
   const p = notify.platform();
   const where = p === 'native'
-    ? 'Reminders are scheduled on your phone and arrive even when the app is closed.'
+    ? 'They arrive even when the app is closed, and skip anything you’ve already done.'
     : p === 'web'
-      ? 'In a browser, reminders only appear while Habit Lab is open. Install the Android app for reminders all day.'
-      : 'This browser doesn’t support notifications. Install the Android app for reminders.';
-  const time = (name, label, hint = '') => `<label class="field" style="margin:0"><span>${label}${hint ? ` <span class="hint">${hint}</span>` : ''}</span><input type="time" name="${name}" value="${esc(r[name])}"></label>`;
-  const tog = (name, label, hint) => `<label class="option"><input type="checkbox" name="${name}" value="1" ${r[name] ? 'checked' : ''}><div><strong>${label}</strong><small class="muted">${hint}</small></div></label>`;
-  return `<p class="muted" style="font-size:.9rem">Friendly, specific nudges through the day — skipped automatically once you’ve done the thing. ${esc(where)}</p>
-    <label class="option" style="margin-bottom:12px"><input type="checkbox" name="enabled" value="1" ${r.enabled ? 'checked' : ''}><div><strong>Turn on reminders</strong><small class="muted">You’ll be asked to allow notifications.</small></div></label>
-    <div class="grid two">
-      ${time('morning', 'Morning weigh-in & plan')}
-      ${time('move', 'Movement nudge', 'only on days with a session')}
-      ${time('breakfast', 'Log breakfast')}
-      ${time('lunch', 'Log lunch')}
-      ${time('dinner', 'Log dinner')}
-      ${time('evening', 'Evening wrap-up', 'only if quests are left')}
-      ${time('encourageAt', 'Encouragement')}
-      <div class="grid two" style="gap:8px">${time('checkinAt', 'Check-in reminder')}<label class="field" style="margin:0"><span>on</span><select name="checkinDay">${DAY_NAMES.map((d, i) => `<option value="${i}" ${Number(r.checkinDay) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label></div>
-    </div>
-    <div class="options" style="margin-top:12px">
-      ${tog('meals', 'Meal logging nudges', 'Breakfast, lunch and dinner — showing what’s planned.')}
-      ${tog('encourage', 'Daily encouragement', 'One short tip or pep talk each afternoon.')}
-      ${tog('checkin', 'Weekly check-in', 'A reminder on your chosen day.')}
-    </div>
-    <div class="row" style="margin-top:12px"><button class="btn primary">Save reminders</button><button type="button" class="btn" data-action="testNotify">Send a test</button>${reminderStatus ? `<span class="muted" style="font-size:.86rem">${esc(reminderStatus)}</span>` : ''}</div>`;
+      ? 'In a browser they only appear while Habit Lab is open — the Android app sends them all day.'
+      : 'This browser can’t show notifications. The Android app can.';
+  const row = (onKey, timeKey, title, sub) => `<li class="lrow" style="cursor:default;min-height:68px">
+      <label class="switch"><input type="checkbox" name="${onKey}" value="1" ${r[onKey] ? 'checked' : ''} aria-label="${esc(title)}"><span></span></label>
+      <span class="body"><span class="title" style="display:block">${esc(title)}</span><span class="sub" style="display:block">${esc(sub)}</span></span>
+      ${timeKey ? `<input type="time" name="${timeKey}" value="${esc(r[timeKey])}" aria-label="${esc(title)} time" style="width:auto;min-width:108px">` : ''}</li>`;
+  return `<div class="card" style="padding:14px 16px"><label class="row nowrap" style="gap:14px;cursor:pointer"><span class="grow"><strong style="display:block">Reminders & encouragement</strong><span class="muted" style="font-size:var(--text-sm)">${esc(where)}</span></span><span class="switch"><input type="checkbox" name="enabled" value="1" ${r.enabled ? 'checked' : ''} aria-label="Turn on reminders"><span></span></span></label></div>
+    <div class="card tight reminder-list"><ul class="rows">
+      ${row('morningOn', 'morning', 'Morning', 'Weigh-in and today’s plan')}
+      <li class="lrow" style="cursor:default;flex-wrap:wrap;row-gap:10px">
+        <label class="switch"><input type="checkbox" name="meals" value="1" ${r.meals ? 'checked' : ''} aria-label="Meal logging"><span></span></label>
+        <span class="body"><span class="title" style="display:block">Meal logging</span><span class="sub" style="display:block">Shows what’s planned for each meal</span></span>
+        <span class="meal-times">${[['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner']].map(([k, l]) => `<label><span>${l}</span><input type="time" name="${k}" value="${esc(r[k])}"></label>`).join('')}</span></li>
+      ${row('moveOn', 'move', 'Movement', 'Only on days with a session or activity')}
+      ${row('encourage', 'encourageAt', 'Encouragement', 'A short tip or pep talk')}
+      ${row('eveningOn', 'evening', 'Evening wrap-up', 'Only if quests are left')}
+      ${row('checkin', 'checkinAt', 'Weekly check-in', DAY_NAMES[Number(r.checkinDay)] + 's')}
+    </ul></div>
+    <label class="field"><span>Check-in day</span><select name="checkinDay">${DAY_NAMES.map((d, i) => `<option value="${i}" ${Number(r.checkinDay) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
+    <div class="action-bar"><button type="button" class="btn ghost" data-action="testNotify">Send a test</button><button class="btn primary">Save</button></div>
+    ${reminderStatus ? `<p class="muted" style="font-size:var(--text-sm)" role="status">${esc(reminderStatus)}</p>` : ''}`;
 }
 
 __m.default = {
-  render(state) {
+  render(state, params) {
     const p = state.profile;
     const pr = state.prefs;
     const u = p.units === 'imperial' ? 'imperial' : 'metric';
@@ -6098,7 +6210,17 @@ __m.default = {
     } catch (e) {
       /* ignore */
     }
-    return html`<header class="page-head"><div><div class="eyebrow">Habit Lab</div><h1>Settings</h1></div></header>
+    const section = params[0] || '';
+    const SECTIONS = [
+      ['profile', 'About you', 'Body, goal, pace, health', 'today'],
+      ['food', 'Food', 'Diet, allergies, foods to avoid', 'meals'],
+      ['movement', 'Movement', 'Equipment, joints, days', 'move'],
+      ['reminders', 'Reminders', state.reminders?.enabled ? 'On' : 'Off', 'calendar'],
+      ['appearance', 'Appearance & feedback', 'Theme, sounds, vibration', 'star'],
+      ['data', 'Your data', 'Backup, import, delete', 'info'],
+    ];
+    const head = (title, eyebrow = 'Settings') => `<header class="page-head"><div>${section ? `<a class="btn ghost small" href="#/settings" style="margin:0 0 6px -10px">${icon('back')}Settings</a>` : `<div class="eyebrow">${eyebrow}</div>`}<h1>${title}</h1></div></header>`;
+    if (section === 'profile') return head('About you') + `
       ${hide ? '' : `<div class="card"><h2>Your numbers</h2><div class="stats">
         <div class="stat"><span class="v">${t.kcal.toLocaleString()}</span><span class="l">kcal/day target</span></div>
         <div class="stat"><span class="v">${t.tdee.toLocaleString()}</span><span class="l">estimated needs (${t.tdeeSource === 'learned' ? 'learned' : 'formula'})</span></div>
@@ -6106,7 +6228,7 @@ __m.default = {
         <div class="stat"><span class="v">${t.fiberG} g</span><span class="l">fibre</span></div></div>
         <p class="muted" style="font-size:.86rem;margin-top:10px">Resting energy ${t.rmr} kcal × activity factor ${ACTIVITY_LEVELS[p.activity].factor}${state.tdeeOffset ? ` ${state.tdeeOffset > 0 ? '+' : '−'} ${Math.abs(state.tdeeOffset)} kcal learned from your data` : ''} − ${t.maintenance ? '0 (maintenance)' : `${PACES[p.pace]?.deficit ?? 500} kcal deficit`}${state.kcalAdjust ? ` ${state.kcalAdjust > 0 ? '+' : '−'} ${Math.abs(state.kcalAdjust)} from check-ins` : ''}${t.hitFloor ? `, held at the ${t.floor} kcal minimum` : ''}.</p></div>`}
 
-      <form data-form="profile" class="card"><h2>About you</h2>
+      <form data-form="profile" class="card">
         <div class="grid two">
           <label class="field"><span>Units</span><select name="units"><option value="metric" ${u === 'metric' ? 'selected' : ''}>kg / cm</option><option value="imperial" ${u === 'imperial' ? 'selected' : ''}>lb / ft</option></select></label>
           <label class="field"><span>Age</span><input type="number" name="age" value="${esc(p.age)}" min="18" max="100" required></label>
@@ -6119,10 +6241,11 @@ __m.default = {
         </div>
         <fieldset><legend>Health</legend>${chips('medical', { pregnant: 'Pregnant / breastfeeding', eating_disorder: 'Eating disorder (current/past)', diabetes_meds: 'Insulin / sulfonylureas', heart: 'Heart condition', kidney: 'Kidney disease', glp1: 'Weight-loss medicine' }, p.medical || [])}</fieldset>
         <label class="option" style="margin-bottom:12px"><input type="checkbox" name="habitsOnly" value="1" ${p.habitsOnly ? 'checked' : ''}><div><strong>Habits-only mode</strong><small class="muted">Hide calorie numbers and weighing; focus on regular meals, movement and wellbeing.</small></div></label>
-        <button class="btn primary">Save</button>
+        <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
       </form>
-
-      <form data-form="food" class="card"><h2>Food</h2>
+`;
+    if (section === 'food') return head('Food') + `
+      <form data-form="food" class="card">
         <fieldset><legend>Diet</legend>${chips('diet', Object.fromEntries(Object.entries(DIETS).map(([k, d]) => [k, d.label])), pr.diet, { multi: false })}</fieldset>
         <fieldset><legend>Allergies</legend>${chips('allergies', ALLERGENS, pr.allergies)}</fieldset>
         <details><summary style="cursor:pointer;font-weight:600;margin-bottom:8px">Foods to avoid (${(pr.dislikes || []).length})</summary>${chips('dislikes', DISLIKES, pr.dislikes)}</details>
@@ -6132,10 +6255,11 @@ __m.default = {
         </div>
         <label class="option"><input type="checkbox" name="noCookLunch" value="1" ${pr.noCookLunch ? 'checked' : ''}><div>Make-ahead or no-cook lunches only</div></label>
         <label class="option" style="margin-top:8px"><input type="checkbox" name="leftovers" value="1" ${pr.leftovers !== false ? 'checked' : ''}><div>Use dinner leftovers for some lunches</div></label>
-        <button class="btn primary" style="margin-top:12px">Save & rebuild plan</button>
+        <div class="action-bar"><span class="muted" style="font-size:var(--text-sm)">Rebuilds the rest of this week</span><button class="btn primary">Save</button></div>
       </form>
-
-      <form data-form="movement" class="card"><h2>Movement</h2>
+`;
+    if (section === 'movement') return head('Movement') + `
+      <form data-form="movement" class="card">
         <fieldset><legend>Equipment</legend>${chips('equipment', { bands: 'Resistance bands', dumbbells: 'Dumbbells', gym: 'Gym' }, p.equipment)}</fieldset>
         <fieldset><legend>Painful joints</legend>${chips('limitations', { knee: 'Knees', back: 'Lower back', shoulder: 'Shoulders', wrist: 'Wrists' }, p.limitations)}</fieldset>
         <fieldset><legend>Exercise days</legend>${chips('daysAvailable', DAYS, (p.daysAvailable || []).map(String))}</fieldset>
@@ -6144,27 +6268,47 @@ __m.default = {
           <label class="field"><span>Session length</span><select name="sessionMinutes">${[15, 20, 30, 45].map((m) => `<option value="${m}" ${Number(p.sessionMinutes) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></label>
           <label class="field"><span>Baseline daily steps</span><input type="number" name="baselineSteps" value="${esc(p.baselineSteps ?? '')}" min="0" max="40000" step="100"></label>
         </div>
-        <div class="row"><button class="btn primary">Save</button><button type="button" class="btn ghost danger" data-action="resetProgress">Reset exercise levels</button></div>
+        <button type="button" class="btn ghost small danger" data-action="resetProgress">Reset exercise levels</button>
+        <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
       </form>
-
-      <form data-form="reminders" class="card" id="reminders"><h2>Reminders & encouragement</h2>
+`;
+    if (section === 'reminders') return head('Reminders') + `
+      <form data-form="reminders" id="reminders">
         ${remindersHtml(state)}
       </form>
+`;
+    if (section === 'appearance') return head('Appearance & feedback') + `
+      <div class="card"><h3 style="margin-bottom:10px">Theme</h3><div class="segmented">${[['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" class="${theme === k ? 'on' : ''}" data-action="theme" data-value="${k}">${l}</button>`).join('')}</div></div>
 
-      <div class="card"><h2>Appearance</h2><div class="segmented">${[['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" class="${theme === k ? 'on' : ''}" data-action="theme" data-value="${k}">${l}</button>`).join('')}</div></div>
-
-      <div class="card"><h2>Your data</h2>
-        <p class="muted">Everything is stored only in this browser on this device. Nothing is uploaded. Export a backup to move to another device or keep a copy.</p>
+      <div class="card"><h3 style="margin-bottom:6px">Feedback</h3>
+        <label class="option"><input type="checkbox" data-change="gamePref" data-key="sound" ${state.game.sound ? 'checked' : ''}><div><strong>Sounds</strong><small class="muted">A short chime when you earn XP.</small></div></label>
+        <label class="option" style="margin-top:8px"><input type="checkbox" data-change="gamePref" data-key="haptics" ${state.game.haptics ? 'checked' : ''}><div><strong>Vibration</strong><small class="muted">A tiny buzz on supported phones.</small></div></label></div>`;
+    if (section === 'data') return head('Your data') + `
+      <div class="card" style="order:9"><h3 style="margin-bottom:4px">Delete all data</h3><p class="muted" style="font-size:var(--text-sm)">Removes everything from ${notify.platform() === 'native' ? 'this phone' : 'this browser'}. Export a backup first if you might want it back.</p><button class="btn ghost danger small" data-action="reset">${icon('trash')}Delete all data…</button></div>`.replace('style="order:9"', '') + `
+      <div class="card">
+        <p class="muted">${notify.platform() === 'native' ? 'Everything is stored only on this phone' : 'Everything is stored only in this browser on this device'}. Nothing is uploaded. Export a backup to move to another device or keep a copy.</p>
         <div class="row"><button class="btn" data-action="export">Export backup</button>
           <label class="btn">Import backup file<input type="file" accept="application/json,.json" data-change="importFile" hidden></label>
           <button class="btn" data-action="pasteMode">Paste a backup</button>
-          <button class="btn danger" data-action="reset">${icon('trash')}Delete everything</button></div>
+          </div>
         ${showBackup ? `<div style="margin-top:14px"><label class="field"><span>Your backup <span class="hint">If no file downloaded, copy this text and save it somewhere safe (a note or an email to yourself).</span></span><textarea id="backup-out" class="backup" readonly>${esc(store.exportJson(state))}</textarea></label><button class="btn small" data-action="copyBackup">Copy to clipboard</button></div>` : ''}
         ${pasteMode ? `<form data-form="pasteImport" style="margin-top:14px"><label class="field"><span>Paste backup text</span><textarea id="backup-in" name="text" class="backup" required></textarea></label><button class="btn primary small">Import</button></form>` : ''}
-      </div>
+      </div>`;
+    return head('Settings', 'Habit Lab') + `
+      <div class="card tight"><ul class="rows">${SECTIONS.map(([id, t, sub, ic]) => `<li><a class="lrow" href="#/settings/${id}" style="text-decoration:none"><span class="slot-ico">${icon(ic)}</span><span class="body"><span class="title" style="display:block">${t}</span><span class="sub" style="display:block">${esc(sub)}</span></span><span class="trail">${icon('chevron')}</span></a></li>`).join('')}</ul></div>
+      <div class="card tight"><ul class="rows">
+        <li><a class="lrow" href="#/learn" style="text-decoration:none"><span class="slot-ico">${icon('learn')}</span><span class="body"><span class="title" style="display:block">The evidence</span><span class="sub" style="display:block">The research behind every feature</span></span><span class="trail">${icon('chevron')}</span></a></li>
+        <li><a class="lrow" href="#/rewards" style="text-decoration:none"><span class="slot-ico">${icon('star')}</span><span class="body"><span class="title" style="display:block">Rewards</span><span class="sub" style="display:block">Level, badges and XP</span></span><span class="trail">${icon('chevron')}</span></a></li>
+      </ul></div>
       <p class="footer-note">Habit Lab${window.HABITLAB_VERSION ? ` ${esc(window.HABITLAB_VERSION)}` : ''} · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
   actions: {
+    gamePref(el, ev, ctx) {
+      ctx.update((st) => {
+        st.game = { ...st.game, [el.dataset.key]: el.checked };
+        return st;
+      }, { quiet: true });
+    },
     async reminders(form, ev, ctx, data) {
       const enabled = !!data.enabled;
       if (enabled && (await notify.permissionState()) !== 'granted') {
@@ -6178,7 +6322,7 @@ __m.default = {
       ctx.update((st) => {
         const r = { ...st.reminders, enabled };
         for (const k of ['morning', 'breakfast', 'lunch', 'dinner', 'move', 'evening', 'encourageAt', 'checkinAt']) if (data[k]) r[k] = data[k];
-        for (const k of ['meals', 'encourage', 'checkin']) r[k] = !!data[k];
+        for (const k of ['meals', 'encourage', 'checkin', 'morningOn', 'moveOn', 'eveningOn']) r[k] = !!data[k];
         r.checkinDay = Number(data.checkinDay);
         st.reminders = r;
         return st;
@@ -6420,6 +6564,12 @@ __m.default = {
       return { label: `${Number(w.slice(8))}/${Number(w.slice(5, 7))}`, value: x };
     });
     const recentDays = Object.keys(g.byDay).sort().reverse().slice(0, 5);
+    const sortedBadges = [...badgeList.filter((b) => earned.has(b.id)), ...badgeList.filter((b) => !earned.has(b.id))];
+    const badgeCard = (b) => {
+      const on = earned.has(b.id);
+      const when = state.game.badges[b.id];
+      return `<div class="badge-card ${on ? '' : 'locked'}" title="${esc(b.how)}"><div class="medal ${on ? '' : 'locked'}">${icon(b.icon)}</div><strong>${esc(b.name)}</strong><small>${on ? (when ? `Earned ${esc(fmtDate(when, { day: 'numeric', month: 'short' }))}` : 'Earned') : esc(b.how)}</small></div>`;
+    };
     return html`<header class="page-head"><div><div class="eyebrow">Level ${g.level} · ${esc(g.title)}</div><h1>Rewards</h1></div></header>
       <p class="muted">Points for showing up — logging, moving, habits and check-ins. You never earn points for eating less or for the number on the scale: consistency is what changes weight in the long run.</p>
       <div class="card"><div class="level-hero">
@@ -6437,19 +6587,18 @@ __m.default = {
 
       <div class="card"><div class="card-head"><h2>Today’s quests</h2><span class="muted" style="font-size:.86rem">All done = perfect day, +${XP.perfectDay} XP</span></div>${questsHtml(g)}</div>
 
-      <div class="card"><div class="card-head"><h2>Badges</h2><span class="muted" style="font-size:.86rem">${badgeList.filter((b) => earned.has(b.id)).length} of ${badgeList.length}</span></div>
-        <div class="badges">${badgeList.map((b) => {
-          const on = earned.has(b.id);
-          const when = state.game.badges[b.id];
-          return `<div class="badge-card ${on ? '' : 'locked'}" title="${esc(b.how)}"><div class="medal ${on ? '' : 'locked'}">${icon(b.icon)}</div><strong>${esc(b.name)}</strong><small>${on ? (when ? `Earned ${esc(fmtDate(when, { day: 'numeric', month: 'short' }))}` : 'Earned') : esc(b.how)}</small></div>`;
-        }).join('')}</div></div>
-
-      <div class="grid two">
-        <div class="card"><h2>XP per week</h2>${barChart(weeks, { unit: ' XP' })}</div>
-        <div class="card"><h2>Recent</h2>${recentDays.length ? recentDays.map((d) => `<h3 style="font-size:.9rem;margin:10px 0 2px">${esc(fmtDate(d))} <span class="muted" style="font-weight:400">· ${g.byDay[d].xp} XP</span></h3><ul class="list feed">${summarise(g.byDay[d].awards).map((a) => `<li><span>${esc(a.label)}</span><span class="xp ${a.lucky ? 'lucky' : ''}">+${a.xp}</span></li>`).join('')}</ul>`).join('') : '<p class="muted">Tick off a meal or a habit to earn your first XP.</p>'}</div>
+      <div class="section-head"><h2>Badges</h2><span class="meta">${badgeList.filter((b) => earned.has(b.id)).length} of ${badgeList.length} earned</span></div>
+      <div class="card">
+        <div class="badges">${sortedBadges.slice(0, 6).map(badgeCard).join('')}</div>
+        <details style="margin-top:12px"><summary class="btn small ghost" style="list-style:none">See all ${badgeList.length} badges</summary><div class="badges" style="margin-top:10px">${sortedBadges.slice(6).map(badgeCard).join('')}</div></details>
       </div>
 
-      <div class="card"><h2>How to earn XP</h2>
+      <div class="grid two">
+        <div class="card"><h2>XP per week</h2>${barChart(weeks, { unit: ' XP', width: window.innerWidth < 600 ? 360 : 640, height: 190 })}</div>
+        <div class="card"><h2>Recent</h2>${recentDays.length ? recentDays.map((d, i) => `<details ${i === 0 ? 'open' : ''} style="border-top:${i ? '1px solid var(--line)' : '0'};padding:8px 0"><summary class="row between nowrap" style="cursor:pointer;list-style:none"><strong style="font-size:var(--text-md)">${esc(fmtDate(d))}</strong><span class="xp" style="font-weight:750;color:var(--accent)">+${g.byDay[d].xp} XP</span></summary><ul class="list feed" style="margin-top:4px">${summarise(g.byDay[d].awards).map((a) => `<li><span>${esc(a.label)}</span><span class="xp ${a.lucky ? 'lucky' : ''}">+${a.xp}</span></li>`).join('')}</ul></details>`).join('') : '<p class="muted">Tick off a meal or a habit to earn your first XP.</p>'}</div>
+      </div>
+
+      <details class="card"><summary class="row nowrap" style="cursor:pointer;list-style:none"><strong class="grow">How to earn XP</strong>${icon('chevron')}</summary><div style="margin-top:10px">
         <table class="simple"><tr><th>Action</th><th class="right">XP</th></tr>
         ${[
           ['Log a meal (eaten, skipped or something else — same XP)', XP.meal],
@@ -6464,12 +6613,9 @@ __m.default = {
           ['Each badge', XP.badge],
           ['Lucky bonus (random, about 1 in 6 ticks)', XP.lucky],
         ].map(([a, x]) => `<tr><td>${esc(a)}</td><td class="right">+${x}</td></tr>`).join('')}</table>
-        <p class="muted" style="font-size:.85rem;margin-top:8px">Your streak counts days you log anything. Missing one day doesn’t break it — missing two does. <a href="#/learn/gamification">Why points help</a></p></div>
+        <p class="muted" style="font-size:.85rem;margin-top:8px">Your streak counts days you log anything. Missing one day doesn’t break it — missing two does. <a href="#/learn/gamification">Why points help</a></p></div></details>
 
-      <div class="card"><h2>Feedback</h2>
-        <label class="option"><input type="checkbox" data-change="pref" data-key="sound" ${state.game.sound ? 'checked' : ''}><div><strong>Sounds</strong><small class="muted">A short chime when you earn XP.</small></div></label>
-        <label class="option" style="margin-top:8px"><input type="checkbox" data-change="pref" data-key="haptics" ${state.game.haptics ? 'checked' : ''}><div><strong>Vibration</strong><small class="muted">A tiny buzz on supported phones.</small></div></label>
-      </div>`;
+`;
   },
   actions: {
     pref(el, ev, ctx) {
@@ -6503,7 +6649,7 @@ function questsHtml(g) {
     const c = 2 * Math.PI * r;
     return `<a class="quest ${q.done ? 'done' : ''}" href="${q.href}"><svg class="qring" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="${r}" class="ring-bg" style="stroke-width:5"/><circle cx="17" cy="17" r="${r}" class="ring-fg" style="stroke-width:5" stroke-dasharray="${(c * pct).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 17 17)"/>${q.done ? '<path d="M11 17l4 4 8-8" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>' : ''}</svg>
       <span><span class="ql">${esc(q.label)}</span><br><span class="qp">${q.done ? 'Done' : `${q.progress}/${q.total}`}</span></span></a>`;
-  }).join('')}</div>${done === g.quests.length ? `<div class="perfect-banner">${icon('star')} Perfect day — every quest complete!</div>` : `<div class="muted" style="font-size:.84rem;margin-top:8px">${done}/${g.quests.length} quests · ${progressBar(done, g.quests.length, { label: 'Quests', tone: 'warm' })}</div>`}`;
+  }).join('')}</div>${done === g.quests.length ? `<div class="perfect-banner">${icon('star')} Perfect day — every quest complete!</div>` : `<div class="muted" style="font-size:.84rem;margin-top:8px">${done} of ${g.quests.length} quests done</div>${progressBar(done, g.quests.length, { label: 'Quests', tone: 'warm' })}`}`;
 }
 
 Object.assign(__m, { questsHtml });
@@ -6824,7 +6970,7 @@ function xpChip() {
   const g = store.game(state);
   if (!g) return '';
   const pct = Math.round(((g.xp - g.levelStart) / (g.nextLevelAt - g.levelStart)) * 100);
-  return `<a class="xp-chip" href="#/rewards" aria-label="Level ${g.level}, ${g.xp} XP, ${g.streak}-day streak. Open rewards"><span class="lvl">${g.level}</span><span class="mini"><span style="width:${pct}%"></span></span><span class="flame">${icon('flame')}${g.streak}</span></a>`;
+  return `<a class="xp-chip" href="#/rewards" aria-label="Level ${g.level}, ${g.xp} XP, ${g.streak}-day streak. Open rewards"><span class="lvl">Lv ${g.level}</span><span class="mini" aria-hidden="true"><span style="width:${pct}%"></span></span><span class="flame">${icon('flame')}${g.streak}</span></a>`;
 }
 
 let lastRoute = '';
@@ -6849,7 +6995,7 @@ function renderRoute() {
   document.querySelector('.sidebar').style.display = hasShell ? '' : 'none';
   document.body.classList.toggle('no-nav', !hasShell);
   const top = hasShell
-    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span class="hide-narrow">Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}<a class="icon-btn" href="#/learn" aria-label="Learn: the evidence">${icon('learn')}</a><a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
+    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span>Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}<a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
     : '';
   main.innerHTML = top + view.render(state, params, ctx);
   view.after?.(main, ctx, params);
@@ -6933,11 +7079,17 @@ function syncReminders() {
 notify.listen();
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
 
+let transitioning = false;
 function navigate() {
   closeSheet(true);
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  if (document.startViewTransition && !reduce) document.startViewTransition(renderRoute);
-  else renderRoute();
+  if (document.startViewTransition && !reduce && !transitioning) {
+    transitioning = true;
+    const t = document.startViewTransition(renderRoute);
+    // A quick second navigation skips the running transition; that's expected, not an error.
+    for (const p of [t.ready, t.updateCallbackDone, t.finished]) p?.catch(() => {});
+    t.finished.finally(() => (transitioning = false));
+  } else renderRoute();
 }
 window.addEventListener('hashchange', navigate);
 window.addEventListener('scroll', () => document.querySelector('.topbar')?.classList.toggle('scrolled', window.scrollY > 4), { passive: true });

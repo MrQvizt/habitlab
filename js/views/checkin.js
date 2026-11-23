@@ -7,10 +7,15 @@ import { daysBetween, round } from '../engine/util.js';
 
 let review = null; // {answers, result}
 
-function scale(name, label, lo, hi, value = 3) {
-  return `<fieldset><legend>${esc(label)}</legend><div class="row" style="gap:6px;align-items:center"><span class="muted" style="font-size:.8rem;width:70px">${esc(lo)}</span>
-    <div class="segmented">${[1, 2, 3, 4, 5].map((v) => `<label style="padding:5px 10px;cursor:pointer;border-radius:999px"><input type="radio" name="${name}" value="${v}" ${v === value ? 'checked' : ''}> ${v}</label>`).join('')}</div>
-    <span class="muted" style="font-size:.8rem">${esc(hi)}</span></div></fieldset>`;
+function scale(name, label, lo, hi) {
+  return `<fieldset class="scale"><legend>${esc(label)}</legend>
+    <div class="scale-opts">${[1, 2, 3, 4, 5].map((v) => `<label><input type="radio" name="${name}" value="${v}" required><span>${v}</span></label>`).join('')}</div>
+    <div class="scale-ends"><span>${esc(lo)}</span><span>${esc(hi)}</span></div></fieldset>`;
+}
+
+function yesNo(name, label) {
+  return `<fieldset class="scale yn"><legend>${esc(label)}</legend><div class="scale-opts" style="grid-template-columns:1fr 1fr">
+    <label><input type="radio" name="${name}" value="no" required><span>No</span></label><label><input type="radio" name="${name}" value="yes" required><span>Yes</span></label></div></fieldset>`;
 }
 
 function edScreenDue(state, date) {
@@ -27,17 +32,20 @@ function form(state) {
     <p class="muted" style="margin:-8px 0 14px">Be honest — there are no wrong answers, and the plan only changes in small steps.</p>
     <form data-form="review" class="card">
       ${!hide && !weighedToday ? `<label class="field"><span>Today’s weight (optional)</span><div class="inline-inputs"><input type="number" name="w" step="0.1" inputmode="decimal"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div></label>` : ''}
-      ${scale('adherence', 'How closely did you follow the plan this week?', 'not at all', 'nearly always', 3)}
-      ${scale('hunger', 'How hungry have you felt?', 'rarely', 'very often', 3)}
-      ${scale('energy', 'Energy levels', 'exhausted', 'great', 3)}
-      ${scale('stress', 'Stress', 'calm', 'very stressed', 3)}
+      ${scale('adherence', 'How closely did you follow the plan this week?', 'Not at all', 'Nearly always')}
+      ${scale('hunger', 'How hungry have you felt?', 'Rarely', 'Very often')}
+      ${scale('energy', 'How has your energy been?', 'Exhausted', 'Great')}
+      ${scale('stress', 'How stressed have you felt?', 'Calm', 'Very stressed')}
       <div class="grid two">
         <label class="field"><span>Average sleep per night</span><div class="inline-inputs"><input type="number" name="sleepHours" min="2" max="14" step="0.5" value="7" inputmode="decimal"><span class="unit">hours</span></div></label>
         <label class="field"><span>Alcoholic drinks per day (average)</span><div class="inline-inputs"><input type="number" name="drinksPerDay" min="0" max="20" step="0.5" value="0" inputmode="decimal"><span class="unit">drinks</span></div></label>
       </div>
       <fieldset><legend>What got in the way? <span class="hint">Pick any — you’ll get a specific plan for each.</span></legend>${chips('barriers', Object.fromEntries(Object.entries(BARRIER_OPTIONS).map(([k, b]) => [k, b.label])), [])}</fieldset>
-      ${edScreenDue(state, date) ? `<fieldset><legend>Over the past few weeks, have you… <span class="hint">A routine monthly wellbeing check.</span></legend>${chips('edFlags', { binge: 'felt out of control while eating?', compensate: 'tried to make up for eating (vomiting, laxatives, over-exercising)?', worth: 'felt your weight decides your worth?' }, [])}</fieldset><input type="hidden" name="edScreened" value="1">` : ''}
-      <div class="action-bar"><span class="muted" style="font-size:var(--text-sm)">Two minutes · +50 XP</span><button class="btn primary">See my adjustments ${icon('chevron')}</button></div>
+      ${edScreenDue(state, date) ? `<div class="card flat" style="margin:6px 0 18px"><div class="eyebrow" style="margin-bottom:8px">Monthly wellbeing check · over the past few weeks, have you…</div>
+        ${yesNo('ed_binge', 'Felt out of control while eating?')}
+        ${yesNo('ed_compensate', 'Tried to make up for eating (vomiting, laxatives, over-exercising)?')}
+        ${yesNo('ed_worth', 'Felt your weight decides your worth?')}</div><input type="hidden" name="edScreened" value="1">` : ''}
+      <div class="action-bar"><span class="muted need-all" style="font-size:var(--text-sm)">Answer each question to continue</span><span class="muted all-done" style="font-size:var(--text-sm)">+50 XP</span><button class="btn primary">See my adjustments ${icon('chevron')}</button></div>
     </form>`;
 }
 
@@ -100,7 +108,7 @@ export default {
         sleepHours: Number(data.sleepHours),
         drinksPerDay: Number(data.drinksPerDay),
         barriers: data.barriers || [],
-        edFlags: data.edFlags || [],
+        edFlags: ['binge', 'compensate', 'worth'].filter((k) => data['ed_' + k] === 'yes'),
         edScreened: !!data.edScreened,
       };
       review = { answers, result: weeklyReview(s, answers, date, { habitsOnly: store.habitsOnly(s) }) };

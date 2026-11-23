@@ -8,7 +8,7 @@ import { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } from '../
 import { FOODS } from '../data/foods.js';
 import { habitById, streak } from '../engine/habits.js';
 import { stepGoal } from '../engine/workouts.js';
-import { round, weekStart, isoDate } from '../engine/util.js';
+import { round, weekStart, isoDate, addDays } from '../engine/util.js';
 
 const SLOT_ICON = { breakfast: 'today', lunch: 'meals', dinner: 'meals', snack: 'star', snack2: 'star', snack3: 'star' };
 export const slotIcon = (slot) => SLOT_ICON[slot] || 'meals';
@@ -91,7 +91,13 @@ export function openMeal(ctx, date, slot) {
 }
 
 // ---------- Weigh-in ----------
-function weighSheetHtml(state) {
+function dateChips(name = 'date') {
+  const t = store.today();
+  const opts = [[t, 'Today'], [addDays(t, -1), 'Yesterday'], [addDays(t, -2), new Date(addDays(t, -2) + 'T12:00').toLocaleDateString(undefined, { weekday: 'long' })]];
+  return `<div class="segmented" role="radiogroup" aria-label="Date" style="margin:4px 0 6px">${opts.map(([v, l], i) => `<label><input type="radio" name="${name}" value="${v}" ${i === 0 ? 'checked' : ''}><span>${esc(l)}</span></label>`).join('')}</div>`;
+}
+
+function weighSheetHtml(state, withDate = false) {
   const u = units(state);
   const date = store.today();
   const todays = state.weights.find((w) => w.date === date);
@@ -101,6 +107,7 @@ function weighSheetHtml(state) {
   return `<div class="sheet-head"><div><div class="over">Weigh-in</div><h2>${todays ? 'Update today’s weight' : 'Today’s weight'}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
     <p class="muted" style="margin:0">Same time each morning, after the bathroom. Daily numbers bounce with water — the trend is what counts.</p>
     <form data-form="sheetWeigh">
+      ${withDate ? dateChips() : ''}
       <div class="stepper">
         <button type="button" data-action="sheetStep" data-d="${-step}" aria-label="Decrease">−</button>
         <div class="val"><input name="w" type="number" inputmode="decimal" step="${step}" value="${v}" aria-label="Weight in ${u === 'imperial' ? 'pounds' : 'kilograms'}"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div>
@@ -236,7 +243,30 @@ export const sheetActions = {
     ctx.toast(`Swapped for ${byId(meals.find((m) => m.slot === slot).recipeId).name}`, { action: { label: 'Undo', run: () => (ctx.set(prev, { quiet: true }), closeSheet()) } });
   },
   openWeigh(el, ev, ctx) {
-    openSheet(weighSheetHtml(ctx.state), { label: 'Weigh-in' });
+    openSheet(weighSheetHtml(ctx.state, el.dataset.pickDate === '1'), { label: 'Weigh-in' });
+  },
+  openWaist(el, ev, ctx) {
+    const u = units(ctx.state);
+    const last = (ctx.state.waist || []).slice(-1)[0]?.cm ?? 100;
+    const v = u === 'imperial' ? round(last / 2.54, 0.5) : round(last, 0.5);
+    openSheet(`<div class="sheet-head"><div><div class="over">Waist</div><h2>Waist measurement</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+      <p class="muted" style="margin:0">Around your middle, level with your belly button, breathing out.</p>
+      <form data-form="sheetWaist"><div class="stepper"><button type="button" data-action="sheetStep" data-d="-0.5" aria-label="Decrease">−</button>
+        <div class="val"><input name="v" type="number" inputmode="decimal" step="0.5" value="${v.toFixed(1)}" aria-label="Waist"><span class="unit">${u === 'imperial' ? 'in' : 'cm'}</span></div>
+        <button type="button" data-action="sheetStep" data-d="0.5" aria-label="Increase">+</button></div>
+        <button class="btn primary large block" style="margin-top:14px">Save</button></form>`, { label: 'Waist' });
+  },
+  sheetWaist(form, ev, ctx, data) {
+    const u = units(ctx.state);
+    const v = Number(data.v);
+    if (!(v > 20)) return;
+    const cm = u === 'imperial' ? round(v * 2.54, 0.5) : v;
+    const date = store.today();
+    closeSheet();
+    ctx.undoable('Waist saved', (st) => {
+      st.waist = (st.waist || []).filter((w) => w.date !== date).concat({ date, cm });
+      return st;
+    });
   },
   sheetStep(el) {
     const input = el.closest('form').querySelector('input[type=number]');
@@ -253,7 +283,7 @@ export const sheetActions = {
     const u = units(ctx.state);
     const kg = toKg(Number(data.w), u);
     if (!(kg > 30 && kg < 400)) return ctx.toast('That number looks off — please check it.');
-    const date = store.today();
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
     const prevTrend = store.trendWeight(ctx.state);
     closeSheet();
     ctx.undoable(Math.abs(kg - prevTrend) > 8 ? 'Saved — that’s a big jump; double-check the units.' : 'Weigh-in saved', (st) => {

@@ -12,8 +12,9 @@ export default {
     const cards = LEARN.filter((c) => section === 'all' || c.section === section);
     return html`${state.profile ? '' : '<a class="btn ghost small" href="#/start">' + icon('back') + 'Back</a>'}
       <header class="page-head"><div><div class="eyebrow">Learn</div><h1>The evidence</h1></div></header>
-      <p class="muted">Every feature in Habit Lab is based on guidelines, trials and reviews. Here’s what they say, in plain language, with links to the sources. The full research brief is in <code>RESEARCH.md</code> in the project.</p>
-      <div class="row" style="margin-bottom:14px;align-items:flex-start"><div class="segmented">${[['all', 'All'], ...LEARN_SECTIONS.map((s) => [s, s])].map(([k, l]) => `<button type="button" class="${section === k ? 'on' : ''}" data-action="section" data-value="${esc(k)}">${esc(l)}</button>`)}</div><button type="button" class="btn small" data-action="toggleAll">${openAll ? 'Collapse all' : 'Expand all'}</button></div>
+      <p class="muted">Every feature in Habit Lab is based on guidelines, trials and reviews. Here’s what they say, in plain language, with links to the sources.</p>
+      <div class="scroll-x" style="margin-bottom:12px">${[['all', 'All'], ...LEARN_SECTIONS.map((s) => [s, s])].map(([k, l]) => `<button type="button" class="qchip ${section === k ? 'done' : ''}" style="padding-left:12px" data-action="section" data-value="${esc(k)}" aria-pressed="${section === k}">${esc(l)}</button>`).join('')}</div>
+      <div class="row between" style="margin:0 2px 10px"><span class="muted" style="font-size:var(--text-sm)">${cards.length} topics</span><button type="button" class="btn small ghost" data-action="toggleAll">${openAll ? 'Collapse all' : 'Expand all'}</button></div>
       ${cards.map((c) => `<article class="card learn-card" id="learn-${c.id}" ${focus === c.id ? 'style="border-color:var(--accent)"' : ''}>
         <span class="tag">${esc(c.section)}</span>
         <h3 style="margin-top:6px">${esc(c.title)}</h3>

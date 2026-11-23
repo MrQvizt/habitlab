@@ -23,6 +23,7 @@ export default {
     const rate = weeklyRate(state.weights, date, 21);
     const ms = milestones(start);
     const conv = (kg) => weightNum(kg, u);
+    const narrow = typeof window !== 'undefined' && window.innerWidth < 600;
 
     // Activity minutes per week (last 8 weeks)
     const wk = weekStart(date);
@@ -40,11 +41,11 @@ export default {
         <div class="stat"><span class="v">${fmtWeight(trend, u)}</span><span class="l">trend weight</span></div>
         <div class="stat"><span class="v">${fmtDelta(-lost, u)}</span><span class="l">since ${fmtDate(p.startDate, { day: 'numeric', month: 'short' })}</span></div>
         <div class="stat"><span class="v">${pct >= 0 ? pct.toFixed(1) : '0.0'}%</span><span class="l">of starting weight</span></div>
-        <div class="stat"><span class="v">${rate == null ? '–' : `${fmtDelta(rate, u, 2)}`}</span><span class="l">per week (last 3 weeks)</span></div>
+        <div class="stat"><span class="v">${rate == null ? '–' : Math.abs(rate) < 0.05 ? 'Steady' : `${rate < 0 ? 'Down' : 'Up'} ${fmtWeight(Math.abs(rate), u, 2)}`}</span><span class="l">${rate == null ? 'need more weigh-ins' : 'a week, last 3 weeks'}</span></div>
       </div>
       <div class="card">
         <div class="card-head"><h2>Weight trend</h2><div class="segmented">${[['4w', '4 weeks'], ['12w', '12 weeks'], ['all', 'All']].map(([k, l]) => `<button type="button" class="${range === k ? 'on' : ''}" data-action="range" data-value="${k}">${l}</button>`).join('')}</div></div>
-        ${weightChart(shown, { goal: p.phase === 'maintain' ? null : p.goalWeightKg, band: p.phase === 'maintain' && state.maintainKg ? { lo: state.maintainKg - 2, hi: state.maintainKg + 2 } : null, milestones: p.phase === 'maintain' ? [] : ms, conv, unitLabel: u === 'imperial' ? 'lb' : 'kg' })}
+        ${weightChart(shown, { width: narrow ? 360 : 640, height: narrow ? 230 : 240, goal: p.phase === 'maintain' ? null : p.goalWeightKg, band: p.phase === 'maintain' && state.maintainKg ? { lo: state.maintainKg - 2, hi: state.maintainKg + 2 } : null, milestones: p.phase === 'maintain' ? [] : ms, conv, unitLabel: u === 'imperial' ? 'lb' : 'kg' })}
         ${p.phase === 'maintain' && state.maintainKg ? `<p style="font-size:.9rem;margin-top:6px"><strong>Maintenance:</strong> keep your trend between ${fmtWeight(state.maintainKg - 2, u)} and ${fmtWeight(state.maintainKg + 2, u)}. If it drifts above, the check-in starts a short reset plan.</p>` : ''}
         <p class="muted" style="font-size:.85rem;margin-top:6px">Dots are daily weigh-ins; the line is your smoothed trend. Water, salt, hormones and digestion move daily weight by 1–2 kg — the line shows what’s really happening.</p>
       </div>
@@ -56,7 +57,7 @@ export default {
         ${p.goalWeightKg ? `<li><strong>Your goal: ${fmtWeight(p.goalWeightKg, u)}</strong> <span class="muted">— BMI ${bmi(p.goalWeightKg, p.heightCm).toFixed(1)}</span></li>` : ''}
       </ul><p class="muted" style="font-size:.85rem">Current BMI ${bmi(trend, p.heightCm).toFixed(1)} (${bmiCategory(bmi(trend, p.heightCm))}). BMI is a rough screening number — waist size, blood tests and how you feel matter too.</p></div>`;
 
-    return html`<header class="page-head"><div><div class="eyebrow">Since ${fmtDate(p.startDate, { day: 'numeric', month: 'short' })}</div><h1>Progress</h1></div><a class="btn tonal small" href="#/rewards">${icon('star')}Rewards</a></header>
+    return html`<header class="page-head"><div><div class="eyebrow">Since ${fmtDate(p.startDate, { day: 'numeric', month: 'short' })}</div><h1>Progress</h1></div></header>
       ${weightSection}
       <div class="grid two">
         <div class="card"><h2>Consistency (last 28 days)</h2>
@@ -65,17 +66,13 @@ export default {
             <div class="stat"><span class="v">${loggedDays}</span><span class="l">days with meals logged</span></div>
           </div>
           <p class="muted" style="font-size:.86rem;margin-top:8px">Logging often — even roughly — is one of the strongest predictors of success. These numbers matter more than the scale.</p></div>
-        <div class="card"><h2>Active minutes per week</h2>${barChart(mins, { target: 150, unit: ' min' })}</div>
+        <div class="card"><h2>Active minutes per week</h2>${barChart(mins, { target: 150, unit: ' min', width: narrow ? 360 : 640, height: narrow ? 190 : 180 })}</div>
       </div>
       ${hide ? '' : `<div class="grid two">
-        <div class="card"><h2>Weigh-ins</h2>
-          <form data-form="addWeight" class="row"><input type="date" name="date" value="${date}" max="${date}" required style="width:160px" aria-label="Date"><div class="inline-inputs grow"><input type="number" name="w" step="0.1" inputmode="decimal" required placeholder="weight" aria-label="Weight"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div><button class="btn small primary">Add</button></form>
-          <table class="simple" style="margin-top:10px"><tr><th>Date</th><th class="right">Weight</th><th class="right">Trend</th><th></th></tr>
-          ${series.filter((s) => s.kg != null).slice(-12).reverse().map((s) => `<tr><td>${fmtDate(s.date)}</td><td class="right">${fmtWeight(s.kg, u)}</td><td class="right muted">${fmtWeight(s.trend, u)}</td><td class="right"><button class="btn small ghost" data-action="delWeight" data-date="${s.date}" aria-label="Delete">${icon('trash')}</button></td></tr>`).join('')}
-          </table></div>
-        <div class="card"><h2>Waist</h2><p class="muted" style="font-size:.88rem">Measure around your middle, level with your belly button, breathing out. Often drops even when the scale stalls.</p>
-          <form data-form="addWaist" class="row"><div class="inline-inputs grow"><input type="number" name="v" step="0.5" inputmode="decimal" required aria-label="Waist"><span class="unit">${u === 'imperial' ? 'in' : 'cm'}</span></div><button class="btn small primary">Add</button></form>
-          <table class="simple" style="margin-top:10px">${(state.waist || []).slice(-8).reverse().map((w) => `<tr><td>${fmtDate(w.date)}</td><td class="right">${u === 'imperial' ? `${round(cmToIn(w.cm), 0.5)} in` : `${w.cm} cm`}</td></tr>`).join('')}</table></div>
+        <div class="card"><div class="card-head"><h2>Weigh-ins</h2><button class="btn small tonal" data-action="openWeigh" data-pick-date="1">${icon('plus')}Add</button></div>
+          ${weighTable(series.filter((s) => s.kg != null).reverse(), u)}</div>
+        <div class="card"><div class="card-head"><h2>Waist</h2><button class="btn small tonal" data-action="openWaist">${icon('plus')}Add</button></div><p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Often drops even when the scale stalls.</p>
+          ${(state.waist || []).length ? `<table class="simple">${(state.waist || []).slice(-5).reverse().map((w) => `<tr><td>${fmtDate(w.date)}</td><td class="right num">${u === 'imperial' ? `${round(cmToIn(w.cm), 0.5)} in` : `${w.cm} cm`}</td></tr>`).join('')}</table>` : '<p class="muted" style="font-size:var(--text-sm)">No measurements yet.</p>'}</div>
       </div>`}
       <div class="card"><h2>Check-in history</h2>${state.checkins.length ? `<table class="simple"><tr><th>Date</th><th>Rate</th><th>Changes</th></tr>${state.checkins.slice().reverse().map((c) => `<tr><td>${fmtDate(c.date)}</td><td>${c.rate == null || hide ? '–' : fmtDelta(c.rate, u, 2) + '/wk'}</td><td style="font-size:.86rem">${esc(describe(c.applied, hide))}</td></tr>`).join('')}</table>` : '<p class="muted">Your weekly check-ins will appear here.</p>'}</div>`;
   },
@@ -96,7 +93,7 @@ export default {
     },
     delWeight(el, ev, ctx) {
       if (ctx.state.weights.length <= 1) return ctx.toast('Keep at least one weigh-in.');
-      ctx.update((st) => {
+      ctx.undoable('Weigh-in deleted', (st) => {
         st.weights = st.weights.filter((w) => w.date !== el.dataset.date);
         return st;
       });
@@ -114,6 +111,13 @@ export default {
     },
   },
 };
+
+function weighTable(rows, u) {
+  const row = (s) => `<tr><td>${fmtDate(s.date)}</td><td class="right num">${fmtWeight(s.kg, u)}</td><td class="right muted num">${fmtWeight(s.trend, u)}</td><td class="right" style="width:44px"><button class="icon-btn" data-action="delWeight" data-date="${s.date}" aria-label="Delete weigh-in on ${fmtDate(s.date)}">${icon('trash')}</button></td></tr>`;
+  if (!rows.length) return '<p class="muted">No weigh-ins yet.</p>';
+  return `<table class="simple"><tr><th>Date</th><th class="right">Weight</th><th class="right">Trend</th><th></th></tr>${rows.slice(0, 5).map(row).join('')}</table>
+    ${rows.length > 5 ? `<details><summary class="btn small ghost" style="list-style:none;margin-top:6px">Show all ${rows.length}</summary><table class="simple">${rows.slice(5).map(row).join('')}</table></details>` : ''}`;
+}
 
 function describe(applied = [], hide) {
   if (!applied.length) return 'No changes';

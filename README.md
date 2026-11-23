@@ -58,6 +58,18 @@ The Android app is the same web app wrapped with [Capacitor](https://capacitorjs
 notifications, so they arrive even when the app is closed. The shared debug key is `android/app/debug-shared.keystore`.
 It is fine for sideloading, but publishing to the Play Store would need a private release key.
 
+## Design
+
+The app works like a native app:
+- **Bottom sheets** hold details and actions. Close them by swiping down, tapping the background, pressing Escape or using the Android back button.
+- **Undo snackbars** replace "are you sure?" dialogs for anything reversible.
+- **Today** starts with a single "Next up" action.
+- **Buttons are easy to reach:** touch targets are at least 44 px, and primary actions sit in sticky bars at the bottom of the screen.
+- **Navigation** uses five tabs, with page transitions that respect reduced-motion settings.
+
+Light and dark themes are designed separately. Text and icons meet WCAG AA contrast. `node tests/screens.cjs` takes a
+screenshot tour for design review.
+
 ## Rewards and reminders
 
 - **Rewards:** you earn XP for logging meals, doing habits, moving, weighing in and doing the weekly check-in.

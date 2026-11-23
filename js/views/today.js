@@ -7,6 +7,7 @@ import { byId, scaledNutrition } from '../engine/meals.js';
 import { habitById, streak } from '../engine/habits.js';
 import { stepGoal } from '../engine/workouts.js';
 import { CARDIO } from '../data/exercises.js';
+import { daysBetween } from '../engine/util.js';
 import { itemDone, logPlannedActivity } from './move.js';
 import { slotIcon, toggleHabit, mealRows } from './sheets.js';
 
@@ -37,7 +38,7 @@ function hero(state) {
           <a class="pill-stat" href="#/rewards">Level ${g.level}</a>
         </div></div>
     </div>
-    <div class="scroll-x quest-chips" role="list">${g.quests.map((q) => `<a role="listitem" class="qchip ${q.done ? 'done' : ''}" href="${q.href}"><span class="dot">${q.done ? icon('check') : ''}</span>${esc(q.label)}${q.total > 1 && !q.done ? ` <span class="num" style="opacity:.7">${q.progress}/${q.total}</span>` : ''}</a>`).join('')}</div>
+    <div class="quest-grid" role="list">${g.quests.map((q) => `<a role="listitem" class="qchip ${q.done ? 'done' : ''}" href="${q.href}"><span class="dot">${q.done ? icon('check') : ''}</span>${esc(q.label)}${q.total > 1 && !q.done ? ` <span class="num" style="opacity:.7">${q.progress}/${q.total}</span>` : ''}</a>`).join('')}</div>
   </section>`;
 }
 
@@ -119,14 +120,14 @@ function movement(state, date) {
   const rows = items.map((it) => {
     const done = itemDone(logged, it);
     if (it.kind === 'rest') return `<li><div class="lrow"><span class="slot-ico">${icon('move')}</span><div class="body"><div class="title">Rest day</div><div class="sub">A relaxed walk still counts</div></div></div></li>`;
-    const doneTag = '<span class="tag" style="background:var(--accent-soft);color:var(--accent)">Done</span>';
+    const doneTag = `<span class="check on" style="width:30px;height:30px;animation:none" aria-label="Done">${icon('check')}</span>`;
     if (it.kind === 'strength') return `<li><a class="lrow" href="#/move/session/${it.variant}" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('move')}</span><div class="body"><div class="title">Strength session ${it.variant}</div><div class="sub">${it.exercises.length} exercises · ~${it.minutes} min</div></div><span class="trail">${done ? doneTag : `<span class="btn small primary">Start</span>`}</span></a></li>`;
     if (it.kind === 'activity') return `<li><div class="lrow"><span class="slot-ico" style="background:var(--warm-soft);color:color-mix(in srgb,var(--warm) 80%,var(--ink))">${icon('flame')}</span><div class="body"><div class="title">${esc(it.name)}</div><div class="sub">${it.minutes} min · your activity</div></div><span class="trail">${done ? doneTag : `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`}</span></div></li>`;
     return `<li><div class="lrow"><span class="slot-ico" style="background:var(--info-soft);color:var(--info)">${icon('move')}</span><div class="body"><div class="title">${esc(CARDIO[it.mode].label)}</div><div class="sub">${it.minutes} min · chatty pace</div></div><span class="trail">${done ? doneTag : `<button class="btn small primary" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}">Done</button>`}</span></div></li>`;
   }).join('');
   const pct = Math.min(100, (steps / goal) * 100);
   const stepsRow = `<li><button class="lrow" data-action="openSteps"><span class="slot-ico">${icon('progress')}</span><span class="body"><span class="title">${steps ? `${fmtNum(steps)} steps` : 'Add today’s steps'}</span><span class="meter" style="display:block;height:6px;margin:6px 0 0"><span style="width:${pct.toFixed(1)}%"></span></span><span class="sub" style="display:block">Goal ${fmtNum(goal)}</span></span><span class="trail">${icon('chevron')}</span></button></li>`;
-  const weighRow = hide ? '' : `<li><button class="lrow" data-action="openWeigh"><span class="slot-ico">${icon('scale')}</span><span class="body"><span class="title">${todays ? `Weighed in · ${fmtWeight(todays.kg, u)}` : 'Weigh in'}</span><span class="sub" style="display:block">Trend ${fmtWeight(trend, u)}${Math.abs(state.profile.startWeightKg - trend) >= 0.1 ? ` · ${fmtDelta(trend - state.profile.startWeightKg, u)} since start` : ''}</span></span><span class="trail">${todays ? '<span class="tag" style="background:var(--accent-soft);color:var(--accent)">Done</span>' : icon('chevron')}</span></button></li>`;
+  const weighRow = hide ? '' : `<li><button class="lrow" data-action="openWeigh"><span class="slot-ico">${icon('scale')}</span><span class="body"><span class="title">${todays ? `Weighed in · ${fmtWeight(todays.kg, u)}` : 'Weigh in'}</span><span class="sub" style="display:block">Trend ${fmtWeight(trend, u)}${Math.abs(state.profile.startWeightKg - trend) >= 0.1 ? ` · ${fmtDelta(trend - state.profile.startWeightKg, u)} since start` : ''}</span></span><span class="trail">${todays ? `<span class="check on" style="width:30px;height:30px;animation:none" aria-label="Done">${icon('check')}</span>` : icon('chevron')}</span></button></li>`;
   return `<div class="section-head"><h2>Movement & body</h2><a href="#/move">This week</a></div><div class="card tight"><ul class="rows">${rows}${stepsRow}${weighRow}</ul></div>`;
 }
 
@@ -148,8 +149,11 @@ function firstWeek(state, date) {
 
 function banners(state, date) {
   const out = [safetyNotices(state)];
-  if (state.profile.demo) out.push(`<div class="notice info">${icon('info')}<div class="grow">You’re exploring <strong>demo data</strong>.</div><button class="btn small" data-action="endDemo">Start my own plan</button></div>`);
-  if (checkinDue(state, date)) out.push(`<a class="notice ok" href="#/checkin" style="text-decoration:none">${icon('calendar')}<div class="grow"><strong>Weekly check-in is ready</strong> · two minutes to tune your plan</div>${icon('chevron')}</a>`);
+  if (state.profile.demo) out.push(`<div class="notice info" style="align-items:center;padding:8px 8px 8px 14px">${icon('info')}<div class="grow">Exploring demo data</div><button class="btn small" data-action="endDemo">Start my own</button></div>`);
+  const last = state.checkins.length ? state.checkins[state.checkins.length - 1].date : state.profile.startDate;
+  const overdue = daysBetween(last, date) >= 9;
+  const checkinDay = (new Date(date + 'T12:00').getDay() + 6) % 7 === Number(state.reminders?.checkinDay ?? 6);
+  if (checkinDue(state, date) && (overdue || checkinDay) && !nextUp(state, date).includes('Weekly check-in')) out.push(`<a class="notice ok" href="#/checkin" style="text-decoration:none;align-items:center">${icon('calendar')}<div class="grow"><strong>Weekly check-in</strong> · two minutes, +50 XP</div>${icon('chevron')}</a>`);
   if (state.dietBreakUntil && date <= state.dietBreakUntil) out.push(`<div class="notice info">${icon('info')}<div>Planned maintenance phase until ${fmtDate(state.dietBreakUntil)}: calories are at your estimated needs.</div></div>`);
   const calc = state.calcWeightKg ?? state.profile.weightKg;
   const trend = store.trendWeight(state);
@@ -163,7 +167,7 @@ export default {
     return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${greeting()}</h1></div></header>
       ${banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${hero(state)}${nextUp(state, date)}</div>
+        <div class="tg-hero">${nextUp(state, date)}${hero(state)}</div>
         <div class="tg-food">${food(state, date)}</div>
         <div class="tg-rest">${habits(state, date)}${movement(state, date)}${firstWeek(state, date)}</div>
       </div>`;

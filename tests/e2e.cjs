@@ -1,6 +1,18 @@
 // End-to-end walkthrough: onboarding → every page → check-in. Fails on any console error.
 // Usage: node tests/e2e.cjs [baseUrl] [screenshotDir]
 const { chromium } = require('playwright');
+/** Answer every check-in question (scales default to 3, yes/no to "no"); overrides by field name. */
+async function answerCheckin(page, overrides = {}) {
+  await page.waitForSelector('fieldset.scale');
+  await page.evaluate((o) => {
+    for (const fs of document.querySelectorAll('fieldset.scale')) {
+      const name = fs.querySelector('input').name;
+      const v = o[name] || (fs.classList.contains('yn') ? 'no' : '3');
+      fs.querySelector(`input[value="${v}"]`).click();
+    }
+  }, overrides);
+}
+
 const base = process.argv[2] || 'http://localhost:8765/';
 const shots = process.argv[3] || null;
 
@@ -111,7 +123,7 @@ const shots = process.argv[3] || null;
   if (savedAct.strength) errors.push('unticked "builds strength" was saved as true');
 
   // Regression: saving Settings → About you must not switch on habits-only mode (single checkbox read as [])
-  await page.goto(base + '#/settings');
+  await page.goto(base + '#/settings/profile');
   await page.click('form[data-form=profile] button.primary');
   await page.waitForTimeout(200);
   const ho = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).profile.habitsOnly);
@@ -125,6 +137,7 @@ const shots = process.argv[3] || null;
   await page.waitForSelector('text=Week plan');
   // Check-in
   await page.goto(base + '#/checkin');
+  await answerCheckin(page);
   await page.click('button:has-text("See my adjustments")');
   await page.waitForSelector('text=Apply selected');
   await snap('06-checkin-results');
@@ -132,10 +145,10 @@ const shots = process.argv[3] || null;
   await page.waitForSelector('text=Add something else you ate');
 
   // Backup export shows a copyable box; reset uses the in-page dialog (cancel keeps data)
-  await page.goto(base + '#/settings');
+  await page.goto(base + '#/settings/data');
   await page.click('button:has-text("Export backup")');
   await page.waitForSelector('#backup-out');
-  await page.click('button:has-text("Delete everything")');
+  await page.click('button:has-text("Delete all data")');
   await page.click('.modal button:has-text("Cancel")');
   await page.goto(base + '#/today');
   await page.waitForSelector('text=Add something else you ate');
@@ -157,7 +170,8 @@ const shots = process.argv[3] || null;
   // (Browsers can't grant notification permission to file:// pages, so only test this over http.)
   if (base.startsWith('http')) {
     await page.context().grantPermissions(['notifications'], { origin: new URL(base).origin });
-    await page.goto(base + '#/settings');
+    await page.goto(base + '#/settings/reminders');
+    await page.waitForSelector('form[data-form=reminders]');
     await page.evaluate(() => document.querySelector('form[data-form=reminders] input[name=enabled]').closest('label').scrollIntoView({ block: 'center' }));
     await page.check('form[data-form=reminders] input[name=enabled]');
     await page.evaluate(() => document.querySelector('form[data-form=reminders] button.primary').scrollIntoView({ block: 'center' }));

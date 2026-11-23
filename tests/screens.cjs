@@ -2,7 +2,7 @@
 const { chromium } = require('playwright');
 const base = process.argv[2] || 'http://localhost:8766/';
 const out = process.argv[3] || '.';
-const routes = process.argv.slice(4).length ? process.argv.slice(4) : ['today', 'meals', 'move', 'habits', 'progress', 'rewards', 'checkin', 'settings', 'learn'];
+const routes = process.argv.slice(4).length ? process.argv.slice(4) : ['today', 'meals', 'move', 'habits', 'progress', 'rewards', 'checkin', 'settings', 'settings/reminders', 'settings/profile', 'learn'];
 (async () => {
   const browser = await chromium.launch();
   for (const [label, vp, scheme] of [['phone', { width: 390, height: 844 }, 'light'], ['phone-dark', { width: 390, height: 844 }, 'dark'], ['desktop', { width: 1280, height: 860 }, 'light']]) {

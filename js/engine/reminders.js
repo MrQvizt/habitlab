@@ -10,14 +10,17 @@ import { byId } from './meals.js';
 
 export const DEFAULT_REMINDERS = {
   enabled: false,
+  morningOn: true,
   morning: '07:30', // weigh-in + today's plan
   meals: true, // a nudge to log each main meal
   breakfast: '09:00',
   lunch: '13:00',
   dinner: '19:30',
+  moveOn: true,
   move: '17:30', // today's session / walk
   encourage: true, // one encouraging note mid-afternoon
   encourageAt: '15:30',
+  eveningOn: true,
   evening: '21:00', // streak saver: quests left
   checkin: true, // weekly check-in reminder
   checkinDay: 6, // 0 = Monday … 6 = Sunday
@@ -88,11 +91,11 @@ export function buildReminders(state, now, ctx = {}) {
     const session = dayItems.find((it) => it.kind === 'strength') || dayItems.find((it) => it.kind === 'activity') || dayItems.find((it) => it.kind === 'cardio');
 
     // Morning: weigh-in + today's headline
-    if (r.morning && !(isToday && (habitsOnly || qDone('weigh')))) {
+    if (r.morningOn && r.morning && !(isToday && (habitsOnly || qDone('weigh')))) {
       const first = meals[0] ? byId(meals[0].recipeId)?.name : null;
       push(date, 'morning', r.morning, habitsOnly ? 'Good morning' : 'Good morning — weigh in',
         habitsOnly ? `Today starts with ${first || 'a good breakfast'}. Your quests are ready.` : `Step on the scale for +5 XP, then ${first ? `breakfast: ${first}` : 'check today’s plan'}.`, '#/today');
-    } else if (r.morning && habitsOnly && !isToday) {
+    } else if (r.morningOn && r.morning && habitsOnly && !isToday) {
       push(date, 'morning', r.morning, 'Good morning', 'Your quests for today are ready.', '#/today');
     }
 
@@ -108,7 +111,7 @@ export function buildReminders(state, now, ctx = {}) {
     }
 
     // Movement
-    if (r.move && session && !(isToday && qDone('move'))) {
+    if (r.moveOn && r.move && session && !(isToday && qDone('move'))) {
       const body = session.kind === 'strength'
         ? `Strength session ${session.variant} is on today’s plan — about ${session.minutes} minutes, +40 XP.`
         : session.kind === 'activity'
@@ -125,7 +128,7 @@ export function buildReminders(state, now, ctx = {}) {
     }
 
     // Evening streak saver (today: only if quests are left; future days: generic)
-    if (r.evening) {
+    if (r.eveningOn && r.evening) {
       if (isToday) {
         const left = q.filter((x) => !x.done);
         if (left.length) {

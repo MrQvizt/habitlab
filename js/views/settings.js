@@ -21,34 +21,33 @@ function remindersHtml(state) {
   const r = { ...DEFAULT_REMINDERS, ...(state.reminders || {}) };
   const p = notify.platform();
   const where = p === 'native'
-    ? 'Reminders are scheduled on your phone and arrive even when the app is closed.'
+    ? 'They arrive even when the app is closed, and skip anything you’ve already done.'
     : p === 'web'
-      ? 'In a browser, reminders only appear while Habit Lab is open. Install the Android app for reminders all day.'
-      : 'This browser doesn’t support notifications. Install the Android app for reminders.';
-  const time = (name, label, hint = '') => `<label class="field" style="margin:0"><span>${label}${hint ? ` <span class="hint">${hint}</span>` : ''}</span><input type="time" name="${name}" value="${esc(r[name])}"></label>`;
-  const tog = (name, label, hint) => `<label class="option"><input type="checkbox" name="${name}" value="1" ${r[name] ? 'checked' : ''}><div><strong>${label}</strong><small class="muted">${hint}</small></div></label>`;
-  return `<p class="muted" style="font-size:.9rem">Friendly, specific nudges through the day — skipped automatically once you’ve done the thing. ${esc(where)}</p>
-    <label class="option" style="margin-bottom:12px"><input type="checkbox" name="enabled" value="1" ${r.enabled ? 'checked' : ''}><div><strong>Turn on reminders</strong><small class="muted">You’ll be asked to allow notifications.</small></div></label>
-    <div class="grid two">
-      ${time('morning', 'Morning weigh-in & plan')}
-      ${time('move', 'Movement nudge', 'only on days with a session')}
-      ${time('breakfast', 'Log breakfast')}
-      ${time('lunch', 'Log lunch')}
-      ${time('dinner', 'Log dinner')}
-      ${time('evening', 'Evening wrap-up', 'only if quests are left')}
-      ${time('encourageAt', 'Encouragement')}
-      <div class="grid two" style="gap:8px">${time('checkinAt', 'Check-in reminder')}<label class="field" style="margin:0"><span>on</span><select name="checkinDay">${DAY_NAMES.map((d, i) => `<option value="${i}" ${Number(r.checkinDay) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label></div>
-    </div>
-    <div class="options" style="margin-top:12px">
-      ${tog('meals', 'Meal logging nudges', 'Breakfast, lunch and dinner — showing what’s planned.')}
-      ${tog('encourage', 'Daily encouragement', 'One short tip or pep talk each afternoon.')}
-      ${tog('checkin', 'Weekly check-in', 'A reminder on your chosen day.')}
-    </div>
-    <div class="row" style="margin-top:12px"><button class="btn primary">Save reminders</button><button type="button" class="btn" data-action="testNotify">Send a test</button>${reminderStatus ? `<span class="muted" style="font-size:.86rem">${esc(reminderStatus)}</span>` : ''}</div>`;
+      ? 'In a browser they only appear while Habit Lab is open — the Android app sends them all day.'
+      : 'This browser can’t show notifications. The Android app can.';
+  const row = (onKey, timeKey, title, sub) => `<li class="lrow" style="cursor:default;min-height:68px">
+      <label class="switch"><input type="checkbox" name="${onKey}" value="1" ${r[onKey] ? 'checked' : ''} aria-label="${esc(title)}"><span></span></label>
+      <span class="body"><span class="title" style="display:block">${esc(title)}</span><span class="sub" style="display:block">${esc(sub)}</span></span>
+      ${timeKey ? `<input type="time" name="${timeKey}" value="${esc(r[timeKey])}" aria-label="${esc(title)} time" style="width:auto;min-width:108px">` : ''}</li>`;
+  return `<div class="card" style="padding:14px 16px"><label class="row nowrap" style="gap:14px;cursor:pointer"><span class="grow"><strong style="display:block">Reminders & encouragement</strong><span class="muted" style="font-size:var(--text-sm)">${esc(where)}</span></span><span class="switch"><input type="checkbox" name="enabled" value="1" ${r.enabled ? 'checked' : ''} aria-label="Turn on reminders"><span></span></span></label></div>
+    <div class="card tight reminder-list"><ul class="rows">
+      ${row('morningOn', 'morning', 'Morning', 'Weigh-in and today’s plan')}
+      <li class="lrow" style="cursor:default;flex-wrap:wrap;row-gap:10px">
+        <label class="switch"><input type="checkbox" name="meals" value="1" ${r.meals ? 'checked' : ''} aria-label="Meal logging"><span></span></label>
+        <span class="body"><span class="title" style="display:block">Meal logging</span><span class="sub" style="display:block">Shows what’s planned for each meal</span></span>
+        <span class="meal-times">${[['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner']].map(([k, l]) => `<label><span>${l}</span><input type="time" name="${k}" value="${esc(r[k])}"></label>`).join('')}</span></li>
+      ${row('moveOn', 'move', 'Movement', 'Only on days with a session or activity')}
+      ${row('encourage', 'encourageAt', 'Encouragement', 'A short tip or pep talk')}
+      ${row('eveningOn', 'evening', 'Evening wrap-up', 'Only if quests are left')}
+      ${row('checkin', 'checkinAt', 'Weekly check-in', DAY_NAMES[Number(r.checkinDay)] + 's')}
+    </ul></div>
+    <label class="field"><span>Check-in day</span><select name="checkinDay">${DAY_NAMES.map((d, i) => `<option value="${i}" ${Number(r.checkinDay) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
+    <div class="action-bar"><button type="button" class="btn ghost" data-action="testNotify">Send a test</button><button class="btn primary">Save</button></div>
+    ${reminderStatus ? `<p class="muted" style="font-size:var(--text-sm)" role="status">${esc(reminderStatus)}</p>` : ''}`;
 }
 
 export default {
-  render(state) {
+  render(state, params) {
     const p = state.profile;
     const pr = state.prefs;
     const u = p.units === 'imperial' ? 'imperial' : 'metric';
@@ -61,7 +60,17 @@ export default {
     } catch (e) {
       /* ignore */
     }
-    return html`<header class="page-head"><div><div class="eyebrow">Habit Lab</div><h1>Settings</h1></div></header>
+    const section = params[0] || '';
+    const SECTIONS = [
+      ['profile', 'About you', 'Body, goal, pace, health', 'today'],
+      ['food', 'Food', 'Diet, allergies, foods to avoid', 'meals'],
+      ['movement', 'Movement', 'Equipment, joints, days', 'move'],
+      ['reminders', 'Reminders', state.reminders?.enabled ? 'On' : 'Off', 'calendar'],
+      ['appearance', 'Appearance & feedback', 'Theme, sounds, vibration', 'star'],
+      ['data', 'Your data', 'Backup, import, delete', 'info'],
+    ];
+    const head = (title, eyebrow = 'Settings') => `<header class="page-head"><div>${section ? `<a class="btn ghost small" href="#/settings" style="margin:0 0 6px -10px">${icon('back')}Settings</a>` : `<div class="eyebrow">${eyebrow}</div>`}<h1>${title}</h1></div></header>`;
+    if (section === 'profile') return head('About you') + `
       ${hide ? '' : `<div class="card"><h2>Your numbers</h2><div class="stats">
         <div class="stat"><span class="v">${t.kcal.toLocaleString()}</span><span class="l">kcal/day target</span></div>
         <div class="stat"><span class="v">${t.tdee.toLocaleString()}</span><span class="l">estimated needs (${t.tdeeSource === 'learned' ? 'learned' : 'formula'})</span></div>
@@ -69,7 +78,7 @@ export default {
         <div class="stat"><span class="v">${t.fiberG} g</span><span class="l">fibre</span></div></div>
         <p class="muted" style="font-size:.86rem;margin-top:10px">Resting energy ${t.rmr} kcal × activity factor ${ACTIVITY_LEVELS[p.activity].factor}${state.tdeeOffset ? ` ${state.tdeeOffset > 0 ? '+' : '−'} ${Math.abs(state.tdeeOffset)} kcal learned from your data` : ''} − ${t.maintenance ? '0 (maintenance)' : `${PACES[p.pace]?.deficit ?? 500} kcal deficit`}${state.kcalAdjust ? ` ${state.kcalAdjust > 0 ? '+' : '−'} ${Math.abs(state.kcalAdjust)} from check-ins` : ''}${t.hitFloor ? `, held at the ${t.floor} kcal minimum` : ''}.</p></div>`}
 
-      <form data-form="profile" class="card"><h2>About you</h2>
+      <form data-form="profile" class="card">
         <div class="grid two">
           <label class="field"><span>Units</span><select name="units"><option value="metric" ${u === 'metric' ? 'selected' : ''}>kg / cm</option><option value="imperial" ${u === 'imperial' ? 'selected' : ''}>lb / ft</option></select></label>
           <label class="field"><span>Age</span><input type="number" name="age" value="${esc(p.age)}" min="18" max="100" required></label>
@@ -82,10 +91,11 @@ export default {
         </div>
         <fieldset><legend>Health</legend>${chips('medical', { pregnant: 'Pregnant / breastfeeding', eating_disorder: 'Eating disorder (current/past)', diabetes_meds: 'Insulin / sulfonylureas', heart: 'Heart condition', kidney: 'Kidney disease', glp1: 'Weight-loss medicine' }, p.medical || [])}</fieldset>
         <label class="option" style="margin-bottom:12px"><input type="checkbox" name="habitsOnly" value="1" ${p.habitsOnly ? 'checked' : ''}><div><strong>Habits-only mode</strong><small class="muted">Hide calorie numbers and weighing; focus on regular meals, movement and wellbeing.</small></div></label>
-        <button class="btn primary">Save</button>
+        <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
       </form>
-
-      <form data-form="food" class="card"><h2>Food</h2>
+`;
+    if (section === 'food') return head('Food') + `
+      <form data-form="food" class="card">
         <fieldset><legend>Diet</legend>${chips('diet', Object.fromEntries(Object.entries(DIETS).map(([k, d]) => [k, d.label])), pr.diet, { multi: false })}</fieldset>
         <fieldset><legend>Allergies</legend>${chips('allergies', ALLERGENS, pr.allergies)}</fieldset>
         <details><summary style="cursor:pointer;font-weight:600;margin-bottom:8px">Foods to avoid (${(pr.dislikes || []).length})</summary>${chips('dislikes', DISLIKES, pr.dislikes)}</details>
@@ -95,10 +105,11 @@ export default {
         </div>
         <label class="option"><input type="checkbox" name="noCookLunch" value="1" ${pr.noCookLunch ? 'checked' : ''}><div>Make-ahead or no-cook lunches only</div></label>
         <label class="option" style="margin-top:8px"><input type="checkbox" name="leftovers" value="1" ${pr.leftovers !== false ? 'checked' : ''}><div>Use dinner leftovers for some lunches</div></label>
-        <button class="btn primary" style="margin-top:12px">Save & rebuild plan</button>
+        <div class="action-bar"><span class="muted" style="font-size:var(--text-sm)">Rebuilds the rest of this week</span><button class="btn primary">Save</button></div>
       </form>
-
-      <form data-form="movement" class="card"><h2>Movement</h2>
+`;
+    if (section === 'movement') return head('Movement') + `
+      <form data-form="movement" class="card">
         <fieldset><legend>Equipment</legend>${chips('equipment', { bands: 'Resistance bands', dumbbells: 'Dumbbells', gym: 'Gym' }, p.equipment)}</fieldset>
         <fieldset><legend>Painful joints</legend>${chips('limitations', { knee: 'Knees', back: 'Lower back', shoulder: 'Shoulders', wrist: 'Wrists' }, p.limitations)}</fieldset>
         <fieldset><legend>Exercise days</legend>${chips('daysAvailable', DAYS, (p.daysAvailable || []).map(String))}</fieldset>
@@ -107,27 +118,47 @@ export default {
           <label class="field"><span>Session length</span><select name="sessionMinutes">${[15, 20, 30, 45].map((m) => `<option value="${m}" ${Number(p.sessionMinutes) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></label>
           <label class="field"><span>Baseline daily steps</span><input type="number" name="baselineSteps" value="${esc(p.baselineSteps ?? '')}" min="0" max="40000" step="100"></label>
         </div>
-        <div class="row"><button class="btn primary">Save</button><button type="button" class="btn ghost danger" data-action="resetProgress">Reset exercise levels</button></div>
+        <button type="button" class="btn ghost small danger" data-action="resetProgress">Reset exercise levels</button>
+        <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
       </form>
-
-      <form data-form="reminders" class="card" id="reminders"><h2>Reminders & encouragement</h2>
+`;
+    if (section === 'reminders') return head('Reminders') + `
+      <form data-form="reminders" id="reminders">
         ${remindersHtml(state)}
       </form>
+`;
+    if (section === 'appearance') return head('Appearance & feedback') + `
+      <div class="card"><h3 style="margin-bottom:10px">Theme</h3><div class="segmented">${[['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" class="${theme === k ? 'on' : ''}" data-action="theme" data-value="${k}">${l}</button>`).join('')}</div></div>
 
-      <div class="card"><h2>Appearance</h2><div class="segmented">${[['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" class="${theme === k ? 'on' : ''}" data-action="theme" data-value="${k}">${l}</button>`).join('')}</div></div>
-
-      <div class="card"><h2>Your data</h2>
-        <p class="muted">Everything is stored only in this browser on this device. Nothing is uploaded. Export a backup to move to another device or keep a copy.</p>
+      <div class="card"><h3 style="margin-bottom:6px">Feedback</h3>
+        <label class="option"><input type="checkbox" data-change="gamePref" data-key="sound" ${state.game.sound ? 'checked' : ''}><div><strong>Sounds</strong><small class="muted">A short chime when you earn XP.</small></div></label>
+        <label class="option" style="margin-top:8px"><input type="checkbox" data-change="gamePref" data-key="haptics" ${state.game.haptics ? 'checked' : ''}><div><strong>Vibration</strong><small class="muted">A tiny buzz on supported phones.</small></div></label></div>`;
+    if (section === 'data') return head('Your data') + `
+      <div class="card" style="order:9"><h3 style="margin-bottom:4px">Delete all data</h3><p class="muted" style="font-size:var(--text-sm)">Removes everything from ${notify.platform() === 'native' ? 'this phone' : 'this browser'}. Export a backup first if you might want it back.</p><button class="btn ghost danger small" data-action="reset">${icon('trash')}Delete all data…</button></div>`.replace('style="order:9"', '') + `
+      <div class="card">
+        <p class="muted">${notify.platform() === 'native' ? 'Everything is stored only on this phone' : 'Everything is stored only in this browser on this device'}. Nothing is uploaded. Export a backup to move to another device or keep a copy.</p>
         <div class="row"><button class="btn" data-action="export">Export backup</button>
           <label class="btn">Import backup file<input type="file" accept="application/json,.json" data-change="importFile" hidden></label>
           <button class="btn" data-action="pasteMode">Paste a backup</button>
-          <button class="btn danger" data-action="reset">${icon('trash')}Delete everything</button></div>
+          </div>
         ${showBackup ? `<div style="margin-top:14px"><label class="field"><span>Your backup <span class="hint">If no file downloaded, copy this text and save it somewhere safe (a note or an email to yourself).</span></span><textarea id="backup-out" class="backup" readonly>${esc(store.exportJson(state))}</textarea></label><button class="btn small" data-action="copyBackup">Copy to clipboard</button></div>` : ''}
         ${pasteMode ? `<form data-form="pasteImport" style="margin-top:14px"><label class="field"><span>Paste backup text</span><textarea id="backup-in" name="text" class="backup" required></textarea></label><button class="btn primary small">Import</button></form>` : ''}
-      </div>
+      </div>`;
+    return head('Settings', 'Habit Lab') + `
+      <div class="card tight"><ul class="rows">${SECTIONS.map(([id, t, sub, ic]) => `<li><a class="lrow" href="#/settings/${id}" style="text-decoration:none"><span class="slot-ico">${icon(ic)}</span><span class="body"><span class="title" style="display:block">${t}</span><span class="sub" style="display:block">${esc(sub)}</span></span><span class="trail">${icon('chevron')}</span></a></li>`).join('')}</ul></div>
+      <div class="card tight"><ul class="rows">
+        <li><a class="lrow" href="#/learn" style="text-decoration:none"><span class="slot-ico">${icon('learn')}</span><span class="body"><span class="title" style="display:block">The evidence</span><span class="sub" style="display:block">The research behind every feature</span></span><span class="trail">${icon('chevron')}</span></a></li>
+        <li><a class="lrow" href="#/rewards" style="text-decoration:none"><span class="slot-ico">${icon('star')}</span><span class="body"><span class="title" style="display:block">Rewards</span><span class="sub" style="display:block">Level, badges and XP</span></span><span class="trail">${icon('chevron')}</span></a></li>
+      </ul></div>
       <p class="footer-note">Habit Lab${window.HABITLAB_VERSION ? ` ${esc(window.HABITLAB_VERSION)}` : ''} · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
   actions: {
+    gamePref(el, ev, ctx) {
+      ctx.update((st) => {
+        st.game = { ...st.game, [el.dataset.key]: el.checked };
+        return st;
+      }, { quiet: true });
+    },
     async reminders(form, ev, ctx, data) {
       const enabled = !!data.enabled;
       if (enabled && (await notify.permissionState()) !== 'granted') {
@@ -141,7 +172,7 @@ export default {
       ctx.update((st) => {
         const r = { ...st.reminders, enabled };
         for (const k of ['morning', 'breakfast', 'lunch', 'dinner', 'move', 'evening', 'encourageAt', 'checkinAt']) if (data[k]) r[k] = data[k];
-        for (const k of ['meals', 'encourage', 'checkin']) r[k] = !!data[k];
+        for (const k of ['meals', 'encourage', 'checkin', 'morningOn', 'moveOn', 'eveningOn']) r[k] = !!data[k];
         r.checkinDay = Number(data.checkinDay);
         st.reminders = r;
         return st;

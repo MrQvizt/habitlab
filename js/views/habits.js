@@ -54,7 +54,8 @@ export default {
     const full = state.habits.active.length >= MAX_ACTIVE;
     const suggested = suggestNext(activeIds.concat(state.habits.retired.map((r) => r.id)), state.profile).slice(0, 3);
     const hideNumbers = store.habitsOnly(state);
-    const library = HABITS.filter((h) => (filter === 'all' || h.cat === filter) && !activeIds.includes(h.id) && !(hideNumbers && (h.id === 'weigh_daily' || h.id === 'log_meals')));
+    const retiredIds = state.habits.retired.map((r) => r.id);
+    const library = HABITS.filter((h) => (filter === 'all' || h.cat === filter) && !activeIds.includes(h.id) && !retiredIds.includes(h.id) && !(hideNumbers && (h.id === 'weigh_daily' || h.id === 'log_meals')));
     const names = Object.fromEntries(HABITS.map((h) => [h.id, h.title]));
     const log = state.habits.log[date] || {};
     const rows = active.map((a) => {
@@ -65,18 +66,18 @@ export default {
       return `<li><div class="lrow ${on ? 'done' : ''}">
         <button class="check ${on ? 'on' : ''}" data-action="toggle" data-id="${a.id}" aria-pressed="${on}" aria-label="${esc(h.title)} done today">${icon('check')}</button>
         <button class="body row-btn" data-action="manage" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">After ${esc(a.cue.replace(/^after\s+/i, ''))}</div>
-          <span class="meter" style="display:block;height:5px;margin:8px 0 2px"><span style="width:${Math.min(100, (days / 66) * 100).toFixed(1)}%"></span></span><span class="sub" style="display:block;font-size:var(--text-xs)">Day ${days} of ~66${isEstablished(a, state.habits.log, date) ? ' · sticking' : ''}</span></button>
-        <span class="trail">${st ? `<span class="pill-stat streak" style="padding:3px 8px">${icon('flame')}${st}</span>` : ''}</span></div></li>`;
+          ${days > 66 ? `<span class="sub" style="display:block;color:var(--accent);font-weight:650;margin-top:4px">Habit formed ✓ · ${st}-day streak</span>` : `<span class="meter" style="display:block;height:5px;margin:8px 0 2px"><span style="width:${Math.min(100, (days / 66) * 100).toFixed(1)}%"></span></span><span class="sub" style="display:block;font-size:var(--text-xs)">Day ${days} of ~66 · ${st}-day streak</span>`}</button></div></li>`;
     }).join('');
     const libRows = library.map((h) => `<li><div class="lrow"><span class="body"><span class="title" style="display:block">${esc(h.title)}${suggested.includes(h.id) ? ' <span class="tag" style="background:var(--accent-soft);color:var(--accent);vertical-align:2px">suggested</span>' : ''}</span><span class="sub" style="display:block">${esc(h.cue)} · <a href="#/learn/${esc(h.ev)}">evidence</a></span></span>
       <button class="btn small ${full ? '' : 'tonal'}" data-action="add" data-id="${h.id}" ${full ? 'disabled' : ''} aria-label="Add ${esc(h.title)}">${icon('plus')}Add</button></div></li>`).join('');
+    const libraryBlock = () => `<div class="scroll-x" style="margin-bottom:10px">${[['all', 'All'], ...Object.entries(HABIT_CATEGORIES)].map(([k, l]) => `<button type="button" class="qchip ${filter === k ? 'done' : ''}" style="padding-left:12px" data-action="filter" data-value="${k}" aria-pressed="${filter === k}">${esc(l)}</button>`).join('')}</div>
+      <div class="card tight" style="${full ? 'box-shadow:none;margin:0' : ''}"><ul class="rows">${libRows || '<li class="empty-state">Nothing else in this category.</li>'}</ul></div>`;
     return `<header class="page-head"><div><div class="eyebrow">${state.habits.active.length} of ${MAX_ACTIVE} active</div><h1>Habits</h1></div></header>
       <p class="muted" style="margin:-8px 0 14px">Small actions tied to something you already do. One missed day doesn’t matter — just don’t miss twice.</p>
       ${active.length ? `<div class="card tight"><ul class="rows">${rows}</ul></div>` : `<div class="card empty-state">${icon('habits')}<strong>No active habits</strong>Pick one small habit from the library below.</div>`}
       ${active.length ? `<div class="section-head"><h2>Last 4 weeks</h2></div><div class="card">${habitGrid(active.map((a) => a.id), state.habits.log, date, 28, names)}</div>` : ''}
-      <div class="section-head"><h2>Add a habit</h2><span class="meta">${full ? 'Graduate or stop one to add more' : active.length && !allEstablished ? 'Tip: add one when the current ones feel easy' : 'Start with one or two'}</span></div>
-      <div class="scroll-x" style="margin-bottom:10px">${[['all', 'All'], ...Object.entries(HABIT_CATEGORIES)].map(([k, l]) => `<button type="button" class="qchip ${filter === k ? 'done' : ''}" style="padding-left:12px" data-action="filter" data-value="${k}" aria-pressed="${filter === k}">${esc(l)}</button>`).join('')}</div>
-      <div class="card tight"><ul class="rows">${libRows || '<li class="empty-state">Nothing else in this category.</li>'}</ul></div>
+      ${full ? `<details class="card" style="margin-top:22px"><summary class="row nowrap" style="cursor:pointer;list-style:none"><span class="slot-ico">${icon('plus')}</span><span class="grow"><strong>Browse habits (${library.length})</strong><span style="display:block;font-size:var(--text-sm);color:var(--ink-3)">All 3 slots are in use — graduate or stop one to add another</span></span>${icon('chevron')}</summary><div style="margin-top:12px">${libraryBlock()}</div></details>`
+        : `<div class="section-head"><h2>Add a habit</h2><span class="meta">${active.length && !allEstablished ? 'Add one when the current ones feel easy' : 'Start with one or two'}</span></div>${libraryBlock()}`}
       ${state.habits.retired.length ? `<div class="section-head"><h2>Graduated</h2><span class="meta">part of your routine now</span></div><div class="card tight"><ul class="rows">${state.habits.retired.map((r) => `<li><div class="lrow"><span class="check on" aria-hidden="true">${icon('check')}</span><span class="body"><span class="title" style="display:block">${esc(names[r.id])}</span><span class="sub" style="display:block">Automatic since ${esc(r.date)}</span></span></div></li>`).join('')}</ul></div>` : ''}`;
   },
   actions: {

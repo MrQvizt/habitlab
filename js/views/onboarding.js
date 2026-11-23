@@ -38,26 +38,28 @@ function num(name, value, { min, max, step = 'any', unit = '', placeholder = '',
 }
 
 function welcome() {
+  const feat = (ic, t, d) => `<li class="row nowrap" style="align-items:flex-start;gap:14px;padding:12px 0"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon(ic)}</span><span><strong style="display:block">${t}</strong><span class="muted" style="font-size:var(--text-md)">${d}</span></span></li>`;
   return html`
-  <div class="hero">
-    <div class="row"><span class="logo">HL</span><strong>Habit Lab</strong></div>
-    <h1 style="margin-top:14px">Lose weight by building habits that last</h1>
-    <p class="muted-2">A meal plan, a workout plan and a small set of habits — built from the research on what actually works for people with obesity, and adjusted every week from your check-ins.</p>
-    <div class="row"><button class="btn primary" data-action="next">Get started ${icon('chevron')}</button><button class="btn" data-action="demo">Explore with demo data</button></div>
+  <section style="padding:28px 4px 8px">
+    <span class="logo" style="width:56px;height:56px;border-radius:16px;font-size:22px">HL</span>
+    <h1 style="margin-top:18px;font-size:var(--text-3xl);line-height:1.1">Lose weight by building habits that last</h1>
+    <p class="muted-2" style="font-size:var(--text-lg);margin-top:10px">Meals, movement and a few small habits — built from the research on what works, and adjusted every week to you.</p>
+  </section>
+  <div class="card"><ul class="rows" style="margin:-6px 0">
+    ${feat('meals', 'Meals that fit you', 'Matched to your calories, protein, diet, allergies, time and budget — with a shopping list.')}
+    ${feat('move', 'Workouts that progress', 'Start where you are, even from a chair. Each exercise adapts to your feedback.')}
+    ${feat('habits', 'One habit at a time', '“After I…, I will…” habits with a forgiving streak.')}
+    ${feat('star', 'Rewards for showing up', 'XP, quests and badges for logging and moving — never for eating less.')}
+  </ul></div>
+  <div class="card flat" style="font-size:var(--text-md)">
+    <p style="margin:0 0 8px"><strong>Private.</strong> <span class="muted-2">Everything stays on this device — no account, nothing sent anywhere.</span></p>
+    <p style="margin:0 0 8px"><strong>Not medical care.</strong> <span class="muted-2">If you have a condition or take medication, check with your doctor.</span></p>
+    <p style="margin:0"><strong>Evidence-based.</strong> <span class="muted-2">See <a href="#/learn">the research</a> behind every feature.</span></p>
   </div>
-  <div class="grid three">
-    <div class="card flat"><h3>${icon('meals')} Meals that fit you</h3><p class="muted">Recipes matched to your calories, protein, diet, allergies, time and budget — plus a shopping list.</p></div>
-    <div class="card flat"><h3>${icon('move')} Workouts that progress</h3><p class="muted">Start where you are — even from a chair. Each exercise gets easier or harder based on your feedback.</p></div>
-    <div class="card flat"><h3>${icon('habits')} One habit at a time</h3><p class="muted">Small “after I…, I will…” habits, tracked with a forgiving streak. Add the next once one sticks.</p></div>
-  </div>
-  <div class="card flat">
-    <h3>Before you start</h3>
-    <ul class="muted-2" style="padding-left:20px;margin:0">
-      <li><strong>Private by design.</strong> Everything stays in this browser. No account, no server, nothing is sent anywhere.</li>
-      <li><strong>Not medical care.</strong> This is a self-management tool based on published guidelines. If you have a medical condition or take medication, check with your doctor.</li>
-      <li><strong>Built on evidence.</strong> See the <a href="#/learn">Learn</a> section for the research behind each feature.</li>
-    </ul>
-    <p style="margin-top:12px" class="muted">Moving from another device? <label class="btn small" style="display:inline-flex"><input type="file" accept="application/json,.json" data-change="importFile" hidden>Import a backup</label></p>
+  <p class="muted" style="text-align:center;font-size:var(--text-sm)">Moving from another device? <label class="btn small ghost" style="display:inline-flex;color:var(--accent)"><input type="file" accept="application/json,.json" data-change="importFile" hidden>Import a backup</label></p>
+  <div class="action-bar" style="flex-direction:column;align-items:stretch">
+    <button class="btn primary large" data-action="next" style="max-width:none">Get started</button>
+    <button class="btn ghost" data-action="demo">Explore with demo data first</button>
   </div>`;
 }
 
@@ -196,7 +198,7 @@ function planStep() {
   ${(draft.edFlags || []).length && !s.blocked ? `<div class="notice block">${icon('alert')}<div>Some of your answers suggest calorie counting may not be helpful right now. The app will hide calorie numbers and focus on regular meals, movement and wellbeing habits. Please consider talking to your doctor, or an eating-disorder charity such as Beat (UK) or ANAD (US).</div></div>` : ''}
   <form data-form="step" class="card">
     ${habitsOnly ? `<p>You’ll get balanced, regular meals, gentle movement and habit tracking — without calorie targets.</p><input type="hidden" name="pace" value="steady">` : `
-    <fieldset><legend>Choose your pace</legend><div class="options">${paceCards}</div></fieldset>
+    <fieldset><legend>Choose your pace</legend><div class="options">${paceCards.join('')}</div></fieldset>
     <div class="stats">
       <div class="stat"><span class="v">${t.rmr.toLocaleString()}</span><span class="l">resting energy (kcal)</span></div>
       <div class="stat"><span class="v">${t.tdee.toLocaleString()}</span><span class="l">estimated daily needs</span></div>
