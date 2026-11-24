@@ -4,6 +4,25 @@ import { ring, barChart } from '../ui/charts.js';
 import * as store from '../store.js';
 import { BADGES, XP, levelTitle } from '../engine/game.js';
 import { addDays, weekStart } from '../engine/util.js';
+import { ORGANS, medalFor, nextMedal, lastWeekStart } from '../engine/body.js';
+import { ring as bodyRing } from './wrap.js';
+
+function bodyMedals(state, g, date) {
+  const b = g.stats.body;
+  const hide = store.habitsOnly(state);
+  const last = lastWeekStart(state, date);
+  return `<div class="section-head"><h2>Body medals</h2><span class="meta">${last ? `<a href="#/wrap/${last}">Last week’s wrap</a>` : 'Your first wrap arrives Monday'}</span></div>
+    <div class="card"><p class="muted" style="font-size:var(--text-sm);margin-top:0">Every week a body part thanks you, it counts toward its medal: bronze 1 week, silver 4, gold 12, platinum 26.</p>
+    <div class="medal-wall">${ORGANS.filter((o) => !(hide && o.id === 'knees')).map((o) => {
+      const n = b.counts[o.id] || 0;
+      const m = medalFor(n);
+      const nx = nextMedal(n);
+      return `<div class="body-medal ${m ? '' : 'locked'}" style="--mc:${m ? m.color : 'var(--line-strong)'};--oc:${o.color}">
+        <div class="bm-disc">${bodyRing(nx ? n / nx.n : 1, o.color, { size: 64, stroke: 6, label: o.emoji })}</div>
+        <strong>${esc(o.name)}</strong><small>${m ? `${m.name} · ` : ''}${n} week${n === 1 ? '' : 's'}${nx ? ` · ${nx.n - n} to ${nx.name.toLowerCase()}` : ''}</small></div>`;
+    }).join('')}</div>
+    ${b.allClosed ? `<p style="margin:10px 0 0;font-weight:700">🏆 Full-body weeks: ${b.allClosed}</p>` : ''}</div>`;
+}
 
 export default {
   render(state) {
@@ -44,6 +63,7 @@ export default {
 
       <div class="card"><div class="card-head"><h2>Today’s quests</h2><span class="muted" style="font-size:.86rem">All done = perfect day, +${XP.perfectDay} XP</span></div>${questsHtml(g)}</div>
 
+      ${bodyMedals(state, g, date)}
       <div class="section-head"><h2>Badges</h2><span class="meta">${badgeList.filter((b) => earned.has(b.id)).length} of ${badgeList.length} earned</span></div>
       <div class="card">
         <div class="badges">${sortedBadges.slice(0, 6).map(badgeCard).join('')}</div>
@@ -67,6 +87,7 @@ export default {
           ['Reach your step goal', XP.steps],
           ...(hide ? [] : [['Weigh in', XP.weighIn]]),
           ['Weekly check-in', XP.checkin],
+          ['Open last week’s Body Wrap', XP.wrap],
           ['Perfect day (all quests)', XP.perfectDay],
           ['Each badge', XP.badge],
           ['Lucky bonus (random, about 1 in 6 ticks)', XP.lucky],

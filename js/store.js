@@ -32,6 +32,7 @@ export function emptyState() {
     workouts: { progress: {}, log: {} },
     habits: { active: [], log: {}, retired: [] },
     checkins: [],
+    wraps: {},
     kcalAdjust: 0,
     tdeeOffset: 0,
     flags: {},
@@ -194,6 +195,7 @@ export function sanitize(s) {
   s.waist = (Array.isArray(s.waist) ? s.waist : []).filter((w) => w && ISO.test(w.date) && num(w.cm, 30, 300) != null).map((w) => ({ date: w.date, cm: Number(w.cm) }));
   s.intake = dateMap(s.intake, (v) => num(v, 0, 20000));
   s.steps = dateMap(s.steps, (v) => num(v, 0, 200000));
+  s.wraps = dateMap(s.wraps, (v) => (typeof v === 'string' && ISO.test(v) ? v : null));
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
   const g = s.game && typeof s.game === 'object' ? s.game : {};

@@ -476,3 +476,64 @@ test('journey: healthy goal, multi-year timeline and stops along the way (182 cm
   assert.equal(recentTimeStop(journey({ profile }, { today: '2026-01-13', trendKg: 183 }), '2026-01-13').title, 'One week in');
   assert.equal(recentTimeStop(later, '2026-06-05'), null);
 });
+
+test('body wrap: organ rings from logged behaviour, knee maths, XP and medals', async () => {
+  const { weekBody, ORGANS, KNEE_FACTOR, bodyCollection, lastWeekStart, medalFor, nextMedal } = await import('../js/engine/body.js');
+  const { addDays, weekStart, isoDate } = await import('../js/engine/util.js');
+  const { demoState } = await import('../js/demo.js');
+  const { summary, dayAwards, XP } = await import('../js/engine/game.js');
+  const { buildReminders } = await import('../js/engine/reminders.js');
+  const s = demoState();
+  const today = isoDate();
+  const ws = lastWeekStart(s, today);
+  assert.ok(ws);
+  const w = weekBody(s, ws);
+  assert.equal(w.organs.length, ORGANS.length);
+  for (const o of w.organs) {
+    assert.ok(o.pct >= 0 && Number.isFinite(o.pct), o.id);
+    assert.ok(o.head && o.big && o.sub && o.fact && o.src, o.id);
+  }
+  assert.ok(w.earned.length >= 3, `demo week earns thanks: ${w.earned.map((o) => o.id)}`);
+  // Knee maths: kg lost × 4 × steps
+  const st = w.stats;
+  if (st.lostKg > 0 && st.steps) assert.ok(Math.abs(st.kneeTonnes - (st.lostKg * KNEE_FACTOR * st.steps) / 1000) < 1e-9);
+
+  // A blank week: no thanks, nudge present, nothing NaN.
+  const blank = { ...s, workouts: { ...s.workouts, log: {} }, steps: {}, mealLog: {}, habits: { ...s.habits, log: {} }, weights: [] };
+  const b = weekBody(blank, ws);
+  assert.equal(b.earned.length, 0);
+  assert.ok(b.nudge);
+  // Heart ring is exactly active minutes / 150
+  const one = structuredClone(blank);
+  one.workouts.log[ws] = [{ kind: 'cardio', minutes: 75 }];
+  one.workouts.log[addDays(ws, 2)] = [{ kind: 'activity', name: 'Squash', intensity: 'vigorous', minutes: 45 }];
+  const h = weekBody(one, ws).organs.find((o) => o.id === 'heart');
+  assert.equal(h.pct, (75 + 90) / 150);
+  assert.ok(h.closed && h.earned);
+  assert.equal(weekBody(one, ws).stats.strength, 0); // squash is cardio, not strength
+  one.workouts.log[addDays(ws, 4)] = [{ kind: 'activity', name: 'Climbing / bouldering', intensity: 'vigorous', minutes: 60 }];
+  assert.equal(weekBody(one, ws).stats.strength, 1); // bouldering counts as strength-type from the catalogue
+
+  // Habits-only: no weight numbers in the knees card
+  const ho = weekBody(s, ws, { habitsOnly: true });
+  assert.equal(ho.stats.lostKg, 0);
+
+  // XP and badges: opening the wrap is worth XP once, on the day it was opened
+  const opened = { ...s, wraps: { [ws]: today } };
+  assert.ok(dayAwards(opened, today).some((a) => a.kind === 'wrap' && a.xp === XP.wrap));
+  const g = summary(opened, today);
+  assert.ok(g.badges.includes('wrap_1'));
+  assert.ok(g.stats.body.weeks >= 9);
+  assert.ok(Object.values(bodyCollection(s, today).counts).some((n) => n > 0));
+  assert.equal(medalFor(0), null);
+  assert.equal(medalFor(4).name, 'Silver');
+  assert.equal(nextMedal(4).name, 'Gold');
+
+  // Monday reminder when last week's wrap is waiting; none once opened
+  const monday = weekStart(addDays(today, 7));
+  const sR = { ...s, reminders: { ...s.reminders, enabled: true, checkin: true } };
+  const rs = buildReminders(sR, new Date(addDays(monday, -1) + 'T12:00'));
+  const wrapR = rs.find((r) => r.route === `#/wrap/${addDays(monday, -7)}`);
+  assert.ok(wrapR, 'Monday wrap reminder');
+  assert.match(wrapR.title, /Body Wrap/);
+});

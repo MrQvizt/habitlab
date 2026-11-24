@@ -8,6 +8,7 @@ import { addDays, weekStart, parseDate, hashString, isoDate } from './util.js';
 import { quests } from './game.js';
 import { byId } from './meals.js';
 import { mealTimes, daySchedule, toHHMM } from './schedule.js';
+import { weekBody } from './body.js';
 
 export const DEFAULT_REMINDERS = {
   enabled: false,
@@ -43,7 +44,7 @@ export const ENCOURAGEMENTS = [
   ['Veg first', 'Starting with vegetables fills you up on fewer calories.'],
 ];
 
-const DAY_SLOTS = ['morning', 'breakfast', 'lunch', 'move', 'encourage', 'dinner', 'evening', 'checkin'];
+const DAY_SLOTS = ['morning', 'breakfast', 'lunch', 'move', 'encourage', 'dinner', 'evening', 'checkin', 'wrap'];
 
 /** Notification id: stable per (date, slot) so rescheduling replaces rather than duplicates. */
 export function reminderId(date, slot) {
@@ -156,6 +157,16 @@ export function buildReminders(state, now, ctx = {}) {
     if (r.checkin && (parseDate(date).getDay() + 6) % 7 === Number(r.checkinDay)) {
       const last = (state.checkins || []).map((c) => c.date).sort().pop();
       if (!(isToday && last === date)) push(date, 'checkin', r.checkinAt, 'Weekly check-in (+50 XP)', 'Two minutes to look back at your week and tune the plan.', '#/checkin');
+    }
+
+    // Monday: last week's Body Wrap is ready
+    if (r.checkin && (parseDate(date).getDay() + 6) % 7 === 0) {
+      const ws = addDays(date, -7);
+      if (state.profile?.startDate && addDays(ws, 6) >= state.profile.startDate && !state.wraps?.[ws]) {
+        const w = weekBody(state, ws);
+        const top = w.earned[0];
+        push(date, 'wrap', '08:15', `🎁 Your Body Wrap is ready`, top ? `${top.emoji} ${top.head} — plus ${w.earned.length - 1 > 0 ? `${w.earned.length - 1} more thank-you${w.earned.length - 1 === 1 ? '' : 's'}` : 'a look at your week'}. +30 XP` : 'See what last week did for your body. +30 XP', `#/wrap/${ws}`);
+      }
     }
   }
   return out.sort((a, b) => a.at - b.at);

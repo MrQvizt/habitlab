@@ -13,6 +13,7 @@ import { itemDone, logPlannedActivity } from './move.js';
 import { slotIcon, toggleHabit, mealRows } from './sheets.js';
 import { journey, nextStops, recentTimeStop } from '../engine/journey.js';
 import { whenLabel } from './journey.js';
+import { wrapReadyCard, bodyRingsCard } from './wrap.js';
 
 // ---------- Journey: the next stop on the long road (or a time stop just reached) ----------
 function journeyCard(state, date) {
@@ -199,9 +200,9 @@ export default {
     return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${greeting()}</h1></div></header>
       ${banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${nextUp(state, date)}${hero(state)}</div>
+        <div class="tg-hero">${wrapReadyCard(state, date)}${nextUp(state, date)}${hero(state)}</div>
         <div class="tg-food">${food(state, date)}</div>
-        <div class="tg-rest">${journeyCard(state, date)}${habits(state, date)}${movement(state, date)}${firstWeek(state, date)}</div>
+        <div class="tg-rest">${bodyRingsCard(state, date)}${journeyCard(state, date)}${habits(state, date)}${movement(state, date)}${firstWeek(state, date)}</div>
       </div>`;
   },
   actions: {

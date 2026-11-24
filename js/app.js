@@ -14,6 +14,7 @@ import settings from './views/settings.js';
 import shopping from './views/shopping.js';
 import rewards from './views/rewards.js';
 import journeyView from './views/journey.js';
+import wrapView from './views/wrap.js';
 import { floatXp, confetti, chime, buzz, showCelebration } from './ui/celebrate.js';
 import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
@@ -21,7 +22,7 @@ import { closeSheet } from './ui/sheet.js';
 import { sheetActions } from './views/sheets.js';
 import { daySummary, readDay } from './views/day.js';
 
-const VIEWS = { rewards, journey: journeyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { rewards, journey: journeyView, wrap: wrapView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -211,6 +212,7 @@ function renderRoute() {
   document.querySelector('.bottomnav').style.display = hasShell ? '' : 'none';
   document.querySelector('.sidebar').style.display = hasShell ? '' : 'none';
   document.body.classList.toggle('no-nav', !hasShell);
+  document.body.classList.toggle('wrap-open', name === 'wrap' && hasShell);
   const top = hasShell
     ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span>Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}<a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
     : '';
@@ -273,6 +275,16 @@ document.addEventListener('input', (ev) => {
   if (!key) return;
   const q = ev.target.value.trim().toLowerCase();
   for (const el of document.querySelectorAll(`[data-filter-target="${key}"] [data-filter-text]`)) el.hidden = q ? !el.dataset.filterText.includes(q) && !el.classList.contains('custom') : el.dataset.out === '1';
+});
+// Body Wrap: arrow keys move through the story, Escape closes it.
+document.addEventListener('keydown', (ev) => {
+  if (!document.body.classList.contains('wrap-open')) return;
+  const sel = { ArrowRight: '.w-tap.right', ' ': '.w-tap.right', ArrowLeft: '.w-tap.left', Escape: '.w-close' }[ev.key];
+  const el = sel && document.querySelector(sel);
+  if (el) {
+    ev.preventDefault();
+    el.click();
+  }
 });
 // Live goal suggestion in onboarding while height and weight change.
 document.addEventListener('input', (ev) => {

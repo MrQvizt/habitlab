@@ -1,5 +1,5 @@
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
-const S = {
+export const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
   cdc: ['CDC: Steps for losing weight', 'https://www.cdc.gov/healthy-weight-growth/losing-weight'],
   mifflin: ['Frankenfield et al. 2005 — predictive RMR equations', 'https://pure.psu.edu/en/publications/comparison-of-predictive-equations-for-resting-metabolic-rate-in-/'],
@@ -29,6 +29,7 @@ const S = {
   exAlone: ['Thomas et al. 2012 — why exercise alone gives little weight loss', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC3771367'],
   uspstf: ['USPSTF 2018 — behavioural interventions for obesity', 'https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obesity-in-adults-interventions'],
   dpp: ['Knowler et al., NEJM 2002 — Diabetes Prevention Program', 'https://pubmed.ncbi.nlm.nih.gov/11832527/'],
+  niddk: ['NIDDK — chronic kidney disease: causes and prevention', 'https://www.niddk.nih.gov/health-information/kidney-disease/chronic-kidney-disease-ckd'],
   whobmi: ['WHO fact sheet — obesity and overweight (BMI ranges)', 'https://www.who.int/news-room/fact-sheets/detail/obesity-and-overweight'],
   direct: ['Lean et al., Lancet 2018 — DiRECT (diabetes remission)', 'https://pubmed.ncbi.nlm.nih.gov/29221645/'],
   messier2005: ['Messier et al. 2005 — weight loss and knee-joint load', 'https://pubmed.ncbi.nlm.nih.gov/15986358/'],
@@ -185,6 +186,17 @@ export const LEARN = [
       'Points are a scaffold. As habits become automatic, they matter less, and that’s the goal.'],
     ['mazeas', 'stepup', 'harvey'],
     'XP for each meal you log (the same whatever you ate; a skipped meal earns less), habit, session and check-in; daily quests; a forgiving streak; and badges.'),
+  C('body_wrap', 'Habits & mindset', 'Your Body Wrap: what each week does inside',
+    'Most benefits of healthy habits are invisible at first. The weekly wrap shows them, one body part at a time.',
+    ['Heart: 150+ minutes of moderate activity a week (vigorous counts double) is linked to lower risk of heart disease, stroke, type 2 diabetes and early death.',
+      'Brain: regular activity reduces symptoms of depression and anxiety and supports thinking and memory.',
+      'Muscles: strength training twice a week while losing weight helps keep muscle, so more of what you lose is fat.',
+      'Knees: every kilo lost takes about 4 kg of load off the knee with each step — over thousands of steps a week, that adds up to tonnes.',
+      'Gut: 25–29 g of fibre a day is linked to 15–30% lower risk of heart disease, stroke, type 2 diabetes and bowel cancer.',
+      'Blood sugar and kidneys: activity and weight loss cut new type 2 diabetes by 58% in the DPP; diabetes and high blood pressure are the main causes of kidney disease, and moving more and a healthier weight help protect against both.',
+      'Rings fill from what you log — never from eating less. They are encouragement, not a diagnosis: these are population findings, not promises about one person.'],
+    ['who', 'lopez', 'messier2005', 'reynolds', 'dpp', 'niddk', 'mazeas'],
+    'Every Monday your Body Wrap opens with last week’s thank-you notes (+30 XP). Live rings on Today fill up through the week, and each body part earns bronze, silver, gold and platinum medals in Rewards.'),
   C('mindful_eating', 'Habits & mindset', 'Slowing down and checking in with hunger',
     'Pausing before and during eating helps you choose deliberately.',
     ['In the ultra-processed food trial, people ate faster on the ultra-processed meals as well as eating more.',
