@@ -265,11 +265,12 @@ document.addEventListener('submit', (ev) => {
   if (handler) handler(form, ev, ctx, formData(form));
 });
 // Client-side list filtering: <input data-filter="x"> filters [data-filter-target="x"] [data-filter-text].
+// A search covers every item; with the box empty, items marked data-out (outside the current tab) stay hidden.
 document.addEventListener('input', (ev) => {
   const key = ev.target.dataset?.filter;
   if (!key) return;
   const q = ev.target.value.trim().toLowerCase();
-  for (const el of document.querySelectorAll(`[data-filter-target="${key}"] [data-filter-text]`)) el.hidden = q && !el.dataset.filterText.includes(q) && !el.classList.contains('custom');
+  for (const el of document.querySelectorAll(`[data-filter-target="${key}"] [data-filter-text]`)) el.hidden = q ? !el.dataset.filterText.includes(q) && !el.classList.contains('custom') : el.dataset.out === '1';
 });
 // Live "Your day" preview while the time inputs change.
 document.addEventListener('input', (ev) => {

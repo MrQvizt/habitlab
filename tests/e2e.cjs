@@ -133,10 +133,20 @@ const shots = process.argv[3] || null;
   const dayName = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][todayIdx];
   await page.goto(base + '#/move');
   await page.click('button:has-text("Add an activity you already do")');
+  await snap('09-activity-picker');
   // Search the catalogue: "scuba" leaves Scuba diving (vigorous) visible
   await page.fill('input[data-filter=hobby]', 'scuba');
   const visible = await page.$$eval('.hobby-btn:not([hidden]):not(.custom)', (els) => els.map((e) => e.textContent));
-  if (visible.length !== 1 || !/Scuba diving/.test(visible[0]) || !/Vigorous/.test(visible[0])) errors.push('hobby search failed: ' + visible.join(' | '));
+  if (visible.length !== 2 || !/Scuba diving/.test(visible[0]) || !/Vigorous/.test(visible[0])) errors.push('hobby search failed: ' + visible.join(' | '));
+  // Search covers all 300+ activities, not just the Popular tab; clearing it restores the tab.
+  await page.fill('input[data-filter=hobby]', 'kendo');
+  if ((await page.$$('.hobby-btn:not([hidden]):not(.custom)')).length !== 1) errors.push('search did not reach outside the Popular tab');
+  await page.fill('input[data-filter=hobby]', '');
+  const popCount = (await page.$$('.hobby-btn:not([hidden]):not(.custom)')).length;
+  if (popCount < 12 || popCount > 40) errors.push('Popular tab not restored: ' + popCount);
+  await page.click('[data-action=hobbyCat][data-value=garden]');
+  if ((await page.$$('.hobby-btn:not([hidden]):not(.custom)')).length < 20) errors.push('garden tab too small');
+  if ((await page.$$('.hobby-btn')).length < 200) errors.push('fewer than 200 activities in the picker');
   await page.fill('input[data-filter=hobby]', 'walking with');
   await page.click('.hobby-btn:has-text("Walking with friends")');
   if ((await page.inputValue('form[data-form=addActivity] input[name=name]')) !== 'Walking with friends') errors.push('picked hobby not prefilled');

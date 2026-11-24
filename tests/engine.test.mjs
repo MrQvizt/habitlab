@@ -415,14 +415,20 @@ test('day timeline: snacks sit between meals, last meal ≥2 h before bed, late 
 });
 
 test('hobby catalogue: Compendium bands, unique names, estimates labelled, scheduling credit', async () => {
-  const { HOBBIES, intensityFromMet, hobbyByName } = await import('../js/data/hobbies.js');
+  const { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } = await import('../js/data/hobbies.js');
+  assert.ok(HOBBIES.length >= 200, `only ${HOBBIES.length} activities`);
   const names = HOBBIES.map((h) => h.name.toLowerCase());
   assert.equal(new Set(names).size, names.length);
   for (const h of HOBBIES) {
     assert.ok(h.met >= 1.6 && h.met <= 15, h.name);
     assert.ok(h.est ? typeof h.note === 'string' : /^\d{5}$/.test(h.code), `${h.name}: needs a Compendium code or an estimate note`);
-    assert.ok(h.minutes >= 15 && h.minutes <= 180, h.name);
+    assert.ok(h.minutes >= 10 && h.minutes <= 180, h.name);
+    assert.ok(HOBBY_CATEGORIES[h.cat], `${h.name}: unknown category ${h.cat}`);
   }
+  for (const cat of Object.keys(HOBBY_CATEGORIES)) assert.ok(HOBBIES.filter((h) => h.cat === cat).length >= 10, cat);
+  const pop = HOBBIES.filter((h) => h.pop).length;
+  assert.ok(pop >= 12 && pop <= 40, `${pop} popular`);
+  assert.ok(HOBBIES.filter((h) => h.est).length <= 6, 'estimates should stay rare');
   assert.equal(intensityFromMet(hobbyByName('Gardening').met), 'moderate');
   assert.equal(intensityFromMet(hobbyByName('Scuba diving').met), 'vigorous');
   assert.equal(intensityFromMet(hobbyByName('Squash').met), 'vigorous');
