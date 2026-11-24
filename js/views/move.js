@@ -40,7 +40,7 @@ function activitiesCard(state) {
     const tabs = [['pop', 'Popular', HOBBIES.filter((h) => h.pop).length], ['all', 'All', HOBBIES.length], ...Object.entries(HOBBY_CATEGORIES).map(([k, l]) => [k, l, HOBBIES.filter((h) => h.cat === k).length])];
     form = `<div class="card flat" style="margin-top:10px">
       <div class="row between" style="margin-bottom:8px"><strong>What do you do?</strong><button class="btn ghost small" data-action="toggleAddActivity">Cancel</button></div>
-      <input type="search" placeholder="Search ${HOBBIES.length} activities — e.g. squash, gardening, scuba" data-filter="hobby" aria-label="Search activities" style="margin-bottom:10px">
+      <input type="search" placeholder="Search all ${HOBBIES.length} — e.g. squash, gardening, scuba" data-filter="hobby" aria-label="Search activities" style="margin-bottom:10px">
       <div class="scroll-x" style="margin-bottom:10px">${tabs.map(([k, l, n]) => `<button type="button" class="qchip ${pickCat === k ? 'done' : ''}" style="padding-left:12px" data-action="hobbyCat" data-value="${k}" aria-pressed="${pickCat === k}">${esc(l)} <span class="muted">${n}</span></button>`).join('')}</div>
       <div class="hobby-grid" data-filter-target="hobby">${HOBBIES.map((h) => `<button type="button" class="hobby-btn" data-action="pickHobby" data-name="${esc(h.name)}" data-filter-text="${esc(h.name.toLowerCase())} ${esc(HOBBY_CATEGORIES[h.cat].toLowerCase())}"${inCat(h) ? '' : ' data-out="1" hidden'}><span>${esc(h.name)}</span><small class="int-${intensityFromMet(h.met)}">${INTENSITY[intensityFromMet(h.met)].label}${h.strength ? ' · strength' : ''}</small></button>`).join('')}
         <button type="button" class="hobby-btn custom" data-action="pickHobby" data-name="" data-filter-text="something else other custom"><span>${icon('plus')} Something else</span><small>Type your own</small></button></div>
@@ -50,7 +50,7 @@ function activitiesCard(state) {
     const intensity = h ? intensityFromMet(h.met) : 'moderate';
     form = `<form data-form="addActivity" class="card flat" style="margin-top:10px">
         <button type="button" class="btn ghost small" data-action="repickHobby" style="margin:-4px 0 6px -8px">${icon('back')}All activities</button>
-        <label class="field"><span>Activity</span><input type="text" name="name" maxlength="40" required value="${esc(h?.name || '')}" placeholder="e.g. Walking with friends" ${h ? '' : 'autofocus'}></label>
+        <label class="field"><span>Activity</span><input type="text" name="name" maxlength="80" required value="${esc(h?.name || '')}" placeholder="e.g. Walking with friends" ${h ? '' : 'autofocus'}></label>
         ${h ? `<p class="muted" style="font-size:var(--text-xs);margin:-8px 0 12px">${h.est ? esc(h.note) : `≈ ${h.met} METs — 2024 Compendium of Physical Activities (${esc(h.code)})`}. Change anything that doesn’t match how you do it.</p>` : ''}
         <fieldset><legend>Which days?</legend>${chips('days', DAY_CHIPS, [])}</fieldset>
         <div class="grid two" style="margin-bottom:0">
@@ -128,7 +128,7 @@ function overview(state) {
     <div class="card"><div class="card-head"><h2>Log activity</h2></div>
       <form data-form="logCardio" class="row">
         <select name="mode" style="flex:1;min-width:150px" data-change="logMode">${Object.entries(CARDIO).map(([k, c]) => `<option value="${k}">${esc(c.label)}</option>`).join('')}${(state.profile.activities || []).map((a) => `<option value="act:${esc(a.id)}" ${logOther === 'act:' + a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}<option value="other" ${logOther === 'other' ? 'selected' : ''}>Something else…</option></select>
-        ${logOther === 'other' ? `<input type="text" name="name" maxlength="40" required placeholder="What was it?" list="hobby-names" style="flex:1;min-width:150px"><datalist id="hobby-names">${HOBBIES.map((h) => `<option value="${esc(h.name)}"></option>`).join('')}</datalist><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
+        ${logOther === 'other' ? `<input type="text" name="name" maxlength="80" required placeholder="What was it?" list="hobby-names" style="flex:1;min-width:150px"><datalist id="hobby-names">${HOBBIES.map((h) => `<option value="${esc(h.name)}"></option>`).join('')}</datalist><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
         <input type="number" name="minutes" min="1" max="300" placeholder="minutes" required style="width:110px" inputmode="numeric">
         <input type="date" name="date" value="${date}" max="${date}" style="width:160px">
         <button class="btn primary">Log</button>

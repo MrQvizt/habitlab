@@ -1,6 +1,6 @@
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
-import { esc, icon, fmtWeight, fmtDelta, fmtNum, fmtDate } from '../ui/dom.js';
+import { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
 import { mealsFor, eatenSoFar, proteinEaten, dayComplete, setMealStatus, safetyNotices, checkinDue, slotLabel, computeIntake } from './shared.js';
 import { byId, scaledNutrition } from '../engine/meals.js';
@@ -11,6 +11,25 @@ import { daysBetween } from '../engine/util.js';
 import { toHHMM, daySchedule } from '../engine/schedule.js';
 import { itemDone, logPlannedActivity } from './move.js';
 import { slotIcon, toggleHabit, mealRows } from './sheets.js';
+import { journey, nextStops, recentTimeStop } from '../engine/journey.js';
+import { whenLabel } from './journey.js';
+
+// ---------- Journey: the next stop on the long road (or a time stop just reached) ----------
+function journeyCard(state, date) {
+  const p = state.profile;
+  if (p.phase === 'maintain') return '';
+  const u = p.units === 'imperial' ? 'imperial' : 'metric';
+  const hide = store.habitsOnly(state);
+  const j = journey(state, { today: date, trendKg: store.trendWeight(state) });
+  const just = recentTimeStop(j, date);
+  const n = nextStops(j);
+  const next = hide ? n.time : n.weight || n.time;
+  if (!just && !next) return '';
+  const body = just
+    ? `<span class="eyebrow">${icon('star')} ${esc(just.title)}</span><strong>${esc(just.text)}</strong>${!hide && just.scale ? `<span class="sub">${esc(just.scale)}</span>` : ''}`
+    : `<span class="eyebrow">${icon('flag')} Next stop · ${esc(whenLabel(next, date))}</span><strong>${esc(next.title)}${!hide && next.kind !== 'time' ? ` — ${fmtKg(Math.max(0, j.now - next.weightKg), u)} to go` : ''}</strong>${!hide && j.goalKg ? `<span class="bar" style="margin-top:8px"><span style="width:${Math.max(1.5, j.pct).toFixed(1)}%"></span></span><span class="sub">${fmtKg(j.lost, u)} down · ${j.pct.toFixed(0)}% of the way to ${fmtKg(j.goalKg, u)}</span>` : ''}${next !== n.time && n.time && n.time.date < (next.date || '9999') ? `<span class="sub">Before that: <strong style="font-size:inherit;color:var(--ink-2)">${esc(n.time.title)}</strong> · ${esc(whenLabel(n.time, date).split(' · ')[1] || '')}</span>` : ''}`;
+  return `<a class="card journey-next" href="#/journey">${body}<span class="more">Your journey ${icon('chevron')}</span></a>`;
+}
 
 const SLOT_HOUR = { breakfast: 7, snack: 10, lunch: 12, snack2: 15, dinner: 18, snack3: 20 };
 
@@ -182,7 +201,7 @@ export default {
       <div class="today-grid">
         <div class="tg-hero">${nextUp(state, date)}${hero(state)}</div>
         <div class="tg-food">${food(state, date)}</div>
-        <div class="tg-rest">${habits(state, date)}${movement(state, date)}${firstWeek(state, date)}</div>
+        <div class="tg-rest">${journeyCard(state, date)}${habits(state, date)}${movement(state, date)}${firstWeek(state, date)}</div>
       </div>`;
   },
   actions: {

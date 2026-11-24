@@ -163,7 +163,7 @@ export function sanitize(s) {
       cardioBonus: num(p.cardioBonus, 0, 300, 0),
       activities: (Array.isArray(p.activities) ? p.activities : []).filter((a) => a && typeof a.name === 'string' && a.name.trim()).slice(0, 12).map((a, i) => ({
         id: typeof a.id === 'string' && /^[a-z0-9_-]{1,24}$/i.test(a.id) ? a.id : `act${i}`,
-        name: a.name.trim().slice(0, 40),
+        name: a.name.trim().slice(0, 80),
         days: subset((a.days || []).map(Number), [0, 1, 2, 3, 4, 5, 6]),
         minutes: num(a.minutes, 5, 600, 30),
         intensity: oneOf(a.intensity, ['easy', 'moderate', 'vigorous'], 'moderate'),

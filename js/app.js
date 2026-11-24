@@ -2,6 +2,7 @@
 import * as store from './store.js';
 import { icon, formData } from './ui/dom.js';
 import onboarding from './views/onboarding.js';
+import { goalHint } from './views/onboarding.js';
 import todayView from './views/today.js';
 import meals from './views/meals.js';
 import move from './views/move.js';
@@ -12,6 +13,7 @@ import learn from './views/learn.js';
 import settings from './views/settings.js';
 import shopping from './views/shopping.js';
 import rewards from './views/rewards.js';
+import journeyView from './views/journey.js';
 import { floatXp, confetti, chime, buzz, showCelebration } from './ui/celebrate.js';
 import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
@@ -19,7 +21,7 @@ import { closeSheet } from './ui/sheet.js';
 import { sheetActions } from './views/sheets.js';
 import { daySummary, readDay } from './views/day.js';
 
-const VIEWS = { rewards, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { rewards, journey: journeyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -271,6 +273,17 @@ document.addEventListener('input', (ev) => {
   if (!key) return;
   const q = ev.target.value.trim().toLowerCase();
   for (const el of document.querySelectorAll(`[data-filter-target="${key}"] [data-filter-text]`)) el.hidden = q ? !el.dataset.filterText.includes(q) && !el.classList.contains('custom') : el.dataset.out === '1';
+});
+// Live goal suggestion in onboarding while height and weight change.
+document.addEventListener('input', (ev) => {
+  const form = ev.target.closest('form');
+  const live = form?.querySelector('[data-live=goal]');
+  if (!live || !['heightCm', 'heightFt', 'heightIn', 'weight'].includes(ev.target.name)) return;
+  const u = live.dataset.units;
+  const v = (n) => Number(form.querySelector(`[name=${n}]`)?.value || 0);
+  const cm = u === 'imperial' ? (v('heightFt') * 12 + v('heightIn')) * 2.54 : v('heightCm');
+  const kg = u === 'imperial' ? v('weight') * 0.45359237 : v('weight');
+  live.innerHTML = goalHint(cm, kg, u);
 });
 // Live "Your day" preview while the time inputs change.
 document.addEventListener('input', (ev) => {

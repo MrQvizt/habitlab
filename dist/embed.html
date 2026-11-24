@@ -805,6 +805,33 @@ form:has(input[name=enabled]:not(:checked)) .reminder-list { opacity: 0.5; }
 .hobby-btn[hidden] { display: none; }
 input[type=search] { width: 100%; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); min-height: var(--tap); padding: 10px 12px; }
 .hobby-grid { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+
+/* ---------- Journey ---------- */
+.journey-hero .big { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.roadmap { list-style: none; margin: 6px 0 0; padding: 0; position: relative; }
+.roadmap::before { content: ''; position: absolute; left: 13px; top: 10px; bottom: 10px; width: 2px; background: var(--line-strong); }
+.rm-stop { position: relative; display: flex; gap: 14px; padding: 10px 0; }
+.rm-stop p { margin: 2px 0 0; font-size: var(--text-sm); color: var(--ink-2); }
+.rm-stop strong { display: block; }
+.rm-when { font-size: var(--text-xs); font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.03em; }
+.rm-dot { position: relative; z-index: 1; flex: 0 0 28px; height: 28px; border-radius: 50%; background: var(--surface); border: 2px solid var(--line-strong); display: grid; place-items: center; }
+.rm-dot svg { width: 15px; height: 15px; }
+.rm-dot.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.rm-dot.next { background: var(--warm); border-color: var(--warm); color: #fff; }
+.rm-stop.next { background: var(--accent-soft); border-radius: var(--radius-sm); margin: 4px -10px; padding: 12px 10px; }
+.rm-stop.done p { color: var(--ink-3); }
+.rm-stop.goal strong { color: var(--accent); }
+.journey-next { display: flex; flex-direction: column; gap: 3px; text-decoration: none; color: var(--ink); }
+.journey-next .eyebrow { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+.journey-next .eyebrow svg { width: 14px; height: 14px; }
+.journey-next strong { font-size: var(--text-md, 1rem); line-height: 1.35; }
+.journey-next .sub { font-size: var(--text-sm); color: var(--ink-3); }
+.journey-next .bar { display: block; }
+.journey-next .more { display: flex; align-items: center; gap: 2px; margin-top: 6px; font-size: var(--text-sm); font-weight: 700; color: var(--accent); }
+.journey-next .more svg { width: 16px; height: 16px; }
+.stats .stat.on { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); border-radius: var(--radius-sm); padding: 8px 10px; }
+.journey-preview { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px 14px 10px; margin-bottom: 16px; background: var(--surface-2); }
+.journey-preview .roadmap { margin-top: 4px; }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -1040,30 +1067,38 @@ function milestones(startKg) {
 }
 
 /**
- * Rough projection of weeks to goal. Uses the fixed deficit but lets energy needs fall
- * ~24 kcal/day per kg lost (Hall 2011), with recalculation every 2 kg (rule 7) — so it slows down.
+ * Week-by-week weight projection towards a goal: weights[0] = today, weights[n] = after n weeks.
+ * Uses the plan's deficit but lets energy needs fall as weight drops (Hall 2011), with targets
+ * recalculated every 2 kg (rule 7) — so the curve slows down, as real weight loss does.
+ * `reached` is false if the plan would plateau first or it would take longer than 15 years.
  */
-function projectWeeks(profile, goalKg) {
+function projectCurve(profile, goalKg, maxWeeks = 780) {
   let w = profile.weightKg;
-  if (!(goalKg < w)) return 0;
-  let weeks = 0;
+  const weights = [w];
+  if (!(goalKg < w)) return { weights, reached: true };
   let t = dailyTargets(profile, { weightKg: w });
   let lastCalc = w;
-  while (w > goalKg && weeks < 520) {
+  while (w > goalKg && weights.length <= maxWeeks) {
     if (lastCalc - w >= 2) {
       t = dailyTargets(profile, { weightKg: w });
       lastCalc = w;
     }
     const { tdee } = estimateTdee(profile, w);
     const deficit = Math.max(0, tdee - t.kcal);
-    if (deficit < 50) return null; // the plan alone would plateau before the goal
-    w -= (deficit * 7) / KCAL_PER_KG;
-    weeks++;
+    if (deficit < 50) return { weights, reached: false }; // the plan alone would plateau before the goal
+    w = Math.max(goalKg, w - (deficit * 7) / KCAL_PER_KG);
+    weights.push(w);
   }
-  return weeks;
+  return { weights, reached: w <= goalKg };
 }
 
-Object.assign(__m, { ACTIVITY_LEVELS, PACES, KCAL_PER_KG, MAX_WEEKLY_LOSS_PCT, MAX_WEEKLY_LOSS_KG, KCAL_FLOOR, PROTEIN_G_PER_KG, PROTEIN_MIN_G_PER_KG, mifflinStJeor, bmi, bmiCategory, weightAtBmi, proteinReferenceWeight, estimateTdee, dailyTargets, MILESTONE_INFO, milestones, projectWeeks });
+/** Weeks to goal (0 if already there, null if the plan would plateau or take over 15 years). */
+function projectWeeks(profile, goalKg) {
+  const c = projectCurve(profile, goalKg);
+  return c.reached ? c.weights.length - 1 : null;
+}
+
+Object.assign(__m, { ACTIVITY_LEVELS, PACES, KCAL_PER_KG, MAX_WEEKLY_LOSS_PCT, MAX_WEEKLY_LOSS_KG, KCAL_FLOOR, PROTEIN_G_PER_KG, PROTEIN_MIN_G_PER_KG, mifflinStJeor, bmi, bmiCategory, weightAtBmi, proteinReferenceWeight, estimateTdee, dailyTargets, MILESTONE_INFO, milestones, projectCurve, projectWeeks });
 },
 /* js/engine/trend.js */ 2: function (__m, __req) {
 // Weight trend: exponentially smoothed daily series, so day-to-day water swings don't drive decisions.
@@ -3112,7 +3147,7 @@ function sanitize(s) {
       cardioBonus: num(p.cardioBonus, 0, 300, 0),
       activities: (Array.isArray(p.activities) ? p.activities : []).filter((a) => a && typeof a.name === 'string' && a.name.trim()).slice(0, 12).map((a, i) => ({
         id: typeof a.id === 'string' && /^[a-z0-9_-]{1,24}$/i.test(a.id) ? a.id : `act${i}`,
-        name: a.name.trim().slice(0, 40),
+        name: a.name.trim().slice(0, 80),
         days: subset((a.days || []).map(Number), [0, 1, 2, 3, 4, 5, 6]),
         minutes: num(a.minutes, 5, 600, 30),
         intensity: oneOf(a.intensity, ['easy', 'moderate', 'vigorous'], 'moderate'),
@@ -3324,6 +3359,11 @@ function fmtWeight(kg, u, digits = 1) {
   return u === 'imperial' ? `${round(kgToLb(kg), 10 ** -digits).toFixed(digits)} lb` : `${round(kg, 10 ** -digits).toFixed(digits)} kg`;
 }
 
+/** Like fmtWeight, but drops a trailing ".0" (82 kg, 61.5 kg). */
+function fmtKg(kg, u) {
+  return fmtWeight(kg, u).replace(/\.0 /, ' ');
+}
+
 function weightNum(kg, u) {
   return u === 'imperial' ? kgToLb(kg) : kg;
 }
@@ -3368,6 +3408,7 @@ function icon(name, cls = '') {
     learn: '<path d="M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
     swap: '<path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>',
+    flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
     star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
     check: '<path d="M5 12l5 5L20 7"/>',
     x: '<path d="M6 6l12 12M18 6L6 18"/>',
@@ -3418,7 +3459,7 @@ function formData(form) {
   return out;
 }
 
-Object.assign(__m, { esc, html, units, fmtWeight, weightNum, toKg, fmtDelta, fmtHeight, heightFromFtIn, fmtNum, fmtDate, icon, chips, progressBar, formData });
+Object.assign(__m, { esc, html, units, fmtWeight, fmtKg, weightNum, toKg, fmtDelta, fmtHeight, heightFromFtIn, fmtNum, fmtDate, icon, chips, progressBar, formData });
 },
 /* js/views/shared.js */ 16: function (__m, __req) {
 // Pieces shared by several views.
@@ -3646,10 +3687,261 @@ function readDay(data) {
 
 Object.assign(__m, { dayFields, daySummary, readDay });
 },
-/* js/views/onboarding.js */ 19: function (__m, __req) {
+/* js/engine/journey.js */ 19: function (__m, __req) {
+// The long journey: a suggested healthy goal, a realistic timeline (even when it's years), and
+// stops along the way, so the whole thing breaks into steps you can see yourself reaching.
+//   - Goal: the top of the healthy BMI range (WHO: 18.5–24.9), the nearest healthy weight.
+//   - Timeline: projectCurve (calc.js), which slows down as energy needs fall (Hall 2011). Real life
+//     adds plateaus, holidays and planned maintenance breaks, so we show a range: model … model × 1.3.
+//   - Stops: time-based ("after a week you might notice…") and weight-based (5%, 10%, BMI classes),
+//     each with an estimated date and what the research says you may notice or gain there.
+const { bmi, weightAtBmi, projectCurve, MILESTONE_INFO } = __req(1);
+const { addDays, daysBetween } = __req(0);
+
+const HEALTHY_BMI = [18.5, 24.9];
+const SLACK = 1.3; // the upper end of the timeline range
+
+function healthyRange(heightCm) {
+  return { lo: Math.ceil(weightAtBmi(HEALTHY_BMI[0], heightCm) * 2) / 2, hi: Math.floor(weightAtBmi(HEALTHY_BMI[1], heightCm) * 2) / 2 };
+}
+
+/** The suggested goal: the nearest healthy weight (top of the healthy BMI range), or null if already there. */
+function suggestedGoalKg(heightCm, weightKg) {
+  if (!(heightCm > 100 && weightKg > 30)) return null;
+  const { hi } = healthyRange(heightCm);
+  return weightKg > hi + 0.5 ? hi : null;
+}
+
+/** "3 weeks", "5 months", "2 years", "4 years 5 months". */
+function fmtDuration(weeks) {
+  if (weeks < 9) return `${Math.max(1, Math.round(weeks))} week${Math.round(weeks) === 1 ? '' : 's'}`;
+  const months = Math.round(weeks / 4.345);
+  if (months < 24) return `${months} months`;
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  return `${y} year${y === 1 ? '' : 's'}${m ? ` ${m} month${m === 1 ? '' : 's'}` : ''}`;
+}
+
+/** Estimated time to goal as a range, e.g. "4 years 6 months – 5 years 10 months". */
+function timeline(profile, goalKg) {
+  const c = projectCurve(profile, goalKg);
+  const weeks = c.weights.length - 1;
+  if (!c.reached) return { reached: false, weeks: null };
+  return { reached: true, weeks, hiWeeks: Math.round(weeks * SLACK), text: weeks < 9 ? fmtDuration(weeks) : `${fmtDuration(weeks)} – ${fmtDuration(weeks * SLACK)}` };
+}
+
+// ---------- What you may notice along the way ----------
+// Time stops are counted from the start date. `scale` is only shown when weight numbers are shown.
+const TIME_STOPS = [
+  { days: 7, title: 'One week in', learn: 'journey',
+    text: 'Seven days of showing up. Regular meals often mean steadier energy and fewer late-afternoon cravings, and each tick makes the next one easier.',
+    scale: 'The scale may already be down 1–2 kg. Part of that is water and stored carbohydrate — normal, and still a sign the plan is working.' },
+  { days: 30, title: 'One month', learn: 'journey',
+    text: 'Clothes may feel a little looser and the same walk a little easier: regular activity measurably improves fitness within a few weeks. The routine needs less thinking now.' },
+  { days: 66, title: 'Habits on autopilot', learn: 'habits',
+    text: 'On average a new daily habit becomes automatic after about 66 days. Around now, many of your routines start to run without willpower.' },
+  { days: 91, title: 'Three months', learn: 'journey',
+    text: 'A clear change in fitness: stairs and walks that were hard are easier, and blood pressure and blood sugar often start to improve. Others may begin to notice.' },
+  { days: 182, title: 'Six months', learn: 'journey',
+    text: 'This is the classic guideline checkpoint: a 5–10% loss in six months is a big success. Loss naturally slows around now as your body needs less energy — the weekly check-in adjusts, and a planned maintenance month is a smart option.' },
+  { days: 365, title: 'One year', learn: 'maintenance',
+    text: 'A full year of new habits. They are simply how you live now. People who keep weight off for two years greatly improve their odds of keeping it off for good.' },
+];
+const YEAR_TEXT = [
+  'Another year of the same small habits. Every year at a lower weight means less strain on your heart, joints and blood sugar.',
+  'You have practised these habits for years now — they are part of who you are. Keep the checkpoints coming.',
+];
+
+// Weight stops beyond the classic 5/7/10/15%.
+const PCT_INFO = {
+  ...MILESTONE_INFO,
+  10: 'At 10%, the benefits grow: blood sugar, blood pressure and sleep apnoea improve further, and each kilo lost takes about 4 kg of load off your knees with every step.',
+  20: 'A fifth of your starting weight. At this level, trials see big gains in everyday physical function and quality of life.',
+  30: 'A loss this large is usually only seen after weight-loss surgery, where it is linked to remission of many conditions and longer life. You did it with habits.',
+  40: 'Forty percent. Moving, sleeping, travelling and playing all feel different now.',
+  50: 'Half of the weight you started with. An extraordinary, years-long achievement.',
+};
+const BMI_STOPS = [
+  { bmi: 40, title: 'BMI under 40', text: 'Out of the highest obesity class. Health risks drop with every class you move through.' },
+  { bmi: 35, title: 'BMI under 35', text: 'Another obesity class behind you, with lower risk for blood pressure, diabetes and joint problems.' },
+  { bmi: 30, title: 'BMI under 30', text: 'Out of the obesity range altogether. A huge milestone, whatever happens next.' },
+];
+
+/**
+ * The whole roadmap.
+ * @param state app state (profile, weights)
+ * @param opts {today, trendKg}
+ * @returns {goalKg, suggested, total, lost, pct, timeline, stops:[{kind, title, text, scale?, date, weightKg?, reached, next, lostKg?}]}
+ */
+function journey(state, { today, trendKg }) {
+  const p = state.profile;
+  const startKg = p.startWeightKg ?? p.weightKg;
+  const suggested = suggestedGoalKg(p.heightCm, startKg);
+  const goalKg = p.goalWeightKg || suggested;
+  const now = trendKg ?? p.weightKg;
+  const lost = Math.max(0, startKg - now);
+  const daysIn = Math.max(0, daysBetween(p.startDate, today));
+  // Re-project from where you are now, so dates stay honest if you're ahead or behind.
+  const curve = goalKg && now > goalKg ? projectCurve({ ...p, weightKg: now, phase: 'lose' }, goalKg) : { weights: [now], reached: true };
+  const tl = goalKg && now > goalKg ? timeline({ ...p, weightKg: now, phase: 'lose' }, goalKg) : { reached: true, weeks: 0, hiWeeks: 0, text: '' };
+  const weekOf = (kg) => {
+    const i = curve.weights.findIndex((w) => w <= kg + 1e-6);
+    return i < 0 ? null : i;
+  };
+  const weightAt = (week) => curve.weights[Math.min(Math.max(0, week), curve.weights.length - 1)];
+
+  const stops = [];
+  // Time stops (only those within the journey, plus a yearly one until the goal).
+  const endDay = daysIn + Math.round((curve.reached ? curve.weights.length - 1 : 156) * 7);
+  const time = TIME_STOPS.filter((t) => t.days <= Math.max(endDay, 30));
+  for (let y = 2; y * 365 < endDay; y++) time.push({ days: y * 365, title: `Year ${y}`, text: YEAR_TEXT[Math.min(y - 2, YEAR_TEXT.length - 1)], learn: 'maintenance' });
+  for (const t of time) {
+    const reached = daysIn >= t.days;
+    const ahead = Math.round((t.days - daysIn) / 7);
+    stops.push({ kind: 'time', title: t.title, text: t.text, scale: t.scale, learn: t.learn, date: addDays(p.startDate, t.days), reached,
+      lostKg: reached ? null : Math.max(0, startKg - weightAt(ahead)) });
+  }
+  // Weight stops: % of starting weight, BMI classes, then the goal.
+  const floor = goalKg || startKg * 0.85;
+  const pcts = [5, 7, 10, 15, 20, 30, 40, 50].filter((x) => startKg * (1 - x / 100) > floor + 1);
+  const weightStops = pcts.map((x) => ({ kind: 'weight', pct: x, title: `${x}% lighter`, text: PCT_INFO[x], weightKg: startKg * (1 - x / 100) }));
+  for (const b of BMI_STOPS) {
+    const kg = weightAtBmi(b.bmi, p.heightCm) - 0.1;
+    if (bmi(startKg, p.heightCm) >= b.bmi && kg > floor + 1 && !weightStops.some((s) => Math.abs(s.weightKg - kg) < 1.5)) weightStops.push({ kind: 'weight', title: b.title, text: b.text, weightKg: kg });
+  }
+  if (goalKg) weightStops.push({ kind: 'goal', title: suggested && Math.abs(goalKg - suggested) < 0.6 ? 'Healthy weight — your goal' : 'Your goal', text: bmi(goalKg, p.heightCm) < 25 ? 'A healthy BMI for your height. From here the plan switches to keeping it: same habits, a little more food.' : 'The goal you set. From here the plan switches to keeping it — or set the next one.', weightKg: goalKg });
+  for (const s of weightStops) {
+    const reached = now <= s.weightKg + 0.05;
+    const wk = reached ? 0 : weekOf(s.weightKg);
+    stops.push({ ...s, reached, lostKg: startKg - s.weightKg, date: reached ? null : wk == null ? null : addDays(today, wk * 7) });
+  }
+  // Order: reached first (by when), then upcoming by date.
+  const key = (s) => (s.date ? s.date : '9999') + (s.kind === 'time' ? '0' : '1');
+  stops.sort((a, b) => (a.reached !== b.reached ? (a.reached ? -1 : 1) : key(a).localeCompare(key(b))));
+  const next = stops.find((s) => !s.reached);
+  if (next) next.next = true;
+  return { goalKg, suggested, startKg, now, total: goalKg ? Math.max(0, startKg - goalKg) : 0, lost, pct: goalKg && startKg > goalKg ? Math.min(100, (lost / (startKg - goalKg)) * 100) : 0, timeline: tl, stops, daysIn };
+}
+
+/** The next weight stop and the next time stop (for the Today card). */
+function nextStops(j) {
+  return { weight: j.stops.find((s) => !s.reached && s.kind !== 'time'), time: j.stops.find((s) => !s.reached && s.kind === 'time') };
+}
+
+/** A time stop reached in the last `days` days (to celebrate on Today). */
+function recentTimeStop(j, today, days = 6) {
+  return j.stops.filter((s) => s.kind === 'time' && s.reached && daysBetween(s.date, today) <= days).pop() || null;
+}
+
+Object.assign(__m, { HEALTHY_BMI, SLACK, healthyRange, suggestedGoalKg, fmtDuration, timeline, journey, nextStops, recentTimeStop });
+},
+/* js/views/journey.js */ 20: function (__m, __req) {
+// Journey: the suggested healthy goal, a realistic timeline and the stops along the way.
+const { html, esc, icon, fmtKg, fmtDate } = __req(15);
+const store = __req(14);
+const { PACES } = __req(1);
+const { journey, healthyRange, timeline, fmtDuration } = __req(19);
+const { daysBetween } = __req(0);
+
+const monthYear = (iso) => fmtDate(iso, { month: 'short', year: 'numeric' });
+
+/** "≈ Mar 2027 · in 4 months" */
+function whenLabel(stop, today) {
+  if (stop.reached) return stop.kind === 'time' ? fmtDate(stop.date, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Reached';
+  if (!stop.date) return 'Beyond the current plan';
+  const weeks = daysBetween(today, stop.date) / 7;
+  return `≈ ${monthYear(stop.date)} · in ${fmtDuration(weeks)}`;
+}
+
+function stopRow(s, { u, today, hide }) {
+  const mark = s.reached ? `<span class="rm-dot on">${icon('check')}</span>` : s.next ? `<span class="rm-dot next">${icon('flag')}</span>` : '<span class="rm-dot"></span>';
+  const kg = hide ? '' : s.kind === 'time' ? (s.lostKg != null && s.lostKg >= 0.5 ? ` · about ${fmtKg(s.lostKg, u)} down by then` : '') : ` · ${fmtKg(s.weightKg, u)} (−${fmtKg(s.lostKg, u)})`;
+  return `<li class="rm-stop ${s.reached ? 'done' : ''} ${s.next ? 'next' : ''} ${s.kind}">${mark}<div class="grow">
+    <div class="rm-when">${esc(whenLabel(s, today))}${kg}</div>
+    <strong>${esc(s.title)}</strong>
+    <p>${esc(s.text)}${!hide && s.scale ? ' ' + esc(s.scale) : ''}</p></div></li>`;
+}
+
+__m.default = {
+  render(state) {
+    const today = store.today();
+    const p = state.profile;
+    const u = p.units === 'imperial' ? 'imperial' : 'metric';
+    const hide = store.habitsOnly(state);
+    const j = journey(state, { today, trendKg: store.trendWeight(state) });
+    const stops = hide ? j.stops.filter((s) => s.kind === 'time') : j.stops;
+    if (hide) {
+      const n = stops.find((s) => !s.reached);
+      stops.forEach((s) => (s.next = s === n));
+    }
+    const range = healthyRange(p.heightCm);
+    const maintain = p.phase === 'maintain';
+    const left = Math.max(0, j.now - (j.goalKg || j.now));
+    const end = j.timeline.reached && j.timeline.weeks ? j.timeline : null;
+
+    const head = hide
+      ? `<div class="card journey-hero"><h2>One step at a time</h2><p class="muted">Your journey is about habits, not numbers. Here’s what people often notice along the way.</p></div>`
+      : html`<div class="card journey-hero">
+        <div class="row between nowrap" style="align-items:flex-end"><div><div class="big num">${fmtKg(j.lost, u)}</div><div class="muted" style="font-size:var(--text-sm)">down since ${fmtDate(p.startDate, { day: 'numeric', month: 'short', year: 'numeric' })}</div></div>
+          ${j.goalKg ? `<div style="text-align:right"><div class="big num">${fmtKg(left, u)}</div><div class="muted" style="font-size:var(--text-sm)">to ${fmtKg(j.goalKg, u)}</div></div>` : ''}</div>
+        ${j.goalKg ? `<div class="bar" style="margin:12px 0 6px"><span style="width:${Math.max(1.5, j.pct).toFixed(1)}%"></span></div><div class="muted" style="font-size:var(--text-xs)">${j.pct.toFixed(0)}% of the way from ${fmtKg(j.startKg, u)}</div>` : ''}
+        ${maintain ? `<div class="notice ok" style="margin:12px 0 0">${icon('star')}<div><strong>You’re in maintenance.</strong> The journey now is keeping it — same habits, a little more food.</div></div>`
+          : end ? `<p style="margin:14px 0 0"><strong>Estimated time to goal: ${esc(end.text)}</strong><br><span class="muted" style="font-size:var(--text-sm)">Around ${esc(monthYear(addWeeks(today, end.weeks)))}–${esc(monthYear(addWeeks(today, end.hiWeeks)))} at your ${esc(PACES[p.pace]?.label.replace(/ \(.*\)/, '').toLowerCase() || 'steady')} pace. Plateaus, holidays and planned breaks are normal — that’s why it’s a range.</span></p>`
+          : j.goalKg && !j.timeline.reached ? `<p class="muted" style="margin:14px 0 0">At the current plan the trend would level off before your goal. That’s normal on a long journey — the weekly check-in will adjust, or you can set a nearer goal for now.</p>` : ''}
+      </div>
+      ${goalCard(state, j, range, u)}
+      ${!maintain && end && end.weeks > 26 ? `<div class="notice info">${icon('flag')}<div>${end.weeks > 104 ? `Years can sound like a lot. But nobody walks the whole road at once:` : 'Broken into stops, it’s much easier to picture:'} you only ever need to reach the <strong>next stop</strong>. There are ${stops.filter((s) => !s.reached).length} ahead, the nearest is ${esc(whenLabel(stops.find((s) => !s.reached), today).replace('≈ ', '').split(' · ')[1] || 'close')} away.</div></div>` : ''}
+      ${!maintain && j.goalKg && j.now > j.goalKg ? paceCompare(state, j) : ''}`;
+
+    return html`<a class="btn ghost small" href="#/progress">${icon('back')}Progress</a>
+      <header class="page-head"><div><div class="eyebrow">Your journey</div><h1>${hide || !j.goalKg ? 'The road ahead' : `${esc(fmtKg(j.startKg, u))} → ${esc(fmtKg(j.goalKg, u))}`}</h1></div></header>
+      ${head}
+      <div class="card"><h2>Stops along the way</h2>
+        <ol class="roadmap">${stops.map((s) => stopRow(s, { u, today, hide })).join('')}</ol>
+        <p class="muted" style="font-size:var(--text-xs);margin-top:10px">Dates are estimates from your trend weight and plan, recalculated each time you open this page. Everyone’s body is different — what you notice may come sooner or later.</p>
+        <a class="btn small ghost" href="#/learn/journey">${icon('learn')}The evidence behind these stops</a></div>`;
+  },
+  actions: {
+    useGoal(el, ev, ctx) {
+      const kg = Number(el.dataset.kg);
+      ctx.undoable(`Goal set to ${fmtKg(kg, ctx.state.profile.units === 'imperial' ? 'imperial' : 'metric')}`, (st) => {
+        st.profile.goalWeightKg = kg;
+        return st;
+      });
+    },
+  },
+};
+
+function addWeeks(iso, weeks) {
+  const d = new Date(iso + 'T12:00');
+  d.setDate(d.getDate() + Math.round(weeks * 7));
+  return d.toISOString().slice(0, 10);
+}
+
+function goalCard(state, j, range, u) {
+  const p = state.profile;
+  const healthy = `Healthy range for your height: <strong>${fmtKg(range.lo, u)}–${fmtKg(range.hi, u)}</strong> (BMI 18.5–24.9).`;
+  if (!j.suggested) return `<p class="muted" style="font-size:var(--text-sm)">${healthy}</p>`;
+  if (!p.goalWeightKg) return `<div class="notice ok">${icon('flag')}<div class="grow">${healthy} <strong>Suggested goal: ${fmtKg(j.suggested, u)}</strong> — the nearest healthy weight.</div><button class="btn small primary" data-action="useGoal" data-kg="${j.suggested}">Use it</button></div>`;
+  if (Math.abs(p.goalWeightKg - j.suggested) >= 0.6) return `<p class="muted" style="font-size:var(--text-sm)">${healthy} Your goal is ${fmtKg(p.goalWeightKg, u)}; the nearest healthy weight is ${fmtKg(j.suggested, u)}. <button class="btn small ghost" data-action="useGoal" data-kg="${j.suggested}">Use ${fmtKg(j.suggested, u)}</button></p>`;
+  return `<p class="muted" style="font-size:var(--text-sm)">${healthy} Your goal is the nearest healthy weight.</p>`;
+}
+
+function paceCompare(state, j) {
+  const p = state.profile;
+  const rows = Object.entries(PACES).map(([k, pace]) => {
+    const t = timeline({ ...p, weightKg: j.now, pace: k, phase: 'lose' }, j.goalKg);
+    return `<div class="stat ${p.pace === k ? 'on' : ''}"><span class="v" style="font-size:var(--text-sm)">${t.reached ? esc(fmtDuration(t.weeks)) : '—'}</span><span class="l">${esc(pace.label.replace(/ \(.*\)/, ''))}${p.pace === k ? ' · yours' : ''}</span></div>`;
+  });
+  return `<div class="card"><h2>Pace and time</h2><div class="stats" style="grid-template-columns:repeat(3,1fr)">${rows.join('')}</div><p class="muted" style="font-size:var(--text-xs);margin-top:8px">Fastest isn’t best: the pace you can keep for years wins. Change it any time in <a href="#/settings/profile">Settings</a>.</p></div>`;
+}
+
+Object.assign(__m, { whenLabel, stopRow, goalCard });
+},
+/* js/views/onboarding.js */ 21: function (__m, __req) {
 // Onboarding wizard: about you → health check → food → movement → habits → your plan.
-const { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight } = __req(15);
-const { ACTIVITY_LEVELS, PACES, dailyTargets, bmi, weightAtBmi, projectWeeks } = __req(1);
+const { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight, fmtKg } = __req(15);
+const { ACTIVITY_LEVELS, PACES, dailyTargets, bmi, weightAtBmi } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { HABITS } = __req(9);
@@ -3659,8 +3951,18 @@ const { emptyState, importJson } = __req(14);
 const { isoDate, round, cmToIn } = __req(0);
 const { demoState } = __req(17);
 const { dayFields, daySummary, readDay } = __req(18);
+const { journey, suggestedGoalKg, healthyRange, timeline } = __req(19);
+const { stopRow } = __req(20);
 
 let draft = { step: 0, units: 'metric' };
+
+/** Live hint under the goal field: the healthy range and a suggested goal for this height and weight. */
+function goalHint(heightCm, weightKg, u) {
+  if (!(heightCm > 100 && heightCm < 250)) return 'Leave empty and we’ll suggest one from the healthy BMI range once we know your height and weight.';
+  const r = healthyRange(heightCm);
+  const sug = suggestedGoalKg(heightCm, weightKg);
+  return `Healthy range for your height: ${fmtKg(r.lo, u)}–${fmtKg(r.hi, u)} (BMI 18.5–24.9).${sug ? ` Suggested: <strong>${fmtKg(sug, u)}</strong>, the nearest healthy weight. <button type="button" class="btn small tonal" data-action="useGoalDraft" data-value="${round(weightNum(sug, u), 0.1)}" style="margin-top:4px">Use ${fmtKg(sug, u)}</button>` : ''}`;
+}
 
 const STEPS = ['Welcome', 'About you', 'Health check', 'Food', 'Movement', 'Habits', 'Your plan'];
 const DAYS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
@@ -3730,7 +4032,7 @@ function about() {
         ? `<div class="inline-inputs">${num('heightFt', hIn ? Math.floor(hIn / 12) : '', { min: 3, max: 8, step: 1, unit: 'ft' })}${num('heightIn', hIn ? hIn % 12 : '', { min: 0, max: 11, step: 1, unit: 'in' })}</div>`
         : num('heightCm', draft.heightCm ? Math.round(draft.heightCm) : '', { min: 120, max: 230, step: 1, unit: 'cm' })}</div>
       <label class="field"><span>Current weight</span>${num('weight', draft.weightKg ? round(weightNum(draft.weightKg, u), 0.1) : '', { min: imperial ? 80 : 35, max: imperial ? 800 : 360, unit: imperial ? 'lb' : 'kg' })}</label>
-      <label class="field"><span>Goal weight <span class="hint">Optional. A 5–10% loss already brings real health benefits — you can always set a new goal later.</span></span>${num('goal', draft.goalWeightKg ? round(weightNum(draft.goalWeightKg, u), 0.1) : '', { min: imperial ? 80 : 35, max: imperial ? 800 : 360, unit: imperial ? 'lb' : 'kg', required: false, placeholder: 'e.g. 10% lower' })}</label>
+      <label class="field"><span>Goal weight</span>${num('goal', draft.goalWeightKg ? round(weightNum(draft.goalWeightKg, u), 0.1) : '', { min: imperial ? 80 : 35, max: imperial ? 800 : 360, unit: imperial ? 'lb' : 'kg', required: false, placeholder: 'Optional' })}<span class="hint" data-live="goal" data-units="${u}" style="display:block;margin-top:6px">${goalHint(draft.heightCm, draft.weightKg, u)}</span></label>
     </div>
     <fieldset><legend>How active is a normal day?</legend><div class="options">
       ${Object.entries(ACTIVITY_LEVELS).map(([k, a]) => `<label class="option"><input type="radio" name="activity" value="${k}" ${(draft.activity || 'sedentary') === k ? 'checked' : ''}><div><strong>${a.label}</strong><small class="muted">${a.hint}</small></div></label>`)}
@@ -3843,9 +4145,9 @@ function planStep() {
   const habitsOnly = s.blocked || (draft.edFlags || []).length > 0;
   const paceCards = Object.entries(PACES).map(([k, pace]) => {
     const t = dailyTargets({ ...p, pace: k });
-    const weeks = p.goalWeightKg ? projectWeeks({ ...p, pace: k }, p.goalWeightKg) : null;
+    const tl = p.goalWeightKg ? timeline({ ...p, pace: k }, p.goalWeightKg) : null;
     return `<label class="option"><input type="radio" name="pace" value="${k}" ${(draft.pace || 'steady') === k ? 'checked' : ''}><div><div class="row between"><strong>${pace.label}</strong><strong>${t.kcal.toLocaleString()} kcal/day</strong></div>
-      <small class="muted">${pace.hint} ≈ ${fmtWeight(t.expectedWeeklyLossKg, u, 2)}/week to start${weeks ? `; goal in roughly ${weeks} weeks${weeks > 52 ? ` (${(weeks / 52).toFixed(1)} years)` : ''}` : ''}.${t.hitFloor ? ' Held at the safe minimum.' : ''}</small></div></label>`;
+      <small class="muted">${pace.hint} ≈ ${fmtWeight(t.expectedWeeklyLossKg, u, 2)}/week to start${tl?.reached && tl.weeks ? `; goal in about ${tl.text}` : ''}.${t.hitFloor ? ' Held at the safe minimum.' : ''}</small></div></label>`;
   });
   const t = dailyTargets({ ...p, pace: draft.pace || 'steady' });
   return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Your plan</h1></div></header>
@@ -3853,6 +4155,7 @@ function planStep() {
   ${(draft.edFlags || []).length && !s.blocked ? `<div class="notice block">${icon('alert')}<div>Some of your answers suggest calorie counting may not be helpful right now. The app will hide calorie numbers and focus on regular meals, movement and wellbeing habits. Please consider talking to your doctor, or an eating-disorder charity such as Beat (UK) or ANAD (US).</div></div>` : ''}
   <form data-form="step" class="card">
     ${habitsOnly ? `<p>You’ll get balanced, regular meals, gentle movement and habit tracking — without calorie targets.</p><input type="hidden" name="pace" value="steady">` : `
+    ${journeyPreview(p)}
     <fieldset><legend>Choose your pace</legend><div class="options">${paceCards.join('')}</div></fieldset>
     <div class="stats">
       <div class="stat"><span class="v">${t.rmr.toLocaleString()}</span><span class="l">resting energy (kcal)</span></div>
@@ -3863,6 +4166,20 @@ function planStep() {
     <p class="muted" style="margin-top:12px">These are starting estimates (equations can be off by ±10% for any one person). After a few weeks of weigh-ins and meal ticks, your weekly check-in learns your real needs and adjusts.</p>`}
     ${nav(true)}
   </form>`;
+}
+
+function journeyPreview(p) {
+  if (!p.goalWeightKg) return '';
+  const u = p.units;
+  const today = isoDate();
+  const prof = { ...p, startWeightKg: p.weightKg, startDate: today };
+  const j = journey({ profile: prof }, { today, trendKg: p.weightKg });
+  const tl = j.timeline;
+  const stops = j.stops.slice(0, 5);
+  return `<div class="journey-preview"><h2 style="margin:0 0 4px">Your journey: ${fmtKg(p.weightKg, u)} → ${fmtKg(p.goalWeightKg, u)}</h2>
+    <p class="muted" style="margin:0 0 8px">${draft.goalAuto ? `Your goal is set to the nearest healthy weight for your height (BMI under 25). You can change it in step 1 or later in Settings. ` : ''}${tl.reached && tl.weeks ? `At a steady pace that’s about <strong>${tl.text}</strong>${tl.weeks > 104 ? ' — a long road, so the app breaks it into stops. You only ever need to reach the next one.' : '.'}` : ''}</p>
+    <ol class="roadmap">${stops.map((s) => stopRow(s, { u, today, hide: false })).join('')}</ol>
+    <p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">…and ${Math.max(0, j.stops.length - stops.length)} more stops on the Journey page, re-estimated from your real progress.</p></div>`;
 }
 
 function profileFromDraft() {
@@ -3921,6 +4238,11 @@ function validate() {
       }
       if (draft.goalWeightKg >= draft.weightKg) draft.goalWeightKg = null;
     }
+    draft.goalAuto = false;
+    if (!draft.goalWeightKg) {
+      draft.goalWeightKg = suggestedGoalKg(draft.heightCm, draft.weightKg);
+      draft.goalAuto = !!draft.goalWeightKg;
+    }
   }
   if (draft.step === 4 && !(draft.daysAvailable || []).length) return 'Pick at least one day — even 10 minutes counts.';
   if (draft.step === 5 && (draft.habitPicks || []).length > 3) return 'Pick at most 3 — fewer is better to start.';
@@ -3963,6 +4285,10 @@ __m.default = {
     return `<div style="max-width:640px;margin:0 auto">${draft.step ? stepper() : ''}${body}<p class="footer-note">Habit Lab gives general information based on published guidelines. It isn’t a substitute for advice from your doctor.</p></div>`;
   },
   actions: {
+    useGoalDraft(el) {
+      const input = el.closest('form')?.querySelector('[name=goal]');
+      if (input) input.value = el.dataset.value;
+    },
     demo(el, ev, ctx) {
       ctx.set(demoState(), { render: false });
       ctx.toast('Demo loaded: 10 weeks of sample data. Reset it any time in Settings.');
@@ -4025,10 +4351,13 @@ __m.default = {
   },
 };
 
-Object.assign(__m, {  });
+Object.assign(__m, { goalHint });
 },
-/* js/data/hobbies.js */ 20: function (__m, __req) {
-// Hobby catalogue for "activities you already do": 330+ activities.
+/* js/data/hobbies.js */ 22: function (__m, __req) {
+// Hobby catalogue for "activities you already do": 830+ activities.
+// The first ~330 have friendly names; after them comes every other activity in the Compendium at
+// 2.0+ METs, named as the Compendium describes it. Left out on purpose: paid jobs (the Occupation
+// list — a physical job is covered by your daily activity level), driving, and sitting or lying still.
 // MET values: 2024 Adult Compendium of Physical Activities (Herrmann et al., J Sport Health Sci 2024;
 // https://pacompendium.com/adult-compendium/), with the Compendium code on every entry. Values were copied
 // from the Compendium tables by a script, not typed by hand. Intensity follows the Compendium bands:
@@ -4388,6 +4717,511 @@ const HOBBIES = [
   A('Arts & crafts (standing)', 'creative', 2.5, 60, { code: '09085' }),
   A('Sculpting / woodcarving', 'creative', 3.0, 60, { code: '09080' }),
   A('Juggling', 'creative', 4.0, 15, { code: '15440' }),
+  // ---- Every other activity in the Compendium (2.0+ METs), named as the Compendium describes it ----
+  A("Boxing, punching bag, 120 b/min", 'combat', 8.5, 60, { code: '15115' }),
+  A("Boxing, punching bag, 180 b/min", 'combat', 10.8, 60, { code: '15118' }),
+  A("Boxing, punching bag, 60 b/min", 'combat', 7.0, 60, { code: '15113' }),
+  A("Fencing, epee, competitive", 'combat', 9.8, 60, { code: '15203' }),
+  A("Kendu, kakari keiko style, very high intensity", 'combat', 11.3, 60, { code: '15446' }),
+  A("Kendu, kirikaeshi style, high intensity", 'combat', 9.6, 60, { code: '15445' }),
+  A("Prusik climbing", 'combat', 6.5, 60, { code: '15506' }),
+  A("Rock climbing, ascending rock, high difficulty", 'combat', 7.3, 60, { code: '15535', strength: true }),
+  A("Rock climbing, speed climbing, very difficult", 'combat', 10.5, 60, { code: '15536', strength: true }),
+  A("Rock climbing, treadwall, 7-10 m/min", 'combat', 10.5, 60, { code: '15539', strength: true }),
+  A("Cello, sitting", 'creative', 2.3, 45, { code: '10020' }),
+  A("Flute, sitting", 'creative', 2.0, 45, { code: '10050' }),
+  A("Guitar, classical, folk, sitting", 'creative', 2.0, 45, { code: '10120' }),
+  A("Marching band, baton twirling, walking, moderate pace, general", 'creative', 4.0, 45, { code: '10130' }),
+  A("Marching band, drum major, walking", 'creative', 3.5, 45, { code: '10135' }),
+  A("Organ, sitting", 'creative', 2.0, 45, { code: '10077' }),
+  A("Playing musical instruments, general", 'creative', 2.0, 45, { code: '10074' }),
+  A("Retreat/family reunion activities involving playing games with children", 'creative', 2.5, 60, { code: '09101' }),
+  A("Standing - arts and crafts, sand painting, carving, weaving, moderate effort", 'creative', 3.3, 60, { code: '09090' }),
+  A("Standing - arts and crafts, sand painting, carving, weaving, vigorous effort", 'creative', 3.5, 60, { code: '09095' }),
+  A("Standing: miscellaneous", 'creative', 2.5, 60, { code: '09071' }),
+  A("Touring/traveling/vacation involving riding in vehicle", 'creative', 2.0, 60, { code: '09105' }),
+  A("Watching tv, stepping during commercial breaks", 'creative', 2.0, 60, { code: '09036' }),
+  A("Anishinaabe Jingle dancing, brisk pace, other traditional American Indian", 'dance', 5.5, 45, { code: '03050' }),
+  A("Ballet, modern, or jazz, performance, vigorous effort", 'dance', 6.8, 45, { code: '03012' }),
+  A("Ballroom dancing, competitive, general", 'dance', 11.3, 45, { code: '03038' }),
+  A("Ballroom dancing, fast", 'dance', 5.5, 45, { code: '03030' }),
+  A("Chinese square dance, aerobic dance", 'dance', 7.3, 45, { code: '03029' }),
+  A("Chinese square dance, Ballet & Tibetan dance", 'dance', 5.5, 45, { code: '03028' }),
+  A("Nightclub or folk dancing, vigorous effort", 'dance', 9.8, 45, { code: '03031' }),
+  A("Polynesian dance, Hawaiian hula fast, Samoan sasa, Fijian style fast, Filipino", 'dance', 7.0, 45, { code: '03086' }),
+  A("Polynesian dance, Samoan slap, Tahitian", 'dance', 8.8, 45, { code: '03087' }),
+  A("Praise with dance or run, spiritual dancing in church", 'dance', 5.0, 45, { code: '20040' }),
+  A("Salsa dancing, to a video", 'dance', 6.3, 45, { code: '03091' }),
+  A("Airplane repair", 'everyday', 3.0, 60, { code: '06010' }),
+  A("Automobile body work", 'everyday', 4.0, 60, { code: '06020' }),
+  A("Building a fire inside", 'everyday', 2.5, 30, { code: '05149' }),
+  A("Carpentry, finishing, varnishing, or refinishing cabinets or furniture", 'everyday', 3.3, 60, { code: '06060' }),
+  A("Carpentry, home remodeling tasks, light effort", 'everyday', 2.3, 60, { code: '06074' }),
+  A("Carpentry, home remodeling tasks, moderate effort", 'everyday', 4.0, 60, { code: '06072' }),
+  A("Carpentry, outside house, building a fence", 'everyday', 3.8, 60, { code: '06052' }),
+  A("Carpentry, sawing hardwood, planing and drilling wood, moderate-to-vigorous", 'everyday', 6.0, 60, { code: '06070' }),
+  A("Carrying groceries upstairs", 'everyday', 5.3, 30, { code: '05056', strength: true }),
+  A("Caulking, chinking log cabin", 'everyday', 5.0, 60, { code: '06080' }),
+  A("Caulking, except log cabin", 'everyday', 4.5, 60, { code: '06090' }),
+  A("Child care, infant, general", 'everyday', 2.5, 30, { code: '08184' }),
+  A("Child care: sitting or kneeling, dressing, bathing, grooming, feeding", 'everyday', 2.0, 30, { code: '05185', strength: true }),
+  A("Child care: standing, dressing, bathing, grooming, feeding, occasional lifting", 'everyday', 3.5, 30, { code: '05186', strength: true }),
+  A("Cleaning heavy or major, moderate effort", 'everyday', 3.5, 30, { code: '05020' }),
+  A("Cleaning, general (straightening up, changing linen, carrying out trash), light", 'everyday', 2.5, 30, { code: '05040', strength: true }),
+  A("Cleaning, sweeping carpet or floors, general", 'everyday', 3.3, 30, { code: '05010' }),
+  A("Cleaning, sweeping, fast, moderate effort", 'everyday', 3.8, 30, { code: '05012' }),
+  A("Cleaning, sweeping, slow, light effort", 'everyday', 2.3, 30, { code: '05011' }),
+  A("Cooking Indian bread or other food on an outside stove", 'everyday', 3.0, 30, { code: '05057' }),
+  A("Cooking or food preparation, walking", 'everyday', 2.3, 30, { code: '05051' }),
+  A("Cutting and smoking fish, drying fish or meat", 'everyday', 2.3, 30, { code: '05046' }),
+  A("Dusting or polishing furniture, general", 'everyday', 2.5, 30, { code: '05032' }),
+  A("Excavating garage", 'everyday', 5.0, 60, { code: '06110' }),
+  A("Feeding household animals", 'everyday', 2.5, 30, { code: '05053' }),
+  A("Hammering nails", 'everyday', 3.0, 60, { code: '06124' }),
+  A("Hanging sheet rock inside house", 'everyday', 5.0, 60, { code: '06122' }),
+  A("Hanging storm windows", 'everyday', 5.0, 60, { code: '06120' }),
+  A("Home repair, general, light effort", 'everyday', 2.5, 60, { code: '06126' }),
+  A("Implied walking, putting away household items, moderate effort", 'everyday', 3.0, 30, { code: '05147' }),
+  A("Kitchen activity, general, moderate effort", 'everyday', 3.3, 30, { code: '05035' }),
+  A("Laundry, fold or hang clothes, sitting", 'everyday', 2.0, 30, { code: '05091' }),
+  A("Laundry, putting away clothes, gathering clothes to pack, putting away laundry", 'everyday', 2.0, 30, { code: '05095' }),
+  A("Laying or removing carpet", 'everyday', 4.5, 60, { code: '06130' }),
+  A("Laying tile or linoleum", 'everyday', 3.8, 60, { code: '06140' }),
+  A("Maple syruping/sugar bushing (including carrying buckets, carrying wood)", 'everyday', 5.0, 30, { code: '05110', strength: true }),
+  A("Mopping, standing, light effort", 'everyday', 2.5, 30, { code: '05023' }),
+  A("Moving, lifting light loads", 'everyday', 5.0, 30, { code: '05121', strength: true }),
+  A("Multiple household tasks all at once, light effort", 'everyday', 2.8, 30, { code: '05025' }),
+  A("Multiple household tasks all at once, vigorous effort", 'everyday', 4.3, 30, { code: '05027' }),
+  A("Non-food shopping, with or without cart, standing or walking", 'everyday', 2.3, 30, { code: '05065' }),
+  A("Painting", 'everyday', 4.5, 60, { code: '06165' }),
+  A("Plumbing, general", 'everyday', 3.0, 60, { code: '06167' }),
+  A("Polishing floors, standing, walking slowly, using electric polishing machine", 'everyday', 4.5, 30, { code: '05024' }),
+  A("Put on and removal of tarp \u2013 sailboat", 'everyday', 3.0, 60, { code: '06170' }),
+  A("Putting away groceries", 'everyday', 2.5, 30, { code: '05055', strength: true }),
+  A("Repairing appliances", 'everyday', 3.0, 60, { code: '06144' }),
+  A("Roofing", 'everyday', 6.0, 60, { code: '06180' }),
+  A("Sanding floors with a power sander", 'everyday', 4.5, 60, { code: '06190' }),
+  A("Scraping and painting sailboat or powerboat", 'everyday', 4.5, 60, { code: '06200' }),
+  A("Scrubbing floors, on hands and knees, scrubbing bathroom, bathtub, light effort", 'everyday', 2.0, 30, { code: '05131' }),
+  A("Scrubbing floors, on hands and knees, scrubbing bathroom, bathtub, vigorous", 'everyday', 6.5, 30, { code: '05132' }),
+  A("Serving food, setting/cleaning table, implied walking or standing", 'everyday', 2.3, 30, { code: '05052' }),
+  A("Sewing with a machine", 'everyday', 2.8, 30, { code: '05082' }),
+  A("Sharpening tools", 'everyday', 2.0, 60, { code: '06205' }),
+  A("Sit, playing with animals, light, only active period", 'everyday', 2.5, 30, { code: '05190' }),
+  A("Sitting, child care, only active periods", 'everyday', 2.0, 60, { code: '21016' }),
+  A("Sitting, moderate work", 'everyday', 2.5, 60, { code: '21010' }),
+  A("Sitting, playing with child(ren), light effort, only active periods", 'everyday', 2.3, 30, { code: '05170' }),
+  A("Spreading dirt with a shovel", 'everyday', 5.0, 60, { code: '06210', strength: true }),
+  A("Stand, playing with animals, light effort, only active periods", 'everyday', 2.8, 30, { code: '05191' }),
+  A("Standing, bathing dog", 'everyday', 3.5, 30, { code: '05195' }),
+  A("Standing, child care, only active periods", 'everyday', 3.5, 60, { code: '21017' }),
+  A("Standing, light effort tasks (pump gas, change light bulb, etc.)", 'everyday', 2.0, 30, { code: '05160' }),
+  A("Standing, moderate", 'everyday', 3.5, 60, { code: '21025', strength: true }),
+  A("Standing, moderate/heavy work", 'everyday', 4.5, 60, { code: '21030' }),
+  A("Standing, playing with child(ren), light effort, only active periods", 'everyday', 2.8, 30, { code: '05171' }),
+  A("Sweeping garage, sidewalk, or outside house", 'everyday', 3.0, 30, { code: '05140' }),
+  A("Walk or run, playing with animals, general, light effort, only active periods", 'everyday', 2.8, 30, { code: '05192' }),
+  A("Walk/run play with children, vigorous, only active periods", 'everyday', 5.8, 60, { code: '21019' }),
+  A("Walk/run, playing with animals, vigorous effort, only active periods", 'everyday', 5.0, 30, { code: '05194' }),
+  A("Walk/stand combination, for volunteer purposes", 'everyday', 3.0, 60, { code: '21070' }),
+  A("Walking and carrying small child, child weighing less than 15 lbs", 'everyday', 2.5, 30, { code: '05182', strength: true }),
+  A("Walking, 2.5 mph slowly and carrying objects less than 25 pounds", 'everyday', 3.5, 60, { code: '21055', strength: true }),
+  A("Walking, 2.8 to 3.4 mph, moderate speed, not carrying anything (21045)", 'everyday', 3.8, 60, { code: '21045', strength: true }),
+  A("Walking, 3.5 mph, briskly and carrying objects less than 25 pounds", 'everyday', 4.5, 60, { code: '21065', strength: true }),
+  A("Walking, 3.5 to 3.9 mph, brisk speed, not carrying anything (21050)", 'everyday', 4.8, 60, { code: '21050', strength: true }),
+  A("Walking, less than 2.0 mph, very slow (21040)", 'everyday', 2.3, 60, { code: '21040' }),
+  A("Walking, moderate effort tasks, non-cleaning (readying to leave, shut/lock", 'everyday', 3.5, 30, { code: '05165' }),
+  A("Wash dishes, clearing dishes from table, walking, light effort", 'everyday', 2.0, 30, { code: '05042' }),
+  A("Wash dishes, standing or in general (not broken into stand/walk components)", 'everyday', 2.0, 30, { code: '05041' }),
+  A("Washing and waxing hull of sailboat or airplane", 'everyday', 4.5, 60, { code: '06220' }),
+  A("Washing fence, painting fence, moderate effort", 'everyday', 4.5, 60, { code: '06230' }),
+  A("Watering plants", 'everyday', 2.0, 30, { code: '05148' }),
+  A("Wiring, tapping-splicing", 'everyday', 3.3, 60, { code: '06240' }),
+  A("Active video game, motion sensing game/using total body (moderate-to-vigorous", 'fitness', 5.0, 30, { code: '22280' }),
+  A("Active video game, motion sensing game/using total body, exergames, workouts", 'fitness', 7.5, 30, { code: '22320' }),
+  A("Active video game, motion sensing game/using upper body (light to moderate", 'fitness', 3.0, 30, { code: '22200' }),
+  A("Aerobic dance wearing 10-15 lb weights", 'fitness', 10.0, 30, { code: '02007' }),
+  A("Aerobic, general", 'fitness', 7.3, 30, { code: '02000' }),
+  A("Aerobic, step, with 10 \u2013 12 inch step", 'fitness', 9.0, 30, { code: '02003' }),
+  A("Aerobic, step, with 4-inch step", 'fitness', 5.5, 30, { code: '02001' }),
+  A("Arm Ergometer, hand bike, 15W", 'fitness', 2.0, 30, { code: '02116' }),
+  A("Arm Ergometer, hand bike, 25-30W", 'fitness', 2.8, 30, { code: '02117' }),
+  A("Bench step class, general", 'fitness', 7.8, 30, { code: '02004' }),
+  A("Blackbox Immersive virtual reality exergaming system, vigorous intensity", 'fitness', 13.0, 30, { code: '02288' }),
+  A("Calisthenics, light effort", 'fitness', 2.8, 30, { code: '02024', strength: true }),
+  A("Calisthenics, light or moderate effort, general, going up & down from floor", 'fitness', 3.5, 30, { code: '02030', strength: true }),
+  A("Calisthenics, moderate effort", 'fitness', 3.8, 30, { code: '02022', strength: true }),
+  A("Circuit training, light effort", 'fitness', 3.5, 30, { code: '02034' }),
+  A("Curves\u2122 exercise routines in women", 'fitness', 3.5, 30, { code: '02045' }),
+  A("Elliptical trainer, vigorous effort", 'fitness', 9.0, 30, { code: '02049' }),
+  A("ExerCube, workout series", 'fitness', 9.3, 30, { code: '02284' }),
+  A("Health club exercise, general", 'fitness', 5.5, 30, { code: '02060' }),
+  A("Impulse Training System, Inertial Exercise Trainer", 'fitness', 9.0, 30, { code: '02240' }),
+  A("Jogging 2.6 to 3.7 mph", 'fitness', 3.3, 30, { code: '12026' }),
+  A("Jogging on a mini-tramp", 'fitness', 4.5, 30, { code: '12027' }),
+  A("Jumping rope, Digi-Jump Maching, 120 jumps/minute", 'fitness', 9.0, 30, { code: '02069' }),
+  A("Native New Zealander PA, general, vigorous effort", 'fitness', 6.8, 30, { code: '02205' }),
+  A("Native New Zealander PA,, general moderate effort", 'fitness', 5.3, 30, { code: '02200' }),
+  A("Pound, combination of Pilates and body movements with drumming", 'fitness', 8.5, 30, { code: '02107', strength: true }),
+  A("Resistance Training, circuit, reciprocol supersets, peripheral hear action", 'fitness', 5.8, 30, { code: '02055', strength: true }),
+  A("Rope jumping, double under or more", 'fitness', 10.0, 60, { code: '15554' }),
+  A("Rope jumping, fast pace, 120-160 skips/min", 'fitness', 12.3, 60, { code: '15550' }),
+  A("Rope jumping, slow pace, < 100 skips/min, 2 foot skip, rhythm bounce", 'fitness', 8.3, 60, { code: '15552' }),
+  A("Rope skipping exercise, general", 'fitness', 11.0, 30, { code: '02068' }),
+  A("Rowing, stationary ergometer, general, <100 watts, moderate effort", 'fitness', 5.0, 30, { code: '02071' }),
+  A("Rowing, stationary, 100 to 149 watts, vigorous effort", 'fitness', 7.5, 30, { code: '02072' }),
+  A("Rowing, stationary, 150 to 199 watts, vigorous effort", 'fitness', 11.0, 30, { code: '02073' }),
+  A("Rowing, stationary, \u2265 200 watts, very vigorous effort", 'fitness', 14.0, 30, { code: '02074' }),
+  A("Running", 'fitness', 8.0, 30, { code: '12150' }),
+  A("Running 4.3 to 4.8 mph", 'fitness', 7.8, 30, { code: '12029' }),
+  A("Running curved treadmill, 5.0 to 5.9 mph", 'fitness', 11.0, 30, { code: '12410' }),
+  A("Running curved treadmill, 7.0 to 7.9 mph", 'fitness', 12.0, 30, { code: '12412' }),
+  A("Running curved treadmill, 8.0 to 8.9 mph", 'fitness', 14.0, 30, { code: '12414' }),
+  A("Running curved treadmill, 9.0 to 9.9 mph", 'fitness', 16.8, 30, { code: '12416' }),
+  A("Running downhill, 5.0 to 5.9 mph, -10% to -15%", 'fitness', 5.8, 30, { code: '12352' }),
+  A("Running downhill, 6.0 to 6.9 mph, -10% to -15%", 'fitness', 7.5, 30, { code: '12353' }),
+  A("Running downhill, 6.0 to 7.9 mph, -3% to -9%", 'fitness', 9.3, 30, { code: '12358' }),
+  A("Running downhill, 7.0 to 8.9 mph, -10% to -15%", 'fitness', 9.0, 30, { code: '12355' }),
+  A("Running downhill, 8.0 to 10.5 mph, -3% to -9%", 'fitness', 13.8, 30, { code: '12361' }),
+  A("Running uphill, 0.6 to 0.79 mph, 30% incline", 'fitness', 8.8, 30, { code: '12335' }),
+  A("Running uphill, 0.8 to 0.99 mph, 30% incline", 'fitness', 10.3, 30, { code: '12337' }),
+  A("Running uphill, 1.0 to 1.19 mph, 30% incline", 'fitness', 11.8, 30, { code: '12339' }),
+  A("Running uphill, 1.2 to 1.39 mph, 30-40% incline", 'fitness', 13.5, 30, { code: '12341' }),
+  A("Running uphill, 1.4 to 1.59 mph, 30% incline", 'fitness', 14.8, 30, { code: '12343' }),
+  A("Running uphill, 4.5mph, 5% incline", 'fitness', 10.3, 30, { code: '12255' }),
+  A("Running uphill, 5.0 to 5.9 mph, 15% incline", 'fitness', 17.5, 30, { code: '12325' }),
+  A("Running uphill, 6.0 mph, 5% incline", 'fitness', 13.3, 30, { code: '12260' }),
+  A("Running uphill, 7.0 mph, 5% incline", 'fitness', 15.5, 30, { code: '12265' }),
+  A("Running uphill, >1.6mph, 10-30% incline", 'fitness', 16.3, 30, { code: '12345' }),
+  A("Running, 10 mph (6 min/mile)", 'fitness', 14.8, 30, { code: '12120' }),
+  A("Running, 11 mph (5.5 min/mile)", 'fitness', 16.8, 30, { code: '12130' }),
+  A("Running, 12 mph (5.0 min/mile)", 'fitness', 18.5, 30, { code: '12132' }),
+  A("Running, 13 mph (4.6 min/mile)", 'fitness', 19.8, 30, { code: '12134' }),
+  A("Running, 14 mph (4.3 min/mile)", 'fitness', 23.0, 30, { code: '12135' }),
+  A("Running, 4 to 4.2 mph (13 min/mile)", 'fitness', 6.5, 30, { code: '12028' }),
+  A("Running, 5.0 - 5.9 mph, 1.0 to 3.0 kg backpack", 'fitness', 8.5, 30, { code: '12508' }),
+  A("Running, 5.0 to 5.2 mph (12 min/mile)", 'fitness', 8.5, 30, { code: '12030' }),
+  A("Running, 5.5 -5.8 mph", 'fitness', 9.0, 30, { code: '12045' }),
+  A("Running, 6.0 - 6.9 mph, 1.0 to 3.0 kg backpack", 'fitness', 9.5, 30, { code: '12510' }),
+  A("Running, 6.7 mph (9 min/mile)", 'fitness', 10.5, 30, { code: '12060' }),
+  A("Running, 7 mph (8.5 min/mile)", 'fitness', 11.0, 30, { code: '12070' }),
+  A("Running, 7.0 - 7.9 mph, 1.0 to 3.0 kg backpack", 'fitness', 9.8, 30, { code: '12512' }),
+  A("Running, 7.5 mph (8 min/mile)", 'fitness', 11.8, 30, { code: '12080' }),
+  A("Running, 8 mph (7.5 min/mile)", 'fitness', 12.0, 30, { code: '12090' }),
+  A("Running, 8.0 - 8.9 mph, 1.0 to 3.0 kg backpack", 'fitness', 12.0, 30, { code: '12514' }),
+  A("Running, 8.6 mph (7 min/mile)", 'fitness', 12.5, 30, { code: '12100' }),
+  A("Running, 9 mph (6.5 min/mile)", 'fitness', 13.0, 30, { code: '12110' }),
+  A("Running, 9.3 to 9.6 mph", 'fitness', 14.8, 30, { code: '12115' }),
+  A("Running, barefoot, 3.5-5.9 mph", 'fitness', 7.8, 30, { code: '12555' }),
+  A("Running, barefoot, 6.0-7.9 mph", 'fitness', 12.0, 30, { code: '12560' }),
+  A("Running, barefoot, 8.0-8.9 mph", 'fitness', 13.5, 30, { code: '12565' }),
+  A("Running, jogging stroller, indoors, 5 mph", 'fitness', 8.0, 30, { code: '12585' }),
+  A("Running, jogging stroller, indoors, 6 mph", 'fitness', 9.0, 30, { code: '12588' }),
+  A("Running, jogging stroller, outdoors, 6 mph", 'fitness', 11.5, 30, { code: '12595' }),
+  A("Running, marathon", 'fitness', 13.3, 30, { code: '12200' }),
+  A("Running, on a track, team practice", 'fitness', 10.0, 30, { code: '12180' }),
+  A("Running, on track, 2000-3000m, competitive", 'fitness', 19.3, 30, { code: '12186' }),
+  A("Running, on track, 500-1500m, competitive", 'fitness', 18.0, 30, { code: '12184' }),
+  A("Running, self-selected pace", 'fitness', 10.5, 30, { code: '12145' }),
+  A("Running, training, pushing a wheelchair or baby carrier", 'fitness', 8.0, 30, { code: '12190' }),
+  A("Running/jogging, curved treadmill, 3.0 to 3.9 mph", 'fitness', 5.3, 30, { code: '12405' }),
+  A("Running/jogging, curved treadmill, 4.0 to 4.9 mph", 'fitness', 6.5, 30, { code: '12408' }),
+  A("Shuttle running, forward/backward/lateral", 'fitness', 11.0, 30, { code: '02078' }),
+  A("Sit to stand exercise, 18-24 times/min", 'fitness', 4.0, 30, { code: '02344' }),
+  A("Ski ergometer, cross country, double poling, fast to maximum speed", 'fitness', 18.0, 30, { code: '02084' }),
+  A("Ski ergometer, cross country, double poling, slow to moderate speed", 'fitness', 10.5, 30, { code: '02082' }),
+  A("Skipping, 5.5-6.0 mph", 'fitness', 11.5, 30, { code: '12600' }),
+  A("Slide board exercise, general", 'fitness', 10.5, 30, { code: '02085' }),
+  A("Therapeutic exercise ball, Fitball exercise, high intensity", 'fitness', 9.5, 30, { code: '02114' }),
+  A("Trampoline, competitive", 'fitness', 10.3, 60, { code: '15702' }),
+  A("Triathlon, Running", 'fitness', 13.0, 30, { code: '12620' }),
+  A("Upper body exercise, arm ergometer, general, light", 'fitness', 2.8, 30, { code: '02115' }),
+  A("Upper body exercise, stationary bicycle - Airdyne (arms only) 40 rpm, moderate", 'fitness', 4.3, 30, { code: '02119' }),
+  A("Video, exercise workouts, TV conditioning programs, light effort", 'fitness', 2.5, 30, { code: '02140', strength: true }),
+  A("Video, exercise workouts, TV conditioning programs, moderate", 'fitness', 4.0, 30, { code: '02143', strength: true }),
+  A("Video, exercise workouts, TV conditioning programs, vigorous", 'fitness', 6.0, 30, { code: '02145', strength: true }),
+  A("Virtual Reality Fitness, Supernatural\u2122 \u201cFlow\u201d, \u201cBoxing\" vigorous intensity", 'fitness', 8.3, 30, { code: '02280' }),
+  A("Walking treadmill, backwards, 2.5 mph, +10% grade", 'fitness', 7.8, 30, { code: '17475' }),
+  A("Walking, Curved treadmill, 3.0 to 5.0 mph, brisk pace", 'fitness', 8.3, 30, { code: '17455' }),
+  A("Walking, treadmill, 1.0 mph, 0% grade", 'fitness', 2.3, 30, { code: '17364' }),
+  A("Walking, treadmill, 1.2 to 1.9 mph, 0% grade (1.9 to 3.0 km/h)", 'fitness', 2.8, 30, { code: '17368' }),
+  A("Walking, treadmill, 2.0 to 2.4 mph (3.2 to 3.9 km/h), 0% grade", 'fitness', 3.0, 30, { code: '17342' }),
+  A("Walking, treadmill, 2.5 mph, 0% grade, -10 to 0 degrees C, 40 lb (18.2 kg) load", 'fitness', 5.8, 30, { code: '17438' }),
+  A("Walking, treadmill, 2.5 mph, 0% grade, 5 to 20 degrees C, 40 lb (18.2 kg) load", 'fitness', 4.8, 30, { code: '17434' }),
+  A("Walking, treadmill, 2.5 to 2.9 mph (4.0 to 4.7 km/h), 0% grade", 'fitness', 3.5, 30, { code: '17346' }),
+  A("Walking, treadmill, 3.0 to 3.4 mph (4.8 to 5.5 km/h), 0% grade", 'fitness', 3.8, 30, { code: '17350' }),
+  A("Walking, treadmill, 4.0 to 4.4 mph (6.4 to 7.1 km/h), 0% grade", 'fitness', 5.8, 30, { code: '17358' }),
+  A("Walking, treadmill, 4.5 to 4.9 mph (7.2 to 7.9 km/h), 0% grade", 'fitness', 6.8, 30, { code: '17362' }),
+  A("Walking, treadmill, 5.0 to 5.5 mph (8.0 to 8.9 km/h), 0% grade", 'fitness', 8.3, 30, { code: '17366' }),
+  A("Walking, treadmill, downhill (-3% to -12% grade), 2.8 to 3.1 mph", 'fitness', 3.3, 30, { code: '17382' }),
+  A("Walking, treadmill, downhill (-5% to -25% grade), 2.8 mph, with Nordic Poles", 'fitness', 3.3, 30, { code: '17412' }),
+  A("Walking, treadmill, less than 1.0 mph, 0% grade", 'fitness', 2.1, 30, { code: '17360' }),
+  A("Wand exercise, Life-Build-Line", 'fitness', 3.0, 30, { code: '02300' }),
+  A("Water aerobics, water calisthenics, water exercise", 'fitness', 5.3, 30, { code: '02120', strength: true }),
+  A("Yoga, Hatha, high intensity", 'fitness', 8.0, 30, { code: '02153', strength: true }),
+  A("Yoga, Nadisodhana", 'fitness', 2.0, 30, { code: '02170', strength: true }),
+  A("Carrying, loading or stacking wood, loading/unloading or carrying lumber", 'garden', 5.5, 45, { code: '08010', strength: true }),
+  A("Chopping wood, splitting logs, vigorous effort", 'garden', 6.5, 45, { code: '08020', strength: true }),
+  A("Clearing light brush, thinning garden, moderate effort", 'garden', 3.5, 45, { code: '08025' }),
+  A("Digging sandbox, shoveling sand", 'garden', 5.0, 45, { code: '08040', strength: true }),
+  A("Digging, spading, filling garden, composting", 'garden', 5.0, 45, { code: '08050', strength: true }),
+  A("Driving tractor", 'garden', 2.8, 45, { code: '08055' }),
+  A("Felling trees, large size", 'garden', 8.3, 45, { code: '08057', strength: true }),
+  A("Gardening with heavy power tools, using chain saw, tilling a garden", 'garden', 5.8, 45, { code: '08060' }),
+  A("Gardening, general", 'garden', 2.0, 45, { code: '08066' }),
+  A("General yard work at church", 'garden', 4.0, 45, { code: '20061' }),
+  A("Implied walking/standing - picking up yard, light, picking flowers or vegetables", 'garden', 3.0, 45, { code: '08250' }),
+  A("Irrigation channels, opening and closing ports", 'garden', 4.0, 45, { code: '08070' }),
+  A("Mowing lawn, power mower, light or moderate effort", 'garden', 4.5, 45, { code: '08125' }),
+  A("Mowing lawn, walk, power mower, moderate or vigorous effort", 'garden', 5.0, 45, { code: '08120' }),
+  A("Planting crops or garden, stooping, moderate effort", 'garden', 4.3, 45, { code: '08145' }),
+  A("Raking lawn", 'garden', 4.0, 45, { code: '08165' }),
+  A("Sacking grass, leaves", 'garden', 4.0, 45, { code: '08190' }),
+  A("Shoveling dirt or mud", 'garden', 5.5, 45, { code: '08192', strength: true }),
+  A("Trimming shrubs or trees, power cutter, using leaf blower, edger, moderate", 'garden', 3.3, 45, { code: '08215' }),
+  A("Walking, applying fertilizer or seeding a lawn, push applicator", 'garden', 3.0, 45, { code: '08220' }),
+  A("Walking, gathering gardening tools", 'garden', 3.0, 45, { code: '08251' }),
+  A("Weeding, cultivating garden, light-to-moderate effort", 'garden', 3.8, 45, { code: '08239' }),
+  A("Weeding, cultivating garden, using hoe moderate-to-vigorous effort", 'garden', 5.0, 45, { code: '08241' }),
+  A("Wheel barrow, pushing large garden cart or heavy wheelbarrow up to 150kg", 'garden', 6.0, 45, { code: '08256' }),
+  A("Yardwork, general, light effort", 'garden', 2.3, 45, { code: '08260' }),
+  A("Activities in a boat, lifting, lowering", 'outdoors', 3.3, 90, { code: '04168', strength: true }),
+  A("Carrying 15 - 155 lb (6.8 - 70.4 kg) load, level ground or downstairs, slow pace", 'outdoors', 4.5, 30, { code: '17018', strength: true }),
+  A("Carrying 5 to 14 lb (2.3 to 6.4 kg) load, level ground, moderate pace", 'outdoors', 4.0, 30, { code: '17016', strength: true }),
+  A("Carrying 50 to 150 pound load, level ground, moderate pace", 'outdoors', 6.5, 30, { code: '17019', strength: true }),
+  A("Carrying load upstairs, general", 'outdoors', 8.3, 30, { code: '17025', strength: true }),
+  A("Carrying load, 1 to 15 lb load, upstairs", 'outdoors', 5.5, 30, { code: '17026', strength: true }),
+  A("Carrying load, 16 to 24 lb load, upstairs", 'outdoors', 6.0, 30, { code: '17027', strength: true }),
+  A("Carrying load, 25 to 49 lb load, upstairs", 'outdoors', 8.0, 30, { code: '17028', strength: true }),
+  A("Carrying load, 50 to 74 lb load, upstairs", 'outdoors', 10.0, 30, { code: '17029', strength: true }),
+  A("Carrying load, >74 lb load, upstairs", 'outdoors', 12.0, 30, { code: '17030', strength: true }),
+  A("Carrying ~10 lb child, slow walking", 'outdoors', 2.3, 30, { code: '17021', strength: true }),
+  A("Climbing hills, 10 to 20 lb load, 5 to 10% grade, moderate", 'outdoors', 6.5, 30, { code: '17045' }),
+  A("Climbing hills, 15-50 lb load, 1 to 2% grade, slow pace", 'outdoors', 3.8, 30, { code: '17033' }),
+  A("Climbing hills, 21 to 40 lb load, 3 to 10% grade, moderate-to-brisk pace", 'outdoors', 7.5, 30, { code: '17050' }),
+  A("Climbing hills, no load, 11 to 20% grade, slow-to-moderate pace", 'outdoors', 8.8, 30, { code: '17036' }),
+  A("Climbing hills, no load, 4.0 to 5.0 mph, 3 to 5% grade, very fast pace", 'outdoors', 10.0, 30, { code: '17037' }),
+  A("Climbing hills, no load, 5 to 20% grade, very slow pace", 'outdoors', 5.0, 30, { code: '17032' }),
+  A("Climbing hills, no load, 6 to 10% grade, moderate-to-brisk pace", 'outdoors', 7.0, 30, { code: '17035' }),
+  A("Climbing hills, no load, steep grade (10-40%), 1.8 to 5.0 mph", 'outdoors', 16.3, 30, { code: '17040' }),
+  A("Climbing hills, no load, steep grade (30%), slow pace (less than 1.2 mph)", 'outdoors', 8.5, 30, { code: '17038' }),
+  A("Climbing hills, no load, very steep grade (30-40%), 1.2 to 1.8 mph", 'outdoors', 15.5, 30, { code: '17039' }),
+  A("Descending stairs", 'outdoors', 3.5, 30, { code: '17070' }),
+  A("Fishing related, digging worms, with shovel", 'outdoors', 4.3, 90, { code: '04010', strength: true }),
+  A("Fishing with a spear, standing", 'outdoors', 2.3, 90, { code: '04065' }),
+  A("Fishing, catching fish with hands", 'outdoors', 4.0, 90, { code: '04007' }),
+  A("Fishing, crab fishing", 'outdoors', 4.5, 90, { code: '04005' }),
+  A("Fishing, dip net, setting net and retrieving fish, general", 'outdoors', 3.5, 90, { code: '04062' }),
+  A("Fishing, fishing wheel, setting net and retrieving fish, general", 'outdoors', 3.0, 90, { code: '04064' }),
+  A("Fishing, general", 'outdoors', 3.5, 90, { code: '04001' }),
+  A("Fishing, ice, sitting", 'outdoors', 2.0, 90, { code: '04060' }),
+  A("Fishing, set net, setting net and retrieving fish, general", 'outdoors', 3.8, 90, { code: '04063' }),
+  A("Foraging, 10-15kg backpack", 'outdoors', 3.0, 90, { code: '04152' }),
+  A("Golf, general", 'outdoors', 4.5, 60, { code: '15255' }),
+  A("Hauling water, head hauling, walking on flat surface", 'outdoors', 4.5, 30, { code: '17076' }),
+  A("Horseback riding, jumping", 'outdoors', 9.0, 60, { code: '15402' }),
+  A("Horseback riding, reining", 'outdoors', 6.0, 60, { code: '15403' }),
+  A("Horseback riding, simulator", 'outdoors', 2.1, 60, { code: '15406' }),
+  A("Horseback riding, walking", 'outdoors', 3.8, 60, { code: '15400' }),
+  A("Hunting - hiking with hunting gear", 'outdoors', 9.5, 90, { code: '04125' }),
+  A("Hunting birds", 'outdoors', 3.3, 90, { code: '04115' }),
+  A("Hunting flying fox, squirrel", 'outdoors', 3.0, 90, { code: '04095' }),
+  A("Hunting large game from a car, plane, or boat", 'outdoors', 2.0, 90, { code: '04086' }),
+  A("Hunting large marine animals", 'outdoors', 4.0, 90, { code: '04083' }),
+  A("Hunting pigs, wild", 'outdoors', 3.3, 90, { code: '04123' }),
+  A("Hunting, deer, elk, large game", 'outdoors', 6.0, 90, { code: '04080' }),
+  A("Hunting, duck, wading", 'outdoors', 2.5, 90, { code: '04090' }),
+  A("Hunting, large game from a hunting stand, limited walking", 'outdoors', 2.5, 90, { code: '04085' }),
+  A("Hunting, rabbit, squirrel, prairie chick, raccoon, small game", 'outdoors', 5.0, 90, { code: '04120' }),
+  A("Loading and/or unloading a car, implied walking", 'outdoors', 3.8, 30, { code: '17031' }),
+  A("Marching rapidly, military, no pack", 'outdoors', 8.0, 30, { code: '17090' }),
+  A("Marching, moderate speed, military, no pack", 'outdoors', 4.5, 30, { code: '17088' }),
+  A("Pistol shooting or trap shooting, standing", 'outdoors', 2.5, 90, { code: '04130' }),
+  A("Pushing a wheelchair, non-occupational", 'outdoors', 3.8, 30, { code: '17105' }),
+  A("Race Walking, 3.1 m/s (6.9 mph)", 'outdoors', 10.3, 60, { code: '15525' }),
+  A("Race Walking, 3.7 m/s (8.3 mph)", 'outdoors', 13.8, 60, { code: '15527' }),
+  A("Race Walking, racing speed, 4.0 m/s (8.95 mph)", 'outdoors', 15.5, 60, { code: '15528' }),
+  A("Rifle exercises, shooting, kneeling or standing", 'outdoors', 2.5, 90, { code: '04145' }),
+  A("Rifle exercises, shooting, lying down", 'outdoors', 2.3, 90, { code: '04140' }),
+  A("Rodeo sports, general, light effort", 'outdoors', 4.0, 60, { code: '15542' }),
+  A("Rodeo sports, general, moderate effort", 'outdoors', 5.5, 60, { code: '15544' }),
+  A("Rodeo sports, general, vigorous effort", 'outdoors', 7.0, 60, { code: '15546' }),
+  A("Stair climbing, ascending and descending stairs", 'outdoors', 7.5, 30, { code: '17138' }),
+  A("Stair climbing, fast pace, one step at a time", 'outdoors', 9.3, 30, { code: '17134' }),
+  A("Stair climbing, slow pace", 'outdoors', 4.5, 30, { code: '17133' }),
+  A("Stair climbing, two steps at a time", 'outdoors', 7.5, 30, { code: '17136' }),
+  A("Stair climbing, using or climbing up ladder", 'outdoors', 8.0, 30, { code: '17130' }),
+  A("Trapping game, general", 'outdoors', 2.0, 90, { code: '04124' }),
+  A("Walking for transportation, 2.8-3.2 mph, level, moderate pace, firm surface", 'outdoors', 3.5, 30, { code: '16060' }),
+  A("Walking to neighbor\u2019s house or family\u2019s house for social reasons", 'outdoors', 2.5, 30, { code: '17162' }),
+  A("Walking with a day pack, level ground, assumed in the city", 'outdoors', 3.5, 30, { code: '17011' }),
+  A("Walking, 2.0 to 2.4 mph, level, slow pace, firm surface", 'outdoors', 2.8, 30, { code: '17152' }),
+  A("Walking, 2.5 mph, downhill", 'outdoors', 3.3, 30, { code: '17180' }),
+  A("Walking, 2.5 mph, firm, level surface", 'outdoors', 3.0, 30, { code: '17170' }),
+  A("Walking, 2.8 to 3.4 mph, level, moderate pace, firm surface", 'outdoors', 3.8, 30, { code: '17190' }),
+  A("Walking, 4.0 to 4.4 mph (6.4 to 7.0 km/h), level, firm surface, very brisk pace", 'outdoors', 5.5, 30, { code: '17220' }),
+  A("Walking, 4.5 to 4.9 mph, level, firm surface, very, very brisk", 'outdoors', 7.0, 30, { code: '17230' }),
+  A("Walking, 5.0 to 5.5 mph (8.8 to 8.9 km/h), level, firm surface", 'outdoors', 8.5, 30, { code: '17231' }),
+  A("Walking, backward, 3.5 mph, level", 'outdoors', 6.0, 30, { code: '17320' }),
+  A("Walking, backward, 3.5 mph, uphill, 5% grade", 'outdoors', 7.8, 30, { code: '17325' }),
+  A("Walking, for exercise, 2.5 to 3.5 mph (4.0 to 5.6 km/h), with ski poles, Nordic", 'outdoors', 4.3, 30, { code: '17302' }),
+  A("Walking, for exercise, 4.5 to 5.0 mph, with ski poles, Nordic walking, level", 'outdoors', 8.5, 30, { code: '17305' }),
+  A("Walking, for exercise, with ski poles, Nordic walking, level ground, carrying", 'outdoors', 10.8, 30, { code: '17313', strength: true }),
+  A("Walking, for exercise, with ski poles, Nordic walking, uphill, carrying 20 to", 'outdoors', 12.3, 30, { code: '17315', strength: true }),
+  A("Walking, for exercise, with ski poles, Nordic walking, uphill, moderate pace", 'outdoors', 8.8, 30, { code: '17310' }),
+  A("Walking, for pleasure, work break", 'outdoors', 3.5, 30, { code: '17250' }),
+  A("Walking, grass track", 'outdoors', 4.8, 30, { code: '17260' }),
+  A("Walking, household", 'outdoors', 2.3, 30, { code: '17150' }),
+  A("Walking, less than 2.0 mph, level, strolling, very slow", 'outdoors', 2.3, 30, { code: '17151' }),
+  A("Walking, normal pace, plowed field or sand", 'outdoors', 4.5, 30, { code: '17262' }),
+  A("Walking, self-selected speed, indoor track or outdoors, firm surface", 'outdoors', 4.0, 30, { code: '17255' }),
+  A("Badminton, competitive, match play", 'racket', 9.0, 60, { code: '15025' }),
+  A("Paddleball, competitive", 'racket', 10.0, 60, { code: '15490' }),
+  A("Racquetball, competitive", 'racket', 10.0, 60, { code: '15520' }),
+  A("Tennis, doubles", 'racket', 6.0, 60, { code: '15680' }),
+  A("Tennis, general, competitive", 'racket', 8.0, 60, { code: '15676' }),
+  A("Biathalon training, 5 degree incline, 10.7 km/h (5 mph), with/without rifle", 'snow', 12.8, 60, { code: '19144' }),
+  A("Biathalon training, 5 degree incline, 8 km/h (5 mph), with/without rifle", 'snow', 12.8, 60, { code: '19142' }),
+  A("Ice fishing", 'snow', 2.0, 60, { code: '19011' }),
+  A("Mountaineering, downhill climbing, walking down with rope", 'snow', 9.0, 60, { code: '19400' }),
+  A("Mountaineering, downhill climbing/cross-country skiing", 'snow', 10.3, 60, { code: '19405' }),
+  A("Moving ice house, set up/drill holes", 'snow', 6.0, 60, { code: '19010' }),
+  A("Operating snow blower, walking", 'snow', 2.5, 45, { code: '08130' }),
+  A("Raking roof with snow rake", 'snow', 4.0, 45, { code: '08170' }),
+  A("Riding snow blower", 'snow', 3.0, 45, { code: '08180' }),
+  A("Rollerskiing, 10-15 km/h, 2-5 degree incline", 'snow', 12.5, 60, { code: '19330' }),
+  A("Rollerskiing, 13 - 16.9 km/h, no incline", 'snow', 6.8, 60, { code: '19310' }),
+  A("Rollerskiing, 16-22 km/h, 2-5 degree incline", 'snow', 14.3, 60, { code: '19335' }),
+  A("Rollerskiing, 17 - 19.9 km/h, no incline", 'snow', 8.3, 60, { code: '19315' }),
+  A("Rollerskiing, 20 - 23.9 km/h, no incline", 'snow', 10.5, 60, { code: '19320' }),
+  A("Rollerskiing, 24 - 27.9 km/h, no incline", 'snow', 15.0, 60, { code: '19325' }),
+  A("Rollerskiing, 6-9 km/h, 6-10 degree incline", 'snow', 12.3, 60, { code: '19340' }),
+  A("Rollerskiing, >10 km/h, 6-10 degree incline", 'snow', 16.0, 60, { code: '19345' }),
+  A("Shoveling snow, by hand", 'snow', 6.0, 45, { code: '08200', strength: true }),
+  A("Shoveling snow, by hand, moderate effort", 'snow', 5.3, 45, { code: '08195', strength: true }),
+  A("Shoveling snow, by hand, vigorous effort", 'snow', 7.5, 45, { code: '08202', strength: true }),
+  A("Skating Treadmill, 6 - 6.9 mph, 2% grade", 'snow', 9.0, 60, { code: '19045' }),
+  A("Skating Treadmill, 7 - 7.9 mph, 2% grade", 'snow', 10.0, 60, { code: '19046' }),
+  A("Skating Treadmill, 8 - 8.9 mph, 2% grade", 'snow', 10.5, 60, { code: '19047' }),
+  A("Skating Treadmill, 9 - 9.9 mph, 2% grade", 'snow', 11.0, 60, { code: '19048' }),
+  A("Skating, ice, 9 mph or less", 'snow', 5.5, 60, { code: '19020' }),
+  A("Skating, ice, rapidly, more than 9 mph but not competitive", 'snow', 9.0, 60, { code: '19040' }),
+  A("Skating, speed, competitive", 'snow', 13.8, 60, { code: '19050' }),
+  A("Ski jumping, climb up carrying skis", 'snow', 7.0, 60, { code: '19060', strength: true }),
+  A("Skiing, Alpine skiing high-intensity training", 'snow', 7.3, 60, { code: '19174' }),
+  A("Skiing, cross country, 12-16 mph, elite skier, racing", 'snow', 16.0, 60, { code: '19112' }),
+  A("Skiing, cross country, 5.0-7.9 mph, brisk speed, vigorous effort", 'snow', 11.3, 60, { code: '19100' }),
+  A("Skiing, cross country, elite skier, >8.0-11.9 mph, racing", 'snow', 14.0, 60, { code: '19110' }),
+  A("Skiing, cross country, hard snow, uphill, maximum, snow mountaineering", 'snow', 15.5, 60, { code: '19130' }),
+  A("Skiing, Cross-country skiing high-intensity training", 'snow', 9.5, 60, { code: '19115' }),
+  A("Skiing, cross-country, biathlon, skating technique", 'snow', 13.5, 60, { code: '19140' }),
+  A("Skiing, general", 'snow', 7.0, 60, { code: '19075' }),
+  A("Skiing, roller, elite racers", 'snow', 12.5, 60, { code: '19300' }),
+  A("Skiing, slalom", 'snow', 9.3, 60, { code: '19146' }),
+  A("Snow blower, walking and pushing", 'snow', 2.5, 60, { code: '19260' }),
+  A("Snow shoeing, vigorous effort", 'snow', 10.0, 60, { code: '19192' }),
+  A("Snow shoveling, by hand, vigorous effort", 'snow', 7.5, 60, { code: '19254', strength: true }),
+  A("Alaska Native Games, Eskimo Olympics, general", 'team', 5.5, 60, { code: '15000' }),
+  A("Basketball, drills, practice", 'team', 9.3, 60, { code: '15072' }),
+  A("Basketball, non-game, general", 'team', 6.0, 60, { code: '15050' }),
+  A("Basketball, officiating", 'team', 7.0, 60, { code: '15060' }),
+  A("Bowling, indoor, bowling alley", 'team', 3.8, 60, { code: '15092' }),
+  A("Football, touch, flag, light effort", 'team', 4.0, 60, { code: '15232' }),
+  A("Hockey, ice, competitive", 'team', 10.0, 60, { code: '15362' }),
+  A("Softball, officiating", 'team', 4.0, 60, { code: '15630' }),
+  A("Softball, pitching", 'team', 6.0, 60, { code: '15640' }),
+  A("Softball, practice", 'team', 4.0, 60, { code: '15625' }),
+  A("Track and field", 'team', 10.0, 60, { code: '15734' }),
+  A("Volleyball (15710)", 'team', 4.0, 60, { code: '15710' }),
+  A("Aquatic cycling, 100 W, 40-50 RPM", 'water', 6.3, 45, { code: '18428' }),
+  A("Aquatic cycling, 100 W, 60-70 RPM", 'water', 7.5, 45, { code: '18432' }),
+  A("Aquatic cycling, 25 W, 40-50 RPM", 'water', 2.8, 45, { code: '18404' }),
+  A("Aquatic cycling, 25 W, 60-70 RPM", 'water', 4.8, 45, { code: '18408' }),
+  A("Aquatic cycling, 50 W, 40-50 RPM", 'water', 3.8, 45, { code: '18412' }),
+  A("Aquatic cycling, 75 W, 40-50 RPM", 'water', 5.0, 45, { code: '18420' }),
+  A("Aquatic cycling, 75 W, 60-70 RPM", 'water', 6.3, 45, { code: '18424' }),
+  A("Aquatic cycling, 80-89 RPM", 'water', 8.5, 45, { code: '18436' }),
+  A("Aquatic cycling, 90+ RPM", 'water', 10.3, 45, { code: '18440' }),
+  A("Boating, power, driving", 'water', 2.5, 45, { code: '18010' }),
+  A("Canoeing, harvesting wild rice, knocking rice off the stalks", 'water', 3.3, 45, { code: '18025' }),
+  A("Canoeing, portaging", 'water', 7.0, 45, { code: '18030' }),
+  A("Canoeing, rowing, 2.0-3.9 mph, light effort", 'water', 2.8, 45, { code: '18040' }),
+  A("Canoeing, rowing, 4.0-5.9 mph, moderate effort", 'water', 5.8, 45, { code: '18050' }),
+  A("Canoeing, rowing, kayaking, competition, > 6 mph, vigorous effort", 'water', 12.5, 45, { code: '18060' }),
+  A("Kayaking, competition", 'water', 13.5, 45, { code: '18104' }),
+  A("Rowing, simulated crew in a water tank, single oar, 33 strokes/min", 'water', 15.5, 45, { code: '18112' }),
+  A("Rowing, single scull, ergometer, ergometer on slides, racing speed (32+", 'water', 15.5, 45, { code: '18114' }),
+  A("Sailing, boat and board sailing, windsurfing, ice sailing, general", 'water', 3.0, 45, { code: '18120' }),
+  A("Sailing, dingy", 'water', 2.0, 45, { code: '18142' }),
+  A("Sailing, in competition, high effort", 'water', 9.3, 45, { code: '18132' }),
+  A("Scuba diving, professional diver", 'water', 5.5, 45, { code: '18206' }),
+  A("Scuba diving, recreational diver", 'water', 6.8, 45, { code: '18202' }),
+  A("Skindiving, fast", 'water', 15.8, 45, { code: '18180' }),
+  A("Stand up Paddleboard, standing, 10-19 strokes/min", 'water', 2.8, 45, { code: '18225' }),
+  A("Stand up Paddleboard, standing, 20-29 strokes/min", 'water', 3.8, 45, { code: '18226' }),
+  A("Stand up Paddleboard, standing, 30-39 strokes/min", 'water', 5.0, 45, { code: '18227' }),
+  A("Stand up Paddleboard, standing, 40-49 strokes/min", 'water', 9.8, 45, { code: '18228' }),
+  A("Stand up Paddleboard, standing, 50-69 strokes/min", 'water', 11.0, 45, { code: '18229' }),
+  A("Surfing, body or board, competitive", 'water', 5.0, 45, { code: '18222' }),
+  A("Swimming, backstroke, training or competition", 'water', 9.5, 45, { code: '18250' }),
+  A("Swimming, breaststroke, general, training or competition", 'water', 10.3, 45, { code: '18260' }),
+  A("Swimming, butterfly, general", 'water', 13.8, 45, { code: '18270' }),
+  A("Swimming, crawl, elite swimmers, competition, >90 yards/minute", 'water', 14.5, 45, { code: '18294' }),
+  A("Swimming, crawl, fast speed, ~75 yards/minute, vigorous effort", 'water', 10.5, 45, { code: '18280' }),
+  A("Swimming, crawl, slow speed, 30-45 yards/minute, moderate effort", 'water', 5.8, 45, { code: '18292' }),
+  A("Swimming, open water, 5k", 'water', 10.5, 45, { code: '18285' }),
+  A("Swimming, sidestroke, general", 'water', 7.0, 45, { code: '18320' }),
+  A("Swimming, treading water, fast, vigorous effort", 'water', 9.8, 45, { code: '18340' }),
+  A("Swimming, treading water, moderate effort, general", 'water', 3.5, 45, { code: '18350' }),
+  A("Water aerobics, resistance exercises", 'water', 3.8, 45, { code: '18356', strength: true }),
+  A("Water running, 30 steps/min, slow", 'water', 6.5, 45, { code: '18374' }),
+  A("Water running, 40 steps/min, moderate", 'water', 7.5, 45, { code: '18375' }),
+  A("Water running, 50 steps/min, fast", 'water', 8.5, 45, { code: '18376' }),
+  A("Water running, 60 steps/min, very fast", 'water', 9.8, 45, { code: '18377' }),
+  A("Water walking, light effort, slow pace", 'water', 2.5, 45, { code: '18367' }),
+  A("Water walking, vigorous effort, brisk pace", 'water', 6.8, 45, { code: '18369' }),
+  A("Windsurfing, competition, pumping for speed", 'water', 14.0, 45, { code: '18390' }),
+  A("Auto racing, open wheel", 'wheels', 8.5, 60, { code: '15192' }),
+  A("Bicycling for transportation, high effort", 'wheels', 9.3, 30, { code: '16004' }),
+  A("Bicycling for transportation, light effort", 'wheels', 9.3, 30, { code: '16002' }),
+  A("Bicycling, 10-11.9 mph, leisure, slow, light effort", 'wheels', 6.8, 45, { code: '01020' }),
+  A("Bicycling, 12 mph, seated, hands on brake hoods or bar drops, 80 rpm", 'wheels', 8.5, 45, { code: '01065' }),
+  A("Bicycling, 12 mph, standing, hands on brake hoods, 60 rpm", 'wheels', 9.0, 45, { code: '01066' }),
+  A("Bicycling, >20 mph, racing, not drafting", 'wheels', 16.8, 45, { code: '01060' }),
+  A("Bicycling, concentric only, 100 W", 'wheels', 5.5, 45, { code: '01252' }),
+  A("Bicycling, concentric only, 200 W", 'wheels', 11.0, 45, { code: '01254' }),
+  A("Bicycling, eccentric only, 100 to 149 W", 'wheels', 2.3, 45, { code: '01262' }),
+  A("Bicycling, eccentric only, 200 W", 'wheels', 4.0, 45, { code: '01264' }),
+  A("Bicycling, general", 'wheels', 7.0, 45, { code: '01014' }),
+  A("Bicycling, high intensity interval training", 'wheels', 8.8, 45, { code: '01305' }),
+  A("Bicycling, leisure 5.5 mph", 'wheels', 3.5, 45, { code: '01018' }),
+  A("Bicycling, leisure, 9.4 mph", 'wheels', 5.8, 45, { code: '01019' }),
+  A("Bicycling, mountain, competitive racing", 'wheels', 16.0, 45, { code: '01004' }),
+  A("Bicycling, self-selected moderate pace", 'wheels', 7.0, 45, { code: '01016' }),
+  A("Bicycling, self-selected vigorous pace", 'wheels', 9.0, 45, { code: '01017' }),
+  A("Bicycling, stationary, 101-125 watts", 'wheels', 6.8, 45, { code: '01224' }),
+  A("Bicycling, stationary, 126-150 watts", 'wheels', 8.0, 45, { code: '01228' }),
+  A("Bicycling, stationary, 151-199 watts", 'wheels', 10.3, 45, { code: '01232' }),
+  A("Bicycling, stationary, 200-229 watts, vigorous", 'wheels', 10.8, 45, { code: '01236' }),
+  A("Bicycling, stationary, 230-250 watts, very vigorous", 'wheels', 12.5, 45, { code: '01240' }),
+  A("Bicycling, stationary, 25-30 watts, very light to light effort", 'wheels', 3.5, 45, { code: '01210' }),
+  A("Bicycling, stationary, 270-305 watts, very vigorous", 'wheels', 13.8, 45, { code: '01244' }),
+  A("Bicycling, stationary, 50 watts, light effort", 'wheels', 4.0, 45, { code: '01214' }),
+  A("Bicycling, stationary, 60 watts, light to moderate effort", 'wheels', 5.0, 45, { code: '01216' }),
+  A("Bicycling, stationary, 70-80 watts", 'wheels', 5.8, 45, { code: '01218' }),
+  A("Bicycling, stationary, 90-100 watts, moderate to vigorous", 'wheels', 6.0, 45, { code: '01220' }),
+  A("Bicycling, stationary, >325 watts, very vigorous", 'wheels', 16.3, 45, { code: '01248' }),
+  A("Drag racing, pushing or driving a car", 'wheels', 6.0, 60, { code: '15190' }),
+  A("E-bike (electrically assisted) for transportation", 'wheels', 6.8, 30, { code: '16005' }),
+  A("E-bike (electrically assisted) with high electronic support", 'wheels', 4.0, 45, { code: '01088' }),
+  A("E-bike (electrically assisted) without electronic support", 'wheels', 6.8, 45, { code: '01080' }),
+  A("Motorcycle racing, Supormoto racing", 'wheels', 5.3, 60, { code: '15475' }),
+  A("Roller blading, in-line skating, 17.7 km/h (11.0 mph), moderate pace, exercise", 'wheels', 9.8, 60, { code: '15592' }),
+  A("Roller blading, in-line skating, 21.0 to 21.7 km/h (13.0 to 13.6 mph), fast", 'wheels', 12.3, 60, { code: '15593' }),
+  A("Rollerblading, in-line skating, 24.0 km/h (15.0 mph), maximal effort", 'wheels', 15.5, 60, { code: '15594' }),
+  A("Skateboard, longboard, 13.3 km/h, fast speed", 'wheels', 10.5, 60, { code: '15597' }),
+  A("Skateboard, longboard, 13.3 km/h, slow speed", 'wheels', 6.8, 60, { code: '15595' }),
+  A("Skateboarding, competitive, vigorous effort", 'wheels', 6.0, 60, { code: '15582' }),
 ];
 
 /** Compendium intensity band → the app's intensity levels. */
@@ -4402,13 +5236,13 @@ function hobbyByName(name) {
 
 Object.assign(__m, { HOBBY_CATEGORIES, HOBBIES, intensityFromMet, hobbyByName });
 },
-/* js/views/move.js */ 21: function (__m, __req) {
+/* js/views/move.js */ 23: function (__m, __req) {
 // Movement: the week's schedule, strength session player with feedback, cardio logging.
 const { html, esc, icon, progressBar, fmtNum } = __req(15);
 const store = __req(14);
 const { progressChain, stepOf, stepGoal, REP_RANGE, INTENSITY, creditedMinutes } = __req(7);
 const { chips } = __req(15);
-const { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } = __req(20);
+const { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } = __req(22);
 const { CARDIO, WARMUP, COOLDOWN, CHAINS } = __req(6);
 const { STOP_SIGNS } = __req(8);
 const { addDays, weekStart } = __req(0);
@@ -4445,7 +5279,7 @@ function activitiesCard(state) {
     const tabs = [['pop', 'Popular', HOBBIES.filter((h) => h.pop).length], ['all', 'All', HOBBIES.length], ...Object.entries(HOBBY_CATEGORIES).map(([k, l]) => [k, l, HOBBIES.filter((h) => h.cat === k).length])];
     form = `<div class="card flat" style="margin-top:10px">
       <div class="row between" style="margin-bottom:8px"><strong>What do you do?</strong><button class="btn ghost small" data-action="toggleAddActivity">Cancel</button></div>
-      <input type="search" placeholder="Search ${HOBBIES.length} activities — e.g. squash, gardening, scuba" data-filter="hobby" aria-label="Search activities" style="margin-bottom:10px">
+      <input type="search" placeholder="Search all ${HOBBIES.length} — e.g. squash, gardening, scuba" data-filter="hobby" aria-label="Search activities" style="margin-bottom:10px">
       <div class="scroll-x" style="margin-bottom:10px">${tabs.map(([k, l, n]) => `<button type="button" class="qchip ${pickCat === k ? 'done' : ''}" style="padding-left:12px" data-action="hobbyCat" data-value="${k}" aria-pressed="${pickCat === k}">${esc(l)} <span class="muted">${n}</span></button>`).join('')}</div>
       <div class="hobby-grid" data-filter-target="hobby">${HOBBIES.map((h) => `<button type="button" class="hobby-btn" data-action="pickHobby" data-name="${esc(h.name)}" data-filter-text="${esc(h.name.toLowerCase())} ${esc(HOBBY_CATEGORIES[h.cat].toLowerCase())}"${inCat(h) ? '' : ' data-out="1" hidden'}><span>${esc(h.name)}</span><small class="int-${intensityFromMet(h.met)}">${INTENSITY[intensityFromMet(h.met)].label}${h.strength ? ' · strength' : ''}</small></button>`).join('')}
         <button type="button" class="hobby-btn custom" data-action="pickHobby" data-name="" data-filter-text="something else other custom"><span>${icon('plus')} Something else</span><small>Type your own</small></button></div>
@@ -4455,7 +5289,7 @@ function activitiesCard(state) {
     const intensity = h ? intensityFromMet(h.met) : 'moderate';
     form = `<form data-form="addActivity" class="card flat" style="margin-top:10px">
         <button type="button" class="btn ghost small" data-action="repickHobby" style="margin:-4px 0 6px -8px">${icon('back')}All activities</button>
-        <label class="field"><span>Activity</span><input type="text" name="name" maxlength="40" required value="${esc(h?.name || '')}" placeholder="e.g. Walking with friends" ${h ? '' : 'autofocus'}></label>
+        <label class="field"><span>Activity</span><input type="text" name="name" maxlength="80" required value="${esc(h?.name || '')}" placeholder="e.g. Walking with friends" ${h ? '' : 'autofocus'}></label>
         ${h ? `<p class="muted" style="font-size:var(--text-xs);margin:-8px 0 12px">${h.est ? esc(h.note) : `≈ ${h.met} METs — 2024 Compendium of Physical Activities (${esc(h.code)})`}. Change anything that doesn’t match how you do it.</p>` : ''}
         <fieldset><legend>Which days?</legend>${chips('days', DAY_CHIPS, [])}</fieldset>
         <div class="grid two" style="margin-bottom:0">
@@ -4533,7 +5367,7 @@ function overview(state) {
     <div class="card"><div class="card-head"><h2>Log activity</h2></div>
       <form data-form="logCardio" class="row">
         <select name="mode" style="flex:1;min-width:150px" data-change="logMode">${Object.entries(CARDIO).map(([k, c]) => `<option value="${k}">${esc(c.label)}</option>`).join('')}${(state.profile.activities || []).map((a) => `<option value="act:${esc(a.id)}" ${logOther === 'act:' + a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}<option value="other" ${logOther === 'other' ? 'selected' : ''}>Something else…</option></select>
-        ${logOther === 'other' ? `<input type="text" name="name" maxlength="40" required placeholder="What was it?" list="hobby-names" style="flex:1;min-width:150px"><datalist id="hobby-names">${HOBBIES.map((h) => `<option value="${esc(h.name)}"></option>`).join('')}</datalist><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
+        ${logOther === 'other' ? `<input type="text" name="name" maxlength="80" required placeholder="What was it?" list="hobby-names" style="flex:1;min-width:150px"><datalist id="hobby-names">${HOBBIES.map((h) => `<option value="${esc(h.name)}"></option>`).join('')}</datalist><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
         <input type="number" name="minutes" min="1" max="300" placeholder="minutes" required style="width:110px" inputmode="numeric">
         <input type="date" name="date" value="${date}" max="${date}" style="width:160px">
         <button class="btn primary">Log</button>
@@ -4703,7 +5537,7 @@ function logPlannedActivity(ctx, id) {
 
 Object.assign(__m, { itemDone, logPlannedActivity });
 },
-/* js/ui/sheet.js */ 22: function (__m, __req) {
+/* js/ui/sheet.js */ 24: function (__m, __req) {
 // Bottom sheet (dialog on wide screens): swipe-down / scrim / Escape to close, focus trapped,
 // focus returned to the opener. Content is HTML; buttons inside use the normal data-action routing.
 let current = null;
@@ -4816,11 +5650,11 @@ function updateSheet(html) {
 
 Object.assign(__m, { isOpen, openSheet, closeSheet, updateSheet });
 },
-/* js/views/sheets.js */ 23: function (__m, __req) {
+/* js/views/sheets.js */ 25: function (__m, __req) {
 // Bottom-sheet flows shared by Today and Meals: a meal's detail + logging, weigh-in stepper,
 // steps, extra food and habit detail. Every reversible change offers Undo instead of asking first.
 const { esc, icon, fmtNum, fmtWeight, toKg, weightNum } = __req(15);
-const { openSheet, closeSheet, updateSheet } = __req(22);
+const { openSheet, closeSheet, updateSheet } = __req(24);
 const store = __req(14);
 const { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } = __req(16);
 const { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } = __req(5);
@@ -5211,10 +6045,10 @@ function setHabitLevel(ctx, id, index) {
 
 Object.assign(__m, { slotIcon, mealRows, openMeal, habitLevelsHtml, sheetActions, toggleHabit, setHabitLevel, isoDate });
 },
-/* js/views/today.js */ 24: function (__m, __req) {
+/* js/views/today.js */ 26: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
-const { esc, icon, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(15);
+const { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(15);
 const store = __req(14);
 const { mealsFor, eatenSoFar, proteinEaten, dayComplete, setMealStatus, safetyNotices, checkinDue, slotLabel, computeIntake } = __req(16);
 const { byId, scaledNutrition } = __req(5);
@@ -5223,8 +6057,27 @@ const { stepGoal } = __req(7);
 const { CARDIO } = __req(6);
 const { daysBetween } = __req(0);
 const { toHHMM, daySchedule } = __req(12);
-const { itemDone, logPlannedActivity } = __req(21);
-const { slotIcon, toggleHabit, mealRows } = __req(23);
+const { itemDone, logPlannedActivity } = __req(23);
+const { slotIcon, toggleHabit, mealRows } = __req(25);
+const { journey, nextStops, recentTimeStop } = __req(19);
+const { whenLabel } = __req(20);
+
+// ---------- Journey: the next stop on the long road (or a time stop just reached) ----------
+function journeyCard(state, date) {
+  const p = state.profile;
+  if (p.phase === 'maintain') return '';
+  const u = p.units === 'imperial' ? 'imperial' : 'metric';
+  const hide = store.habitsOnly(state);
+  const j = journey(state, { today: date, trendKg: store.trendWeight(state) });
+  const just = recentTimeStop(j, date);
+  const n = nextStops(j);
+  const next = hide ? n.time : n.weight || n.time;
+  if (!just && !next) return '';
+  const body = just
+    ? `<span class="eyebrow">${icon('star')} ${esc(just.title)}</span><strong>${esc(just.text)}</strong>${!hide && just.scale ? `<span class="sub">${esc(just.scale)}</span>` : ''}`
+    : `<span class="eyebrow">${icon('flag')} Next stop · ${esc(whenLabel(next, date))}</span><strong>${esc(next.title)}${!hide && next.kind !== 'time' ? ` — ${fmtKg(Math.max(0, j.now - next.weightKg), u)} to go` : ''}</strong>${!hide && j.goalKg ? `<span class="bar" style="margin-top:8px"><span style="width:${Math.max(1.5, j.pct).toFixed(1)}%"></span></span><span class="sub">${fmtKg(j.lost, u)} down · ${j.pct.toFixed(0)}% of the way to ${fmtKg(j.goalKg, u)}</span>` : ''}${next !== n.time && n.time && n.time.date < (next.date || '9999') ? `<span class="sub">Before that: <strong style="font-size:inherit;color:var(--ink-2)">${esc(n.time.title)}</strong> · ${esc(whenLabel(n.time, date).split(' · ')[1] || '')}</span>` : ''}`;
+  return `<a class="card journey-next" href="#/journey">${body}<span class="more">Your journey ${icon('chevron')}</span></a>`;
+}
 
 const SLOT_HOUR = { breakfast: 7, snack: 10, lunch: 12, snack2: 15, dinner: 18, snack3: 20 };
 
@@ -5396,7 +6249,7 @@ __m.default = {
       <div class="today-grid">
         <div class="tg-hero">${nextUp(state, date)}${hero(state)}</div>
         <div class="tg-food">${food(state, date)}</div>
-        <div class="tg-rest">${habits(state, date)}${movement(state, date)}${firstWeek(state, date)}</div>
+        <div class="tg-rest">${journeyCard(state, date)}${habits(state, date)}${movement(state, date)}${firstWeek(state, date)}</div>
       </div>`;
   },
   actions: {
@@ -5443,10 +6296,10 @@ __m.default = {
 
 Object.assign(__m, { habitRow });
 },
-/* js/views/meals.js */ 25: function (__m, __req) {
+/* js/views/meals.js */ 27: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 const { html, esc, icon, chips, fmtDate, fmtNum } = __req(15);
-const { mealRows } = __req(23);
+const { mealRows } = __req(25);
 const store = __req(14);
 const { recipeDetails, mealMeta, slotLabel, totalsLine, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(16);
 const { markChosen } = __req(16);
@@ -5632,7 +6485,7 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 26: function (__m, __req) {
+/* js/ui/charts.js */ 28: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
 const { esc } = __req(15);
 const { daysBetween, addDays } = __req(0);
@@ -5744,16 +6597,16 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/habits.js */ 27: function (__m, __req) {
+/* js/views/habits.js */ 29: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
 const { esc, icon } = __req(15);
-const { habitGrid } = __req(26);
+const { habitGrid } = __req(28);
 const store = __req(14);
 const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(10);
 const { daysBetween } = __req(0);
-const { openSheet, closeSheet, updateSheet } = __req(22);
-const { toggleHabit, habitLevelsHtml } = __req(23);
+const { openSheet, closeSheet, updateSheet } = __req(24);
+const { toggleHabit, habitLevelsHtml } = __req(25);
 const { habitLevels, levelIndex } = __req(10);
 
 let filter = 'all';
@@ -5900,10 +6753,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/progress.js */ 28: function (__m, __req) {
+/* js/views/progress.js */ 30: function (__m, __req) {
 // Progress: weight trend chart, milestones, rate, activity history, waist, check-in history.
 const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(15);
-const { weightChart, barChart } = __req(26);
+const { weightChart, barChart } = __req(28);
 const store = __req(14);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
@@ -5952,7 +6805,7 @@ __m.default = {
         ${p.phase === 'maintain' && state.maintainKg ? `<p style="font-size:.9rem;margin-top:6px"><strong>Maintenance:</strong> keep your trend between ${fmtWeight(state.maintainKg - 2, u)} and ${fmtWeight(state.maintainKg + 2, u)}. If it drifts above, the check-in starts a short reset plan.</p>` : ''}
         <p class="muted" style="font-size:.85rem;margin-top:6px">Dots are daily weigh-ins; the line is your smoothed trend. Water, salt, hormones and digestion move daily weight by 1–2 kg — the line shows what’s really happening.</p>
       </div>
-      <div class="card"><h2>Milestones</h2><ul class="list">
+      <div class="card"><div class="card-head"><h2>Milestones</h2><a class="btn small tonal" href="#/journey">${icon('flag')}Your journey</a></div><ul class="list">
         ${ms.map((m) => {
           const hit = trend <= m.weightKg;
           return `<li class="row nowrap"><span class="check ${hit ? 'on' : ''}" aria-hidden="true">${icon('check')}</span><div class="grow"><strong>${m.pct}% — ${fmtWeight(m.weightKg, u)}</strong>${hit ? ' <span class="tag green">reached</span>' : ` <span class="muted" style="font-size:.85rem">${fmtWeight(trend - m.weightKg, u)} to go</span>`}<div class="muted" style="font-size:.86rem">${esc(m.info)}</div></div></li>`;
@@ -6043,7 +6896,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, {  });
 },
-/* js/engine/adjust.js */ 29: function (__m, __req) {
+/* js/engine/adjust.js */ 31: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -6319,11 +7172,11 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 30: function (__m, __req) {
+/* js/views/checkin.js */ 32: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
 const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(15);
 const store = __req(14);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(29);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(31);
 const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
@@ -6468,7 +7321,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/data/learn.js */ 31: function (__m, __req) {
+/* js/data/learn.js */ 33: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -6500,6 +7353,11 @@ const S = {
   exAlone: ['Thomas et al. 2012 — why exercise alone gives little weight loss', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC3771367'],
   uspstf: ['USPSTF 2018 — behavioural interventions for obesity', 'https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/obesity-in-adults-interventions'],
   dpp: ['Knowler et al., NEJM 2002 — Diabetes Prevention Program', 'https://pubmed.ncbi.nlm.nih.gov/11832527/'],
+  whobmi: ['WHO fact sheet — obesity and overweight (BMI ranges)', 'https://www.who.int/news-room/fact-sheets/detail/obesity-and-overweight'],
+  direct: ['Lean et al., Lancet 2018 — DiRECT (diabetes remission)', 'https://pubmed.ncbi.nlm.nih.gov/29221645/'],
+  messier2005: ['Messier et al. 2005 — weight loss and knee-joint load', 'https://pubmed.ncbi.nlm.nih.gov/15986358/'],
+  peppard: ['Peppard et al., JAMA 2000 — weight change and sleep apnoea', 'https://pubmed.ncbi.nlm.nih.gov/11122588/'],
+  sos: ['Sjöström et al., NEJM 2007 — Swedish Obese Subjects', 'https://pubmed.ncbi.nlm.nih.gov/17715408/'],
   lookahead: ['Look AHEAD lifestyle intervention', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC2613279/'],
   wing2011: ['Wing et al. 2011 — benefits of 5–10% loss', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC3120182/'],
   burke: ['Burke et al. 2011 — self-monitoring review', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC3268700'],
@@ -6593,7 +7451,7 @@ const LEARN = [
       'Exercise alone usually gives small losses, partly because people eat more to compensate — so don’t “earn” food with steps.',
       'Step benefits for longevity level off around 8,000–10,000 a day under 60 and 6,000–8,000 at 60+.',
       'Everyday movement (NEAT: standing, walking, fidgeting) varies hugely between people and matters.',
-      'Hobbies count. Intensity for 50+ activities — from gardening to squash and scuba diving — comes from the Compendium of Physical Activities: under 3 METs is light, 3–5.9 moderate, 6+ vigorous. Vigorous minutes count double toward the weekly target, as in the WHO guidelines.'],
+      'Hobbies count. Intensity for 800+ activities — from gardening to squash and scuba diving — comes from the Compendium of Physical Activities: under 3 METs is light, 3–5.9 moderate, 6+ vigorous. Vigorous minutes count double toward the weekly target, as in the WHO guidelines.'],
     ['who', 'acsm', 'exAlone', 'paluch', 'levine', 'compendium'],
     'Weekly minutes grow by about 10% (10–20 minutes) a week toward 150, then 200+. Your step goal rises by 500 when you hit it on 5 of 7 days.'),
   C('strength', 'Movement', 'Strength training keeps the weight you lose as fat',
@@ -6695,6 +7553,15 @@ const LEARN = [
       'In experiments, alcohol increased food intake as well as total calories, with no compensation later.'],
     ['alcohol', 'kwok'],
     'If you report more than 2 drinks a day, the check-in suggests an alcohol habit.'),
+  C('journey', 'Keeping it off', 'Your journey: a healthy goal and a realistic timeline',
+    'A big goal is reached the same way as a small one — one stop at a time.',
+    ['The suggested goal is the top of the healthy BMI range (18.5–24.9) for your height: the nearest healthy weight. BMI is a rough guide — muscle, age and ethnicity change what is right for you, so pick your own goal if your clinician suggests one.',
+      'Guidelines aim for 5–10% in the first six months. A 5% loss already improves blood sugar, blood pressure and blood fats; 7% cut new type 2 diabetes cases by 58% in the Diabetes Prevention Program.',
+      'Bigger losses bring bigger benefits: in DiRECT, 86% of people who lost 15 kg or more put their type 2 diabetes into remission. Each 10% lost cut sleep-apnoea severity by about a quarter, and every kilo lost takes about 4 kg of load off the knee with each step.',
+      'The timeline slows down as you go, because a lighter body needs less energy. Plateaus, holidays and planned maintenance breaks are normal, so it is shown as a range — even when that range is years.',
+      'Losses of 30% or more are usually only seen after surgery, where they are linked to longer life. Whatever your pace, every stop on the way counts.'],
+    ['whobmi', 'aha', 'wing2011', 'dpp', 'direct', 'peppard', 'messier2005', 'hall2011', 'sos'],
+    'The Journey page breaks your timeline into stops — one week, one month, 5%, BMI under 40 and so on — each with an estimated date, re-projected from your trend weight every time you open it.'),
   C('maintenance', 'Keeping it off', 'What people who keep weight off do',
     'Keeping weight off is a skill. The National Weight Control Registry shows what successful maintainers do.',
     ['Members lost about 33 kg on average and kept it off over 5 years; the longer they maintained, the more likely they were to keep going.',
@@ -6725,10 +7592,10 @@ const LEARN_BY_ID = Object.fromEntries(LEARN.map((c) => [c.id, c]));
 
 Object.assign(__m, { LEARN_SECTIONS, LEARN, LEARN_BY_ID });
 },
-/* js/views/learn.js */ 32: function (__m, __req) {
+/* js/views/learn.js */ 34: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
 const { html, esc, icon } = __req(15);
-const { LEARN, LEARN_SECTIONS } = __req(31);
+const { LEARN, LEARN_SECTIONS } = __req(33);
 
 let section = 'all';
 let openAll = false;
@@ -6773,7 +7640,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/notify.js */ 33: function (__m, __req) {
+/* js/notify.js */ 35: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -6910,8 +7777,9 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 34: function (__m, __req) {
+/* js/views/settings.js */ 36: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
+const { goalHint } = __req(21);
 const { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(15);
 const store = __req(14);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
@@ -6919,7 +7787,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn } = __req(0);
-const notify = __req(33);
+const notify = __req(35);
 const { DEFAULT_REMINDERS } = __req(13);
 const { dayFields, daySummary, readDay } = __req(18);
 const { daySchedule, toHHMM } = __req(12);
@@ -6998,7 +7866,7 @@ __m.default = {
           <label class="field"><span>Units</span><select name="units"><option value="metric" ${u === 'metric' ? 'selected' : ''}>kg / cm</option><option value="imperial" ${u === 'imperial' ? 'selected' : ''}>lb / ft</option></select></label>
           <label class="field"><span>Age</span><input type="number" name="age" value="${esc(p.age)}" min="18" max="100" required></label>
           <div class="field"><span class="field-label">Height (${fmtHeight(p.heightCm, u)})</span>${u === 'imperial' ? `<div class="inline-inputs"><input type="number" name="heightFt" value="${Math.floor(hIn / 12)}" min="3" max="8"><span class="unit">ft</span><input type="number" name="heightIn" value="${hIn % 12}" min="0" max="11"><span class="unit">in</span></div>` : `<input type="number" name="heightCm" value="${Math.round(p.heightCm)}" min="120" max="230">`}</div>
-          <label class="field"><span>Goal weight</span><div class="inline-inputs"><input type="number" name="goal" step="0.1" value="${p.goalWeightKg ? round(weightNum(p.goalWeightKg, u), 0.1) : ''}"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div></label>
+          <label class="field"><span>Goal weight</span><div class="inline-inputs"><input type="number" name="goal" step="0.1" value="${p.goalWeightKg ? round(weightNum(p.goalWeightKg, u), 0.1) : ''}"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div><span class="hint" style="display:block;margin-top:6px">${goalHint(p.heightCm, store.trendWeight(state), u)} <a href="#/journey">See your journey</a></span></label>
           <label class="field"><span>Activity (outside planned exercise)</span><select name="activity">${Object.entries(ACTIVITY_LEVELS).map(([k, a]) => `<option value="${k}" ${p.activity === k ? 'selected' : ''}>${a.label}</option>`).join('')}</select></label>
           ${hide ? '' : `<label class="field"><span>Pace</span><select name="pace">${Object.entries(PACES).map(([k, a]) => `<option value="${k}" ${p.pace === k ? 'selected' : ''}>${a.label} (−${a.deficit} kcal)</option>`).join('')}</select></label>`}
           <label class="field"><span>Phase</span><select name="phase"><option value="lose" ${p.phase !== 'maintain' ? 'selected' : ''}>Losing weight</option><option value="maintain" ${p.phase === 'maintain' ? 'selected' : ''}>Maintaining</option></select></label>
@@ -7075,6 +7943,10 @@ __m.default = {
       <p class="footer-note">Habit Lab${window.HABITLAB_VERSION ? ` ${esc(window.HABITLAB_VERSION)}` : ''} · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
   actions: {
+    useGoalDraft(el) {
+      const input = el.closest('form')?.querySelector('[name=goal]');
+      if (input) input.value = el.dataset.value;
+    },
     daySave(form, ev, ctx, data) {
       ctx.update((st) => {
         const before = daySchedule(st.profile);
@@ -7281,7 +8153,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 35: function (__m, __req) {
+/* js/views/shopping.js */ 37: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(15);
 const store = __req(14);
@@ -7327,10 +8199,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 36: function (__m, __req) {
+/* js/views/rewards.js */ 38: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(15);
-const { ring, barChart } = __req(26);
+const { ring, barChart } = __req(28);
 const store = __req(14);
 const { BADGES, XP, levelTitle } = __req(11);
 const { addDays, weekStart } = __req(0);
@@ -7442,7 +8314,7 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/ui/celebrate.js */ 37: function (__m, __req) {
+/* js/ui/celebrate.js */ 39: function (__m, __req) {
 // Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
 // Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
 // after the user has interacted with the page.
@@ -7573,29 +8445,31 @@ function showCelebration({ kicker, title, body, iconName = 'star', ok = 'Nice!' 
 
 Object.assign(__m, { floatXp, confetti, chime, buzz, showCelebration });
 },
-/* js/app.js */ 38: function (__m, __req) {
+/* js/app.js */ 40: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(14);
 const { icon, formData } = __req(15);
-const onboarding = __req(19).default;
-const todayView = __req(24).default;
-const meals = __req(25).default;
-const move = __req(21).default;
-const habits = __req(27).default;
-const progress = __req(28).default;
-const checkin = __req(30).default;
-const learn = __req(32).default;
-const settings = __req(34).default;
-const shopping = __req(35).default;
-const rewards = __req(36).default;
-const { floatXp, confetti, chime, buzz, showCelebration } = __req(37);
+const onboarding = __req(21).default;
+const { goalHint } = __req(21);
+const todayView = __req(26).default;
+const meals = __req(27).default;
+const move = __req(23).default;
+const habits = __req(29).default;
+const progress = __req(30).default;
+const checkin = __req(32).default;
+const learn = __req(34).default;
+const settings = __req(36).default;
+const shopping = __req(37).default;
+const rewards = __req(38).default;
+const journeyView = __req(20).default;
+const { floatXp, confetti, chime, buzz, showCelebration } = __req(39);
 const { BADGES } = __req(11);
-const notify = __req(33);
-const { closeSheet } = __req(22);
-const { sheetActions } = __req(23);
+const notify = __req(35);
+const { closeSheet } = __req(24);
+const { sheetActions } = __req(25);
 const { daySummary, readDay } = __req(18);
 
-const VIEWS = { rewards, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { rewards, journey: journeyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -7848,6 +8722,17 @@ document.addEventListener('input', (ev) => {
   const q = ev.target.value.trim().toLowerCase();
   for (const el of document.querySelectorAll(`[data-filter-target="${key}"] [data-filter-text]`)) el.hidden = q ? !el.dataset.filterText.includes(q) && !el.classList.contains('custom') : el.dataset.out === '1';
 });
+// Live goal suggestion in onboarding while height and weight change.
+document.addEventListener('input', (ev) => {
+  const form = ev.target.closest('form');
+  const live = form?.querySelector('[data-live=goal]');
+  if (!live || !['heightCm', 'heightFt', 'heightIn', 'weight'].includes(ev.target.name)) return;
+  const u = live.dataset.units;
+  const v = (n) => Number(form.querySelector(`[name=${n}]`)?.value || 0);
+  const cm = u === 'imperial' ? (v('heightFt') * 12 + v('heightIn')) * 2.54 : v('heightCm');
+  const kg = u === 'imperial' ? v('weight') * 0.45359237 : v('weight');
+  live.innerHTML = goalHint(cm, kg, u);
+});
 // Live "Your day" preview while the time inputs change.
 document.addEventListener('input', (ev) => {
   const form = ev.target.closest('form');
@@ -7933,5 +8818,5 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(38);
+__req(40);
 })();</script>

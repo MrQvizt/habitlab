@@ -416,11 +416,11 @@ test('day timeline: snacks sit between meals, last meal ≥2 h before bed, late 
 
 test('hobby catalogue: Compendium bands, unique names, estimates labelled, scheduling credit', async () => {
   const { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } = await import('../js/data/hobbies.js');
-  assert.ok(HOBBIES.length >= 200, `only ${HOBBIES.length} activities`);
+  assert.ok(HOBBIES.length >= 800, `only ${HOBBIES.length} activities`);
   const names = HOBBIES.map((h) => h.name.toLowerCase());
   assert.equal(new Set(names).size, names.length);
   for (const h of HOBBIES) {
-    assert.ok(h.met >= 1.6 && h.met <= 15, h.name);
+    assert.ok(h.met >= 1.6 && h.met <= 25, h.name);
     assert.ok(h.est ? typeof h.note === 'string' : /^\d{5}$/.test(h.code), `${h.name}: needs a Compendium code or an estimate note`);
     assert.ok(h.minutes >= 10 && h.minutes <= 180, h.name);
     assert.ok(HOBBY_CATEGORIES[h.cat], `${h.name}: unknown category ${h.cat}`);
@@ -437,4 +437,42 @@ test('hobby catalogue: Compendium bands, unique names, estimates labelled, sched
   const p = { equipment: [], limitations: [], daysAvailable: [0, 2, 4], sessionMinutes: 30, baselineCardioMin: 60, cardioPrefs: ['walk'], phase: 'lose',
     activities: [{ id: 's', name: 'Squash', days: [3], minutes: 45, intensity: intensityFromMet(hobbyByName('Squash').met) }] };
   assert.equal(weekSchedule(p, initialProgress(p), 2).activityMin, 90);
+});
+
+test('journey: healthy goal, multi-year timeline and stops along the way (182 cm, 185 kg)', async () => {
+  const { suggestedGoalKg, healthyRange, journey, timeline, fmtDuration, nextStops, recentTimeStop } = await import('../js/engine/journey.js');
+  assert.equal(suggestedGoalKg(182, 185), 82); // BMI 24.9 at 182 cm = 82.5 → rounded down to 82
+  assert.deepEqual(healthyRange(182), { lo: 61.5, hi: 82 });
+  assert.equal(suggestedGoalKg(182, 80), null); // already healthy
+  const profile = { sex: 'male', age: 35, heightCm: 182, weightKg: 185, activity: 'sedentary', pace: 'steady', phase: 'lose', startWeightKg: 185, startDate: '2026-01-05', goalWeightKg: null };
+  const tl = timeline(profile, 82);
+  assert.ok(tl.reached && tl.weeks > 150 && tl.weeks < 300, `steady: ${tl.weeks} weeks`);
+  assert.match(tl.text, /years/);
+  const brisk = timeline({ ...profile, pace: 'brisk' }, 82);
+  assert.ok(brisk.weeks < tl.weeks);
+  assert.equal(fmtDuration(1), '1 week');
+  assert.equal(fmtDuration(26), '6 months');
+  assert.equal(fmtDuration(233), '4 years 6 months');
+
+  const j = journey({ profile }, { today: '2026-01-05', trendKg: 185 });
+  assert.equal(j.goalKg, 82); // falls back to the suggested goal
+  const titles = j.stops.map((s) => s.title);
+  for (const t of ['One week in', 'One month', 'Six months', 'One year', '5% lighter', '10% lighter', 'BMI under 40', 'BMI under 35', 'BMI under 30', 'Healthy weight — your goal']) assert.ok(titles.includes(t), t);
+  assert.ok(titles.some((t) => /^Year \d/.test(t)), 'yearly stops on a multi-year road');
+  const dates = j.stops.map((s) => s.date);
+  assert.deepEqual(dates, [...dates].sort(), 'stops in date order');
+  assert.equal(j.stops.filter((s) => s.next).length, 1);
+  assert.equal(j.stops[0].title, 'One week in');
+  assert.equal(j.stops.at(-1).kind, 'goal');
+  assert.ok(j.stops.every((s) => s.text && s.text.length > 20));
+
+  // Five months later, 15 kg down: early stops reached, dates re-projected from today.
+  const later = journey({ profile }, { today: '2026-06-05', trendKg: 170 });
+  assert.ok(later.stops.find((s) => s.title === '5% lighter').reached);
+  assert.ok(later.stops.find((s) => s.title === 'One month').reached);
+  assert.ok(!later.stops.find((s) => s.title === '10% lighter').reached);
+  assert.equal(nextStops(later).weight.title, '10% lighter');
+  assert.equal(nextStops(later).time.title, 'Six months');
+  assert.equal(recentTimeStop(journey({ profile }, { today: '2026-01-13', trendKg: 183 }), '2026-01-13').title, 'One week in');
+  assert.equal(recentTimeStop(later, '2026-06-05'), null);
 });

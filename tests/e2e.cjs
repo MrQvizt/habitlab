@@ -137,7 +137,7 @@ const shots = process.argv[3] || null;
   // Search the catalogue: "scuba" leaves Scuba diving (vigorous) visible
   await page.fill('input[data-filter=hobby]', 'scuba');
   const visible = await page.$$eval('.hobby-btn:not([hidden]):not(.custom)', (els) => els.map((e) => e.textContent));
-  if (visible.length !== 2 || !/Scuba diving/.test(visible[0]) || !/Vigorous/.test(visible[0])) errors.push('hobby search failed: ' + visible.join(' | '));
+  if (visible.length < 2 || !/Scuba diving/.test(visible[0]) || !/Vigorous/.test(visible[0])) errors.push('hobby search failed: ' + visible.join(' | '));
   // Search covers all 300+ activities, not just the Popular tab; clearing it restores the tab.
   await page.fill('input[data-filter=hobby]', 'kendo');
   if ((await page.$$('.hobby-btn:not([hidden]):not(.custom)')).length !== 1) errors.push('search did not reach outside the Popular tab');

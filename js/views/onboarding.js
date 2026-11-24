@@ -1,6 +1,6 @@
 // Onboarding wizard: about you → health check → food → movement → habits → your plan.
-import { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight } from '../ui/dom.js';
-import { ACTIVITY_LEVELS, PACES, dailyTargets, bmi, weightAtBmi, projectWeeks } from '../engine/calc.js';
+import { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight, fmtKg } from '../ui/dom.js';
+import { ACTIVITY_LEVELS, PACES, dailyTargets, bmi, weightAtBmi } from '../engine/calc.js';
 import { DIETS, ALLERGENS, FOODS } from '../data/foods.js';
 import { CARDIO } from '../data/exercises.js';
 import { HABITS } from '../data/habits.js';
@@ -10,8 +10,18 @@ import { emptyState, importJson } from '../store.js';
 import { isoDate, round, cmToIn } from '../engine/util.js';
 import { demoState } from '../demo.js';
 import { dayFields, daySummary, readDay } from './day.js';
+import { journey, suggestedGoalKg, healthyRange, timeline } from '../engine/journey.js';
+import { stopRow } from './journey.js';
 
 let draft = { step: 0, units: 'metric' };
+
+/** Live hint under the goal field: the healthy range and a suggested goal for this height and weight. */
+export function goalHint(heightCm, weightKg, u) {
+  if (!(heightCm > 100 && heightCm < 250)) return 'Leave empty and we’ll suggest one from the healthy BMI range once we know your height and weight.';
+  const r = healthyRange(heightCm);
+  const sug = suggestedGoalKg(heightCm, weightKg);
+  return `Healthy range for your height: ${fmtKg(r.lo, u)}–${fmtKg(r.hi, u)} (BMI 18.5–24.9).${sug ? ` Suggested: <strong>${fmtKg(sug, u)}</strong>, the nearest healthy weight. <button type="button" class="btn small tonal" data-action="useGoalDraft" data-value="${round(weightNum(sug, u), 0.1)}" style="margin-top:4px">Use ${fmtKg(sug, u)}</button>` : ''}`;
+}
 
 const STEPS = ['Welcome', 'About you', 'Health check', 'Food', 'Movement', 'Habits', 'Your plan'];
 const DAYS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
@@ -81,7 +91,7 @@ function about() {
         ? `<div class="inline-inputs">${num('heightFt', hIn ? Math.floor(hIn / 12) : '', { min: 3, max: 8, step: 1, unit: 'ft' })}${num('heightIn', hIn ? hIn % 12 : '', { min: 0, max: 11, step: 1, unit: 'in' })}</div>`
         : num('heightCm', draft.heightCm ? Math.round(draft.heightCm) : '', { min: 120, max: 230, step: 1, unit: 'cm' })}</div>
       <label class="field"><span>Current weight</span>${num('weight', draft.weightKg ? round(weightNum(draft.weightKg, u), 0.1) : '', { min: imperial ? 80 : 35, max: imperial ? 800 : 360, unit: imperial ? 'lb' : 'kg' })}</label>
-      <label class="field"><span>Goal weight <span class="hint">Optional. A 5–10% loss already brings real health benefits — you can always set a new goal later.</span></span>${num('goal', draft.goalWeightKg ? round(weightNum(draft.goalWeightKg, u), 0.1) : '', { min: imperial ? 80 : 35, max: imperial ? 800 : 360, unit: imperial ? 'lb' : 'kg', required: false, placeholder: 'e.g. 10% lower' })}</label>
+      <label class="field"><span>Goal weight</span>${num('goal', draft.goalWeightKg ? round(weightNum(draft.goalWeightKg, u), 0.1) : '', { min: imperial ? 80 : 35, max: imperial ? 800 : 360, unit: imperial ? 'lb' : 'kg', required: false, placeholder: 'Optional' })}<span class="hint" data-live="goal" data-units="${u}" style="display:block;margin-top:6px">${goalHint(draft.heightCm, draft.weightKg, u)}</span></label>
     </div>
     <fieldset><legend>How active is a normal day?</legend><div class="options">
       ${Object.entries(ACTIVITY_LEVELS).map(([k, a]) => `<label class="option"><input type="radio" name="activity" value="${k}" ${(draft.activity || 'sedentary') === k ? 'checked' : ''}><div><strong>${a.label}</strong><small class="muted">${a.hint}</small></div></label>`)}
@@ -194,9 +204,9 @@ function planStep() {
   const habitsOnly = s.blocked || (draft.edFlags || []).length > 0;
   const paceCards = Object.entries(PACES).map(([k, pace]) => {
     const t = dailyTargets({ ...p, pace: k });
-    const weeks = p.goalWeightKg ? projectWeeks({ ...p, pace: k }, p.goalWeightKg) : null;
+    const tl = p.goalWeightKg ? timeline({ ...p, pace: k }, p.goalWeightKg) : null;
     return `<label class="option"><input type="radio" name="pace" value="${k}" ${(draft.pace || 'steady') === k ? 'checked' : ''}><div><div class="row between"><strong>${pace.label}</strong><strong>${t.kcal.toLocaleString()} kcal/day</strong></div>
-      <small class="muted">${pace.hint} ≈ ${fmtWeight(t.expectedWeeklyLossKg, u, 2)}/week to start${weeks ? `; goal in roughly ${weeks} weeks${weeks > 52 ? ` (${(weeks / 52).toFixed(1)} years)` : ''}` : ''}.${t.hitFloor ? ' Held at the safe minimum.' : ''}</small></div></label>`;
+      <small class="muted">${pace.hint} ≈ ${fmtWeight(t.expectedWeeklyLossKg, u, 2)}/week to start${tl?.reached && tl.weeks ? `; goal in about ${tl.text}` : ''}.${t.hitFloor ? ' Held at the safe minimum.' : ''}</small></div></label>`;
   });
   const t = dailyTargets({ ...p, pace: draft.pace || 'steady' });
   return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Your plan</h1></div></header>
@@ -204,6 +214,7 @@ function planStep() {
   ${(draft.edFlags || []).length && !s.blocked ? `<div class="notice block">${icon('alert')}<div>Some of your answers suggest calorie counting may not be helpful right now. The app will hide calorie numbers and focus on regular meals, movement and wellbeing habits. Please consider talking to your doctor, or an eating-disorder charity such as Beat (UK) or ANAD (US).</div></div>` : ''}
   <form data-form="step" class="card">
     ${habitsOnly ? `<p>You’ll get balanced, regular meals, gentle movement and habit tracking — without calorie targets.</p><input type="hidden" name="pace" value="steady">` : `
+    ${journeyPreview(p)}
     <fieldset><legend>Choose your pace</legend><div class="options">${paceCards.join('')}</div></fieldset>
     <div class="stats">
       <div class="stat"><span class="v">${t.rmr.toLocaleString()}</span><span class="l">resting energy (kcal)</span></div>
@@ -214,6 +225,20 @@ function planStep() {
     <p class="muted" style="margin-top:12px">These are starting estimates (equations can be off by ±10% for any one person). After a few weeks of weigh-ins and meal ticks, your weekly check-in learns your real needs and adjusts.</p>`}
     ${nav(true)}
   </form>`;
+}
+
+function journeyPreview(p) {
+  if (!p.goalWeightKg) return '';
+  const u = p.units;
+  const today = isoDate();
+  const prof = { ...p, startWeightKg: p.weightKg, startDate: today };
+  const j = journey({ profile: prof }, { today, trendKg: p.weightKg });
+  const tl = j.timeline;
+  const stops = j.stops.slice(0, 5);
+  return `<div class="journey-preview"><h2 style="margin:0 0 4px">Your journey: ${fmtKg(p.weightKg, u)} → ${fmtKg(p.goalWeightKg, u)}</h2>
+    <p class="muted" style="margin:0 0 8px">${draft.goalAuto ? `Your goal is set to the nearest healthy weight for your height (BMI under 25). You can change it in step 1 or later in Settings. ` : ''}${tl.reached && tl.weeks ? `At a steady pace that’s about <strong>${tl.text}</strong>${tl.weeks > 104 ? ' — a long road, so the app breaks it into stops. You only ever need to reach the next one.' : '.'}` : ''}</p>
+    <ol class="roadmap">${stops.map((s) => stopRow(s, { u, today, hide: false })).join('')}</ol>
+    <p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">…and ${Math.max(0, j.stops.length - stops.length)} more stops on the Journey page, re-estimated from your real progress.</p></div>`;
 }
 
 function profileFromDraft() {
@@ -272,6 +297,11 @@ function validate() {
       }
       if (draft.goalWeightKg >= draft.weightKg) draft.goalWeightKg = null;
     }
+    draft.goalAuto = false;
+    if (!draft.goalWeightKg) {
+      draft.goalWeightKg = suggestedGoalKg(draft.heightCm, draft.weightKg);
+      draft.goalAuto = !!draft.goalWeightKg;
+    }
   }
   if (draft.step === 4 && !(draft.daysAvailable || []).length) return 'Pick at least one day — even 10 minutes counts.';
   if (draft.step === 5 && (draft.habitPicks || []).length > 3) return 'Pick at most 3 — fewer is better to start.';
@@ -314,6 +344,10 @@ export default {
     return `<div style="max-width:640px;margin:0 auto">${draft.step ? stepper() : ''}${body}<p class="footer-note">Habit Lab gives general information based on published guidelines. It isn’t a substitute for advice from your doctor.</p></div>`;
   },
   actions: {
+    useGoalDraft(el) {
+      const input = el.closest('form')?.querySelector('[name=goal]');
+      if (input) input.value = el.dataset.value;
+    },
     demo(el, ev, ctx) {
       ctx.set(demoState(), { render: false });
       ctx.toast('Demo loaded: 10 weeks of sample data. Reset it any time in Settings.');

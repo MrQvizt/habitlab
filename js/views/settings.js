@@ -1,4 +1,5 @@
 // Settings: profile, food, movement, units/theme, data export/import/reset.
+import { goalHint } from './onboarding.js';
 import { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } from '../ui/dom.js';
 import * as store from '../store.js';
 import { ACTIVITY_LEVELS, PACES, weightAtBmi } from '../engine/calc.js';
@@ -85,7 +86,7 @@ export default {
           <label class="field"><span>Units</span><select name="units"><option value="metric" ${u === 'metric' ? 'selected' : ''}>kg / cm</option><option value="imperial" ${u === 'imperial' ? 'selected' : ''}>lb / ft</option></select></label>
           <label class="field"><span>Age</span><input type="number" name="age" value="${esc(p.age)}" min="18" max="100" required></label>
           <div class="field"><span class="field-label">Height (${fmtHeight(p.heightCm, u)})</span>${u === 'imperial' ? `<div class="inline-inputs"><input type="number" name="heightFt" value="${Math.floor(hIn / 12)}" min="3" max="8"><span class="unit">ft</span><input type="number" name="heightIn" value="${hIn % 12}" min="0" max="11"><span class="unit">in</span></div>` : `<input type="number" name="heightCm" value="${Math.round(p.heightCm)}" min="120" max="230">`}</div>
-          <label class="field"><span>Goal weight</span><div class="inline-inputs"><input type="number" name="goal" step="0.1" value="${p.goalWeightKg ? round(weightNum(p.goalWeightKg, u), 0.1) : ''}"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div></label>
+          <label class="field"><span>Goal weight</span><div class="inline-inputs"><input type="number" name="goal" step="0.1" value="${p.goalWeightKg ? round(weightNum(p.goalWeightKg, u), 0.1) : ''}"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div><span class="hint" style="display:block;margin-top:6px">${goalHint(p.heightCm, store.trendWeight(state), u)} <a href="#/journey">See your journey</a></span></label>
           <label class="field"><span>Activity (outside planned exercise)</span><select name="activity">${Object.entries(ACTIVITY_LEVELS).map(([k, a]) => `<option value="${k}" ${p.activity === k ? 'selected' : ''}>${a.label}</option>`).join('')}</select></label>
           ${hide ? '' : `<label class="field"><span>Pace</span><select name="pace">${Object.entries(PACES).map(([k, a]) => `<option value="${k}" ${p.pace === k ? 'selected' : ''}>${a.label} (−${a.deficit} kcal)</option>`).join('')}</select></label>`}
           <label class="field"><span>Phase</span><select name="phase"><option value="lose" ${p.phase !== 'maintain' ? 'selected' : ''}>Losing weight</option><option value="maintain" ${p.phase === 'maintain' ? 'selected' : ''}>Maintaining</option></select></label>
@@ -162,6 +163,10 @@ export default {
       <p class="footer-note">Habit Lab${window.HABITLAB_VERSION ? ` ${esc(window.HABITLAB_VERSION)}` : ''} · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
   actions: {
+    useGoalDraft(el) {
+      const input = el.closest('form')?.querySelector('[name=goal]');
+      if (input) input.value = el.dataset.value;
+    },
     daySave(form, ev, ctx, data) {
       ctx.update((st) => {
         const before = daySchedule(st.profile);
