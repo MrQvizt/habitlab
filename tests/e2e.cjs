@@ -133,7 +133,13 @@ const shots = process.argv[3] || null;
   const dayName = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][todayIdx];
   await page.goto(base + '#/move');
   await page.click('button:has-text("Add an activity you already do")');
-  await page.fill('form[data-form=addActivity] input[name=name]', 'Walking with friends');
+  // Search the catalogue: "scuba" leaves Scuba diving (vigorous) visible
+  await page.fill('input[data-filter=hobby]', 'scuba');
+  const visible = await page.$$eval('.hobby-btn:not([hidden]):not(.custom)', (els) => els.map((e) => e.textContent));
+  if (visible.length !== 1 || !/Scuba diving/.test(visible[0]) || !/Vigorous/.test(visible[0])) errors.push('hobby search failed: ' + visible.join(' | '));
+  await page.fill('input[data-filter=hobby]', 'walking with');
+  await page.click('.hobby-btn:has-text("Walking with friends")');
+  if ((await page.inputValue('form[data-form=addActivity] input[name=name]')) !== 'Walking with friends') errors.push('picked hobby not prefilled');
   await page.click(`form[data-form=addActivity] label.chip:has-text("${dayName}")`);
   await page.click('form[data-form=addActivity] button.primary');
   await page.waitForSelector('#activities >> text=Walking with friends');

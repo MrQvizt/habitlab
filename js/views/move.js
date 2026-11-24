@@ -3,6 +3,7 @@ import { html, esc, icon, progressBar, fmtNum } from '../ui/dom.js';
 import * as store from '../store.js';
 import { progressChain, stepOf, stepGoal, REP_RANGE, INTENSITY, creditedMinutes } from '../engine/workouts.js';
 import { chips } from '../ui/dom.js';
+import { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } from '../data/hobbies.js';
 import { CARDIO, WARMUP, COOLDOWN, CHAINS } from '../data/exercises.js';
 import { STOP_SIGNS } from '../engine/safety.js';
 import { addDays, weekStart } from '../engine/util.js';
@@ -10,6 +11,8 @@ import { dayIndex } from './shared.js';
 
 let ratings = {}; // chainKey -> rating, for the session in progress
 let showAddActivity = false;
+let pickCat = 'all';
+let picked = null; // hobby name, or '' for a custom activity
 let logOther = false;
 const DAY_CHIPS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
 const ACTIVITY_IDEAS = ['Walking with friends', 'Dog walk', 'Football', 'Dancing', 'Swimming', 'Cycling to work', 'Gardening', 'Yoga class', 'Climbing', 'Tennis / padel', 'Gym class', 'Hiking'];
@@ -31,18 +34,32 @@ function activitiesCard(state) {
   const list = acts.length
     ? `<ul class="list">${acts.map((a) => `<li class="row between nowrap"><div class="grow"><strong>${esc(a.name)}</strong><div class="muted" style="font-size:.86rem">${a.days.map((d) => DAY_CHIPS[d]).join(', ')} · ${a.minutes} min · ${esc(INTENSITY[a.intensity].label.toLowerCase())}${a.strength ? ' · builds strength' : ''}</div></div><button class="btn small ghost danger" data-action="removeActivity" data-id="${esc(a.id)}" aria-label="Remove ${esc(a.name)}">${icon('trash')}</button></li>`).join('')}</ul>`
     : '<p class="muted" style="font-size:.9rem">Already walk with friends, play a sport, dance or garden? Add it and your plan counts it — you’ll get less extra cardio, and strength-type activities replace a strength session.</p>';
-  const form = showAddActivity
-    ? `<form data-form="addActivity" class="card flat" style="background:var(--surface-2);margin-top:10px">
-        <label class="field"><span>What do you do?</span><input type="text" name="name" list="activity-ideas" maxlength="40" required placeholder="e.g. Walking with friends"><datalist id="activity-ideas">${ACTIVITY_IDEAS.map((x) => `<option value="${esc(x)}"></option>`).join('')}</datalist></label>
+  let form = `<button class="btn" data-action="toggleAddActivity" style="margin-top:8px">${icon('plus')}Add an activity you already do</button>`;
+  if (showAddActivity && picked == null) {
+    const list = HOBBIES.filter((h) => pickCat === 'all' || h.cat === pickCat);
+    form = `<div class="card flat" style="margin-top:10px">
+      <div class="row between" style="margin-bottom:8px"><strong>What do you do?</strong><button class="btn ghost small" data-action="toggleAddActivity">Cancel</button></div>
+      <input type="search" placeholder="Search — e.g. squash, gardening, scuba" data-filter="hobby" aria-label="Search activities" style="margin-bottom:10px">
+      <div class="scroll-x" style="margin-bottom:10px">${[['all', 'All'], ...Object.entries(HOBBY_CATEGORIES)].map(([k, l]) => `<button type="button" class="qchip ${pickCat === k ? 'done' : ''}" style="padding-left:12px" data-action="hobbyCat" data-value="${k}" aria-pressed="${pickCat === k}">${esc(l)}</button>`).join('')}</div>
+      <div class="hobby-grid" data-filter-target="hobby">${list.map((h) => `<button type="button" class="hobby-btn" data-action="pickHobby" data-name="${esc(h.name)}" data-filter-text="${esc(h.name.toLowerCase())} ${esc(HOBBY_CATEGORIES[h.cat].toLowerCase())}"><span>${esc(h.name)}</span><small class="int-${intensityFromMet(h.met)}">${INTENSITY[intensityFromMet(h.met)].label}${h.strength ? ' · strength' : ''}</small></button>`).join('')}
+        <button type="button" class="hobby-btn custom" data-action="pickHobby" data-name="" data-filter-text="something else other custom"><span>${icon('plus')} Something else</span><small>Type your own</small></button></div>
+    </div>`;
+  } else if (showAddActivity) {
+    const h = picked ? hobbyByName(picked) : null;
+    const intensity = h ? intensityFromMet(h.met) : 'moderate';
+    form = `<form data-form="addActivity" class="card flat" style="margin-top:10px">
+        <button type="button" class="btn ghost small" data-action="repickHobby" style="margin:-4px 0 6px -8px">${icon('back')}All activities</button>
+        <label class="field"><span>Activity</span><input type="text" name="name" maxlength="40" required value="${esc(h?.name || '')}" placeholder="e.g. Walking with friends" ${h ? '' : 'autofocus'}></label>
+        ${h ? `<p class="muted" style="font-size:var(--text-xs);margin:-8px 0 12px">${h.est ? esc(h.note) : `≈ ${h.met} METs — 2024 Compendium of Physical Activities (${esc(h.code)})`}. Change anything that doesn’t match how you do it.</p>` : ''}
         <fieldset><legend>Which days?</legend>${chips('days', DAY_CHIPS, [])}</fieldset>
-        <div class="grid two">
-          <label class="field"><span>How long?</span><div class="inline-inputs"><input type="number" name="minutes" min="5" max="600" step="5" value="45" required inputmode="numeric"><span class="unit">min</span></div></label>
-          <label class="field"><span>How hard?</span><select name="intensity">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label} — ${esc(v.hint)}</option>`).join('')}</select></label>
+        <div class="grid two" style="margin-bottom:0">
+          <label class="field"><span>How long?</span><div class="inline-inputs"><input type="number" name="minutes" min="5" max="600" step="5" value="${h?.minutes || 45}" required inputmode="numeric"><span class="unit">min</span></div></label>
+          <label class="field"><span>How hard?</span><select name="intensity">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === intensity ? 'selected' : ''}>${v.label} — ${esc(v.hint)}</option>`).join('')}</select></label>
         </div>
-        <label class="option" style="margin-bottom:12px"><input type="checkbox" name="strength" value="1"><div><strong>It builds strength</strong><small class="muted">e.g. climbing, a weights or circuit class, heavy gardening. Counts as one of your strength sessions.</small></div></label>
+        <label class="option" style="margin-bottom:12px"><input type="checkbox" name="strength" value="1" ${h?.strength ? 'checked' : ''}><div><strong>It builds strength</strong><small class="muted">Counts as one of your strength sessions.</small></div></label>
         <div class="row"><button class="btn primary">Add activity</button><button type="button" class="btn ghost" data-action="toggleAddActivity">Cancel</button></div>
-      </form>`
-    : `<button class="btn" data-action="toggleAddActivity" style="margin-top:8px">${icon('plus')}Add an activity you already do</button>`;
+      </form>`;
+  }
   return `<div class="card" id="activities"><h2>Your regular activities</h2>${list}${form}</div>`;
 }
 
@@ -110,7 +127,7 @@ function overview(state) {
     <div class="card"><div class="card-head"><h2>Log activity</h2></div>
       <form data-form="logCardio" class="row">
         <select name="mode" style="flex:1;min-width:150px" data-change="logMode">${Object.entries(CARDIO).map(([k, c]) => `<option value="${k}">${esc(c.label)}</option>`).join('')}${(state.profile.activities || []).map((a) => `<option value="act:${esc(a.id)}" ${logOther === 'act:' + a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}<option value="other" ${logOther === 'other' ? 'selected' : ''}>Something else…</option></select>
-        ${logOther === 'other' ? `<input type="text" name="name" maxlength="40" required placeholder="What was it?" style="flex:1;min-width:150px"><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
+        ${logOther === 'other' ? `<input type="text" name="name" maxlength="40" required placeholder="What was it?" list="hobby-names" style="flex:1;min-width:150px"><datalist id="hobby-names">${HOBBIES.map((h) => `<option value="${esc(h.name)}"></option>`).join('')}</datalist><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
         <input type="number" name="minutes" min="1" max="300" placeholder="minutes" required style="width:110px" inputmode="numeric">
         <input type="date" name="date" value="${date}" max="${date}" style="width:160px">
         <button class="btn primary">Log</button>
@@ -192,7 +209,12 @@ export default {
       if (!(minutes > 0)) return;
       const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
       let entry = { kind: 'cardio', mode: data.mode, minutes };
-      if (data.mode === 'other') entry = { kind: 'activity', name: (data.name || 'Activity').trim().slice(0, 40), intensity: data.intensity || 'moderate', minutes };
+      if (data.mode === 'other') {
+        const h = hobbyByName(data.name);
+        // A catalogue match brings its Compendium intensity unless the person picked something else.
+        const intensity = h && (data.intensity || 'moderate') === 'moderate' ? intensityFromMet(h.met) : data.intensity || 'moderate';
+        entry = { kind: 'activity', name: (data.name || 'Activity').trim().slice(0, 40), intensity, minutes };
+      }
       else if (data.mode?.startsWith('act:')) {
         const a = (ctx.state.profile.activities || []).find((x) => 'act:' + x.id === data.mode);
         if (a) entry = { kind: 'activity', actId: a.id, name: a.name, intensity: a.intensity, minutes };
@@ -214,8 +236,22 @@ export default {
     },
     toggleAddActivity(el, ev, ctx) {
       showAddActivity = !showAddActivity;
+      picked = null;
       ctx.rerender();
-      if (showAddActivity) document.querySelector('form[data-form=addActivity] input[name=name]')?.focus();
+      if (showAddActivity) document.querySelector('[data-filter=hobby]')?.focus({ preventScroll: true });
+    },
+    hobbyCat(el, ev, ctx) {
+      pickCat = el.dataset.value;
+      ctx.rerender();
+    },
+    pickHobby(el, ev, ctx) {
+      picked = el.dataset.name;
+      ctx.rerender();
+      document.getElementById('activities')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    },
+    repickHobby(el, ev, ctx) {
+      picked = null;
+      ctx.rerender();
     },
     addActivity(form, ev, ctx, data) {
       const days = (data.days || []).map(Number);
@@ -223,6 +259,7 @@ export default {
       const name = (data.name || '').trim();
       if (!name) return;
       showAddActivity = false;
+      picked = null;
       ctx.update((st) => {
         const list = st.profile.activities || [];
         const id = 'a' + Date.now().toString(36);

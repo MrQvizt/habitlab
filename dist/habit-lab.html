@@ -797,6 +797,19 @@ form:has(input[name=enabled]:not(:checked)) .reminder-list { opacity: 0.5; }
 .tl-dot::after { content: ''; position: absolute; top: 25px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 3px solid var(--surface); box-sizing: border-box; }
 .tl-dot { padding-top: 0; }
 .tl-dot b { margin-bottom: 4px; }
+
+/* Hobby picker */
+.hobby-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: 360px; overflow-y: auto; padding: 2px; }
+.hobby-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; min-height: 56px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); font: inherit; font-weight: 650; font-size: var(--text-sm); color: var(--ink); text-align: left; cursor: pointer; transition: border-color var(--dur) var(--ease), transform 100ms var(--ease); }
+.hobby-btn:hover { border-color: var(--accent); }
+.hobby-btn:active { transform: scale(0.98); }
+.hobby-btn small { font-size: 11px; font-weight: 700; color: var(--ink-3); }
+.hobby-btn small.int-vigorous { color: var(--warm); }
+.hobby-btn small.int-moderate { color: var(--accent); }
+.hobby-btn.custom { border-style: dashed; color: var(--accent); }
+.hobby-btn[hidden] { display: none; }
+input[type=search] { width: 100%; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); min-height: var(--tap); padding: 10px 12px; }
+.hobby-grid { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
 </style>
 </head>
 <body>
@@ -4021,12 +4034,109 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/move.js */ 20: function (__m, __req) {
+/* js/data/hobbies.js */ 20: function (__m, __req) {
+// Hobby catalogue for "activities you already do".
+// MET values: 2024 Adult Compendium of Physical Activities (Herrmann et al., J Sport Health Sci 2024;
+// https://pacompendium.com/adult-compendium/), code in brackets. Intensity follows the Compendium bands:
+// light 1.6–2.9 METs → easy, moderate 3.0–5.9, vigorous ≥6.0. `est` marks activities with no
+// Compendium entry, estimated from the closest similar activity. Minutes are typical session lengths.
+// `strength`: commonly counts as muscle-strengthening activity.
+
+const A = (name, cat, met, minutes, extra = {}) => ({ name, cat, met, minutes, strength: false, est: false, ...extra });
+
+const HOBBY_CATEGORIES = {
+  outdoors: 'Outdoors & garden',
+  water: 'Water',
+  racket: 'Racket & ball',
+  dance: 'Dance & mind-body',
+  fitness: 'Fitness & combat',
+  wheels: 'Wheels, snow & ice',
+  everyday: 'Everyday life',
+};
+
+const HOBBIES = [
+  // Outdoors & garden
+  A('Gardening', 'outdoors', 3.8, 45, { code: '08245' }),
+  A('Heavy gardening / digging', 'outdoors', 7.3, 45, { code: '08052', strength: true }),
+  A('Mowing the lawn', 'outdoors', 5.5, 30, { code: '08095' }),
+  A('Walking with friends', 'outdoors', 3.5, 45, { est: true, note: 'Estimated from walking at an easy-moderate pace (~3 mph)' }),
+  A('Dog walk', 'outdoors', 3.0, 30, { code: '17165' }),
+  A('Nordic walking', 'outdoors', 5.3, 45, { code: '17304' }),
+  A('Hiking', 'outdoors', 6.0, 90, { code: '17080' }),
+  A('Fishing (standing)', 'outdoors', 3.5, 60, { code: '04040' }),
+  A('Golf (walking, carrying clubs)', 'outdoors', 4.3, 120, { code: '15265' }),
+  A('Horse riding', 'outdoors', 5.5, 60, { code: '15370' }),
+  A('Frisbee', 'outdoors', 3.0, 30, { code: '15240' }),
+  // Water
+  A('Swimming (leisurely)', 'water', 6.0, 30, { code: '18310' }),
+  A('Water aerobics', 'water', 5.5, 45, { code: '18355' }),
+  A('Scuba diving', 'water', 7.0, 45, { code: '18200' }),
+  A('Snorkelling', 'water', 5.0, 45, { code: '18210' }),
+  A('Kayaking', 'water', 5.0, 60, { code: '18100' }),
+  A('Canoeing / rowing for pleasure', 'water', 3.5, 60, { code: '18070' }),
+  A('Stand-up paddleboarding', 'water', 6.5, 45, { code: '18224' }),
+  A('Surfing', 'water', 3.0, 60, { code: '18220' }),
+  A('Sailing', 'water', 3.3, 120, { code: '18140' }),
+  // Racket & ball
+  A('Squash', 'racket', 7.3, 45, { code: '15652' }),
+  A('Tennis', 'racket', 6.8, 60, { code: '15675' }),
+  A('Tennis (doubles)', 'racket', 4.5, 60, { code: '15685' }),
+  A('Padel', 'racket', 6.0, 60, { est: true, note: 'No Compendium entry; estimated from paddleball and doubles tennis' }),
+  A('Pickleball', 'racket', 4.5, 60, { est: true, note: 'No Compendium entry; estimated from doubles tennis and table tennis' }),
+  A('Badminton', 'racket', 5.5, 45, { code: '15030' }),
+  A('Racquetball', 'racket', 7.0, 45, { code: '15530' }),
+  A('Table tennis', 'racket', 4.0, 45, { code: '15660' }),
+  A('Football / soccer', 'racket', 7.0, 60, { code: '15610' }),
+  A('Basketball', 'racket', 7.5, 45, { code: '15055' }),
+  A('Volleyball', 'racket', 3.0, 60, { code: '15720' }),
+  A('Bowling', 'racket', 3.0, 60, { code: '15090' }),
+  // Dance & mind-body
+  A('Social / contemporary dancing', 'dance', 3.8, 60, { code: '03070' }),
+  A('Ballroom dancing', 'dance', 6.0, 60, { code: '03042' }),
+  A('Zumba class', 'dance', 6.5, 45, { code: '02310' }),
+  A('Low-impact aerobics', 'dance', 4.8, 45, { code: '02005' }),
+  A('Yoga', 'dance', 2.3, 60, { code: '02150', strength: true }),
+  A('Pilates', 'dance', 2.8, 45, { code: '02105', strength: true }),
+  A('Tai chi / qi gong', 'dance', 3.3, 45, { code: '15670' }),
+  // Fitness & combat
+  A('Weights at the gym', 'fitness', 3.5, 45, { code: '02054', strength: true }),
+  A('Circuit training class', 'fitness', 5.0, 45, { code: '02035', strength: true }),
+  A('Spin class', 'fitness', 9.0, 45, { code: '01270' }),
+  A('Jogging / running', 'fitness', 7.5, 30, { code: '12020' }),
+  A('Boxing (bag work)', 'fitness', 5.8, 45, { code: '15110', strength: true }),
+  A('Martial arts', 'fitness', 10.3, 60, { code: '15430', strength: true }),
+  A('Climbing / bouldering', 'fitness', 8.8, 90, { code: '15534', strength: true }),
+  // Wheels, snow & ice
+  A('Cycling (leisure)', 'wheels', 4.0, 45, { code: '01010' }),
+  A('Mountain biking', 'wheels', 8.5, 60, { code: '01009' }),
+  A('Ice skating', 'wheels', 7.0, 45, { code: '19030' }),
+  A('Downhill skiing / snowboarding', 'wheels', 6.3, 120, { code: '19160' }),
+  A('Cross-country skiing', 'wheels', 8.5, 60, { code: '19090' }),
+  // Everyday life
+  A('House cleaning', 'everyday', 3.3, 30, { code: '05030' }),
+  A('Playing with the kids', 'everyday', 3.5, 30, { code: '05175' }),
+  A('DIY / home repair', 'everyday', 4.5, 60, { code: '06127' }),
+];
+
+/** Compendium intensity band → the app's intensity levels. */
+function intensityFromMet(met) {
+  return met >= 6 ? 'vigorous' : met >= 3 ? 'moderate' : 'easy';
+}
+
+function hobbyByName(name) {
+  const n = String(name || '').trim().toLowerCase();
+  return HOBBIES.find((h) => h.name.toLowerCase() === n) || null;
+}
+
+Object.assign(__m, { HOBBY_CATEGORIES, HOBBIES, intensityFromMet, hobbyByName });
+},
+/* js/views/move.js */ 21: function (__m, __req) {
 // Movement: the week's schedule, strength session player with feedback, cardio logging.
 const { html, esc, icon, progressBar, fmtNum } = __req(15);
 const store = __req(14);
 const { progressChain, stepOf, stepGoal, REP_RANGE, INTENSITY, creditedMinutes } = __req(7);
 const { chips } = __req(15);
+const { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } = __req(20);
 const { CARDIO, WARMUP, COOLDOWN, CHAINS } = __req(6);
 const { STOP_SIGNS } = __req(8);
 const { addDays, weekStart } = __req(0);
@@ -4034,6 +4144,8 @@ const { dayIndex } = __req(16);
 
 let ratings = {}; // chainKey -> rating, for the session in progress
 let showAddActivity = false;
+let pickCat = 'all';
+let picked = null; // hobby name, or '' for a custom activity
 let logOther = false;
 const DAY_CHIPS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
 const ACTIVITY_IDEAS = ['Walking with friends', 'Dog walk', 'Football', 'Dancing', 'Swimming', 'Cycling to work', 'Gardening', 'Yoga class', 'Climbing', 'Tennis / padel', 'Gym class', 'Hiking'];
@@ -4055,18 +4167,32 @@ function activitiesCard(state) {
   const list = acts.length
     ? `<ul class="list">${acts.map((a) => `<li class="row between nowrap"><div class="grow"><strong>${esc(a.name)}</strong><div class="muted" style="font-size:.86rem">${a.days.map((d) => DAY_CHIPS[d]).join(', ')} · ${a.minutes} min · ${esc(INTENSITY[a.intensity].label.toLowerCase())}${a.strength ? ' · builds strength' : ''}</div></div><button class="btn small ghost danger" data-action="removeActivity" data-id="${esc(a.id)}" aria-label="Remove ${esc(a.name)}">${icon('trash')}</button></li>`).join('')}</ul>`
     : '<p class="muted" style="font-size:.9rem">Already walk with friends, play a sport, dance or garden? Add it and your plan counts it — you’ll get less extra cardio, and strength-type activities replace a strength session.</p>';
-  const form = showAddActivity
-    ? `<form data-form="addActivity" class="card flat" style="background:var(--surface-2);margin-top:10px">
-        <label class="field"><span>What do you do?</span><input type="text" name="name" list="activity-ideas" maxlength="40" required placeholder="e.g. Walking with friends"><datalist id="activity-ideas">${ACTIVITY_IDEAS.map((x) => `<option value="${esc(x)}"></option>`).join('')}</datalist></label>
+  let form = `<button class="btn" data-action="toggleAddActivity" style="margin-top:8px">${icon('plus')}Add an activity you already do</button>`;
+  if (showAddActivity && picked == null) {
+    const list = HOBBIES.filter((h) => pickCat === 'all' || h.cat === pickCat);
+    form = `<div class="card flat" style="margin-top:10px">
+      <div class="row between" style="margin-bottom:8px"><strong>What do you do?</strong><button class="btn ghost small" data-action="toggleAddActivity">Cancel</button></div>
+      <input type="search" placeholder="Search — e.g. squash, gardening, scuba" data-filter="hobby" aria-label="Search activities" style="margin-bottom:10px">
+      <div class="scroll-x" style="margin-bottom:10px">${[['all', 'All'], ...Object.entries(HOBBY_CATEGORIES)].map(([k, l]) => `<button type="button" class="qchip ${pickCat === k ? 'done' : ''}" style="padding-left:12px" data-action="hobbyCat" data-value="${k}" aria-pressed="${pickCat === k}">${esc(l)}</button>`).join('')}</div>
+      <div class="hobby-grid" data-filter-target="hobby">${list.map((h) => `<button type="button" class="hobby-btn" data-action="pickHobby" data-name="${esc(h.name)}" data-filter-text="${esc(h.name.toLowerCase())} ${esc(HOBBY_CATEGORIES[h.cat].toLowerCase())}"><span>${esc(h.name)}</span><small class="int-${intensityFromMet(h.met)}">${INTENSITY[intensityFromMet(h.met)].label}${h.strength ? ' · strength' : ''}</small></button>`).join('')}
+        <button type="button" class="hobby-btn custom" data-action="pickHobby" data-name="" data-filter-text="something else other custom"><span>${icon('plus')} Something else</span><small>Type your own</small></button></div>
+    </div>`;
+  } else if (showAddActivity) {
+    const h = picked ? hobbyByName(picked) : null;
+    const intensity = h ? intensityFromMet(h.met) : 'moderate';
+    form = `<form data-form="addActivity" class="card flat" style="margin-top:10px">
+        <button type="button" class="btn ghost small" data-action="repickHobby" style="margin:-4px 0 6px -8px">${icon('back')}All activities</button>
+        <label class="field"><span>Activity</span><input type="text" name="name" maxlength="40" required value="${esc(h?.name || '')}" placeholder="e.g. Walking with friends" ${h ? '' : 'autofocus'}></label>
+        ${h ? `<p class="muted" style="font-size:var(--text-xs);margin:-8px 0 12px">${h.est ? esc(h.note) : `≈ ${h.met} METs — 2024 Compendium of Physical Activities (${esc(h.code)})`}. Change anything that doesn’t match how you do it.</p>` : ''}
         <fieldset><legend>Which days?</legend>${chips('days', DAY_CHIPS, [])}</fieldset>
-        <div class="grid two">
-          <label class="field"><span>How long?</span><div class="inline-inputs"><input type="number" name="minutes" min="5" max="600" step="5" value="45" required inputmode="numeric"><span class="unit">min</span></div></label>
-          <label class="field"><span>How hard?</span><select name="intensity">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label} — ${esc(v.hint)}</option>`).join('')}</select></label>
+        <div class="grid two" style="margin-bottom:0">
+          <label class="field"><span>How long?</span><div class="inline-inputs"><input type="number" name="minutes" min="5" max="600" step="5" value="${h?.minutes || 45}" required inputmode="numeric"><span class="unit">min</span></div></label>
+          <label class="field"><span>How hard?</span><select name="intensity">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === intensity ? 'selected' : ''}>${v.label} — ${esc(v.hint)}</option>`).join('')}</select></label>
         </div>
-        <label class="option" style="margin-bottom:12px"><input type="checkbox" name="strength" value="1"><div><strong>It builds strength</strong><small class="muted">e.g. climbing, a weights or circuit class, heavy gardening. Counts as one of your strength sessions.</small></div></label>
+        <label class="option" style="margin-bottom:12px"><input type="checkbox" name="strength" value="1" ${h?.strength ? 'checked' : ''}><div><strong>It builds strength</strong><small class="muted">Counts as one of your strength sessions.</small></div></label>
         <div class="row"><button class="btn primary">Add activity</button><button type="button" class="btn ghost" data-action="toggleAddActivity">Cancel</button></div>
-      </form>`
-    : `<button class="btn" data-action="toggleAddActivity" style="margin-top:8px">${icon('plus')}Add an activity you already do</button>`;
+      </form>`;
+  }
   return `<div class="card" id="activities"><h2>Your regular activities</h2>${list}${form}</div>`;
 }
 
@@ -4134,7 +4260,7 @@ function overview(state) {
     <div class="card"><div class="card-head"><h2>Log activity</h2></div>
       <form data-form="logCardio" class="row">
         <select name="mode" style="flex:1;min-width:150px" data-change="logMode">${Object.entries(CARDIO).map(([k, c]) => `<option value="${k}">${esc(c.label)}</option>`).join('')}${(state.profile.activities || []).map((a) => `<option value="act:${esc(a.id)}" ${logOther === 'act:' + a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}<option value="other" ${logOther === 'other' ? 'selected' : ''}>Something else…</option></select>
-        ${logOther === 'other' ? `<input type="text" name="name" maxlength="40" required placeholder="What was it?" style="flex:1;min-width:150px"><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
+        ${logOther === 'other' ? `<input type="text" name="name" maxlength="40" required placeholder="What was it?" list="hobby-names" style="flex:1;min-width:150px"><datalist id="hobby-names">${HOBBIES.map((h) => `<option value="${esc(h.name)}"></option>`).join('')}</datalist><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
         <input type="number" name="minutes" min="1" max="300" placeholder="minutes" required style="width:110px" inputmode="numeric">
         <input type="date" name="date" value="${date}" max="${date}" style="width:160px">
         <button class="btn primary">Log</button>
@@ -4216,7 +4342,12 @@ __m.default = {
       if (!(minutes > 0)) return;
       const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
       let entry = { kind: 'cardio', mode: data.mode, minutes };
-      if (data.mode === 'other') entry = { kind: 'activity', name: (data.name || 'Activity').trim().slice(0, 40), intensity: data.intensity || 'moderate', minutes };
+      if (data.mode === 'other') {
+        const h = hobbyByName(data.name);
+        // A catalogue match brings its Compendium intensity unless the person picked something else.
+        const intensity = h && (data.intensity || 'moderate') === 'moderate' ? intensityFromMet(h.met) : data.intensity || 'moderate';
+        entry = { kind: 'activity', name: (data.name || 'Activity').trim().slice(0, 40), intensity, minutes };
+      }
       else if (data.mode?.startsWith('act:')) {
         const a = (ctx.state.profile.activities || []).find((x) => 'act:' + x.id === data.mode);
         if (a) entry = { kind: 'activity', actId: a.id, name: a.name, intensity: a.intensity, minutes };
@@ -4238,8 +4369,22 @@ __m.default = {
     },
     toggleAddActivity(el, ev, ctx) {
       showAddActivity = !showAddActivity;
+      picked = null;
       ctx.rerender();
-      if (showAddActivity) document.querySelector('form[data-form=addActivity] input[name=name]')?.focus();
+      if (showAddActivity) document.querySelector('[data-filter=hobby]')?.focus({ preventScroll: true });
+    },
+    hobbyCat(el, ev, ctx) {
+      pickCat = el.dataset.value;
+      ctx.rerender();
+    },
+    pickHobby(el, ev, ctx) {
+      picked = el.dataset.name;
+      ctx.rerender();
+      document.getElementById('activities')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    },
+    repickHobby(el, ev, ctx) {
+      picked = null;
+      ctx.rerender();
     },
     addActivity(form, ev, ctx, data) {
       const days = (data.days || []).map(Number);
@@ -4247,6 +4392,7 @@ __m.default = {
       const name = (data.name || '').trim();
       if (!name) return;
       showAddActivity = false;
+      picked = null;
       ctx.update((st) => {
         const list = st.profile.activities || [];
         const id = 'a' + Date.now().toString(36);
@@ -4284,7 +4430,7 @@ function logPlannedActivity(ctx, id) {
 
 Object.assign(__m, { itemDone, logPlannedActivity });
 },
-/* js/ui/sheet.js */ 21: function (__m, __req) {
+/* js/ui/sheet.js */ 22: function (__m, __req) {
 // Bottom sheet (dialog on wide screens): swipe-down / scrim / Escape to close, focus trapped,
 // focus returned to the opener. Content is HTML; buttons inside use the normal data-action routing.
 let current = null;
@@ -4397,11 +4543,11 @@ function updateSheet(html) {
 
 Object.assign(__m, { isOpen, openSheet, closeSheet, updateSheet });
 },
-/* js/views/sheets.js */ 22: function (__m, __req) {
+/* js/views/sheets.js */ 23: function (__m, __req) {
 // Bottom-sheet flows shared by Today and Meals: a meal's detail + logging, weigh-in stepper,
 // steps, extra food and habit detail. Every reversible change offers Undo instead of asking first.
 const { esc, icon, fmtNum, fmtWeight, toKg, weightNum } = __req(15);
-const { openSheet, closeSheet, updateSheet } = __req(21);
+const { openSheet, closeSheet, updateSheet } = __req(22);
 const store = __req(14);
 const { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } = __req(16);
 const { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } = __req(5);
@@ -4792,7 +4938,7 @@ function setHabitLevel(ctx, id, index) {
 
 Object.assign(__m, { slotIcon, mealRows, openMeal, habitLevelsHtml, sheetActions, toggleHabit, setHabitLevel, isoDate });
 },
-/* js/views/today.js */ 23: function (__m, __req) {
+/* js/views/today.js */ 24: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 const { esc, icon, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(15);
@@ -4804,8 +4950,8 @@ const { stepGoal } = __req(7);
 const { CARDIO } = __req(6);
 const { daysBetween } = __req(0);
 const { toHHMM, daySchedule } = __req(12);
-const { itemDone, logPlannedActivity } = __req(20);
-const { slotIcon, toggleHabit, mealRows } = __req(22);
+const { itemDone, logPlannedActivity } = __req(21);
+const { slotIcon, toggleHabit, mealRows } = __req(23);
 
 const SLOT_HOUR = { breakfast: 7, snack: 10, lunch: 12, snack2: 15, dinner: 18, snack3: 20 };
 
@@ -5024,10 +5170,10 @@ __m.default = {
 
 Object.assign(__m, { habitRow });
 },
-/* js/views/meals.js */ 24: function (__m, __req) {
+/* js/views/meals.js */ 25: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 const { html, esc, icon, chips, fmtDate, fmtNum } = __req(15);
-const { mealRows } = __req(22);
+const { mealRows } = __req(23);
 const store = __req(14);
 const { recipeDetails, mealMeta, slotLabel, totalsLine, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(16);
 const { markChosen } = __req(16);
@@ -5213,7 +5359,7 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 25: function (__m, __req) {
+/* js/ui/charts.js */ 26: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
 const { esc } = __req(15);
 const { daysBetween, addDays } = __req(0);
@@ -5325,16 +5471,16 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/habits.js */ 26: function (__m, __req) {
+/* js/views/habits.js */ 27: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
 const { esc, icon } = __req(15);
-const { habitGrid } = __req(25);
+const { habitGrid } = __req(26);
 const store = __req(14);
 const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(10);
 const { daysBetween } = __req(0);
-const { openSheet, closeSheet, updateSheet } = __req(21);
-const { toggleHabit, habitLevelsHtml } = __req(22);
+const { openSheet, closeSheet, updateSheet } = __req(22);
+const { toggleHabit, habitLevelsHtml } = __req(23);
 const { habitLevels, levelIndex } = __req(10);
 
 let filter = 'all';
@@ -5481,10 +5627,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/progress.js */ 27: function (__m, __req) {
+/* js/views/progress.js */ 28: function (__m, __req) {
 // Progress: weight trend chart, milestones, rate, activity history, waist, check-in history.
 const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(15);
-const { weightChart, barChart } = __req(25);
+const { weightChart, barChart } = __req(26);
 const store = __req(14);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
@@ -5624,7 +5770,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, {  });
 },
-/* js/engine/adjust.js */ 28: function (__m, __req) {
+/* js/engine/adjust.js */ 29: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -5900,11 +6046,11 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 29: function (__m, __req) {
+/* js/views/checkin.js */ 30: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
 const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(15);
 const store = __req(14);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(28);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(29);
 const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
@@ -6049,7 +6195,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/data/learn.js */ 30: function (__m, __req) {
+/* js/data/learn.js */ 31: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -6096,6 +6242,7 @@ const S = {
   compassion: ['Brenton-Peters et al. — self-compassion and eating', 'https://eprints.whiterose.ac.uk/160045/3/Self-compassion%20and%20eating%20-%20CPR%20%28final%29.pdf'],
   mazeas: ['Mazeas et al., JMIR 2022 — gamification and physical activity (meta-analysis)', 'https://jmir.org/2022/1/e26779'],
   stepup: ['Patel et al., JAMA Intern Med 2019 — STEP UP gamification trial', 'https://pubmed.ncbi.nlm.nih.gov/31498375/'],
+  compendium: ['Herrmann et al. 2024 — Adult Compendium of Physical Activities (MET values)', 'https://pacompendium.com/adult-compendium/'],
   acg: ['Katz et al., ACG GERD guideline 2022 — avoid meals 2–3 h before bed', 'https://pubmed.ncbi.nlm.nih.gov/34807007/'],
   vujovic: ['Vujović et al., Cell Metab 2022 — late eating, hunger and energy use (RCT)', 'https://pubmed.ncbi.nlm.nih.gov/36198293/'],
   garaulet: ['Garaulet et al., IJO 2013 — meal timing and weight-loss success', 'https://www.nature.com/articles/ijo2012229'],
@@ -6172,8 +6319,9 @@ const LEARN = [
       'ACSM: more than 250 minutes a week is linked with clinically meaningful loss and preventing regain.',
       'Exercise alone usually gives small losses, partly because people eat more to compensate — so don’t “earn” food with steps.',
       'Step benefits for longevity level off around 8,000–10,000 a day under 60 and 6,000–8,000 at 60+.',
-      'Everyday movement (NEAT: standing, walking, fidgeting) varies hugely between people and matters.'],
-    ['who', 'acsm', 'exAlone', 'paluch', 'levine'],
+      'Everyday movement (NEAT: standing, walking, fidgeting) varies hugely between people and matters.',
+      'Hobbies count. Intensity for 50+ activities — from gardening to squash and scuba diving — comes from the Compendium of Physical Activities: under 3 METs is light, 3–5.9 moderate, 6+ vigorous. Vigorous minutes count double toward the weekly target, as in the WHO guidelines.'],
+    ['who', 'acsm', 'exAlone', 'paluch', 'levine', 'compendium'],
     'Weekly minutes grow by about 10% (10–20 minutes) a week toward 150, then 200+. Your step goal rises by 500 when you hit it on 5 of 7 days.'),
   C('strength', 'Movement', 'Strength training keeps the weight you lose as fat',
     'Resistance training during a diet helps preserve muscle.',
@@ -6304,10 +6452,10 @@ const LEARN_BY_ID = Object.fromEntries(LEARN.map((c) => [c.id, c]));
 
 Object.assign(__m, { LEARN_SECTIONS, LEARN, LEARN_BY_ID });
 },
-/* js/views/learn.js */ 31: function (__m, __req) {
+/* js/views/learn.js */ 32: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
 const { html, esc, icon } = __req(15);
-const { LEARN, LEARN_SECTIONS } = __req(30);
+const { LEARN, LEARN_SECTIONS } = __req(31);
 
 let section = 'all';
 let openAll = false;
@@ -6352,7 +6500,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/notify.js */ 32: function (__m, __req) {
+/* js/notify.js */ 33: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -6489,7 +6637,7 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 33: function (__m, __req) {
+/* js/views/settings.js */ 34: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(15);
 const store = __req(14);
@@ -6498,7 +6646,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn } = __req(0);
-const notify = __req(32);
+const notify = __req(33);
 const { DEFAULT_REMINDERS } = __req(13);
 const { dayFields, daySummary, readDay } = __req(18);
 const { daySchedule, toHHMM } = __req(12);
@@ -6860,7 +7008,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 34: function (__m, __req) {
+/* js/views/shopping.js */ 35: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(15);
 const store = __req(14);
@@ -6906,10 +7054,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 35: function (__m, __req) {
+/* js/views/rewards.js */ 36: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(15);
-const { ring, barChart } = __req(25);
+const { ring, barChart } = __req(26);
 const store = __req(14);
 const { BADGES, XP, levelTitle } = __req(11);
 const { addDays, weekStart } = __req(0);
@@ -7021,7 +7169,7 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/ui/celebrate.js */ 36: function (__m, __req) {
+/* js/ui/celebrate.js */ 37: function (__m, __req) {
 // Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
 // Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
 // after the user has interacted with the page.
@@ -7152,26 +7300,26 @@ function showCelebration({ kicker, title, body, iconName = 'star', ok = 'Nice!' 
 
 Object.assign(__m, { floatXp, confetti, chime, buzz, showCelebration });
 },
-/* js/app.js */ 37: function (__m, __req) {
+/* js/app.js */ 38: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(14);
 const { icon, formData } = __req(15);
 const onboarding = __req(19).default;
-const todayView = __req(23).default;
-const meals = __req(24).default;
-const move = __req(20).default;
-const habits = __req(26).default;
-const progress = __req(27).default;
-const checkin = __req(29).default;
-const learn = __req(31).default;
-const settings = __req(33).default;
-const shopping = __req(34).default;
-const rewards = __req(35).default;
-const { floatXp, confetti, chime, buzz, showCelebration } = __req(36);
+const todayView = __req(24).default;
+const meals = __req(25).default;
+const move = __req(21).default;
+const habits = __req(27).default;
+const progress = __req(28).default;
+const checkin = __req(30).default;
+const learn = __req(32).default;
+const settings = __req(34).default;
+const shopping = __req(35).default;
+const rewards = __req(36).default;
+const { floatXp, confetti, chime, buzz, showCelebration } = __req(37);
 const { BADGES } = __req(11);
-const notify = __req(32);
-const { closeSheet } = __req(21);
-const { sheetActions } = __req(22);
+const notify = __req(33);
+const { closeSheet } = __req(22);
+const { sheetActions } = __req(23);
 const { daySummary, readDay } = __req(18);
 
 const VIEWS = { rewards, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
@@ -7419,6 +7567,13 @@ document.addEventListener('submit', (ev) => {
   const handler = view.actions?.[form.dataset.form] || GLOBAL[form.dataset.form];
   if (handler) handler(form, ev, ctx, formData(form));
 });
+// Client-side list filtering: <input data-filter="x"> filters [data-filter-target="x"] [data-filter-text].
+document.addEventListener('input', (ev) => {
+  const key = ev.target.dataset?.filter;
+  if (!key) return;
+  const q = ev.target.value.trim().toLowerCase();
+  for (const el of document.querySelectorAll(`[data-filter-target="${key}"] [data-filter-text]`)) el.hidden = q && !el.dataset.filterText.includes(q) && !el.classList.contains('custom');
+});
 // Live "Your day" preview while the time inputs change.
 document.addEventListener('input', (ev) => {
   const form = ev.target.closest('form');
@@ -7504,7 +7659,7 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(37);
+__req(38);
 })();</script>
 </body>
 </html>

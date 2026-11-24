@@ -413,3 +413,22 @@ test('day timeline: snacks sit between meals, last meal ≥2 h before bed, late 
   assert.equal(toHHMM(owl.last), '22:00');
   assert.equal(owl.sleepMinutes, 480);
 });
+
+test('hobby catalogue: Compendium bands, unique names, estimates labelled, scheduling credit', async () => {
+  const { HOBBIES, intensityFromMet, hobbyByName } = await import('../js/data/hobbies.js');
+  const names = HOBBIES.map((h) => h.name.toLowerCase());
+  assert.equal(new Set(names).size, names.length);
+  for (const h of HOBBIES) {
+    assert.ok(h.met >= 1.6 && h.met <= 15, h.name);
+    assert.ok(h.est ? typeof h.note === 'string' : /^\d{5}$/.test(h.code), `${h.name}: needs a Compendium code or an estimate note`);
+    assert.ok(h.minutes >= 15 && h.minutes <= 180, h.name);
+  }
+  assert.equal(intensityFromMet(hobbyByName('Gardening').met), 'moderate');
+  assert.equal(intensityFromMet(hobbyByName('Scuba diving').met), 'vigorous');
+  assert.equal(intensityFromMet(hobbyByName('Squash').met), 'vigorous');
+  assert.equal(intensityFromMet(hobbyByName('Yoga').met), 'easy');
+  // A weekly squash game (vigorous, 45 min) counts as 90 cardio minutes.
+  const p = { equipment: [], limitations: [], daysAvailable: [0, 2, 4], sessionMinutes: 30, baselineCardioMin: 60, cardioPrefs: ['walk'], phase: 'lose',
+    activities: [{ id: 's', name: 'Squash', days: [3], minutes: 45, intensity: intensityFromMet(hobbyByName('Squash').met) }] };
+  assert.equal(weekSchedule(p, initialProgress(p), 2).activityMin, 90);
+});
