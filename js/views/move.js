@@ -6,7 +6,7 @@ import { chips } from '../ui/dom.js';
 import { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } from '../data/hobbies.js';
 import { CARDIO, WARMUP, COOLDOWN, CHAINS } from '../data/exercises.js';
 import { STOP_SIGNS } from '../engine/safety.js';
-import { addDays, weekStart } from '../engine/util.js';
+import { addDays, weekStart, weekOrder, dateInWeek } from '../engine/util.js';
 import { dayIndex } from './shared.js';
 
 let ratings = {}; // chainKey -> rating, for the session in progress
@@ -90,8 +90,9 @@ function overview(state) {
   const strengthPlanned = schedule.reduce((a, d) => a + d.items.filter((i) => i.kind === 'strength').length, 0);
   const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
   const ti = dayIndex(date);
-  const grid = schedule.map((d, i) => {
-    const dd = addDays(wk, i);
+  const grid = weekOrder().map((i) => {
+    const d = schedule[i];
+    const dd = dateInWeek(wk, i);
     const logged = state.workouts.log[dd] || [];
     const pills = d.items.map((it) => {
       const isDone = itemDone(logged, it);

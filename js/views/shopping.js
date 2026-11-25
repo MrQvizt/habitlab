@@ -2,7 +2,7 @@
 import { html, esc, icon } from '../ui/dom.js';
 import * as store from '../store.js';
 import { shoppingList, formatQty } from '../engine/meals.js';
-import { weekStart } from '../engine/util.js';
+import { weekStart, weekOrder } from '../engine/util.js';
 import { dayIndex } from './shared.js';
 
 const AISLE_ORDER = ['Produce', 'Frozen', 'Meat & fish', 'Dairy & eggs', 'Bakery', 'Canned & dry'];
@@ -13,8 +13,10 @@ export default {
     const wk = weekStart(date);
     const plan = state.plans[wk];
     const scope = params[0] === 'week' ? 'week' : 'rest';
-    const from = scope === 'week' ? 0 : dayIndex(date);
-    const days = plan.days.slice(from);
+    // The rest of the week in the order it runs from your chosen start day.
+    const order = weekOrder();
+    const from = scope === 'week' ? 0 : order.indexOf(dayIndex(date));
+    const days = order.slice(from).map((i) => plan.days[i] || []);
     const list = shoppingList(days);
     const u = state.profile.units === 'imperial' ? 'imperial' : 'metric';
     const got = new Set(state.shopGot?.[wk] || []);

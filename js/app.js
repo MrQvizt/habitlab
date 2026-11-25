@@ -1,6 +1,7 @@
 // Habit Lab — app shell: routing, persistence and event delegation.
 import * as store from './store.js';
 import { icon, formData } from './ui/dom.js';
+import { setWeekStart } from './engine/util.js';
 import onboarding from './views/onboarding.js';
 import { goalHint } from './views/onboarding.js';
 import todayView from './views/today.js';
@@ -55,6 +56,7 @@ const ctx = {
       for (const id of after.newBadges) next.game.badges[id] = store.today();
     }
     state = next;
+    setWeekStart(state.prefs?.weekStart || 0);
     if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game));
     scheduleSync();
     if (!store.save(state)) ctx.toast('Couldn’t save — your browser is blocking storage. Export your data in Settings to keep it.');

@@ -1,5 +1,5 @@
 // App state: one JSON object in localStorage. Everything stays on this device.
-import { isoDate, weekStart, addDays, hashString } from './engine/util.js';
+import { isoDate, weekStart, addDays, hashString, weekdayOf, dateInWeek, planDayFor, setWeekStart } from './engine/util.js';
 import { dailyTargets, estimateTdee } from './engine/calc.js';
 import { latestTrend } from './engine/trend.js';
 import { planWeek } from './engine/meals.js';
@@ -20,7 +20,7 @@ export function emptyState() {
   return {
     version: VERSION,
     profile: null,
-    prefs: { diet: 'omnivore', allergies: [], dislikes: [], variety: 'medium', budget: 'normal', maxMinutesWeekday: 30, maxMinutesWeekend: 45, favorites: [], blockedRecipes: [], seed: 0, leftovers: true },
+    prefs: { weekStart: 0, diet: 'omnivore', allergies: [], dislikes: [], variety: 'medium', budget: 'normal', maxMinutesWeekday: 30, maxMinutesWeekend: 45, favorites: [], blockedRecipes: [], seed: 0, leftovers: true },
     weights: [],
     waist: [],
     intake: {},
@@ -182,6 +182,7 @@ export function sanitize(s) {
   const pr = s.prefs;
   s.prefs = {
     ...pr,
+    weekStart: num(pr.weekStart, 0, 6, 0),
     diet: oneOf(pr.diet, Object.keys(DIETS), 'omnivore'),
     allergies: subset(pr.allergies, Object.keys(ALLERGENS)),
     dislikes: subset(pr.dislikes, Object.keys(FOODS)),
@@ -257,6 +258,8 @@ export function sanitize(s) {
   s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.slice(-30) : [] }]));
   // Plans reference recipes by id; drop any plan containing an unknown recipe (it will be rebuilt).
   s.plans = Object.fromEntries(Object.entries(s.plans || {}).filter(([k, v]) => ISO.test(k) && Array.isArray(v?.days) && v.days.every((d) => Array.isArray(d) && d.every((m) => recipeIds.includes(m?.recipeId) && Number.isFinite(m.scale)))));
+  s.prefs.weekStart = Math.round(s.prefs.weekStart);
+  setWeekStart(s.prefs.weekStart);
   return s;
 }
 
@@ -326,18 +329,26 @@ export function ensurePlan(state, date = today()) {
   if (existing && existing.sig === sig) return { state, plan: existing };
   // Keep today's meals that were already eaten/logged or chosen by hand, so ticks and swaps survive.
   const overrides = {};
-  const ti = (new Date(date + 'T12:00').getDay() + 6) % 7;
-  if (existing?.days[ti] && addDays(wk, ti) === date) {
+  const ti = weekdayOf(date);
+  const prevToday = existing?.days[ti] || planDayFor(state, date);
+  if (prevToday.length) {
     const log = state.mealLog?.[date] || {};
     const keep = {};
-    for (const m of existing.days[ti]) if (log[m.slot] || m.chosen) keep[m.slot] = m.recipeId;
+    for (const m of prevToday) if (log[m.slot] || m.chosen) keep[m.slot] = m.recipeId;
     if (Object.keys(keep).length) overrides[ti] = keep;
   }
   const days = planWeek(t, state.prefs, wk, { overrides });
-  for (const m of days[ti] || []) if (overrides[ti]?.[m.slot]) m.chosen = existing.days[ti].find((x) => x.slot === m.slot)?.chosen;
-  // Keep days that are already in the past so history isn't rewritten.
-  if (existing) {
-    for (let d = 0; d < 7; d++) if (addDays(wk, d) < date && existing.days[d]) days[d] = existing.days[d];
+  for (const m of days[ti] || []) if (overrides[ti]?.[m.slot]) m.chosen = prevToday.find((x) => x.slot === m.slot)?.chosen;
+  // Keep days that are already in the past so history isn't rewritten — also from the plan of an
+  // older week layout if the week start was changed.
+  for (let d = 0; d < 7; d++) {
+    const dd = dateInWeek(wk, d);
+    if (dd >= date) continue;
+    if (existing?.days[d]) days[d] = existing.days[d];
+    else {
+      const old = planDayFor(state, dd);
+      if (old.length) days[d] = old;
+    }
   }
   const plan = { sig, kcal: t.kcal, days, created: date };
   const plans = { ...state.plans, [wk]: plan };

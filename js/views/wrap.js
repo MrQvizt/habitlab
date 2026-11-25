@@ -5,7 +5,9 @@ import { esc, icon, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
 import { weekBody, lastWeekStart } from '../engine/body.js';
 import { S as SOURCES } from '../data/learn.js';
-import { weekStart, addDays } from '../engine/util.js';
+import { weekStart, addDays, getWeekStart } from '../engine/util.js';
+
+const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 import { confetti, chime, buzz, floatXp } from '../ui/celebrate.js';
 import { XP } from '../engine/game.js';
 
@@ -68,7 +70,7 @@ function cards(state, w, today) {
     <div class="w-grid">${w.organs.map((o) => `<button type="button" class="w-cell ${o.closed ? 'closed' : ''}" data-action="openOrgan" data-organ="${o.id}">${ring(o.pct, o.color, { size: 58, stroke: 7, label: o.emoji })}<span>${esc(o.name)}</span><b>${Math.round(o.pct * 100)}%</b>${lv[o.id] ? `<em>Lv ${lv[o.id].level}</em>` : ''}</button>`).join('')}</div>
     <p class="w-small">Tap a body part to see what it needs.</p>
     <p class="w-small">You might not feel all of this yet — but it’s happening inside, week after week.</p>
-    ${partial ? '<p class="w-small"><strong>Come back Monday</strong> for the full wrap and its XP.</p>' : claimed ? `<button class="w-btn" data-action="wrapClose">Done</button>` : `<button class="w-btn glow" data-action="wrapClaim">Collect +${XP.wrap} XP</button>`}` });
+    ${partial ? `<p class="w-small"><strong>Come back ${DAY_FULL[getWeekStart()]}</strong> for the full wrap and its XP.</p>` : claimed ? `<button class="w-btn" data-action="wrapClose">Done</button>` : `<button class="w-btn glow" data-action="wrapClaim">Collect +${XP.wrap} XP</button>`}` });
   return out;
 }
 

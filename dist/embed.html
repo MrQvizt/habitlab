@@ -1002,6 +1002,11 @@ body.wrap-open .modal-wrap { z-index: 1200; }
 .learn-link .sub { display: block; font-size: var(--text-sm); color: var(--ink-3); }
 .learn-link > svg { width: 22px; height: 22px; flex: none; color: var(--accent); }
 .body-medal em { display: block; }
+
+.week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 4px 0 12px; }
+.week-strip span { text-align: center; font-size: var(--text-xs); font-weight: 700; padding: 8px 0; border-radius: 8px; background: var(--surface-2); color: var(--ink-3); }
+.week-strip span.first { background: var(--accent); color: #fff; }
+.week-strip span.last { box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent); }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -1049,11 +1054,44 @@ function daysBetween(a, b) {
 }
 
 /** Monday of the week containing iso date. */
-function weekStart(iso) {
+// ---------- The user's week ----------
+// Weekdays are identified Monday = 0 … Sunday = 6 everywhere (plans, workouts, alarms). Where the
+// week *starts* is the user's choice (prefs.weekStart): rings, Body Wraps, weekly targets, the meal
+// plan and the shopping list all reset on that day.
+let WEEK_START = 0;
+function setWeekStart(n) {
+  WEEK_START = Number.isInteger(Number(n)) && n >= 0 && n <= 6 ? Number(n) : 0;
+}
+function getWeekStart() {
+  return WEEK_START;
+}
+/** Weekday of a date, Monday = 0. */
+function weekdayOf(iso) {
+  return (parseDate(iso).getDay() + 6) % 7;
+}
+/** The first day of the week containing `iso`. */
+function weekStart(iso, start = WEEK_START) {
   const d = parseDate(iso);
-  const dow = (d.getDay() + 6) % 7; // 0 = Monday
-  d.setDate(d.getDate() - dow);
+  d.setDate(d.getDate() - ((d.getDay() + 6 - start + 7) % 7));
   return isoDate(d);
+}
+/** Weekday indices in the order the user's week runs, e.g. [6,0,1,2,3,4,5] for a Sunday start. */
+function weekOrder(start = WEEK_START) {
+  return Array.from({ length: 7 }, (_, i) => (start + i) % 7);
+}
+/** The date of weekday `wd` (Monday = 0) in the week starting `ws`. */
+function dateInWeek(ws, wd) {
+  return addDays(ws, (wd - weekdayOf(ws) + 7) % 7);
+}
+/** The meal-plan day for a date: from the week that contains it (survives a change of week start). */
+function planDayFor(state, date) {
+  const plans = state.plans || {};
+  let plan = plans[weekStart(date)];
+  if (!plan?.days) {
+    const key = Object.keys(plans).filter((k) => k <= date && daysBetween(k, date) < 7).sort().pop();
+    plan = key ? plans[key] : null;
+  }
+  return plan?.days?.[weekdayOf(date)] || [];
 }
 
 /** Deterministic PRNG (mulberry32) so a week's plan is stable until the user changes something. */
@@ -1103,7 +1141,7 @@ const lbToKg = (lb) => lb * KG_PER_LB;
 const cmToIn = (cm) => cm / CM_PER_IN;
 const inToCm = (inch) => inch * CM_PER_IN;
 
-Object.assign(__m, { DAY_MS, clamp, round, isoDate, parseDate, addDays, daysBetween, weekStart, rng, hashString, mean, slope, KG_PER_LB, CM_PER_IN, kgToLb, lbToKg, cmToIn, inToCm });
+Object.assign(__m, { DAY_MS, clamp, round, isoDate, parseDate, addDays, daysBetween, setWeekStart, getWeekStart, weekdayOf, weekStart, weekOrder, dateInWeek, planDayFor, rng, hashString, mean, slope, KG_PER_LB, CM_PER_IN, kgToLb, lbToKg, cmToIn, inToCm });
 },
 /* js/engine/calc.js */ 1: function (__m, __req) {
 // Energy and macro targets.
@@ -3518,7 +3556,7 @@ Object.assign(__m, { HOBBY_CATEGORIES, HOBBIES, intensityFromMet, hobbyByName })
 // Each "organ" has a ring (like activity rings) filled by logged behaviours, and a one-line research
 // fact with its source (keys of the source list in data/learn.js). Claims stay at the level of the
 // evidence: "linked to", "lowers risk", never promises about one person.
-const { addDays, daysBetween, parseDate, weekStart } = __req(0);
+const { addDays, daysBetween, weekStart, planDayFor } = __req(0);
 const { creditedMinutes, stepGoal } = __req(7);
 const { byId, scaledNutrition } = __req(5);
 const { trendSeries } = __req(2);
@@ -3562,8 +3600,7 @@ const ORGANS = [
 const organById = (id) => ORGANS.find((o) => o.id === id);
 
 function plannedMeals(state, date) {
-  const plan = state.plans?.[weekStart(date)];
-  return plan?.days?.[(parseDate(date).getDay() + 6) % 7] || [];
+  return planDayFor(state, date);
 }
 
 function isStrength(state, w) {
@@ -3832,7 +3869,7 @@ Object.assign(__m, { KNEE_FACTOR, FIBRE_TARGET, ORGANS, organById, weekBody, las
 //   and nothing is lost if the plan is rebuilt.
 // - A small, unpredictable "lucky bonus" (variable reward) makes ticking things off more fun.
 //   It is deterministic per item, so it can't be re-rolled.
-const { addDays, daysBetween, weekStart, hashString, parseDate } = __req(0);
+const { addDays, daysBetween, weekStart, hashString, planDayFor } = __req(0);
 const { stepGoal, creditedMinutes } = __req(7);
 const { habitLevels, levelIndex } = __req(10);
 const { bodyCollection } = __req(12);
@@ -3876,9 +3913,7 @@ function levelTitle(n) {
 const isLucky = (key) => hashString(key) % 6 === 0; // about 1 in 6 items
 
 function mealsFor(state, date) {
-  const plan = state.plans?.[weekStart(date)];
-  const di = (parseDate(date).getDay() + 6) % 7;
-  return plan?.days?.[di] || [];
+  return planDayFor(state, date);
 }
 
 /**
@@ -4197,7 +4232,7 @@ Object.assign(__m, { BED_GAP_MIN, BED_GAP_FLOOR, toMin, toHHMM, daySchedule, mea
 // Principles: specific beats generic ("Lunch: Greek salad with chicken" > "Time to eat"); skip
 // anything already done; never shame; quiet by default at night; a few encouraging messages,
 // rotating so they don't go stale.
-const { addDays, weekStart, parseDate, hashString, isoDate } = __req(0);
+const { addDays, weekStart, parseDate, hashString, isoDate, planDayFor, weekdayOf, getWeekStart } = __req(0);
 const { quests } = __req(13);
 const { byId } = __req(5);
 const { mealTimes, daySchedule, toHHMM } = __req(14);
@@ -4260,8 +4295,7 @@ function atMin(date, minutes) {
 }
 
 function mealsFor(state, date) {
-  const plan = state.plans?.[weekStart(date)];
-  return plan?.days?.[(parseDate(date).getDay() + 6) % 7] || [];
+  return planDayFor(state, date);
 }
 
 /**
@@ -4352,8 +4386,8 @@ function buildReminders(state, now, ctx = {}) {
       if (!(isToday && last === date)) push(date, 'checkin', r.checkinAt, 'Weekly check-in (+50 XP)', 'Two minutes to look back at your week and tune the plan.', '#/checkin');
     }
 
-    // Monday: last week's Body Wrap is ready
-    if (r.checkin && (parseDate(date).getDay() + 6) % 7 === 0) {
+    // First day of the week: last week's Body Wrap is ready
+    if (r.checkin && weekdayOf(date) === getWeekStart()) {
       const ws = addDays(date, -7);
       if (state.profile?.startDate && addDays(ws, 6) >= state.profile.startDate && !state.wraps?.[ws]) {
         const w = weekBody(state, ws);
@@ -4369,7 +4403,7 @@ Object.assign(__m, { DEFAULT_REMINDERS, ENCOURAGEMENTS, reminderId, buildReminde
 },
 /* js/store.js */ 16: function (__m, __req) {
 // App state: one JSON object in localStorage. Everything stays on this device.
-const { isoDate, weekStart, addDays, hashString } = __req(0);
+const { isoDate, weekStart, addDays, hashString, weekdayOf, dateInWeek, planDayFor, setWeekStart } = __req(0);
 const { dailyTargets, estimateTdee } = __req(1);
 const { latestTrend } = __req(2);
 const { planWeek } = __req(5);
@@ -4390,7 +4424,7 @@ function emptyState() {
   return {
     version: VERSION,
     profile: null,
-    prefs: { diet: 'omnivore', allergies: [], dislikes: [], variety: 'medium', budget: 'normal', maxMinutesWeekday: 30, maxMinutesWeekend: 45, favorites: [], blockedRecipes: [], seed: 0, leftovers: true },
+    prefs: { weekStart: 0, diet: 'omnivore', allergies: [], dislikes: [], variety: 'medium', budget: 'normal', maxMinutesWeekday: 30, maxMinutesWeekend: 45, favorites: [], blockedRecipes: [], seed: 0, leftovers: true },
     weights: [],
     waist: [],
     intake: {},
@@ -4552,6 +4586,7 @@ function sanitize(s) {
   const pr = s.prefs;
   s.prefs = {
     ...pr,
+    weekStart: num(pr.weekStart, 0, 6, 0),
     diet: oneOf(pr.diet, Object.keys(DIETS), 'omnivore'),
     allergies: subset(pr.allergies, Object.keys(ALLERGENS)),
     dislikes: subset(pr.dislikes, Object.keys(FOODS)),
@@ -4627,6 +4662,8 @@ function sanitize(s) {
   s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.slice(-30) : [] }]));
   // Plans reference recipes by id; drop any plan containing an unknown recipe (it will be rebuilt).
   s.plans = Object.fromEntries(Object.entries(s.plans || {}).filter(([k, v]) => ISO.test(k) && Array.isArray(v?.days) && v.days.every((d) => Array.isArray(d) && d.every((m) => recipeIds.includes(m?.recipeId) && Number.isFinite(m.scale)))));
+  s.prefs.weekStart = Math.round(s.prefs.weekStart);
+  setWeekStart(s.prefs.weekStart);
   return s;
 }
 
@@ -4696,18 +4733,26 @@ function ensurePlan(state, date = today()) {
   if (existing && existing.sig === sig) return { state, plan: existing };
   // Keep today's meals that were already eaten/logged or chosen by hand, so ticks and swaps survive.
   const overrides = {};
-  const ti = (new Date(date + 'T12:00').getDay() + 6) % 7;
-  if (existing?.days[ti] && addDays(wk, ti) === date) {
+  const ti = weekdayOf(date);
+  const prevToday = existing?.days[ti] || planDayFor(state, date);
+  if (prevToday.length) {
     const log = state.mealLog?.[date] || {};
     const keep = {};
-    for (const m of existing.days[ti]) if (log[m.slot] || m.chosen) keep[m.slot] = m.recipeId;
+    for (const m of prevToday) if (log[m.slot] || m.chosen) keep[m.slot] = m.recipeId;
     if (Object.keys(keep).length) overrides[ti] = keep;
   }
   const days = planWeek(t, state.prefs, wk, { overrides });
-  for (const m of days[ti] || []) if (overrides[ti]?.[m.slot]) m.chosen = existing.days[ti].find((x) => x.slot === m.slot)?.chosen;
-  // Keep days that are already in the past so history isn't rewritten.
-  if (existing) {
-    for (let d = 0; d < 7; d++) if (addDays(wk, d) < date && existing.days[d]) days[d] = existing.days[d];
+  for (const m of days[ti] || []) if (overrides[ti]?.[m.slot]) m.chosen = prevToday.find((x) => x.slot === m.slot)?.chosen;
+  // Keep days that are already in the past so history isn't rewritten — also from the plan of an
+  // older week layout if the week start was changed.
+  for (let d = 0; d < 7; d++) {
+    const dd = dateInWeek(wk, d);
+    if (dd >= date) continue;
+    if (existing?.days[d]) days[d] = existing.days[d];
+    else {
+      const old = planDayFor(state, dd);
+      if (old.length) days[d] = old;
+    }
   }
   const plan = { sig, kcal: t.kcal, days, created: date };
   const plans = { ...state.plans, [wk]: plan };
@@ -4876,16 +4921,15 @@ const { byId, scaledNutrition, formatQty, SLOT_LABEL, dayTotals, ingredientText 
 const { FOODS } = __req(3);
 const store = __req(16);
 const { orderMeals } = __req(14);
-const { daysBetween, weekStart, parseDate } = __req(0);
+const { daysBetween, weekdayOf, planDayFor } = __req(0);
 
 function dayIndex(date) {
-  return (parseDate(date).getDay() + 6) % 7;
+  return weekdayOf(date);
 }
 
 /** The day's meals in the order you eat them (by your day timeline), each with `time` in minutes. */
 function mealsFor(state, date) {
-  const plan = state.plans[weekStart(date)];
-  const day = plan?.days?.[dayIndex(date)] || [];
+  const day = planDayFor(state, date);
   return orderMeals(state.profile || {}, day);
 }
 
@@ -5770,7 +5814,7 @@ const { chips } = __req(17);
 const { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } = __req(11);
 const { CARDIO, WARMUP, COOLDOWN, CHAINS } = __req(6);
 const { STOP_SIGNS } = __req(8);
-const { addDays, weekStart } = __req(0);
+const { addDays, weekStart, weekOrder, dateInWeek } = __req(0);
 const { dayIndex } = __req(18);
 
 let ratings = {}; // chainKey -> rating, for the session in progress
@@ -5854,8 +5898,9 @@ function overview(state) {
   const strengthPlanned = schedule.reduce((a, d) => a + d.items.filter((i) => i.kind === 'strength').length, 0);
   const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
   const ti = dayIndex(date);
-  const grid = schedule.map((d, i) => {
-    const dd = addDays(wk, i);
+  const grid = weekOrder().map((i) => {
+    const d = schedule[i];
+    const dd = dateInWeek(wk, i);
     const logged = state.workouts.log[dd] || [];
     const pills = d.items.map((it) => {
       const isDone = itemDone(logged, it);
@@ -6780,7 +6825,7 @@ const LEARN = [
       'Blood sugar and kidneys: activity and weight loss cut new type 2 diabetes by 58% in the DPP; diabetes and high blood pressure are the main causes of kidney disease, and moving more and a healthier weight help protect against both.',
       'Rings fill from what you log — never from eating less. They are encouragement, not a diagnosis: these are population findings, not promises about one person.'],
     ['who', 'lopez', 'messier2005', 'reynolds', 'dpp', 'niddk', 'mazeas'],
-    'Every Monday your Body Wrap opens with last week’s thank-you notes (+30 XP). Live rings on Today fill up through the week, and each body part earns bronze, silver, gold and platinum medals in Rewards.'),
+    'On the first day of each week (you choose the day, in Settings → Your day & week) your Body Wrap opens with last week’s thank-you notes (+30 XP). Live rings on Today fill up through the week, and each body part earns bronze, silver, gold and platinum medals in Rewards.'),
   C('mindful_eating', 'Habits & mindset', 'Slowing down and checking in with hunger',
     'Pausing before and during eating helps you choose deliberately.',
     ['In the ultra-processed food trial, people ate faster on the ultra-processed meals as well as eating more.',
@@ -7013,7 +7058,9 @@ const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { weekBody, lastWeekStart } = __req(12);
 const { S: SOURCES } = __req(27);
-const { weekStart, addDays } = __req(0);
+const { weekStart, addDays, getWeekStart } = __req(0);
+
+const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const { confetti, chime, buzz, floatXp } = __req(28);
 const { XP } = __req(13);
 
@@ -7076,7 +7123,7 @@ function cards(state, w, today) {
     <div class="w-grid">${w.organs.map((o) => `<button type="button" class="w-cell ${o.closed ? 'closed' : ''}" data-action="openOrgan" data-organ="${o.id}">${ring(o.pct, o.color, { size: 58, stroke: 7, label: o.emoji })}<span>${esc(o.name)}</span><b>${Math.round(o.pct * 100)}%</b>${lv[o.id] ? `<em>Lv ${lv[o.id].level}</em>` : ''}</button>`).join('')}</div>
     <p class="w-small">Tap a body part to see what it needs.</p>
     <p class="w-small">You might not feel all of this yet — but it’s happening inside, week after week.</p>
-    ${partial ? '<p class="w-small"><strong>Come back Monday</strong> for the full wrap and its XP.</p>' : claimed ? `<button class="w-btn" data-action="wrapClose">Done</button>` : `<button class="w-btn glow" data-action="wrapClaim">Collect +${XP.wrap} XP</button>`}` });
+    ${partial ? `<p class="w-small"><strong>Come back ${DAY_FULL[getWeekStart()]}</strong> for the full wrap and its XP.</p>` : claimed ? `<button class="w-btn" data-action="wrapClose">Done</button>` : `<button class="w-btn glow" data-action="wrapClaim">Collect +${XP.wrap} XP</button>`}` });
   return out;
 }
 
@@ -7442,7 +7489,7 @@ const { markChosen } = __req(18);
 const { byId, swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL, dayTotals } = __req(5);
 const { RECIPES } = __req(4);
 const { rng } = __req(0);
-const { addDays, weekStart } = __req(0);
+const { weekStart, dateInWeek, weekOrder } = __req(0);
 const { DIETS } = __req(3);
 
 const DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -7477,14 +7524,14 @@ __m.default = {
     const meals = plan.days[di] || [];
     const u = state.profile.units === 'imperial' ? 'imperial' : 'metric';
     const showNumbers = !store.habitsOnly(state);
-    const t = store.targets(state, addDays(wk, di));
+    const t = store.targets(state, dateInWeek(wk, di));
     const favs = new Set(state.prefs.favorites || []);
-    const dayDate = addDays(wk, di);
+    const dayDate = dateInWeek(wk, di);
     const canLog = dayDate <= date;
     const log = state.mealLog[dayDate] || {};
-    const tabs = DAY.map((d, i) => {
-      const dd = addDays(wk, i);
-      return `<a href="#/meals/${i}" class="${i === di ? 'on' : ''} ${dd === date ? 'today' : ''}">${d}<b>${Number(dd.slice(8))}</b></a>`;
+    const tabs = weekOrder().map((i) => {
+      const dd = dateInWeek(wk, i);
+      return `<a href="#/meals/${i}" class="${i === di ? 'on' : ''} ${dd === date ? 'today' : ''}">${DAY[i]}<b>${Number(dd.slice(8))}</b></a>`;
     }).join('');
     const totals = dayTotals(meals);
     return html`<header class="page-head"><div><div class="eyebrow">This week</div><h1>Meal plan</h1></div><a class="btn tonal small" href="#/shopping" aria-label="Shopping list">${icon('cart')}List</a></header>
@@ -7536,7 +7583,7 @@ __m.default = {
       const wk = weekStart(store.today());
       const di = Number(el.dataset.day);
       const slot = el.dataset.slot;
-      const t = store.targets(s, addDays(wk, di));
+      const t = store.targets(s, dateInWeek(wk, di));
       const locked = {};
       for (const m of s.plans[wk].days[di]) locked[m.slot] = m.recipeId;
       locked[slot] = el.dataset.id;
@@ -7552,7 +7599,7 @@ __m.default = {
       const s = ctx.state;
       const wk = weekStart(store.today());
       const di = Number(el.dataset.day);
-      const t = store.targets(s, addDays(wk, di));
+      const t = store.targets(s, dateInWeek(wk, di));
       const meals = markChosen(swapMeal(t, s.prefs, s.plans[wk].days[di], el.dataset.slot, `${wk}|${di}|${Date.now()}`), s.plans[wk].days[di], el.dataset.slot);
       ctx.update((st) => {
         st.plans[wk].days[di] = meals;
@@ -9196,7 +9243,7 @@ const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
-const { round, cmToIn } = __req(0);
+const { round, cmToIn, weekOrder } = __req(0);
 const notify = __req(42);
 const { DEFAULT_REMINDERS } = __req(15);
 const { dayFields, daySummary, readDay } = __req(20);
@@ -9209,6 +9256,16 @@ let pasteMode = false;
 const DISLIKES = Object.fromEntries(Object.entries(FOODS).map(([k, f]) => [k, f.name.replace(/,.*$/, '').replace(/ \(.*\)$/, '')]));
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** When your week resets. */
+function weekCard(state) {
+  const ws = state.prefs.weekStart || 0;
+  const order = weekOrder(ws);
+  return `<div class="card" id="week-start"><h2>Your week</h2>
+    <label class="field"><span>My week starts on</span><select data-change="weekStartSet" aria-label="Week starts on">${DAY_NAMES.map((d, i) => `<option value="${i}" ${ws === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
+    <div class="week-strip" aria-hidden="true">${order.map((i, k) => `<span class="${k === 0 ? 'first' : k === 6 ? 'last' : ''}">${DAY_NAMES[i].slice(0, 3)}</span>`).join('')}</div>
+    <p class="muted" style="font-size:var(--text-sm);margin-bottom:0">Your body rings, weekly activity target, Body Wrap, meal plan and shopping list all reset on ${DAY_NAMES[ws]}. Pick the day that feels like a fresh start — the day you shop, or the first day after the weekend. Last week’s Body Wrap opens on ${DAY_NAMES[ws]}, and the weekly check-in reminder sits on ${DAY_NAMES[(ws + 6) % 7]}, the last day of your week.</p></div>`;
+}
 
 function remindersHtml(state) {
   const r = { ...DEFAULT_REMINDERS, ...(state.reminders || {}) };
@@ -9257,7 +9314,7 @@ __m.default = {
       ['profile', 'About you', 'Body, goal, pace, health', 'today'],
       ['food', 'Food', 'Diet, allergies, foods to avoid', 'meals'],
       ['movement', 'Movement', 'Equipment, joints, days', 'move'],
-      ['day', 'Your day', (() => { const d = daySchedule(state.profile); return `Up ${toHHMM(d.wake)} · bed ${toHHMM(d.bed)} · kitchen closes ${toHHMM(d.last)}`; })(), 'clock'],
+      ['day', 'Your day & week', (() => { const d = daySchedule(state.profile); return `Up ${toHHMM(d.wake)} · bed ${toHHMM(d.bed)} · week starts ${DAY_NAMES[state.prefs.weekStart || 0]}`; })(), 'clock'],
       ['alarms', 'Alarms & wake-up', alarmsSummary(state), 'clock'],
       ['reminders', 'Reminders', state.reminders?.enabled ? 'Nudges to log, move and keep your streak · on' : 'Nudges to log, move and keep your streak · off', 'calendar'],
       ['appearance', 'Appearance & feedback', 'Theme, sounds, vibration', 'star'],
@@ -9288,13 +9345,14 @@ __m.default = {
         <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
       </form>
 `;
-    if (section === 'day') return head('Your day') + `
+    if (section === 'day') return head('Your day & week') + `
       <form data-form="daySave" class="card">
         <p class="muted" style="font-size:var(--text-sm);margin-top:0">Your meal times, snacks and reminders follow this. Snacks go between meals, never after the kitchen closes.</p>
         ${dayFields(p)}
         <div data-live="day">${daySummary(p)}</div>
         <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
-      </form>`;
+      </form>
+      ${weekCard(state)}`;
     if (section === 'food') return head('Food') + `
       <form data-form="food" class="card">
         <fieldset><legend>Diet</legend>${chips('diet', Object.fromEntries(Object.entries(DIETS).map(([k, d]) => [k, d.label])), pr.diet, { multi: false })}</fieldset>
@@ -9360,6 +9418,18 @@ __m.default = {
   },
   actions: {
     ...alarmActions,
+    weekStartSet(el, ev, ctx) {
+      const next = Number(el.value);
+      const prev = ctx.state.prefs.weekStart || 0;
+      if (next === prev) return;
+      ctx.update((st) => {
+        st.prefs = { ...st.prefs, weekStart: next };
+        // The check-in reminder followed the old week's last day: move it to the new one.
+        if (Number(st.reminders?.checkinDay ?? 6) === (prev + 6) % 7) st.reminders = { ...st.reminders, checkinDay: (next + 6) % 7 };
+        return st;
+      }, { quiet: true });
+      ctx.toast(`Your week now starts on ${DAY_NAMES[next]}`);
+    },
     useGoalDraft(el) {
       const input = el.closest('form')?.querySelector('[name=goal]');
       if (input) input.value = el.dataset.value;
@@ -9575,7 +9645,7 @@ Object.assign(__m, {  });
 const { html, esc, icon } = __req(17);
 const store = __req(16);
 const { shoppingList, formatQty } = __req(5);
-const { weekStart } = __req(0);
+const { weekStart, weekOrder } = __req(0);
 const { dayIndex } = __req(18);
 
 const AISLE_ORDER = ['Produce', 'Frozen', 'Meat & fish', 'Dairy & eggs', 'Bakery', 'Canned & dry'];
@@ -9586,8 +9656,10 @@ __m.default = {
     const wk = weekStart(date);
     const plan = state.plans[wk];
     const scope = params[0] === 'week' ? 'week' : 'rest';
-    const from = scope === 'week' ? 0 : dayIndex(date);
-    const days = plan.days.slice(from);
+    // The rest of the week in the order it runs from your chosen start day.
+    const order = weekOrder();
+    const from = scope === 'week' ? 0 : order.indexOf(dayIndex(date));
+    const days = order.slice(from).map((i) => plan.days[i] || []);
     const list = shoppingList(days);
     const u = state.profile.units === 'imperial' ? 'imperial' : 'metric';
     const got = new Set(state.shopGot?.[wk] || []);
@@ -9934,6 +10006,7 @@ Object.assign(__m, { organSheetHtml, organActions });
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(16);
 const { icon, formData } = __req(17);
+const { setWeekStart } = __req(0);
 const onboarding = __req(23).default;
 const { goalHint } = __req(23);
 const todayView = __req(30).default;
@@ -9988,6 +10061,7 @@ const ctx = {
       for (const id of after.newBadges) next.game.badges[id] = store.today();
     }
     state = next;
+    setWeekStart(state.prefs?.weekStart || 0);
     if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game));
     scheduleSync();
     if (!store.save(state)) ctx.toast('Couldn’t save — your browser is blocking storage. Export your data in Settings to keep it.');

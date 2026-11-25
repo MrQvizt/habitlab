@@ -631,3 +631,57 @@ test('body levels: consistency over weeks, capped weekly points, streak bonus', 
   const empty = { profile: { startDate: today } };
   assert.equal(bodyCollection(empty, today).levels.heart.points, 0);
 });
+
+test('week start: user-chosen reset day; plans, history, wraps and reminders follow it', async () => {
+  const u = await import('../js/engine/util.js');
+  const { demoState } = await import('../js/demo.js');
+  const store = await import('../js/store.js');
+  const { mealsFor } = await import('../js/views/shared.js');
+  const { weekBody, lastWeekStart } = await import('../js/engine/body.js');
+  const { buildReminders } = await import('../js/engine/reminders.js');
+  try {
+    // 2026-11-25 is a Wednesday
+    assert.equal(u.weekStart('2026-11-25', 0), '2026-11-23'); // Monday start
+    assert.equal(u.weekStart('2026-11-25', 6), '2026-11-22'); // Sunday start
+    assert.equal(u.weekStart('2026-11-22', 6), '2026-11-22');
+    assert.equal(u.weekStart('2026-11-25', 2), '2026-11-25'); // Wednesday start
+    assert.equal(u.weekStart('2026-11-24', 2), '2026-11-18');
+    assert.deepEqual(u.weekOrder(6), [6, 0, 1, 2, 3, 4, 5]);
+    assert.equal(u.dateInWeek('2026-11-22', 6), '2026-11-22');
+    assert.equal(u.dateInWeek('2026-11-22', 0), '2026-11-23');
+    // Sanitising applies the setting; bad values fall back to Monday
+    store.sanitize({ ...store.emptyState(), prefs: { ...store.emptyState().prefs, weekStart: 9 } });
+    assert.equal(u.getWeekStart(), 6); // clamped to Sunday (0–6)
+    store.sanitize({ ...store.emptyState(), prefs: { ...store.emptyState().prefs, weekStart: 'x' } });
+    assert.equal(u.getWeekStart(), 0);
+
+    // Switching mid-week keeps what you already ate and the past days of the plan
+    u.setWeekStart(0);
+    let s = demoState();
+    const today = u.isoDate();
+    const before = Object.fromEntries(Array.from({ length: 7 }, (_, i) => u.addDays(today, -i)).map((d) => [d, mealsFor(s, d).map((m) => m.recipeId).join()]));
+    s.prefs.weekStart = 6;
+    u.setWeekStart(6);
+    s = store.ensurePlan(s, today).state;
+    assert.ok(s.plans[u.weekStart(today)], 'plan exists under the new week key');
+    for (let i = 1; i < 7; i++) {
+      const d = u.addDays(today, -i);
+      if (d < u.weekStart(today)) continue;
+      assert.equal(mealsFor(s, d).map((m) => m.recipeId).join(), before[d], `past day ${d} unchanged`);
+    }
+    for (const slot of Object.keys(s.mealLog[today] || {})) assert.ok(mealsFor(s, today).some((m) => m.slot === slot), 'today’s logged meals kept');
+
+    // Body week and the wrap follow the new boundary
+    const ws = u.weekStart(today);
+    assert.equal(u.weekdayOf(ws), 6);
+    assert.equal(weekBody(s, ws, { asOf: today }).ws, ws);
+    assert.equal(u.weekdayOf(lastWeekStart(s, today)), 6);
+    // The "Body Wrap is ready" notification fires on the first day of the user's week
+    const sR = { ...s, reminders: { ...s.reminders, enabled: true, checkin: true } };
+    const wraps = buildReminders(sR, new Date(today + 'T00:05')).filter((r) => r.route.startsWith('#/wrap/'));
+    assert.ok(wraps.length >= 1, 'a wrap reminder is scheduled');
+    for (const r of wraps) assert.equal(r.at.getDay(), 0, 'wrap reminder on Sunday');
+  } finally {
+    u.setWeekStart(0);
+  }
+});

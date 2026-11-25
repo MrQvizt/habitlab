@@ -207,7 +207,7 @@ export const LEARN = [
       'Blood sugar and kidneys: activity and weight loss cut new type 2 diabetes by 58% in the DPP; diabetes and high blood pressure are the main causes of kidney disease, and moving more and a healthier weight help protect against both.',
       'Rings fill from what you log — never from eating less. They are encouragement, not a diagnosis: these are population findings, not promises about one person.'],
     ['who', 'lopez', 'messier2005', 'reynolds', 'dpp', 'niddk', 'mazeas'],
-    'Every Monday your Body Wrap opens with last week’s thank-you notes (+30 XP). Live rings on Today fill up through the week, and each body part earns bronze, silver, gold and platinum medals in Rewards.'),
+    'On the first day of each week (you choose the day, in Settings → Your day & week) your Body Wrap opens with last week’s thank-you notes (+30 XP). Live rings on Today fill up through the week, and each body part earns bronze, silver, gold and platinum medals in Rewards.'),
   C('mindful_eating', 'Habits & mindset', 'Slowing down and checking in with hunger',
     'Pausing before and during eating helps you choose deliberately.',
     ['In the ultra-processed food trial, people ate faster on the ultra-processed meals as well as eating more.',

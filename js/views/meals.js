@@ -7,7 +7,7 @@ import { markChosen } from './shared.js';
 import { byId, swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL, dayTotals } from '../engine/meals.js';
 import { RECIPES } from '../data/recipes.js';
 import { rng } from '../engine/util.js';
-import { addDays, weekStart } from '../engine/util.js';
+import { weekStart, dateInWeek, weekOrder } from '../engine/util.js';
 import { DIETS } from '../data/foods.js';
 
 const DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -42,14 +42,14 @@ export default {
     const meals = plan.days[di] || [];
     const u = state.profile.units === 'imperial' ? 'imperial' : 'metric';
     const showNumbers = !store.habitsOnly(state);
-    const t = store.targets(state, addDays(wk, di));
+    const t = store.targets(state, dateInWeek(wk, di));
     const favs = new Set(state.prefs.favorites || []);
-    const dayDate = addDays(wk, di);
+    const dayDate = dateInWeek(wk, di);
     const canLog = dayDate <= date;
     const log = state.mealLog[dayDate] || {};
-    const tabs = DAY.map((d, i) => {
-      const dd = addDays(wk, i);
-      return `<a href="#/meals/${i}" class="${i === di ? 'on' : ''} ${dd === date ? 'today' : ''}">${d}<b>${Number(dd.slice(8))}</b></a>`;
+    const tabs = weekOrder().map((i) => {
+      const dd = dateInWeek(wk, i);
+      return `<a href="#/meals/${i}" class="${i === di ? 'on' : ''} ${dd === date ? 'today' : ''}">${DAY[i]}<b>${Number(dd.slice(8))}</b></a>`;
     }).join('');
     const totals = dayTotals(meals);
     return html`<header class="page-head"><div><div class="eyebrow">This week</div><h1>Meal plan</h1></div><a class="btn tonal small" href="#/shopping" aria-label="Shopping list">${icon('cart')}List</a></header>
@@ -101,7 +101,7 @@ export default {
       const wk = weekStart(store.today());
       const di = Number(el.dataset.day);
       const slot = el.dataset.slot;
-      const t = store.targets(s, addDays(wk, di));
+      const t = store.targets(s, dateInWeek(wk, di));
       const locked = {};
       for (const m of s.plans[wk].days[di]) locked[m.slot] = m.recipeId;
       locked[slot] = el.dataset.id;
@@ -117,7 +117,7 @@ export default {
       const s = ctx.state;
       const wk = weekStart(store.today());
       const di = Number(el.dataset.day);
-      const t = store.targets(s, addDays(wk, di));
+      const t = store.targets(s, dateInWeek(wk, di));
       const meals = markChosen(swapMeal(t, s.prefs, s.plans[wk].days[di], el.dataset.slot, `${wk}|${di}|${Date.now()}`), s.plans[wk].days[di], el.dataset.slot);
       ctx.update((st) => {
         st.plans[wk].days[di] = meals;

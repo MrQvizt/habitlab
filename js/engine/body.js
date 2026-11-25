@@ -2,7 +2,7 @@
 // Each "organ" has a ring (like activity rings) filled by logged behaviours, and a one-line research
 // fact with its source (keys of the source list in data/learn.js). Claims stay at the level of the
 // evidence: "linked to", "lowers risk", never promises about one person.
-import { addDays, daysBetween, parseDate, weekStart } from './util.js';
+import { addDays, daysBetween, weekStart, planDayFor } from './util.js';
 import { creditedMinutes, stepGoal } from './workouts.js';
 import { byId, scaledNutrition } from './meals.js';
 import { trendSeries } from './trend.js';
@@ -46,8 +46,7 @@ export const ORGANS = [
 export const organById = (id) => ORGANS.find((o) => o.id === id);
 
 function plannedMeals(state, date) {
-  const plan = state.plans?.[weekStart(date)];
-  return plan?.days?.[(parseDate(date).getDay() + 6) % 7] || [];
+  return planDayFor(state, date);
 }
 
 function isStrength(state, w) {

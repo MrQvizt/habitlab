@@ -4,7 +4,7 @@
 // Principles: specific beats generic ("Lunch: Greek salad with chicken" > "Time to eat"); skip
 // anything already done; never shame; quiet by default at night; a few encouraging messages,
 // rotating so they don't go stale.
-import { addDays, weekStart, parseDate, hashString, isoDate } from './util.js';
+import { addDays, weekStart, parseDate, hashString, isoDate, planDayFor, weekdayOf, getWeekStart } from './util.js';
 import { quests } from './game.js';
 import { byId } from './meals.js';
 import { mealTimes, daySchedule, toHHMM } from './schedule.js';
@@ -67,8 +67,7 @@ function atMin(date, minutes) {
 }
 
 function mealsFor(state, date) {
-  const plan = state.plans?.[weekStart(date)];
-  return plan?.days?.[(parseDate(date).getDay() + 6) % 7] || [];
+  return planDayFor(state, date);
 }
 
 /**
@@ -159,8 +158,8 @@ export function buildReminders(state, now, ctx = {}) {
       if (!(isToday && last === date)) push(date, 'checkin', r.checkinAt, 'Weekly check-in (+50 XP)', 'Two minutes to look back at your week and tune the plan.', '#/checkin');
     }
 
-    // Monday: last week's Body Wrap is ready
-    if (r.checkin && (parseDate(date).getDay() + 6) % 7 === 0) {
+    // First day of the week: last week's Body Wrap is ready
+    if (r.checkin && weekdayOf(date) === getWeekStart()) {
       const ws = addDays(date, -7);
       if (state.profile?.startDate && addDays(ws, 6) >= state.profile.startDate && !state.wraps?.[ws]) {
         const w = weekBody(state, ws);

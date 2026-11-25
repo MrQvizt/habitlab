@@ -36,11 +36,44 @@ export function daysBetween(a, b) {
 }
 
 /** Monday of the week containing iso date. */
-export function weekStart(iso) {
+// ---------- The user's week ----------
+// Weekdays are identified Monday = 0 … Sunday = 6 everywhere (plans, workouts, alarms). Where the
+// week *starts* is the user's choice (prefs.weekStart): rings, Body Wraps, weekly targets, the meal
+// plan and the shopping list all reset on that day.
+let WEEK_START = 0;
+export function setWeekStart(n) {
+  WEEK_START = Number.isInteger(Number(n)) && n >= 0 && n <= 6 ? Number(n) : 0;
+}
+export function getWeekStart() {
+  return WEEK_START;
+}
+/** Weekday of a date, Monday = 0. */
+export function weekdayOf(iso) {
+  return (parseDate(iso).getDay() + 6) % 7;
+}
+/** The first day of the week containing `iso`. */
+export function weekStart(iso, start = WEEK_START) {
   const d = parseDate(iso);
-  const dow = (d.getDay() + 6) % 7; // 0 = Monday
-  d.setDate(d.getDate() - dow);
+  d.setDate(d.getDate() - ((d.getDay() + 6 - start + 7) % 7));
   return isoDate(d);
+}
+/** Weekday indices in the order the user's week runs, e.g. [6,0,1,2,3,4,5] for a Sunday start. */
+export function weekOrder(start = WEEK_START) {
+  return Array.from({ length: 7 }, (_, i) => (start + i) % 7);
+}
+/** The date of weekday `wd` (Monday = 0) in the week starting `ws`. */
+export function dateInWeek(ws, wd) {
+  return addDays(ws, (wd - weekdayOf(ws) + 7) % 7);
+}
+/** The meal-plan day for a date: from the week that contains it (survives a change of week start). */
+export function planDayFor(state, date) {
+  const plans = state.plans || {};
+  let plan = plans[weekStart(date)];
+  if (!plan?.days) {
+    const key = Object.keys(plans).filter((k) => k <= date && daysBetween(k, date) < 7).sort().pop();
+    plan = key ? plans[key] : null;
+  }
+  return plan?.days?.[weekdayOf(date)] || [];
 }
 
 /** Deterministic PRNG (mulberry32) so a week's plan is stable until the user changes something. */

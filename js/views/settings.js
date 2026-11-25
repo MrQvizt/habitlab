@@ -7,7 +7,7 @@ import { ACTIVITY_LEVELS, PACES, weightAtBmi } from '../engine/calc.js';
 import { DIETS, ALLERGENS, FOODS } from '../data/foods.js';
 import { CARDIO } from '../data/exercises.js';
 import { initialProgress, availableSteps } from '../engine/workouts.js';
-import { round, cmToIn } from '../engine/util.js';
+import { round, cmToIn, weekOrder } from '../engine/util.js';
 import * as notify from '../notify.js';
 import { DEFAULT_REMINDERS } from '../engine/reminders.js';
 import { dayFields, daySummary, readDay } from './day.js';
@@ -20,6 +20,16 @@ let pasteMode = false;
 const DISLIKES = Object.fromEntries(Object.entries(FOODS).map(([k, f]) => [k, f.name.replace(/,.*$/, '').replace(/ \(.*\)$/, '')]));
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** When your week resets. */
+function weekCard(state) {
+  const ws = state.prefs.weekStart || 0;
+  const order = weekOrder(ws);
+  return `<div class="card" id="week-start"><h2>Your week</h2>
+    <label class="field"><span>My week starts on</span><select data-change="weekStartSet" aria-label="Week starts on">${DAY_NAMES.map((d, i) => `<option value="${i}" ${ws === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
+    <div class="week-strip" aria-hidden="true">${order.map((i, k) => `<span class="${k === 0 ? 'first' : k === 6 ? 'last' : ''}">${DAY_NAMES[i].slice(0, 3)}</span>`).join('')}</div>
+    <p class="muted" style="font-size:var(--text-sm);margin-bottom:0">Your body rings, weekly activity target, Body Wrap, meal plan and shopping list all reset on ${DAY_NAMES[ws]}. Pick the day that feels like a fresh start — the day you shop, or the first day after the weekend. Last week’s Body Wrap opens on ${DAY_NAMES[ws]}, and the weekly check-in reminder sits on ${DAY_NAMES[(ws + 6) % 7]}, the last day of your week.</p></div>`;
+}
 
 function remindersHtml(state) {
   const r = { ...DEFAULT_REMINDERS, ...(state.reminders || {}) };
@@ -68,7 +78,7 @@ export default {
       ['profile', 'About you', 'Body, goal, pace, health', 'today'],
       ['food', 'Food', 'Diet, allergies, foods to avoid', 'meals'],
       ['movement', 'Movement', 'Equipment, joints, days', 'move'],
-      ['day', 'Your day', (() => { const d = daySchedule(state.profile); return `Up ${toHHMM(d.wake)} · bed ${toHHMM(d.bed)} · kitchen closes ${toHHMM(d.last)}`; })(), 'clock'],
+      ['day', 'Your day & week', (() => { const d = daySchedule(state.profile); return `Up ${toHHMM(d.wake)} · bed ${toHHMM(d.bed)} · week starts ${DAY_NAMES[state.prefs.weekStart || 0]}`; })(), 'clock'],
       ['alarms', 'Alarms & wake-up', alarmsSummary(state), 'clock'],
       ['reminders', 'Reminders', state.reminders?.enabled ? 'Nudges to log, move and keep your streak · on' : 'Nudges to log, move and keep your streak · off', 'calendar'],
       ['appearance', 'Appearance & feedback', 'Theme, sounds, vibration', 'star'],
@@ -99,13 +109,14 @@ export default {
         <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
       </form>
 `;
-    if (section === 'day') return head('Your day') + `
+    if (section === 'day') return head('Your day & week') + `
       <form data-form="daySave" class="card">
         <p class="muted" style="font-size:var(--text-sm);margin-top:0">Your meal times, snacks and reminders follow this. Snacks go between meals, never after the kitchen closes.</p>
         ${dayFields(p)}
         <div data-live="day">${daySummary(p)}</div>
         <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
-      </form>`;
+      </form>
+      ${weekCard(state)}`;
     if (section === 'food') return head('Food') + `
       <form data-form="food" class="card">
         <fieldset><legend>Diet</legend>${chips('diet', Object.fromEntries(Object.entries(DIETS).map(([k, d]) => [k, d.label])), pr.diet, { multi: false })}</fieldset>
@@ -171,6 +182,18 @@ export default {
   },
   actions: {
     ...alarmActions,
+    weekStartSet(el, ev, ctx) {
+      const next = Number(el.value);
+      const prev = ctx.state.prefs.weekStart || 0;
+      if (next === prev) return;
+      ctx.update((st) => {
+        st.prefs = { ...st.prefs, weekStart: next };
+        // The check-in reminder followed the old week's last day: move it to the new one.
+        if (Number(st.reminders?.checkinDay ?? 6) === (prev + 6) % 7) st.reminders = { ...st.reminders, checkinDay: (next + 6) % 7 };
+        return st;
+      }, { quiet: true });
+      ctx.toast(`Your week now starts on ${DAY_NAMES[next]}`);
+    },
     useGoalDraft(el) {
       const input = el.closest('form')?.querySelector('[name=goal]');
       if (input) input.value = el.dataset.value;

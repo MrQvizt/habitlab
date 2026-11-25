@@ -8,7 +8,7 @@
 //   and nothing is lost if the plan is rebuilt.
 // - A small, unpredictable "lucky bonus" (variable reward) makes ticking things off more fun.
 //   It is deterministic per item, so it can't be re-rolled.
-import { addDays, daysBetween, weekStart, hashString, parseDate } from './util.js';
+import { addDays, daysBetween, weekStart, hashString, planDayFor } from './util.js';
 import { stepGoal, creditedMinutes } from './workouts.js';
 import { habitLevels, levelIndex } from './habits.js';
 import { bodyCollection } from './body.js';
@@ -52,9 +52,7 @@ export function levelTitle(n) {
 const isLucky = (key) => hashString(key) % 6 === 0; // about 1 in 6 items
 
 function mealsFor(state, date) {
-  const plan = state.plans?.[weekStart(date)];
-  const di = (parseDate(date).getDay() + 6) % 7;
-  return plan?.days?.[di] || [];
+  return planDayFor(state, date);
 }
 
 /**
