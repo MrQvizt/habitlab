@@ -71,8 +71,33 @@ const shots = process.argv[3] || null;
   await page.fill('.own-value input', 'My kids');
   await page.click('.own-value button');
   await page.waitForSelector('label.chip.own:has-text("My kids")');
-  // Three values is the limit: Add is disabled until one is unticked
-  if (!(await page.locator('.own-value button[disabled]').count())) errors.push('add should be disabled at 3 values');
+  if (!(await page.locator('label.chip.own:has-text("My kids") input:checked').count())) errors.push('a new own value is picked while there is room');
+  // With 3 picked, a new own value is saved to the list but not picked
+  await page.fill('.own-value input', 'Painting');
+  await page.click('.own-value button');
+  await page.waitForSelector('label.chip.own:has-text("Painting")');
+  if (await page.locator('label.chip.own:has-text("Painting") input:checked').count()) errors.push('4th value should not be picked');
+  // Unticking an own value keeps it on the list; it can be picked again later
+  await page.click('label.chip.own:has-text("My kids")');
+  await page.waitForTimeout(300);
+  if (!(await page.locator('label.chip.own:has-text("My kids")').count())) errors.push('unticked own value disappeared');
+  await page.click('label.chip.own:has-text("Painting")');
+  await page.waitForSelector('label.chip.own:has-text("Painting") input:checked');
+  await page.click('label.chip.own:has-text("My kids")'); // 4th: refused, stays unticked
+  await page.waitForTimeout(300);
+  if (await page.locator('label.chip.own:has-text("My kids") input:checked').count()) errors.push('more than 3 picked');
+  // × deletes an own value
+  await page.fill('.own-value input', 'Temp value');
+  await page.click('.own-value button');
+  await page.waitForSelector('label.chip.own:has-text("Temp value")');
+  await page.click('[data-action=affirmRemoveOwn][data-value="Temp value"]');
+  await page.waitForTimeout(300);
+  if (await page.locator('label.chip.own:has-text("Temp value")').count()) errors.push('delete did not remove the value');
+  // Pick My kids again (untick Energy) for the rest of the test
+  await page.click('label.chip:has-text("Energy")');
+  await page.waitForTimeout(200);
+  await page.click('label.chip.own:has-text("My kids")');
+  await page.waitForSelector('label.chip.own:has-text("My kids") input:checked');
   await page.fill('[data-change=affirmWhy]', 'To have energy to play with my kids');
   await page.locator('[data-change=affirmWhy]').dispatchEvent('change');
   await page.fill('[data-change=affirmCustom]', 'Future you is proud of you.');

@@ -5,6 +5,18 @@ import { daySchedule, mealTimes } from '../engine/schedule.js';
 import { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, valueInfo, morningMessages, messageForDay } from '../data/affirmations.js';
 import * as alarmNative from '../alarm-native.js';
 
+/** Your own values: saved even when not picked (older versions kept them only while picked). */
+export function ownValues(affirm = {}) {
+  const list = [...(affirm.own || []), ...(affirm.values || []).filter((v) => !VALUES[v])];
+  const seen = new Set();
+  return list.filter((v) => {
+    const k = v.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -58,9 +70,9 @@ export function alarmsPage(state) {
     <div class="card">
       <h3 style="margin-top:0">What matters most to you?</h3>
       <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Pick up to ${MAX_VALUES}, or add your own. Reflecting on your own values is the form of self-affirmation shown in brain scans to engage reward and self-related areas — and to help people become more active.</p>
-      <div class="chips">${Object.entries(VALUES).map(([k, v]) => `<label class="chip"><input type="checkbox" data-change="affirmValue" value="${k}" ${(affirm.values || []).includes(k) ? 'checked' : ''}><span>${esc(v.label)}</span></label>`).join('')}${(affirm.values || []).filter((v) => !VALUES[v]).map((v) => `<label class="chip own"><input type="checkbox" data-change="affirmValue" value="${esc(v)}" checked><span>${esc(valueInfo(v).label)}</span></label>`).join('')}</div>
-      <form class="own-value" data-form="affirmAddValue"><input type="text" name="value" maxlength="30" placeholder="Add your own — e.g. My kids, Painting, Being present" aria-label="Add your own value"><button class="btn small tonal" ${(affirm.values || []).length >= MAX_VALUES ? 'disabled title="Untick one first"' : ''}>Add</button></form>
-      ${(affirm.values || []).some((v) => !VALUES[v]) ? `<p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">Untick your own value to remove it.</p>` : ''}
+      <div class="chips">${Object.entries(VALUES).map(([k, v]) => `<label class="chip"><input type="checkbox" data-change="affirmValue" value="${k}" ${(affirm.values || []).includes(k) ? 'checked' : ''}><span>${esc(v.label)}</span></label>`).join('')}${ownValues(affirm).map((v) => `<span class="own-chip"><label class="chip own"><input type="checkbox" data-change="affirmValue" value="${esc(v)}" ${(affirm.values || []).includes(v) ? 'checked' : ''}><span>${esc(valueInfo(v).label)}</span></label><button type="button" class="own-x" data-action="affirmRemoveOwn" data-value="${esc(v)}" aria-label="Delete ${esc(valueInfo(v).label)}">${icon('x')}</button></span>`).join('')}</div>
+      <form class="own-value" data-form="affirmAddValue"><input type="text" name="value" maxlength="30" placeholder="Add your own — e.g. My kids, Painting, Being present" aria-label="Add your own value"><button class="btn small tonal">Add</button></form>
+      ${ownValues(affirm).length ? `<p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">Your own values stay on the list — tick the ones to use, tap × to delete one. ${(affirm.values || []).length}/${MAX_VALUES} picked.</p>` : ''}
       <label class="field" style="margin-top:14px"><span>Your “why” <span class="hint">Finish the sentence: I’m doing this…</span></span><input type="text" maxlength="120" data-change="affirmWhy" value="${esc(affirm.why || '')}" placeholder="to have energy to play with my kids"></label>
     </div>
     <div class="card">
@@ -150,21 +162,35 @@ export const alarmActions = {
       return ctx.toast(`Pick up to ${MAX_VALUES} — the ones that matter most`);
     }
     save(ctx, (st) => {
-      st.affirm = { ...(st.affirm || {}), values: picked };
+      // Keep own values on the list when they're unticked.
+      st.affirm = { ...(st.affirm || {}), own: ownValues(st.affirm || {}), values: picked };
     });
   },
   affirmAddValue(form, ev, ctx, data) {
     const v = String(data.value || '').trim().replace(/\s+/g, ' ').slice(0, 30);
     if (!v) return;
-    const cur = ctx.state.affirm?.values || [];
-    if (cur.some((x) => valueInfo(x).label.toLowerCase() === valueInfo(v).label.toLowerCase())) return ctx.toast('Already on your list');
-    if (cur.length >= MAX_VALUES) return ctx.toast(`You have ${MAX_VALUES} already — untick one to add this`);
+    const affirm = ctx.state.affirm || {};
+    const picked = affirm.values || [];
     // A typed preset ("family") just ticks the preset.
     const preset = Object.entries(VALUES).find(([, x]) => x.label.toLowerCase() === v.toLowerCase())?.[0];
+    const own = ownValues(affirm);
+    if (!preset && own.some((x) => x.toLowerCase() === v.toLowerCase())) return ctx.toast('Already on your list');
+    if (!preset && own.length >= 12) return ctx.toast('That’s 12 of your own — delete one to add another');
+    const room = picked.length < MAX_VALUES;
     save(ctx, (st) => {
-      st.affirm = { ...(st.affirm || {}), values: [...cur, preset || v] };
+      const cur = st.affirm || {};
+      const values = cur.values || [];
+      st.affirm = { ...cur, own: preset ? ownValues(cur) : [...ownValues(cur), v], values: room && !values.includes(preset || v) ? [...values, preset || v] : values };
     });
-    ctx.toast(`Added “${valueInfo(preset || v).label}”`);
+    ctx.toast(room ? `Added and picked “${valueInfo(preset || v).label}”` : `Saved “${valueInfo(preset || v).label}” — you have ${MAX_VALUES} picked, untick one to use it`);
+  },
+  affirmRemoveOwn(el, ev, ctx) {
+    const v = el.dataset.value;
+    save(ctx, (st) => {
+      const cur = st.affirm || {};
+      st.affirm = { ...cur, own: ownValues(cur).filter((x) => x !== v), values: (cur.values || []).filter((x) => x !== v) };
+    });
+    ctx.toast(`Deleted “${valueInfo(v).label}”`);
   },
   affirmWhy(el, ev, ctx) {
     save(ctx, (st) => {

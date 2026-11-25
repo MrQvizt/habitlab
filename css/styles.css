@@ -1006,3 +1006,9 @@ body.wrap-open .modal-wrap { z-index: 1200; }
 .own-value { display: flex; gap: 8px; margin-top: 12px; }
 .own-value input { flex: 1; min-width: 0; }
 .chip.own span { border-style: dashed; }
+
+.own-chip { display: inline-flex; align-items: center; gap: 0; }
+.own-chip .chip { margin-right: 0; }
+.own-x { width: 30px; height: 30px; margin-left: -4px; border-radius: 50%; border: 0; background: transparent; color: var(--ink-3); display: grid; place-items: center; cursor: pointer; }
+.own-x:hover { background: var(--surface-2); color: var(--danger, #c0392b); }
+.own-x svg { width: 15px; height: 15px; }

@@ -16,7 +16,7 @@ export const DEFAULT_ALARMS = {
   snooze: 9,
 };
 
-export const DEFAULT_AFFIRM = { values: [], why: '', sets: null, custom: [], favs: [] };
+export const DEFAULT_AFFIRM = { values: [], own: [], why: '', sets: null, custom: [], favs: [] };
 
 export const STYLES = {
   ring: { label: 'Alarm', hint: 'Rings with a gentle melody until you tap “I’m up”' },
