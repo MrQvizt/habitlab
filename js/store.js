@@ -373,8 +373,17 @@ export function exportJson(state) {
   return JSON.stringify({ app: 'habit-lab', exported: new Date().toISOString(), state }, null, 2);
 }
 
+export const MAX_IMPORT_BYTES = 10 * 1024 * 1024; // a two-year backup is ~200 KB
 export function importJson(text) {
-  const obj = JSON.parse(text);
+  if (typeof text !== 'string' || !text.trim()) throw new Error('This file is empty.');
+  if (text.length > MAX_IMPORT_BYTES) throw new Error('This file is too large to be a Habit Lab backup.');
+  let obj;
+  try {
+    obj = JSON.parse(text);
+  } catch (e) {
+    throw new Error('This file isn’t a Habit Lab backup (it isn’t valid JSON).');
+  }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('This file doesn’t look like a Habit Lab export.');
   const s = obj.state || obj;
   if (!s || typeof s !== 'object' || !('profile' in s)) throw new Error('This file doesn’t look like a Habit Lab export.');
   return migrate(s);

@@ -7,6 +7,7 @@
 // (single-line `import … from './x.js'` and `export function/const/default/{…}`) and fails loudly on
 // anything else, or on circular imports.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { dirname, join, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -81,6 +82,7 @@ const headBits = `<title>Habit Lab</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Evidence-based adaptive habit coach for weight loss: meal plans, workouts and habits that adjust to your weekly check-ins.">
 <meta name="theme-color" content="#1f7a5c">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="${icon}">
 <style>${css}</style>`;
 const bodyBits = `<div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
@@ -94,5 +96,45 @@ writeFileSync(join(root, 'dist/embed.html'), `${headBits}\n${bodyBits}\n`);
 // www/ is what the Android app (Capacitor) packages.
 mkdirSync(join(root, 'www/icons'), { recursive: true });
 writeFileSync(join(root, 'www/index.html'), readFileSync(join(root, 'dist/habit-lab.html')));
+// Web extras: installable (manifest) and offline (service worker).
+writeFileSync(join(root, 'www/manifest.webmanifest'), readFileSync(join(root, 'manifest.webmanifest')));
+writeFileSync(join(root, 'www/sw.js'), readFileSync(join(root, 'sw.js')));
 for (const f of ['icon-192.png', 'icon-512.png', 'icon.svg']) writeFileSync(join(root, 'www/icons', f), readFileSync(join(root, 'icons', f)));
+// Security headers for the web build (Vercel). The Content-Security-Policy allows exactly this build's
+// inline script (by hash) and nothing else: no other scripts, no network, no plugins, no framing.
+// Not applied inside the Android app, where Capacitor injects its own bridge script.
+export const SCRIPT_HASH = 'sha256-' + createHash('sha256').update(safeJs).digest('base64');
+const csp = [
+  "default-src 'none'",
+  `script-src '${SCRIPT_HASH}'`,
+  "style-src 'unsafe-inline'",
+  "img-src 'self' data:",
+  "manifest-src 'self'",
+  "worker-src 'self'",
+  "connect-src 'self'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+].join('; ');
+const vercel = {
+  $schema: 'https://openapi.vercel.sh/vercel.json',
+  buildCommand: 'npm run build',
+  outputDirectory: 'www',
+  headers: [
+    {
+      source: '/(.*)',
+      headers: [
+        { key: 'Content-Security-Policy', value: csp },
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'Referrer-Policy', value: 'no-referrer' },
+        { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()' },
+        { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+      ],
+    },
+    { source: '/sw.js', headers: [{ key: 'Cache-Control', value: 'no-cache' }] },
+  ],
+};
+writeFileSync(join(root, 'vercel.json'), JSON.stringify(vercel, null, 2) + '\n');
+
 console.log(`built dist/habit-lab.html: ${modules.size} modules, ${(js.length / 1024).toFixed(0)} KB of JS`);

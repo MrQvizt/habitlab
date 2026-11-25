@@ -40,8 +40,14 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
+        <!-- Fires alarms: private to the app (only our own PendingIntents reach it). -->
         <receiver
             android:name=".alarm.AlarmReceiver"
+            android:exported="false" />
+
+        <!-- System events only: re-schedules alarms, nothing else. -->
+        <receiver
+            android:name=".alarm.BootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

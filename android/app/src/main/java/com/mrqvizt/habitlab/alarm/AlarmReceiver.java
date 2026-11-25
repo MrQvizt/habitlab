@@ -45,7 +45,7 @@ public class AlarmReceiver extends BroadcastReceiver {
                 }
             }
         }
-        // Always line up the next occurrence (also handles BOOT_COMPLETED, TIME_SET, package replaced).
+        // Line up the next occurrence. (Reboots and clock changes are handled by BootReceiver.)
         AlarmScheduler.scheduleAll(ctx);
     }
 

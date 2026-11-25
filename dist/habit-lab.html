@@ -7,6 +7,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Evidence-based adaptive habit coach for weight loss: meal plans, workouts and habits that adjust to your weekly check-ins.">
 <meta name="theme-color" content="#1f7a5c">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f7a5c%22%2F%3E%3Cpath%20d%3D%22M18%2034l9%209%2019-21%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E">
 <style>/* Habit Lab design system.
    Layout concept: one calm column on phones (thumb-first: primary actions low, detail in bottom
@@ -4863,8 +4864,17 @@ function exportJson(state) {
   return JSON.stringify({ app: 'habit-lab', exported: new Date().toISOString(), state }, null, 2);
 }
 
+const MAX_IMPORT_BYTES = 10 * 1024 * 1024; // a two-year backup is ~200 KB
 function importJson(text) {
-  const obj = JSON.parse(text);
+  if (typeof text !== 'string' || !text.trim()) throw new Error('This file is empty.');
+  if (text.length > MAX_IMPORT_BYTES) throw new Error('This file is too large to be a Habit Lab backup.');
+  let obj;
+  try {
+    obj = JSON.parse(text);
+  } catch (e) {
+    throw new Error('This file isn’t a Habit Lab backup (it isn’t valid JSON).');
+  }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('This file doesn’t look like a Habit Lab export.');
   const s = obj.state || obj;
   if (!s || typeof s !== 'object' || !('profile' in s)) throw new Error('This file doesn’t look like a Habit Lab export.');
   return migrate(s);
@@ -4886,7 +4896,7 @@ function game(state, date = today()) {
 
 
 
-Object.assign(__m, { VERSION, emptyState, load, save, nativeRestoreCandidate, clearAll, migrate, sanitize, today, trendWeight, safety, habitsOnly, visibleHabits, calcWeight, targets, weekKey, weeksSinceStart, ensurePlan, ensureProgress, schedule, exportJson, importJson, game, estimateTdee });
+Object.assign(__m, { VERSION, emptyState, load, save, nativeRestoreCandidate, clearAll, migrate, sanitize, today, trendWeight, safety, habitsOnly, visibleHabits, calcWeight, targets, weekKey, weeksSinceStart, ensurePlan, ensureProgress, schedule, exportJson, MAX_IMPORT_BYTES, importJson, game, estimateTdee });
 },
 /* js/ui/dom.js */ 17: function (__m, __req) {
 // Rendering helpers. Views return HTML strings; every user-provided value goes through esc().
