@@ -159,7 +159,7 @@ export default {
 function weighTable(rows, u) {
   const row = (s) => `<tr><td>${fmtDate(s.date)}</td><td class="right num">${fmtWeight(s.kg, u)}</td><td class="right muted num">${fmtWeight(s.trend, u)}</td><td class="right" style="width:44px"><button class="icon-btn" data-action="delWeight" data-date="${s.date}" aria-label="Delete weigh-in on ${fmtDate(s.date)}">${icon('trash')}</button></td></tr>`;
   if (!rows.length) return '<p class="muted">No weigh-ins yet.</p>';
-  return `<table class="simple"><tr><th>Date</th><th class="right">Weight</th><th class="right">Trend</th><th></th></tr>${rows.slice(0, 5).map(row).join('')}</table>
+  return `<table class="simple"><tr><th>Date</th><th class="right">Weight</th><th class="right">Trend</th><th><span class="sr-only">Delete</span></th></tr>${rows.slice(0, 5).map(row).join('')}</table>
     ${rows.length > 5 ? `<details><summary class="btn small ghost" style="list-style:none;margin-top:6px">Show all ${rows.length}</summary><table class="simple">${rows.slice(5).map(row).join('')}</table></details>` : ''}`;
 }
 

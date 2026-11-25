@@ -17,7 +17,7 @@ export default {
       <div class="row between" style="margin:0 2px 10px"><span class="muted" style="font-size:var(--text-sm)">${cards.length} topics</span><button type="button" class="btn small ghost" data-action="toggleAll">${openAll ? 'Collapse all' : 'Expand all'}</button></div>
       ${cards.map((c) => `<article class="card learn-card" id="learn-${c.id}" ${focus === c.id ? 'style="border-color:var(--accent)"' : ''}>
         <span class="tag">${esc(c.section)}</span>
-        <h3 style="margin-top:6px">${esc(c.title)}</h3>
+        <h2 class="learn-title">${esc(c.title)}</h2>
         <p class="muted-2">${esc(c.summary)}</p>
         ${c.app ? `<div class="notice ok" style="margin:10px 0 0">${icon('info')}<div><strong>In the app:</strong> ${esc(c.app)}</div></div>` : ''}
         <details class="recipe" ${focus === c.id || openAll ? 'open' : ''}><summary>Show the evidence (${c.sources.length} source${c.sources.length === 1 ? '' : 's'})</summary>

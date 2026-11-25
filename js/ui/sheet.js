@@ -12,6 +12,10 @@ export function isOpen() {
   return !!current;
 }
 
+function setBackgroundInert(on) {
+  for (const el of document.querySelectorAll('body > .app, body > .bottomnav')) el.inert = on;
+}
+
 export function openSheet(html, { label = 'Details', onClose } = {}) {
   closeSheet(true);
   const opener = document.activeElement;
@@ -25,6 +29,8 @@ export function openSheet(html, { label = 'Details', onClose } = {}) {
   sheet.innerHTML = `<span class="grab" aria-hidden="true"></span>${html}`;
   document.body.append(scrim, sheet);
   document.body.style.overflow = 'hidden';
+  // Everything behind the sheet is inert: not focusable, not clickable, hidden from screen readers.
+  setBackgroundInert(true);
   requestAnimationFrame(() => {
     scrim.classList.add('open');
     sheet.classList.add('open');
@@ -91,6 +97,7 @@ export function closeSheet(immediate = false, { fromHistory = false } = {}) {
   }
   document.removeEventListener('keydown', onKey);
   document.body.style.overflow = '';
+  setBackgroundInert(false);
   const remove = () => (scrim.remove(), sheet.remove());
   if (immediate || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) remove();
   else {

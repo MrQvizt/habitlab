@@ -299,7 +299,7 @@ legend { font-weight: 600; font-size: var(--text-sm); margin-bottom: 8px; paddin
 .notice { border-radius: var(--radius); padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; font-size: var(--text-md); line-height: 1.45; }
 .notice .icon { margin-top: 1px; }
 .notice.info { background: var(--info-soft); color: var(--info); }
-.notice.warn { background: var(--warm-soft); color: color-mix(in srgb, var(--warm) 70%, var(--ink)); }
+.notice.warn { background: var(--warm-soft); color: var(--warm-text); }
 .notice.block { background: var(--danger-soft); color: var(--danger); }
 .notice.ok { background: var(--accent-soft); color: var(--accent); }
 .notice p:last-child { margin-bottom: 0; }
@@ -362,7 +362,7 @@ legend { font-weight: 600; font-size: var(--text-sm); margin-bottom: 8px; paddin
 .meal.done .name { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--accent); }
 .tag { display: inline-block; font-size: 0.72rem; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); margin-right: 4px; font-weight: 600; }
 .tag.green { background: var(--accent-soft); color: var(--accent); }
-.tag.warm { background: var(--warm-soft); color: color-mix(in srgb, var(--warm) 75%, var(--ink)); }
+.tag.warm { background: var(--warm-soft); color: var(--warm-text); }
 
 details.recipe { margin-top: 8px; grid-column: 1 / -1; }
 details.recipe summary { cursor: pointer; color: var(--accent); font-size: 0.86rem; font-weight: 600; }
@@ -397,7 +397,7 @@ details.recipe ul, details.recipe ol { margin: 8px 0; padding-left: 20px; font-s
 .week .pill { display: block; border-radius: 6px; padding: 2px 1px; margin: 2px 0; font-weight: 600; overflow-wrap: anywhere; font-size: 0.7rem; }
 .pill.strength { background: var(--accent-soft); color: var(--accent); }
 .pill.cardio { background: var(--info-soft); color: var(--info); }
-.pill.activity { background: var(--warm-soft); color: color-mix(in srgb, var(--warm) 75%, var(--ink)); }
+.pill.activity { background: var(--warm-soft); color: var(--warm-text); }
 .pill.rest { color: var(--ink-3); font-weight: 400; }
 .pill.done::after { content: ' ✓'; }
 
@@ -553,7 +553,7 @@ textarea.backup { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
 .hero-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill-stat { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); font-size: var(--text-sm); font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink-2); text-decoration: none; }
 .pill-stat .icon { width: 15px; height: 15px; }
-.pill-stat.streak { background: var(--warm-soft); color: color-mix(in srgb, var(--warm) 80%, var(--ink)); }
+.pill-stat.streak { background: var(--warm-soft); color: var(--warm-text); }
 .pill-stat.xp { background: var(--gold-soft, #fbefd3); color: color-mix(in srgb, var(--gold, #b7791f) 80%, var(--ink)); }
 .quest-chips { margin-top: 14px; }
 .qchip { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 6px 12px 6px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); text-decoration: none; white-space: nowrap; }
@@ -1030,3 +1030,20 @@ body.wrap-open .modal-wrap { z-index: 1200; }
 .snd-pick small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
 .snd-check { width: 22px; color: var(--accent); flex: none; }
 .snd-check svg { width: 20px; height: 20px; }
+
+/* ---------- Accessibility: text colours that meet WCAG AA (4.5:1) in both themes ---------- */
+:root { --warm-text: #a3540f; --gold-text: #8a5a10; --oc-share: 45%; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --warm-text: #f0a35a; --gold-text: #f2c14e; --oc-share: 80%; } }
+:root[data-theme='dark'] { --warm-text: #f0a35a; --gold-text: #f2c14e; --oc-share: 80%; }
+.xp-chip .flame, .pill-stat.streak, .lrow .trail .tag.warm, .tag.warm { color: var(--warm-text); }
+.pill-stat.xp, .celebrate-modal .kicker, .xp-float.lucky { color: var(--gold-text); }
+/* Body-part colours are bright fills; as text they're mixed toward the ink colour for contrast. */
+.bt-lvl, .body-medal em { color: color-mix(in srgb, var(--oc) var(--oc-share), var(--ink)); }
+.week-strip span.first { color: var(--accent-ink); }
+.next-up .eyebrow, .body > .eyebrow { color: #e3efe9; }
+.quest.done .qp, .stats .stat.on .l { color: var(--ink-2); }
+.qchip .num { color: var(--ink-2); }
+/* "Off" settings stay readable: dimmed by colour, not by fading text below contrast. */
+form:has(input[name=enabled]:not(:checked)) .reminder-list { opacity: 1; filter: saturate(0.2); }
+.learn-card .learn-title { font-size: var(--text-lg); margin: 6px 0; }
+h2.h3 { font-size: var(--text-lg); }

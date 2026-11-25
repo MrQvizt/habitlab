@@ -97,7 +97,7 @@ export default {
         <div class="grid two">
           <label class="field"><span>Units</span><select name="units"><option value="metric" ${u === 'metric' ? 'selected' : ''}>kg / cm</option><option value="imperial" ${u === 'imperial' ? 'selected' : ''}>lb / ft</option></select></label>
           <label class="field"><span>Age</span><input type="number" name="age" value="${esc(p.age)}" min="18" max="100" required></label>
-          <div class="field"><span class="field-label">Height (${fmtHeight(p.heightCm, u)})</span>${u === 'imperial' ? `<div class="inline-inputs"><input type="number" name="heightFt" value="${Math.floor(hIn / 12)}" min="3" max="8"><span class="unit">ft</span><input type="number" name="heightIn" value="${hIn % 12}" min="0" max="11"><span class="unit">in</span></div>` : `<input type="number" name="heightCm" value="${Math.round(p.heightCm)}" min="120" max="230">`}</div>
+          <div class="field"><span class="field-label">Height (${fmtHeight(p.heightCm, u)})</span>${u === 'imperial' ? `<div class="inline-inputs"><input type="number" name="heightFt" aria-label="Height, feet" value="${Math.floor(hIn / 12)}" min="3" max="8"><span class="unit">ft</span><input type="number" name="heightIn" aria-label="Height, inches" value="${hIn % 12}" min="0" max="11"><span class="unit">in</span></div>` : `<input type="number" name="heightCm" aria-label="Height in centimetres" value="${Math.round(p.heightCm)}" min="120" max="230">`}</div>
           <label class="field"><span>Goal weight</span><div class="inline-inputs"><input type="number" name="goal" step="0.1" value="${p.goalWeightKg ? round(weightNum(p.goalWeightKg, u), 0.1) : ''}"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div><span class="hint" style="display:block;margin-top:6px">${goalHint(p.heightCm, store.trendWeight(state), u)} <a href="#/journey">See your journey</a></span></label>
           <label class="field"><span>Activity (outside planned exercise)</span><select name="activity">${Object.entries(ACTIVITY_LEVELS).map(([k, a]) => `<option value="${k}" ${p.activity === k ? 'selected' : ''}>${a.label}</option>`).join('')}</select></label>
           ${hide ? '' : `<label class="field"><span>Pace</span><select name="pace">${Object.entries(PACES).map(([k, a]) => `<option value="${k}" ${p.pace === k ? 'selected' : ''}>${a.label} (−${a.deficit} kcal)</option>`).join('')}</select></label>`}
@@ -153,13 +153,13 @@ export default {
       </form>
 `;
     if (section === 'appearance') return head('Appearance & feedback') + `
-      <div class="card"><h3 style="margin-bottom:10px">Theme</h3><div class="segmented">${[['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" class="${theme === k ? 'on' : ''}" data-action="theme" data-value="${k}">${l}</button>`).join('')}</div></div>
+      <div class="card"><h2 class="h3" style="margin-bottom:10px">Theme</h2><div class="segmented">${[['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" class="${theme === k ? 'on' : ''}" data-action="theme" data-value="${k}">${l}</button>`).join('')}</div></div>
 
-      <div class="card"><h3 style="margin-bottom:6px">Feedback</h3>
+      <div class="card"><h2 class="h3" style="margin-bottom:6px">Feedback</h2>
         <label class="option"><input type="checkbox" data-change="gamePref" data-key="sound" ${state.game.sound ? 'checked' : ''}><div><strong>Sounds</strong><small class="muted">A short chime when you earn XP.</small></div></label>
         <label class="option" style="margin-top:8px"><input type="checkbox" data-change="gamePref" data-key="haptics" ${state.game.haptics ? 'checked' : ''}><div><strong>Vibration</strong><small class="muted">A tiny buzz on supported phones.</small></div></label></div>`;
     if (section === 'data') return head('Your data') + `
-      <div class="card" style="order:9"><h3 style="margin-bottom:4px">Delete all data</h3><p class="muted" style="font-size:var(--text-sm)">Removes everything from ${notify.platform() === 'native' ? 'this phone' : 'this browser'}. Export a backup first if you might want it back.</p><button class="btn ghost danger small" data-action="reset">${icon('trash')}Delete all data…</button></div>`.replace('style="order:9"', '') + `
+      <div class="card" style="order:9"><h2 class="h3" style="margin-bottom:4px">Delete all data</h2><p class="muted" style="font-size:var(--text-sm)">Removes everything from ${notify.platform() === 'native' ? 'this phone' : 'this browser'}. Export a backup first if you might want it back.</p><button class="btn ghost danger small" data-action="reset">${icon('trash')}Delete all data…</button></div>`.replace('style="order:9"', '') + `
       <div class="card">
         <p class="muted">${notify.platform() === 'native' ? 'Everything is stored only on this phone' : 'Everything is stored only in this browser on this device'}. Nothing is uploaded. Export a backup to move to another device or keep a copy.</p>
         <div class="row"><button class="btn" data-action="export">Export backup</button>

@@ -47,7 +47,7 @@ export default {
       <div class="card"><div class="level-hero">
         ${ring(into, need, { size: 128, label: `Lv ${g.level}`, sub: `${into.toLocaleString()}/${need.toLocaleString()} XP` })}
         <div class="grow" style="min-width:200px">
-          <div class="kicker" style="text-transform:uppercase;letter-spacing:.08em;font-size:.75rem;font-weight:800;color:var(--gold)">Level ${g.level}</div>
+          <div class="kicker" style="text-transform:uppercase;letter-spacing:.08em;font-size:.75rem;font-weight:800;color:var(--gold-text)">Level ${g.level}</div>
           <h2 style="font-size:1.5rem;margin:2px 0 6px">${esc(g.title)}</h2>
           <p class="muted" style="margin:0 0 10px">${(g.nextLevelAt - g.xp).toLocaleString()} XP to level ${g.level + 1} · ${esc(levelTitle(g.level + 1))}</p>
           <div class="stats" style="grid-template-columns:repeat(3,1fr)">

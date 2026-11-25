@@ -22,7 +22,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm install --no-save playwright@1.63.0
+      - run: npm install --no-save playwright@1.63.0 axe-core@4.10.2
       - run: npx playwright install --with-deps chromium
       - run: npm run build
       - name: Browser suites

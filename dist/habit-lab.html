@@ -310,7 +310,7 @@ legend { font-weight: 600; font-size: var(--text-sm); margin-bottom: 8px; paddin
 .notice { border-radius: var(--radius); padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; font-size: var(--text-md); line-height: 1.45; }
 .notice .icon { margin-top: 1px; }
 .notice.info { background: var(--info-soft); color: var(--info); }
-.notice.warn { background: var(--warm-soft); color: color-mix(in srgb, var(--warm) 70%, var(--ink)); }
+.notice.warn { background: var(--warm-soft); color: var(--warm-text); }
 .notice.block { background: var(--danger-soft); color: var(--danger); }
 .notice.ok { background: var(--accent-soft); color: var(--accent); }
 .notice p:last-child { margin-bottom: 0; }
@@ -373,7 +373,7 @@ legend { font-weight: 600; font-size: var(--text-sm); margin-bottom: 8px; paddin
 .meal.done .name { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--accent); }
 .tag { display: inline-block; font-size: 0.72rem; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); margin-right: 4px; font-weight: 600; }
 .tag.green { background: var(--accent-soft); color: var(--accent); }
-.tag.warm { background: var(--warm-soft); color: color-mix(in srgb, var(--warm) 75%, var(--ink)); }
+.tag.warm { background: var(--warm-soft); color: var(--warm-text); }
 
 details.recipe { margin-top: 8px; grid-column: 1 / -1; }
 details.recipe summary { cursor: pointer; color: var(--accent); font-size: 0.86rem; font-weight: 600; }
@@ -408,7 +408,7 @@ details.recipe ul, details.recipe ol { margin: 8px 0; padding-left: 20px; font-s
 .week .pill { display: block; border-radius: 6px; padding: 2px 1px; margin: 2px 0; font-weight: 600; overflow-wrap: anywhere; font-size: 0.7rem; }
 .pill.strength { background: var(--accent-soft); color: var(--accent); }
 .pill.cardio { background: var(--info-soft); color: var(--info); }
-.pill.activity { background: var(--warm-soft); color: color-mix(in srgb, var(--warm) 75%, var(--ink)); }
+.pill.activity { background: var(--warm-soft); color: var(--warm-text); }
 .pill.rest { color: var(--ink-3); font-weight: 400; }
 .pill.done::after { content: ' ✓'; }
 
@@ -564,7 +564,7 @@ textarea.backup { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
 .hero-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill-stat { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); font-size: var(--text-sm); font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink-2); text-decoration: none; }
 .pill-stat .icon { width: 15px; height: 15px; }
-.pill-stat.streak { background: var(--warm-soft); color: color-mix(in srgb, var(--warm) 80%, var(--ink)); }
+.pill-stat.streak { background: var(--warm-soft); color: var(--warm-text); }
 .pill-stat.xp { background: var(--gold-soft, #fbefd3); color: color-mix(in srgb, var(--gold, #b7791f) 80%, var(--ink)); }
 .quest-chips { margin-top: 14px; }
 .qchip { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 6px 12px 6px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); text-decoration: none; white-space: nowrap; }
@@ -1041,6 +1041,23 @@ body.wrap-open .modal-wrap { z-index: 1200; }
 .snd-pick small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
 .snd-check { width: 22px; color: var(--accent); flex: none; }
 .snd-check svg { width: 20px; height: 20px; }
+
+/* ---------- Accessibility: text colours that meet WCAG AA (4.5:1) in both themes ---------- */
+:root { --warm-text: #a3540f; --gold-text: #8a5a10; --oc-share: 45%; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --warm-text: #f0a35a; --gold-text: #f2c14e; --oc-share: 80%; } }
+:root[data-theme='dark'] { --warm-text: #f0a35a; --gold-text: #f2c14e; --oc-share: 80%; }
+.xp-chip .flame, .pill-stat.streak, .lrow .trail .tag.warm, .tag.warm { color: var(--warm-text); }
+.pill-stat.xp, .celebrate-modal .kicker, .xp-float.lucky { color: var(--gold-text); }
+/* Body-part colours are bright fills; as text they're mixed toward the ink colour for contrast. */
+.bt-lvl, .body-medal em { color: color-mix(in srgb, var(--oc) var(--oc-share), var(--ink)); }
+.week-strip span.first { color: var(--accent-ink); }
+.next-up .eyebrow, .body > .eyebrow { color: #e3efe9; }
+.quest.done .qp, .stats .stat.on .l { color: var(--ink-2); }
+.qchip .num { color: var(--ink-2); }
+/* "Off" settings stay readable: dimmed by colour, not by fading text below contrast. */
+form:has(input[name=enabled]:not(:checked)) .reminder-list { opacity: 1; filter: saturate(0.2); }
+.learn-card .learn-title { font-size: var(--text-lg); margin: 6px 0; }
+h2.h3 { font-size: var(--text-lg); }
 </style>
 </head>
 <body>
@@ -6047,10 +6064,10 @@ function overview(state) {
     ${activitiesCard(state)}
     <div class="card"><div class="card-head"><h2>Log activity</h2></div>
       <form data-form="logCardio" class="row">
-        <select name="mode" style="flex:1;min-width:150px" data-change="logMode">${Object.entries(CARDIO).map(([k, c]) => `<option value="${k}">${esc(c.label)}</option>`).join('')}${(state.profile.activities || []).map((a) => `<option value="act:${esc(a.id)}" ${logOther === 'act:' + a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}<option value="other" ${logOther === 'other' ? 'selected' : ''}>Something else…</option></select>
-        ${logOther === 'other' ? `<input type="text" name="name" maxlength="80" required placeholder="What was it?" list="hobby-names" style="flex:1;min-width:150px"><datalist id="hobby-names">${HOBBIES.map((h) => `<option value="${esc(h.name)}"></option>`).join('')}</datalist><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
-        <input type="number" name="minutes" min="1" max="300" placeholder="minutes" required style="width:110px" inputmode="numeric">
-        <input type="date" name="date" value="${date}" max="${date}" style="width:160px">
+        <select name="mode" aria-label="Activity" style="flex:1;min-width:150px" data-change="logMode">${Object.entries(CARDIO).map(([k, c]) => `<option value="${k}">${esc(c.label)}</option>`).join('')}${(state.profile.activities || []).map((a) => `<option value="act:${esc(a.id)}" ${logOther === 'act:' + a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}<option value="other" ${logOther === 'other' ? 'selected' : ''}>Something else…</option></select>
+        ${logOther === 'other' ? `<input type="text" name="name" aria-label="What was it?" maxlength="80" required placeholder="What was it?" list="hobby-names" style="flex:1;min-width:150px"><datalist id="hobby-names">${HOBBIES.map((h) => `<option value="${esc(h.name)}"></option>`).join('')}</datalist><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
+        <input type="number" name="minutes" aria-label="Minutes" min="1" max="300" placeholder="minutes" required style="width:110px" inputmode="numeric">
+        <input type="date" name="date" aria-label="Date" value="${date}" max="${date}" style="width:160px">
         <button class="btn primary">Log</button>
       </form></div>
     <details class="card"><summary class="row nowrap" style="cursor:pointer;list-style:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('progress')}</span><span class="grow"><strong>Your strength levels</strong><span style="display:block;font-size:var(--text-sm);color:var(--ink-3)">Each exercise levels up when it feels easy</span></span>${icon('chevron')}</summary><p class="muted" style="font-size:.88rem;margin-top:12px">Each movement moves up a level when it feels easy, and back down if it’s too hard or hurts.</p><div style="overflow-x:auto">
@@ -6233,6 +6250,10 @@ function isOpen() {
   return !!current;
 }
 
+function setBackgroundInert(on) {
+  for (const el of document.querySelectorAll('body > .app, body > .bottomnav')) el.inert = on;
+}
+
 function openSheet(html, { label = 'Details', onClose } = {}) {
   closeSheet(true);
   const opener = document.activeElement;
@@ -6246,6 +6267,8 @@ function openSheet(html, { label = 'Details', onClose } = {}) {
   sheet.innerHTML = `<span class="grab" aria-hidden="true"></span>${html}`;
   document.body.append(scrim, sheet);
   document.body.style.overflow = 'hidden';
+  // Everything behind the sheet is inert: not focusable, not clickable, hidden from screen readers.
+  setBackgroundInert(true);
   requestAnimationFrame(() => {
     scrim.classList.add('open');
     sheet.classList.add('open');
@@ -6312,6 +6335,7 @@ function closeSheet(immediate = false, { fromHistory = false } = {}) {
   }
   document.removeEventListener('keydown', onKey);
   document.body.style.overflow = '';
+  setBackgroundInert(false);
   const remove = () => (scrim.remove(), sheet.remove());
   if (immediate || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) remove();
   else {
@@ -7393,7 +7417,7 @@ function hero(state) {
           <a class="pill-stat" href="#/rewards">Level ${g.level}</a>
         </div></div>
     </div>
-    <div class="quest-grid" role="list">${g.quests.map((q) => `<a role="listitem" class="qchip ${q.done ? 'done' : ''}" href="${q.href}"><span class="dot">${q.done ? icon('check') : ''}</span>${esc(q.label)}${q.total > 1 && !q.done ? ` <span class="num" style="opacity:.7">${q.progress}/${q.total}</span>` : ''}</a>`).join('')}</div>
+    <div class="quest-grid">${g.quests.map((q) => `<a class="qchip ${q.done ? 'done' : ''}" href="${q.href}"><span class="dot">${q.done ? icon('check') : ''}</span>${esc(q.label)}${q.total > 1 && !q.done ? ` <span class="num">${q.progress}/${q.total}</span>` : ''}</a>`).join('')}</div>
   </section>`;
 }
 
@@ -7460,7 +7484,7 @@ function habitRow(state, a, date, checkAction, openAction) {
   return `<li><div class="lrow ${full ? 'done' : ''}">
       <button class="check ${full ? 'on' : partial ? 'partial' : ''}" data-action="${checkAction}" data-id="${a.id}" aria-pressed="${full}" aria-label="${partial ? 'Upgrade to full: ' : ''}${esc(h.title)}">${icon('check')}</button>
       <button class="body row-btn" data-action="${openAction}" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${sub}</div></button>
-      <span class="trail" style="flex-direction:column;align-items:flex-end;gap:4px">${!full && levels.length > 1 ? `<button class="win-chip" data-action="openSmallWin" data-id="${a.id}">${partial ? 'Change' : 'Small win'}</button>` : ''}${st ? `<span class="tag" style="background:var(--warm-soft);color:color-mix(in srgb,var(--warm) 80%,var(--ink))">${icon('flame', 'tiny')}${st}</span>` : ''}</span></div></li>`;
+      <span class="trail" style="flex-direction:column;align-items:flex-end;gap:4px">${!full && levels.length > 1 ? `<button class="win-chip" data-action="openSmallWin" data-id="${a.id}">${partial ? 'Change' : 'Small win'}</button>` : ''}${st ? `<span class="tag warm">${icon('flame', 'tiny')}${st}</span>` : ''}</span></div></li>`;
 }
 
 function habits(state, date) {
@@ -8209,7 +8233,7 @@ __m.default = {
 function weighTable(rows, u) {
   const row = (s) => `<tr><td>${fmtDate(s.date)}</td><td class="right num">${fmtWeight(s.kg, u)}</td><td class="right muted num">${fmtWeight(s.trend, u)}</td><td class="right" style="width:44px"><button class="icon-btn" data-action="delWeight" data-date="${s.date}" aria-label="Delete weigh-in on ${fmtDate(s.date)}">${icon('trash')}</button></td></tr>`;
   if (!rows.length) return '<p class="muted">No weigh-ins yet.</p>';
-  return `<table class="simple"><tr><th>Date</th><th class="right">Weight</th><th class="right">Trend</th><th></th></tr>${rows.slice(0, 5).map(row).join('')}</table>
+  return `<table class="simple"><tr><th>Date</th><th class="right">Weight</th><th class="right">Trend</th><th><span class="sr-only">Delete</span></th></tr>${rows.slice(0, 5).map(row).join('')}</table>
     ${rows.length > 5 ? `<details><summary class="btn small ghost" style="list-style:none;margin-top:6px">Show all ${rows.length}</summary><table class="simple">${rows.slice(5).map(row).join('')}</table></details>` : ''}`;
 }
 
@@ -8679,7 +8703,7 @@ __m.default = {
       <div class="row between" style="margin:0 2px 10px"><span class="muted" style="font-size:var(--text-sm)">${cards.length} topics</span><button type="button" class="btn small ghost" data-action="toggleAll">${openAll ? 'Collapse all' : 'Expand all'}</button></div>
       ${cards.map((c) => `<article class="card learn-card" id="learn-${c.id}" ${focus === c.id ? 'style="border-color:var(--accent)"' : ''}>
         <span class="tag">${esc(c.section)}</span>
-        <h3 style="margin-top:6px">${esc(c.title)}</h3>
+        <h2 class="learn-title">${esc(c.title)}</h2>
         <p class="muted-2">${esc(c.summary)}</p>
         ${c.app ? `<div class="notice ok" style="margin:10px 0 0">${icon('info')}<div><strong>In the app:</strong> ${esc(c.app)}</div></div>` : ''}
         <details class="recipe" ${focus === c.id || openAll ? 'open' : ''}><summary>Show the evidence (${c.sources.length} source${c.sources.length === 1 ? '' : 's'})</summary>
@@ -9736,7 +9760,7 @@ __m.default = {
         <div class="grid two">
           <label class="field"><span>Units</span><select name="units"><option value="metric" ${u === 'metric' ? 'selected' : ''}>kg / cm</option><option value="imperial" ${u === 'imperial' ? 'selected' : ''}>lb / ft</option></select></label>
           <label class="field"><span>Age</span><input type="number" name="age" value="${esc(p.age)}" min="18" max="100" required></label>
-          <div class="field"><span class="field-label">Height (${fmtHeight(p.heightCm, u)})</span>${u === 'imperial' ? `<div class="inline-inputs"><input type="number" name="heightFt" value="${Math.floor(hIn / 12)}" min="3" max="8"><span class="unit">ft</span><input type="number" name="heightIn" value="${hIn % 12}" min="0" max="11"><span class="unit">in</span></div>` : `<input type="number" name="heightCm" value="${Math.round(p.heightCm)}" min="120" max="230">`}</div>
+          <div class="field"><span class="field-label">Height (${fmtHeight(p.heightCm, u)})</span>${u === 'imperial' ? `<div class="inline-inputs"><input type="number" name="heightFt" aria-label="Height, feet" value="${Math.floor(hIn / 12)}" min="3" max="8"><span class="unit">ft</span><input type="number" name="heightIn" aria-label="Height, inches" value="${hIn % 12}" min="0" max="11"><span class="unit">in</span></div>` : `<input type="number" name="heightCm" aria-label="Height in centimetres" value="${Math.round(p.heightCm)}" min="120" max="230">`}</div>
           <label class="field"><span>Goal weight</span><div class="inline-inputs"><input type="number" name="goal" step="0.1" value="${p.goalWeightKg ? round(weightNum(p.goalWeightKg, u), 0.1) : ''}"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div><span class="hint" style="display:block;margin-top:6px">${goalHint(p.heightCm, store.trendWeight(state), u)} <a href="#/journey">See your journey</a></span></label>
           <label class="field"><span>Activity (outside planned exercise)</span><select name="activity">${Object.entries(ACTIVITY_LEVELS).map(([k, a]) => `<option value="${k}" ${p.activity === k ? 'selected' : ''}>${a.label}</option>`).join('')}</select></label>
           ${hide ? '' : `<label class="field"><span>Pace</span><select name="pace">${Object.entries(PACES).map(([k, a]) => `<option value="${k}" ${p.pace === k ? 'selected' : ''}>${a.label} (−${a.deficit} kcal)</option>`).join('')}</select></label>`}
@@ -9792,13 +9816,13 @@ __m.default = {
       </form>
 `;
     if (section === 'appearance') return head('Appearance & feedback') + `
-      <div class="card"><h3 style="margin-bottom:10px">Theme</h3><div class="segmented">${[['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" class="${theme === k ? 'on' : ''}" data-action="theme" data-value="${k}">${l}</button>`).join('')}</div></div>
+      <div class="card"><h2 class="h3" style="margin-bottom:10px">Theme</h2><div class="segmented">${[['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" class="${theme === k ? 'on' : ''}" data-action="theme" data-value="${k}">${l}</button>`).join('')}</div></div>
 
-      <div class="card"><h3 style="margin-bottom:6px">Feedback</h3>
+      <div class="card"><h2 class="h3" style="margin-bottom:6px">Feedback</h2>
         <label class="option"><input type="checkbox" data-change="gamePref" data-key="sound" ${state.game.sound ? 'checked' : ''}><div><strong>Sounds</strong><small class="muted">A short chime when you earn XP.</small></div></label>
         <label class="option" style="margin-top:8px"><input type="checkbox" data-change="gamePref" data-key="haptics" ${state.game.haptics ? 'checked' : ''}><div><strong>Vibration</strong><small class="muted">A tiny buzz on supported phones.</small></div></label></div>`;
     if (section === 'data') return head('Your data') + `
-      <div class="card" style="order:9"><h3 style="margin-bottom:4px">Delete all data</h3><p class="muted" style="font-size:var(--text-sm)">Removes everything from ${notify.platform() === 'native' ? 'this phone' : 'this browser'}. Export a backup first if you might want it back.</p><button class="btn ghost danger small" data-action="reset">${icon('trash')}Delete all data…</button></div>`.replace('style="order:9"', '') + `
+      <div class="card" style="order:9"><h2 class="h3" style="margin-bottom:4px">Delete all data</h2><p class="muted" style="font-size:var(--text-sm)">Removes everything from ${notify.platform() === 'native' ? 'this phone' : 'this browser'}. Export a backup first if you might want it back.</p><button class="btn ghost danger small" data-action="reset">${icon('trash')}Delete all data…</button></div>`.replace('style="order:9"', '') + `
       <div class="card">
         <p class="muted">${notify.platform() === 'native' ? 'Everything is stored only on this phone' : 'Everything is stored only in this browser on this device'}. Nothing is uploaded. Export a backup to move to another device or keep a copy.</p>
         <div class="row"><button class="btn" data-action="export">Export backup</button>
@@ -10141,7 +10165,7 @@ __m.default = {
       <div class="card"><div class="level-hero">
         ${ring(into, need, { size: 128, label: `Lv ${g.level}`, sub: `${into.toLocaleString()}/${need.toLocaleString()} XP` })}
         <div class="grow" style="min-width:200px">
-          <div class="kicker" style="text-transform:uppercase;letter-spacing:.08em;font-size:.75rem;font-weight:800;color:var(--gold)">Level ${g.level}</div>
+          <div class="kicker" style="text-transform:uppercase;letter-spacing:.08em;font-size:.75rem;font-weight:800;color:var(--gold-text)">Level ${g.level}</div>
           <h2 style="font-size:1.5rem;margin:2px 0 6px">${esc(g.title)}</h2>
           <p class="muted" style="margin:0 0 10px">${(g.nextLevelAt - g.xp).toLocaleString()} XP to level ${g.level + 1} · ${esc(levelTitle(g.level + 1))}</p>
           <div class="stats" style="grid-template-columns:repeat(3,1fr)">

@@ -59,7 +59,7 @@ function hero(state) {
           <a class="pill-stat" href="#/rewards">Level ${g.level}</a>
         </div></div>
     </div>
-    <div class="quest-grid" role="list">${g.quests.map((q) => `<a role="listitem" class="qchip ${q.done ? 'done' : ''}" href="${q.href}"><span class="dot">${q.done ? icon('check') : ''}</span>${esc(q.label)}${q.total > 1 && !q.done ? ` <span class="num" style="opacity:.7">${q.progress}/${q.total}</span>` : ''}</a>`).join('')}</div>
+    <div class="quest-grid">${g.quests.map((q) => `<a class="qchip ${q.done ? 'done' : ''}" href="${q.href}"><span class="dot">${q.done ? icon('check') : ''}</span>${esc(q.label)}${q.total > 1 && !q.done ? ` <span class="num">${q.progress}/${q.total}</span>` : ''}</a>`).join('')}</div>
   </section>`;
 }
 
@@ -126,7 +126,7 @@ export function habitRow(state, a, date, checkAction, openAction) {
   return `<li><div class="lrow ${full ? 'done' : ''}">
       <button class="check ${full ? 'on' : partial ? 'partial' : ''}" data-action="${checkAction}" data-id="${a.id}" aria-pressed="${full}" aria-label="${partial ? 'Upgrade to full: ' : ''}${esc(h.title)}">${icon('check')}</button>
       <button class="body row-btn" data-action="${openAction}" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${sub}</div></button>
-      <span class="trail" style="flex-direction:column;align-items:flex-end;gap:4px">${!full && levels.length > 1 ? `<button class="win-chip" data-action="openSmallWin" data-id="${a.id}">${partial ? 'Change' : 'Small win'}</button>` : ''}${st ? `<span class="tag" style="background:var(--warm-soft);color:color-mix(in srgb,var(--warm) 80%,var(--ink))">${icon('flame', 'tiny')}${st}</span>` : ''}</span></div></li>`;
+      <span class="trail" style="flex-direction:column;align-items:flex-end;gap:4px">${!full && levels.length > 1 ? `<button class="win-chip" data-action="openSmallWin" data-id="${a.id}">${partial ? 'Change' : 'Small win'}</button>` : ''}${st ? `<span class="tag warm">${icon('flame', 'tiny')}${st}</span>` : ''}</span></div></li>`;
 }
 
 function habits(state, date) {
