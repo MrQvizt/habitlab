@@ -3,8 +3,9 @@
 An evidence-based, adaptive habit coach for adults with overweight or obesity who want to lose weight and keep it off.
 It builds a **meal plan**, a **workout plan** and a small set of **habits**, and adjusts all three from a weekly check-in.
 
-- **No build step, no server, no account.** Plain HTML, CSS and JavaScript modules. All data stays in the browser
-  (`localStorage`), with export/import for backups. Works offline as a PWA once loaded.
+- **No server, no account, no tracking.** Plain HTML, CSS and JavaScript modules. All data stays on the device
+  (`localStorage`, mirrored to native storage in the Android app), with export/import for backups. Works offline
+  and installs as a PWA. The app makes no network requests.
 - **Built from the research.** [`RESEARCH.md`](RESEARCH.md) is the evidence brief (86 cited sources). It ends with
   26 design rules, and the code implements them. The in-app **Learn** section explains each one in plain language.
 
@@ -101,24 +102,39 @@ screenshot tour for design review.
 ## Code layout
 
 ```
-js/engine/   pure logic (no DOM): calc, trend, meals, workouts, habits, adjust, safety
-js/data/     foods (per-100 g nutrition), recipes, exercises, habits, learn cards
+js/engine/   pure logic (no DOM): calc, trend, meals, workouts, habits, adjust, safety, game (XP),
+             journey, body (Body Wrap rings and levels), alarms, reminders, schedule
+js/data/     foods, recipes, exercises, habits, hobbies (836, 2024 Compendium), learn cards,
+             affirmations, melodies
 js/views/    one module per screen; render() returns HTML, actions handle events
-js/store.js  state, persistence and derived values (targets, plans, schedules)
-tests/       engine unit tests + Playwright walkthroughs
-tools/       build.mjs: zero-dependency bundler → dist/habit-lab.html
+js/store.js  state, persistence, sanitising and derived values (targets, plans, schedules)
+android/     Capacitor shell + native alarm clock (app/src/main/java/.../alarm)
+tests/       unit tests (*.test.mjs) and browser suites (*.cjs)
+tools/       build.mjs (bundler + security headers), serve.mjs, browser-tests.mjs, heavy-state.mjs
 ```
 
 ## Tests
 
 ```bash
-node --test tests/*.test.mjs                # 37 engine + store tests, incl. simulated multi-week users
-python3 -m http.server 8765 &               # then, with Playwright available:
-node tests/e2e.cjs http://localhost:8765/   # onboarding → every page → session → check-in; no console errors, no overflow
-node tests/demo.cjs http://localhost:8765/  # demo data → plateau check-in flow
-node tests/e2e.cjs file://$PWD/dist/habit-lab.html   # same walkthrough against the single-file build
-node tests/native.cjs                       # Android code path with a simulated notifications plugin
+npm test                      # 54 unit tests: engines, store, fuzzing, performance budgets, build/CSP check
+npm run build && npm run test:browser   # 11 browser suites against the production build + headers
+cd android && ./gradlew testDebugUnitTest   # native alarm scheduling (incl. daylight saving)
 ```
+
+Browser suites need Playwright and axe-core: `npm install --no-save playwright@1.63.0 axe-core@4.10.2 && npx playwright install chromium`.
+
+| Suite | What it proves |
+| --- | --- |
+| `e2e`, `demo`, `journey` | Onboarding → every screen → logging → check-in; demo plateau flow; new-user journey |
+| `wrap`, `flow` | Body Wrap story, body-part sheets and levels; every screen within two taps; week start |
+| `xss` | Script payloads in all 16 user/import-controlled fields never execute |
+| `web` | Production security headers, CSP blocks injected script, installable, works offline, storage-full warning |
+| `a11y` | axe-core WCAG 2.2 AA on 23 screens + a sheet, light and dark: 0 violations |
+| `robust` | 22 screens × new and long-term user × 320–1440 px: no errors, NaN or sideways scrolling |
+| `native`, `alarms` | The Android notification and alarm bridges, with mocked native plugins |
+
+CI (`.github/workflows/android.yml`) runs all three layers on every push and pull request.
+Release, deployment and rollback: see [`RELEASE.md`](RELEASE.md).
 
 ## Disclaimer
 
