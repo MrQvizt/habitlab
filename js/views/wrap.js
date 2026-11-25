@@ -31,6 +31,7 @@ function weekFor(state, params, today) {
 }
 
 function cards(state, w, today) {
+  const lv = store.game(state)?.stats?.body?.levels || {};
   const p = state.profile;
   const partial = w.partial;
   const range = `${fmtDate(w.ws, { day: 'numeric', month: 'short' })} – ${fmtDate(addDays(w.ws, 6), { day: 'numeric', month: 'short' })}`;
@@ -39,16 +40,17 @@ function cards(state, w, today) {
   out.push({ kind: 'intro', c1: '#1c1c1e', c2: '#3a3a3c', html: `
     <div class="w-kicker">${partial ? 'This week so far' : 'Your Body Wrap'} · ${esc(range)}</div>
     <h1 class="w-title">${n ? `Your body sent you <span class="w-grad">${n} thank-you note${n === 1 ? '' : 's'}</span>` : 'Your body is ready for its first thank-you'}</h1>
-    <div class="w-rings">${w.organs.map((o) => `<span class="w-mini">${ring(o.pct, o.color, { size: 42, stroke: 5.5, label: o.emoji })}</span>`).join('')}</div>
+    <div class="w-rings">${w.organs.map((o) => `<button type="button" class="w-mini" data-action="openOrgan" data-organ="${o.id}" aria-label="${esc(o.name)}">${ring(o.pct, o.color, { size: 42, stroke: 5.5, label: o.emoji })}</button>`).join('')}</div>
     <p class="w-small">${w.closed} of ${w.organs.length} rings closed${partial ? ' so far' : ''}. Tap to open →</p>` });
   for (const o of w.earned) {
     const src = SOURCES[o.src];
     out.push({ kind: 'organ', c1: o.color, c2: o.color2, html: `
       <div class="w-emoji">${o.emoji}</div>
-      <div class="w-kicker">${esc(o.name)}</div>
+      <div class="w-kicker">${esc(o.name)}${lv[o.id] ? ` · Level ${lv[o.id].level} ${esc(lv[o.id].title)}` : ''}</div>
       <h1 class="w-title">${esc(o.head)}</h1>
-      <div class="w-big"><span class="w-ringwrap">${ring(o.pct, '#fff', { size: 92, stroke: 11 })}</span><span><b data-count="${esc(o.big)}">${esc(o.big)}</b><small>${esc(o.sub)}</small></span></div>
+      <div class="w-big"><button type="button" class="w-ringwrap" data-action="openOrgan" data-organ="${o.id}" aria-label="What your ${esc(o.name.toLowerCase())} needs">${ring(o.pct, '#fff', { size: 92, stroke: 11 })}</button><span><b data-count="${esc(o.big)}">${esc(o.big)}</b><small>${esc(o.sub)}</small></span></div>
       <p class="w-fact">${esc(o.fact)}</p>
+      <button type="button" class="w-more" data-action="openOrgan" data-organ="${o.id}">What does my ${esc(o.name.toLowerCase())} need? →</button>
       ${src ? `<a class="w-src" href="${esc(src[1])}" target="_blank" rel="noopener noreferrer">${esc(src[0])}</a>` : ''}` });
   }
   if (w.nudge) {
@@ -62,7 +64,8 @@ function cards(state, w, today) {
   out.push({ kind: 'end', c1: '#000', c2: '#1c1c1e', html: `
     <div class="w-kicker">${partial ? 'So far' : 'Week wrapped'}</div>
     <h1 class="w-title">${w.closed === w.organs.length ? 'Every ring closed. Legendary.' : n >= 4 ? 'What a week for your body.' : n ? 'Every thank-you counts.' : 'A fresh week, a fresh start.'}</h1>
-    <div class="w-grid">${w.organs.map((o) => `<div class="w-cell ${o.closed ? 'closed' : ''}">${ring(o.pct, o.color, { size: 58, stroke: 7, label: o.emoji })}<span>${esc(o.name)}</span><b>${Math.round(o.pct * 100)}%</b></div>`).join('')}</div>
+    <div class="w-grid">${w.organs.map((o) => `<button type="button" class="w-cell ${o.closed ? 'closed' : ''}" data-action="openOrgan" data-organ="${o.id}">${ring(o.pct, o.color, { size: 58, stroke: 7, label: o.emoji })}<span>${esc(o.name)}</span><b>${Math.round(o.pct * 100)}%</b>${lv[o.id] ? `<em>Lv ${lv[o.id].level}</em>` : ''}</button>`).join('')}</div>
+    <p class="w-small">Tap a body part to see what it needs.</p>
     <p class="w-small">You might not feel all of this yet — but it’s happening inside, week after week.</p>
     ${partial ? '<p class="w-small"><strong>Come back Monday</strong> for the full wrap and its XP.</p>' : claimed ? `<button class="w-btn" data-action="wrapClose">Done</button>` : `<button class="w-btn glow" data-action="wrapClaim">Collect +${XP.wrap} XP</button>`}` });
   return out;
@@ -152,7 +155,9 @@ export function wrapReadyCard(state, today) {
 export function bodyRingsCard(state, today) {
   const ws = weekStart(today);
   const w = weekBody(state, ws, { asOf: today, habitsOnly: store.habitsOnly(state) });
-  return `<div class="section-head"><h2>Your body this week</h2><a href="#/wrap/${ws}">${w.closed}/${w.organs.length} closed</a></div>
-    <a class="card body-rings" href="#/wrap/${ws}">${w.organs.map((o) => `<span class="br">${ring(o.pct, o.color, { size: 44, stroke: 5.5, label: o.emoji })}<small>${esc(o.name)}</small></span>`).join('')}</a>`;
+  const lv = store.game(state)?.stats?.body?.levels || {};
+  return `<div class="section-head"><h2>Your body this week</h2><a href="#/body">Levels →</a></div>
+    <div class="card body-rings" style="grid-template-columns:repeat(${w.organs.length},1fr)">${w.organs.map((o) => `<button type="button" class="br" data-action="openOrgan" data-organ="${o.id}" aria-label="${esc(o.name)}: ${Math.round(o.pct * 100)}% this week">${ring(o.pct, o.color, { size: 44, stroke: 5.5, label: o.emoji })}<small>${esc(o.name)}</small>${lv[o.id] ? `<b>Lv ${lv[o.id].level}</b>` : ''}</button>`).join('')}
+      <a class="br-foot" href="#/wrap/${ws}">${w.closed}/${w.organs.length} rings closed · see this week’s wrap →</a></div>`;
 }
 

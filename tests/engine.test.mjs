@@ -597,3 +597,37 @@ test('alarms: specs from settings and day schedule; morning messages from values
   const w = { ...emptyState(), profile: { startDate: '2026-11-01' }, wakes: { '2026-11-25': '06:31' } };
   assert.ok(dayAwards(w, '2026-11-25').some((a) => a.kind === 'wake' && a.xp === XP.wake));
 });
+
+test('body levels: consistency over weeks, capped weekly points, streak bonus', async () => {
+  const { weekPoints, bodyLevelOf, bodyLevelStart, bodyLevelTitle, bodyCollection, ORGAN_GUIDE, ORGANS, weekBody } = await import('../js/engine/body.js');
+  const { demoState } = await import('../js/demo.js');
+  const { isoDate, weekStart } = await import('../js/engine/util.js');
+  assert.deepEqual(weekPoints(2.5, 0), { base: 100, bonus: 0, total: 100 }); // capped: one huge week ≠ many steady ones
+  assert.deepEqual(weekPoints(0.6, 3), { base: 60, bonus: 30, total: 90 });
+  assert.equal(weekPoints(0.4, 9).bonus, 0); // below half-full: no streak bonus
+  assert.equal(weekPoints(1, 12).bonus, 50); // bonus capped
+  assert.equal(bodyLevelOf(0), 1);
+  assert.equal(bodyLevelOf(99), 1);
+  assert.equal(bodyLevelOf(100), 2);
+  assert.equal(bodyLevelOf(1000), 5);
+  assert.equal(bodyLevelStart(4), 600);
+  assert.equal(bodyLevelTitle(5), 'Strong');
+  assert.match(bodyLevelTitle(12), /Legendary/);
+  const s = demoState();
+  const today = isoDate();
+  const c = bodyCollection(s, today);
+  for (const o of ORGANS) {
+    const lv = c.levels[o.id];
+    assert.ok(lv.level >= 2, `${o.id} levelled up over 10 demo weeks`);
+    assert.ok(lv.into >= 0 && lv.into < lv.need);
+    assert.ok(lv.history.length >= 2 && lv.history.length <= 12);
+    assert.equal(lv.history.at(-1).ws, weekStart(today)); // this week included, so the meter moves daily
+    // Every body part explains what it needs, with rows that read this week's stats
+    const g = ORGAN_GUIDE[o.id];
+    assert.ok(g.needs && g.tips.length && g.actions.length);
+    for (const [label, value, target] of g.rows(weekBody(s, weekStart(today), { asOf: today }).stats)) assert.ok(label && Number.isFinite(value) && target > 0, `${o.id} ${label}`);
+  }
+  // No activity → no points; the same steady weeks beat one big week
+  const empty = { profile: { startDate: today } };
+  assert.equal(bodyCollection(empty, today).levels.heart.points, 0);
+});

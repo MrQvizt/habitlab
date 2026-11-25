@@ -17,9 +17,9 @@ function bodyMedals(state, g, date) {
       const n = b.counts[o.id] || 0;
       const m = medalFor(n);
       const nx = nextMedal(n);
-      return `<div class="body-medal ${m ? '' : 'locked'}" style="--mc:${m ? m.color : 'var(--line-strong)'};--oc:${o.color}">
+      return `<button type="button" data-action="openOrgan" data-organ="${o.id}" class="body-medal ${m ? '' : 'locked'}" style="--mc:${m ? m.color : 'var(--line-strong)'};--oc:${o.color}">
         <div class="bm-disc">${bodyRing(nx ? n / nx.n : 1, o.color, { size: 64, stroke: 6, label: o.emoji })}</div>
-        <strong>${esc(o.name)}</strong><small>${m ? `${m.name} · ` : ''}${n} week${n === 1 ? '' : 's'}${nx ? ` · ${nx.n - n} to ${nx.name.toLowerCase()}` : ''}</small></div>`;
+        <strong>${esc(o.name)}</strong><small>${m ? `${m.name} · ` : ''}${n} week${n === 1 ? '' : 's'}${nx ? ` · ${nx.n - n} to ${nx.name.toLowerCase()}` : ''}</small><em>Level ${g.stats.body.levels[o.id].level}</em></button>`;
     }).join('')}</div>
     ${b.allClosed ? `<p style="margin:10px 0 0;font-weight:700">🏆 Full-body weeks: ${b.allClosed}</p>` : ''}</div>`;
 }

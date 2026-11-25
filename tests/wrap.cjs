@@ -61,12 +61,38 @@ const shots = process.argv[3] || null;
   if (await page.locator('.wrap-ready').count()) errors.push('gift card still shown after collecting');
   if (await page.evaluate(() => document.body.classList.contains('wrap-open'))) errors.push('wrap-open class left on');
 
-  // Live rings open this week's wrap (no XP button)
-  await page.click('.body-rings');
+  // Tap a ring on Today → the body-part sheet: what it needs, this week, level meter
+  await page.click('.body-rings .br[data-organ=heart]');
+  await page.waitForSelector('.sheet.open .organ-head');
+  const sheet = await page.textContent('.sheet.open');
+  for (const t of ['What your heart needs', 'How to help it', 'Active minutes', 'points to Level']) if (!sheet.includes(t)) errors.push('heart sheet missing: ' + t);
+  await snap('w11-heart-sheet');
+  await page.click('.sheet.open [data-action=sheetClose]');
+  await page.waitForTimeout(400);
+  // Live wrap: rings in the story open the same sheet, above the story
+  await page.click('.body-rings .br-foot');
   await page.waitForSelector('.wrap-story');
   if (!/This week so far/.test(await page.textContent('.w-kicker'))) errors.push('live wrap kicker');
+  await page.click('.w-mini[data-organ=gut]');
+  await page.waitForSelector('.sheet.open .organ-head');
+  if (!/What your gut needs/.test(await page.textContent('.sheet.open'))) errors.push('gut sheet from wrap');
+  const onTop = await page.evaluate(() => Number(getComputedStyle(document.querySelector('.sheet.open')).zIndex) > 1000);
+  if (!onTop) errors.push('sheet hidden under the wrap');
+  await page.click('.sheet.open [data-action=sheetClose]');
+  await page.waitForTimeout(400);
   await page.keyboard.press('Escape');
   await page.waitForSelector('.tg-hero');
+  // Body page: levels for every body part
+  await page.click('a[href="#/body"]');
+  await page.waitForSelector('.body-grid');
+  if ((await page.locator('.body-tile').count()) !== 7) errors.push('expected 7 body tiles');
+  if (!/Lv \d/.test(await page.textContent('.body-grid'))) errors.push('levels missing');
+  await snap('w12-body', true);
+  await page.click('.body-tile[data-organ=muscle]');
+  await page.waitForSelector('.sheet.open .organ-head');
+  await snap('w13-muscle-sheet');
+  await page.click('.sheet.open [data-action=sheetClose]');
+  await page.waitForTimeout(400);
 
   // Rewards: medal wall + badge
   await page.goto(base + '#/rewards');

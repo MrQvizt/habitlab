@@ -841,7 +841,7 @@ body.wrap-open .bottomnav, body.wrap-open .topbar { visibility: hidden; }
 @keyframes wbar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .w-close { position: absolute; z-index: 3; top: max(28px, calc(env(safe-area-inset-top) + 10px)); right: 14px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255,255,255,.16); color: #fff; display: grid; place-items: center; cursor: pointer; }
 .w-close svg { width: 20px; height: 20px; }
-.w-card { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; max-width: 520px; width: 100%; margin: 0 auto; animation: wcard 0.45s cubic-bezier(.2,.9,.25,1.15) both; position: relative; z-index: 1; pointer-events: none; }
+.w-card { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; max-width: 520px; width: 100%; margin: 0 auto; animation: wcard 0.45s cubic-bezier(.2,.9,.25,1.15) both; position: relative; z-index: 3; pointer-events: none; }
 .w-card a, .w-card button { pointer-events: auto; }
 @keyframes wcard { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
 .w-kicker { font-size: .78rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; opacity: .85; }
@@ -940,3 +940,37 @@ body.wrap-open .bottomnav, body.wrap-open .topbar { visibility: hidden; }
 .alarm-card input[type=time].al-time { font-size: 2.9rem; font-weight: 300; border: 0; background: transparent; padding: 0; min-height: 0; width: auto; max-width: 100%; color: var(--ink); box-shadow: none; }
 .alarm-card:not(.on) input[type=time].al-time { color: var(--ink-3); }
 .alarm-card input[type=time].al-time::-webkit-calendar-picker-indicator { opacity: .35; }
+
+/* ---------- Body parts: tappable rings, levels, sheet ---------- */
+body.wrap-open .sheet-scrim { z-index: 1100; }
+body.wrap-open .sheet { z-index: 1101; }
+body.wrap-open .modal-wrap { z-index: 1200; }
+.body-rings .br, .w-mini, .w-cell, .w-ringwrap, .body-medal { border: 0; background: none; font: inherit; color: inherit; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.body-rings .br { border-radius: 14px; padding: 4px 0; transition: transform .12s, background .15s; }
+.body-rings .br:active, .body-tile:active, .w-cell:active, .body-medal:active { transform: scale(.94); }
+.body-rings .br b { font-size: 10px; font-weight: 800; color: var(--ink-2); }
+.body-rings .br-foot { grid-column: 1 / -1; text-align: center; font-size: var(--text-sm); font-weight: 700; margin-top: 8px; text-decoration: none; }
+.w-mini { border-radius: 50%; }
+.w-cell em { font-style: normal; font-size: .7rem; font-weight: 800; background: rgba(255,255,255,.16); border-radius: 999px; padding: 1px 8px; }
+.w-more { align-self: flex-start; border: 0; background: rgba(255,255,255,.2); color: #fff; font: inherit; font-weight: 700; font-size: .92rem; border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+.body-medal em { font-style: normal; font-size: 11px; font-weight: 800; color: var(--oc); }
+.lvl-meter { height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--oc) 16%, var(--surface-2)); overflow: hidden; display: block; }
+.lvl-meter > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--oc) 70%, #fff), var(--oc)); transition: width .6s cubic-bezier(.3,.9,.3,1); }
+.lvl-meter.thin { height: 6px; margin-top: 6px; }
+.bh-bars { display: flex; align-items: flex-end; gap: 4px; height: 54px; margin: 6px 0 4px; }
+.bh-bars span { flex: 1; border-radius: 4px 4px 2px 2px; min-height: 4px; }
+.organ-head h2 { font-size: 1.35rem; }
+.organ-rows { display: grid; gap: 10px; }
+.organ-row { font-size: var(--text-sm); }
+.organ-tips { margin: 0; padding-left: 20px; font-size: var(--text-sm); }
+.organ-tips li { margin: 4px 0; }
+.organ-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 10px; }
+.organ-fact { font-size: var(--text-sm); color: var(--ink-2); background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0; }
+.organ-fact a { font-size: var(--text-xs); display: block; margin-top: 4px; }
+.body-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 14px 0; }
+.body-tile { display: flex; align-items: center; gap: 14px; text-align: left; padding: 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); font: inherit; color: var(--ink); cursor: pointer; transition: transform .12s, border-color .15s; box-shadow: 0 1px 0 color-mix(in srgb, var(--oc) 25%, transparent); }
+.body-tile:hover { border-color: var(--oc); }
+.bt-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.bt-name { font-weight: 800; font-size: 1.02rem; }
+.bt-lvl { font-size: var(--text-sm); font-weight: 700; color: var(--oc); }
+.bt-meta { font-size: var(--text-xs); color: var(--ink-3); margin-top: 4px; }

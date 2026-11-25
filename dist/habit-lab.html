@@ -950,6 +950,40 @@ body.wrap-open .bottomnav, body.wrap-open .topbar { visibility: hidden; }
 .alarm-card input[type=time].al-time { font-size: 2.9rem; font-weight: 300; border: 0; background: transparent; padding: 0; min-height: 0; width: auto; max-width: 100%; color: var(--ink); box-shadow: none; }
 .alarm-card:not(.on) input[type=time].al-time { color: var(--ink-3); }
 .alarm-card input[type=time].al-time::-webkit-calendar-picker-indicator { opacity: .35; }
+
+/* ---------- Body parts: tappable rings, levels, sheet ---------- */
+body.wrap-open .sheet-scrim { z-index: 1100; }
+body.wrap-open .sheet { z-index: 1101; }
+body.wrap-open .modal-wrap { z-index: 1200; }
+.body-rings .br, .w-mini, .w-cell, .w-ringwrap, .body-medal { border: 0; background: none; font: inherit; color: inherit; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.body-rings .br { border-radius: 14px; padding: 4px 0; transition: transform .12s, background .15s; }
+.body-rings .br:active, .body-tile:active, .w-cell:active, .body-medal:active { transform: scale(.94); }
+.body-rings .br b { font-size: 10px; font-weight: 800; color: var(--ink-2); }
+.body-rings .br-foot { grid-column: 1 / -1; text-align: center; font-size: var(--text-sm); font-weight: 700; margin-top: 8px; text-decoration: none; }
+.w-mini { border-radius: 50%; }
+.w-cell em { font-style: normal; font-size: .7rem; font-weight: 800; background: rgba(255,255,255,.16); border-radius: 999px; padding: 1px 8px; }
+.w-more { align-self: flex-start; border: 0; background: rgba(255,255,255,.2); color: #fff; font: inherit; font-weight: 700; font-size: .92rem; border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+.body-medal em { font-style: normal; font-size: 11px; font-weight: 800; color: var(--oc); }
+.lvl-meter { height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--oc) 16%, var(--surface-2)); overflow: hidden; display: block; }
+.lvl-meter > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--oc) 70%, #fff), var(--oc)); transition: width .6s cubic-bezier(.3,.9,.3,1); }
+.lvl-meter.thin { height: 6px; margin-top: 6px; }
+.bh-bars { display: flex; align-items: flex-end; gap: 4px; height: 54px; margin: 6px 0 4px; }
+.bh-bars span { flex: 1; border-radius: 4px 4px 2px 2px; min-height: 4px; }
+.organ-head h2 { font-size: 1.35rem; }
+.organ-rows { display: grid; gap: 10px; }
+.organ-row { font-size: var(--text-sm); }
+.organ-tips { margin: 0; padding-left: 20px; font-size: var(--text-sm); }
+.organ-tips li { margin: 4px 0; }
+.organ-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 10px; }
+.organ-fact { font-size: var(--text-sm); color: var(--ink-2); background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0; }
+.organ-fact a { font-size: var(--text-xs); display: block; margin-top: 4px; }
+.body-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 14px 0; }
+.body-tile { display: flex; align-items: center; gap: 14px; text-align: left; padding: 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); font: inherit; color: var(--ink); cursor: pointer; transition: transform .12s, border-color .15s; box-shadow: 0 1px 0 color-mix(in srgb, var(--oc) 25%, transparent); }
+.body-tile:hover { border-color: var(--oc); }
+.bt-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.bt-name { font-weight: 800; font-size: 1.02rem; }
+.bt-lvl { font-size: var(--text-sm); font-weight: 700; color: var(--oc); }
+.bt-meta { font-size: var(--text-xs); color: var(--ink-3); margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -3583,6 +3617,8 @@ function weekBody(state, ws, { asOf = addDays(ws, 6), habitsOnly = false, series
   s.mealWalks = h('walk_after_meal');
   s.wind = h('sleep_window', 'screens_off', 'stress_reset');
   s.vegDays = h('veg_half', 'protein_first');
+  s.alcohol = h('alcohol_limit');
+  s.stepGoal = goal;
   // Weight (hidden in habits-only mode)
   const ser = series || trendSeries(state.weights || []);
   const endTrend = habitsOnly ? null : trendOn(ser, days[days.length - 1] || asOf);
@@ -3637,26 +3673,121 @@ function lastWeekStart(state, today) {
   return start && addDays(ws, 6) >= start ? ws : null;
 }
 
-/** Organs thanked across all finished weeks: {organId: weeks}, plus full-body weeks. */
+// ---------- What each body part needs, and how to help it ----------
+// rows(stats) → what fills the ring this week: [label, value, target, unit]
+const ORGAN_GUIDE = {
+  heart: {
+    needs: '150 active minutes a week. Brisk walks, cycling, swimming, dancing and hobbies all count, and vigorous minutes count double.',
+    rows: (s) => [['Active minutes', Math.round(s.activeMin), 150, 'min']],
+    tips: ['A 20-minute brisk walk on most days covers it.', 'Hobbies count: add the ones you already do in Move.', 'Breathing harder but still able to talk = moderate.'],
+    actions: [['Plan this week’s movement', '#/move'], ['Add an activity you already do', '#/move']],
+  },
+  muscle: {
+    needs: 'Two strength sessions a week, plus protein at each meal so muscle is kept while you lose fat.',
+    rows: (s) => [['Strength sessions', s.strength, 2, '']],
+    tips: ['Even one set of each exercise counts as a session.', 'Climbing, heavy gardening and yoga can count too.', 'A palm of protein at every meal helps.'],
+    actions: [['Start a strength session', '#/move']],
+  },
+  brain: {
+    needs: 'Movement on most days and a calm wind-down before bed. Both lift mood and support memory and focus.',
+    rows: (s) => [['Days with movement', s.activeDays, 5, 'days'], ['Wind-down habits', s.wind, 3, '']],
+    tips: ['Any movement counts: a walk, your step goal or a session.', 'Screens off 30 minutes before bed helps sleep.', 'Two minutes of slow breathing when stressed.'],
+    actions: [['Set a wind-down reminder', '#/settings/alarms'], ['Add a sleep or stress habit', '#/habits']],
+  },
+  knees: {
+    needs: 'Regular steps and, over time, a lighter load: every kilo lost takes about 4 kg off your knees with each step.',
+    rows: (s) => (s.stepLogged ? [['Steps', s.steps, s.stepGoal * Math.max(1, s.days), '']] : [['Days with movement', s.activeDays, 5, 'days']]),
+    tips: ['Log your steps each day to fill this ring.', 'Walking is kind to knees; build up gradually.', 'Strong thigh muscles protect the knee joint.'],
+    actions: [['Log today’s steps', '#/today']],
+  },
+  gut: {
+    needs: '25 g of fibre a day from vegetables, fruit, beans, lentils and whole grains. Your gut microbes feed on it.',
+    rows: (s) => [['Fibre per day', Math.round(s.fibreAvg), 25, 'g'], ['Days with meals logged', s.fibreDays, 4, 'days'], ['Veg-first meals', s.vegDays, 7, '']],
+    tips: ['Tick off the meals you eat so their fibre counts.', 'Half a plate of veg adds 5–10 g.', 'Beans or lentils in one meal is a big boost.'],
+    actions: [['See this week’s meals', '#/meals'], ['Add a veg habit', '#/habits']],
+  },
+  sugar: {
+    needs: 'Movement, steady meals and fewer sugary drinks keep blood sugar on an even keel and cut diabetes risk.',
+    rows: (s) => [['Active days', s.activeDays, 5, 'days'], ['Sugary drinks swapped', s.swaps, 7, ''], ['Walks after meals', s.mealWalks, 7, '']],
+    tips: ['A 10-minute walk after your biggest meal helps.', 'Swap one sugary drink for water.', 'Regular meal times avoid big swings.'],
+    actions: [['Add “water instead of sugary drinks”', '#/habits'], ['Add “walk after a meal”', '#/habits']],
+  },
+  kidneys: {
+    needs: 'Kidneys are protected by keeping blood pressure and blood sugar healthy: moving more, water instead of sugary drinks and a healthier weight.',
+    rows: (s) => [['Active days', s.activeDays, 5, 'days'], ['Water swaps', s.swaps, 7, ''], ['Alcohol kept to plan', s.alcohol, 7, '']],
+    tips: ['Choose water first.', 'Keep alcohol to planned days.', 'Every active day helps your blood pressure.'],
+    actions: [['Add “water instead of sugary drinks”', '#/habits'], ['Add “keep alcohol to planned days”', '#/habits']],
+  },
+};
+
+// ---------- Long-term body levels ----------
+// Each week a body part earns points for how full its ring got (capped at 100, so overdoing one
+// week doesn't beat showing up every week) plus a consistency bonus for back-to-back weeks at
+// half-full or more: +10 per week in the run, up to +50. Habits form through repetition, so the
+// steady weeks are what level a body part up.
+const LEVEL_TITLES = ['Waking up', 'Warming up', 'Getting going', 'Steady', 'Strong', 'Thriving', 'Resilient', 'Powerhouse', 'Elite', 'Legendary'];
+const bodyLevelStart = (n) => 50 * n * (n - 1); // 0, 100, 300, 600, 1000, 1500 …
+function bodyLevelOf(points) {
+  let n = 1;
+  while (bodyLevelStart(n + 1) <= points) n++;
+  return n;
+}
+const bodyLevelTitle = (n) => (n <= LEVEL_TITLES.length ? LEVEL_TITLES[n - 1] : `Legendary ${n - LEVEL_TITLES.length + 1}`);
+function weekPoints(pct, streakBefore) {
+  const base = Math.round(Math.min(1, Math.max(0, pct)) * 100);
+  const bonus = pct >= 0.5 ? Math.min(50, 10 * streakBefore) : 0;
+  return { base, bonus, total: base + bonus };
+}
+
+/**
+ * Everything long-term about the body: thank-you counts per finished week (for medals and badges)
+ * and levels from every week so far, this week included (so the meter moves as you go).
+ */
 function bodyCollection(state, today, { habitsOnly = false } = {}) {
   const p = state.profile || {};
   const counts = Object.fromEntries(ORGANS.map((o) => [o.id, 0]));
   const closedCounts = Object.fromEntries(ORGANS.map((o) => [o.id, 0]));
+  const prog = Object.fromEntries(ORGANS.map((o) => [o.id, { points: 0, streak: 0, best: 0, history: [], thisWeek: 0, thisWeekPts: 0 }]));
   let allClosed = 0;
   let weeks = 0;
-  if (!p.startDate) return { counts, closedCounts, allClosed, weeks };
-  const series = trendSeries(state.weights || []);
-  const last = addDays(weekStart(today), -7);
-  for (let ws = weekStart(p.startDate); ws <= last && daysBetween(ws, last) < 7 * 160; ws = addDays(ws, 7)) {
-    const w = weekBody(state, ws, { habitsOnly, series });
-    weeks++;
-    for (const o of w.organs) {
-      if (o.earned) counts[o.id]++;
-      if (o.closed) closedCounts[o.id]++;
+  const finish = () => {
+    const levels = {};
+    for (const o of ORGANS) {
+      const g = prog[o.id];
+      const level = bodyLevelOf(g.points);
+      levels[o.id] = { ...g, level, title: bodyLevelTitle(level), into: g.points - bodyLevelStart(level), need: bodyLevelStart(level + 1) - bodyLevelStart(level), history: g.history.slice(-12) };
     }
-    if (w.organs.every((o) => o.closed)) allClosed++;
+    return { counts, closedCounts, allClosed, weeks, levels };
+  };
+  if (!p.startDate) return finish();
+  const series = trendSeries(state.weights || []);
+  const cur = weekStart(today);
+  const last = addDays(cur, -7);
+  let first = weekStart(p.startDate);
+  if (daysBetween(first, cur) > 7 * 160) first = addDays(cur, -7 * 160);
+  for (let ws = first; ws <= cur; ws = addDays(ws, 7)) {
+    const current = ws === cur;
+    const w = weekBody(state, ws, { habitsOnly, series, ...(current ? { asOf: today } : {}) });
+    if (!current) weeks++;
+    for (const o of w.organs) {
+      const g = prog[o.id];
+      const pts = weekPoints(o.pct, g.streak);
+      g.points += pts.total;
+      g.history.push({ ws, pct: o.pct });
+      if (current) {
+        g.thisWeek = o.pct;
+        g.thisWeekPts = pts.total;
+      } else {
+        g.streak = o.pct >= 0.5 ? g.streak + 1 : 0;
+        g.best = Math.max(g.best, g.streak);
+        if (o.earned) counts[o.id]++;
+        if (o.closed) closedCounts[o.id]++;
+      }
+    }
+    if (!current && w.organs.every((o) => o.closed)) allClosed++;
+    if (ws > last && !current) break;
   }
-  return { counts, closedCounts, allClosed, weeks };
+  return finish();
 }
 
 const MEDALS = [
@@ -3672,7 +3803,7 @@ function nextMedal(n) {
   return MEDALS.find((m) => n < m.n) || null;
 }
 
-Object.assign(__m, { KNEE_FACTOR, FIBRE_TARGET, ORGANS, organById, weekBody, lastWeekStart, bodyCollection, MEDALS, medalFor, nextMedal });
+Object.assign(__m, { KNEE_FACTOR, FIBRE_TARGET, ORGANS, organById, weekBody, lastWeekStart, ORGAN_GUIDE, LEVEL_TITLES, bodyLevelStart, bodyLevelOf, bodyLevelTitle, weekPoints, bodyCollection, MEDALS, medalFor, nextMedal });
 },
 /* js/engine/game.js */ 13: function (__m, __req) {
 // Rewards: XP, levels, daily quests, a "showing up" streak and badges.
@@ -6892,6 +7023,7 @@ function weekFor(state, params, today) {
 }
 
 function cards(state, w, today) {
+  const lv = store.game(state)?.stats?.body?.levels || {};
   const p = state.profile;
   const partial = w.partial;
   const range = `${fmtDate(w.ws, { day: 'numeric', month: 'short' })} – ${fmtDate(addDays(w.ws, 6), { day: 'numeric', month: 'short' })}`;
@@ -6900,16 +7032,17 @@ function cards(state, w, today) {
   out.push({ kind: 'intro', c1: '#1c1c1e', c2: '#3a3a3c', html: `
     <div class="w-kicker">${partial ? 'This week so far' : 'Your Body Wrap'} · ${esc(range)}</div>
     <h1 class="w-title">${n ? `Your body sent you <span class="w-grad">${n} thank-you note${n === 1 ? '' : 's'}</span>` : 'Your body is ready for its first thank-you'}</h1>
-    <div class="w-rings">${w.organs.map((o) => `<span class="w-mini">${ring(o.pct, o.color, { size: 42, stroke: 5.5, label: o.emoji })}</span>`).join('')}</div>
+    <div class="w-rings">${w.organs.map((o) => `<button type="button" class="w-mini" data-action="openOrgan" data-organ="${o.id}" aria-label="${esc(o.name)}">${ring(o.pct, o.color, { size: 42, stroke: 5.5, label: o.emoji })}</button>`).join('')}</div>
     <p class="w-small">${w.closed} of ${w.organs.length} rings closed${partial ? ' so far' : ''}. Tap to open →</p>` });
   for (const o of w.earned) {
     const src = SOURCES[o.src];
     out.push({ kind: 'organ', c1: o.color, c2: o.color2, html: `
       <div class="w-emoji">${o.emoji}</div>
-      <div class="w-kicker">${esc(o.name)}</div>
+      <div class="w-kicker">${esc(o.name)}${lv[o.id] ? ` · Level ${lv[o.id].level} ${esc(lv[o.id].title)}` : ''}</div>
       <h1 class="w-title">${esc(o.head)}</h1>
-      <div class="w-big"><span class="w-ringwrap">${ring(o.pct, '#fff', { size: 92, stroke: 11 })}</span><span><b data-count="${esc(o.big)}">${esc(o.big)}</b><small>${esc(o.sub)}</small></span></div>
+      <div class="w-big"><button type="button" class="w-ringwrap" data-action="openOrgan" data-organ="${o.id}" aria-label="What your ${esc(o.name.toLowerCase())} needs">${ring(o.pct, '#fff', { size: 92, stroke: 11 })}</button><span><b data-count="${esc(o.big)}">${esc(o.big)}</b><small>${esc(o.sub)}</small></span></div>
       <p class="w-fact">${esc(o.fact)}</p>
+      <button type="button" class="w-more" data-action="openOrgan" data-organ="${o.id}">What does my ${esc(o.name.toLowerCase())} need? →</button>
       ${src ? `<a class="w-src" href="${esc(src[1])}" target="_blank" rel="noopener noreferrer">${esc(src[0])}</a>` : ''}` });
   }
   if (w.nudge) {
@@ -6923,7 +7056,8 @@ function cards(state, w, today) {
   out.push({ kind: 'end', c1: '#000', c2: '#1c1c1e', html: `
     <div class="w-kicker">${partial ? 'So far' : 'Week wrapped'}</div>
     <h1 class="w-title">${w.closed === w.organs.length ? 'Every ring closed. Legendary.' : n >= 4 ? 'What a week for your body.' : n ? 'Every thank-you counts.' : 'A fresh week, a fresh start.'}</h1>
-    <div class="w-grid">${w.organs.map((o) => `<div class="w-cell ${o.closed ? 'closed' : ''}">${ring(o.pct, o.color, { size: 58, stroke: 7, label: o.emoji })}<span>${esc(o.name)}</span><b>${Math.round(o.pct * 100)}%</b></div>`).join('')}</div>
+    <div class="w-grid">${w.organs.map((o) => `<button type="button" class="w-cell ${o.closed ? 'closed' : ''}" data-action="openOrgan" data-organ="${o.id}">${ring(o.pct, o.color, { size: 58, stroke: 7, label: o.emoji })}<span>${esc(o.name)}</span><b>${Math.round(o.pct * 100)}%</b>${lv[o.id] ? `<em>Lv ${lv[o.id].level}</em>` : ''}</button>`).join('')}</div>
+    <p class="w-small">Tap a body part to see what it needs.</p>
     <p class="w-small">You might not feel all of this yet — but it’s happening inside, week after week.</p>
     ${partial ? '<p class="w-small"><strong>Come back Monday</strong> for the full wrap and its XP.</p>' : claimed ? `<button class="w-btn" data-action="wrapClose">Done</button>` : `<button class="w-btn glow" data-action="wrapClaim">Collect +${XP.wrap} XP</button>`}` });
   return out;
@@ -7013,8 +7147,10 @@ function wrapReadyCard(state, today) {
 function bodyRingsCard(state, today) {
   const ws = weekStart(today);
   const w = weekBody(state, ws, { asOf: today, habitsOnly: store.habitsOnly(state) });
-  return `<div class="section-head"><h2>Your body this week</h2><a href="#/wrap/${ws}">${w.closed}/${w.organs.length} closed</a></div>
-    <a class="card body-rings" href="#/wrap/${ws}">${w.organs.map((o) => `<span class="br">${ring(o.pct, o.color, { size: 44, stroke: 5.5, label: o.emoji })}<small>${esc(o.name)}</small></span>`).join('')}</a>`;
+  const lv = store.game(state)?.stats?.body?.levels || {};
+  return `<div class="section-head"><h2>Your body this week</h2><a href="#/body">Levels →</a></div>
+    <div class="card body-rings">${w.organs.map((o) => `<button type="button" class="br" data-action="openOrgan" data-organ="${o.id}" aria-label="${esc(o.name)}: ${Math.round(o.pct * 100)}% this week">${ring(o.pct, o.color, { size: 44, stroke: 5.5, label: o.emoji })}<small>${esc(o.name)}</small>${lv[o.id] ? `<b>Lv ${lv[o.id].level}</b>` : ''}</button>`).join('')}
+      <a class="br-foot" href="#/wrap/${ws}">${w.closed}/${w.organs.length} rings closed · see this week’s wrap →</a></div>`;
 }
 
 
@@ -7788,7 +7924,7 @@ __m.default = {
         ${p.phase === 'maintain' && state.maintainKg ? `<p style="font-size:.9rem;margin-top:6px"><strong>Maintenance:</strong> keep your trend between ${fmtWeight(state.maintainKg - 2, u)} and ${fmtWeight(state.maintainKg + 2, u)}. If it drifts above, the check-in starts a short reset plan.</p>` : ''}
         <p class="muted" style="font-size:.85rem;margin-top:6px">Dots are daily weigh-ins; the line is your smoothed trend. Water, salt, hormones and digestion move daily weight by 1–2 kg — the line shows what’s really happening.</p>
       </div>
-      <div class="card"><div class="card-head"><h2>Milestones</h2><a class="btn small tonal" href="#/journey">${icon('flag')}Your journey</a></div><ul class="list">
+      <div class="card"><div class="card-head"><h2>Milestones</h2><span class="row nowrap" style="gap:6px"><a class="btn small tonal" href="#/body">❤️ Body</a><a class="btn small tonal" href="#/journey">${icon('flag')}Journey</a></span></div><ul class="list">
         ${ms.map((m) => {
           const hit = trend <= m.weightKg;
           return `<li class="row nowrap"><span class="check ${hit ? 'on' : ''}" aria-hidden="true">${icon('check')}</span><div class="grow"><strong>${m.pct}% — ${fmtWeight(m.weightKg, u)}</strong>${hit ? ' <span class="tag green">reached</span>' : ` <span class="muted" style="font-size:.85rem">${fmtWeight(trend - m.weightKg, u)} to go</span>`}<div class="muted" style="font-size:.86rem">${esc(m.info)}</div></div></li>`;
@@ -9437,9 +9573,9 @@ function bodyMedals(state, g, date) {
       const n = b.counts[o.id] || 0;
       const m = medalFor(n);
       const nx = nextMedal(n);
-      return `<div class="body-medal ${m ? '' : 'locked'}" style="--mc:${m ? m.color : 'var(--line-strong)'};--oc:${o.color}">
+      return `<button type="button" data-action="openOrgan" data-organ="${o.id}" class="body-medal ${m ? '' : 'locked'}" style="--mc:${m ? m.color : 'var(--line-strong)'};--oc:${o.color}">
         <div class="bm-disc">${bodyRing(nx ? n / nx.n : 1, o.color, { size: 64, stroke: 6, label: o.emoji })}</div>
-        <strong>${esc(o.name)}</strong><small>${m ? `${m.name} · ` : ''}${n} week${n === 1 ? '' : 's'}${nx ? ` · ${nx.n - n} to ${nx.name.toLowerCase()}` : ''}</small></div>`;
+        <strong>${esc(o.name)}</strong><small>${m ? `${m.name} · ` : ''}${n} week${n === 1 ? '' : 's'}${nx ? ` · ${nx.n - n} to ${nx.name.toLowerCase()}` : ''}</small><em>Level ${g.stats.body.levels[o.id].level}</em></button>`;
     }).join('')}</div>
     ${b.allClosed ? `<p style="margin:10px 0 0;font-weight:700">🏆 Full-body weeks: ${b.allClosed}</p>` : ''}</div>`;
 }
@@ -9647,7 +9783,95 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/app.js */ 47: function (__m, __req) {
+/* js/views/body.js */ 47: function (__m, __req) {
+// Your body: one card per body part — this week's ring, its long-term level and what it needs.
+// Tap any ring (here, on Today or in the Body Wrap) to open the body-part sheet.
+const { esc, icon, fmtDate } = __req(17);
+const store = __req(16);
+const { openSheet } = __req(25);
+const { ORGAN_GUIDE, organById, weekBody, lastWeekStart } = __req(12);
+const { S: SOURCES } = __req(27);
+const { weekStart } = __req(0);
+
+const fmtDateShort = (iso) => fmtDate(iso, { day: 'numeric', month: 'short' });
+const { ring } = __req(29);
+
+function data(state) {
+  const today = store.today();
+  const hide = store.habitsOnly(state);
+  const w = weekBody(state, weekStart(today), { asOf: today, habitsOnly: hide });
+  const g = store.game(state);
+  return { today, hide, w, levels: g.stats.body.levels };
+}
+
+const pctLabel = (p) => `${Math.round(p * 100)}%`;
+
+function history(lv, color) {
+  const h = lv.history;
+  return `<div class="bh-bars" aria-label="Last ${h.length} weeks">${h.map((x, i) => `<span title="Week of ${esc(fmtDateShort(x.ws))}: ${pctLabel(x.pct)}" style="height:${Math.max(6, Math.min(100, x.pct * 100))}%;background:${color};opacity:${i === h.length - 1 ? 1 : 0.55}"></span>`).join('')}</div>`;
+}
+
+function organSheetHtml(state, id) {
+  const { w, levels, hide } = data(state);
+  const o = w.organs.find((x) => x.id === id) || { ...organById(id), pct: 0, big: '', sub: '' };
+  const lv = levels[id];
+  const guide = ORGAN_GUIDE[id];
+  const src = SOURCES[o.src];
+  const rows = guide.rows(w.stats).filter(([label]) => !(hide && /Steps/.test(label)));
+  return `<div class="sheet-head organ-head" style="--oc:${o.color}"><div class="row nowrap" style="gap:14px">${ring(o.pct, o.color, { size: 64, stroke: 7, label: o.emoji })}
+      <div><div class="over">${esc(o.name)} · this week ${pctLabel(o.pct)}</div><h2>Level ${lv.level} · ${esc(lv.title)}</h2></div></div>
+      <button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+    <div class="lvl-meter" style="--oc:${o.color}"><span style="width:${Math.min(100, (lv.into / lv.need) * 100).toFixed(1)}%"></span></div>
+    <div class="row between" style="font-size:var(--text-sm);margin:6px 0 2px"><span><strong>${lv.into}</strong> / ${lv.need} points to Level ${lv.level + 1}</span><span>${lv.streak >= 2 ? `🔥 ${lv.streak}-week streak` : lv.best >= 2 ? `Best streak ${lv.best} weeks` : ''}</span></div>
+    <p class="muted" style="font-size:var(--text-xs);margin:0 0 12px">+${lv.thisWeekPts} points so far this week. Points come from how full the ring gets each week, plus a bonus for weeks in a row at half-full or more.</p>
+    ${lv.history.length > 1 ? `<div class="al-kicker">Last ${lv.history.length} weeks</div>${history(lv, o.color)}` : ''}
+    <h3 style="margin:16px 0 4px">What your ${esc(o.name.toLowerCase())} needs</h3>
+    <p style="margin:0 0 10px">${esc(guide.needs)}</p>
+    <div class="organ-rows">${rows.map(([label, value, target, unit]) => `<div class="organ-row"><div class="row between"><span>${esc(label)}</span><strong>${Number(value).toLocaleString()}${unit ? ` ${unit}` : ''} <span class="muted" style="font-weight:500">/ ${Number(target).toLocaleString()}</span></strong></div>
+      <div class="lvl-meter thin" style="--oc:${o.color}"><span style="width:${Math.min(100, target ? (value / target) * 100 : 0).toFixed(1)}%"></span></div></div>`).join('')}</div>
+    <h3 style="margin:16px 0 4px">How to help it</h3>
+    <ul class="organ-tips">${guide.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
+    <div class="organ-actions">${guide.actions.map(([label, href], i) => `<a class="btn ${i === 0 ? 'primary' : 'tonal'}" href="${href}">${esc(label)}</a>`).join('')}</div>
+    <p class="organ-fact">${esc(o.fact)}${src ? ` <a href="${esc(src[1])}" target="_blank" rel="noopener noreferrer">${esc(src[0])}</a>` : ''}</p>`;
+}
+
+const organActions = {
+  openOrgan(el, ev, ctx) {
+    ev?.preventDefault?.();
+    const id = el.dataset.organ;
+    if (!organById(id)) return;
+    openSheet(organSheetHtml(ctx.state, id), { label: organById(id).name });
+  },
+};
+
+__m.default = {
+  render(state) {
+    const { w, levels, today } = data(state);
+    const total = w.organs.reduce((a, o) => a + levels[o.id].level, 0);
+    const last = lastWeekStart(state, today);
+    return `<a class="btn ghost small" href="#/progress">${icon('back')}Progress</a>
+      <header class="page-head"><div><div class="eyebrow">Body level ${total}</div><h1>Your body</h1></div></header>
+      <p class="muted" style="margin-top:-6px">The rings show this week. Levels grow with every week you keep showing up — tap a body part to see what it needs.</p>
+      <div class="body-grid">${w.organs.map((o) => {
+        const lv = levels[o.id];
+        return `<button type="button" class="body-tile" data-action="openOrgan" data-organ="${o.id}" style="--oc:${o.color}">
+          ${ring(o.pct, o.color, { size: 58, stroke: 7, label: o.emoji })}
+          <span class="bt-main"><span class="bt-name">${esc(o.name)}</span><span class="bt-lvl">Lv ${lv.level} · ${esc(lv.title)}</span>
+          <span class="lvl-meter thin" style="--oc:${o.color}"><span style="width:${Math.min(100, (lv.into / lv.need) * 100).toFixed(1)}%"></span></span>
+          <span class="bt-meta">${pctLabel(o.pct)} this week${lv.streak >= 2 ? ` · 🔥${lv.streak}` : ''}</span></span></button>`;
+      }).join('')}</div>
+      <div class="row" style="gap:8px;margin-top:4px"><a class="btn tonal" href="#/wrap/${weekStart(today)}">This week so far</a>${last ? `<a class="btn ghost" href="#/wrap/${last}">Last week’s wrap</a>` : ''}<a class="btn ghost" href="#/learn/body_wrap">The evidence</a></div>
+      <details class="card" style="margin-top:14px"><summary class="row nowrap" style="cursor:pointer;list-style:none"><strong class="grow">How body levels work</strong>${icon('chevron')}</summary>
+        <p style="font-size:var(--text-sm)">Each week a body part earns up to 100 points for how full its ring gets — so a steady week beats one huge week. Weeks in a row at half-full or more add a consistency bonus (+10 per week in the streak, up to +50). Level 2 takes 100 points, level 3 300, level 4 600, level 5 1,000, and so on: early levels come fast, later ones reward months of habits.</p>
+        <p class="muted" style="font-size:var(--text-xs)">Levels are encouragement based on what you log. They’re not a medical measure of your organs.</p></details>`;
+  },
+  actions: organActions,
+};
+
+
+Object.assign(__m, { organSheetHtml, organActions });
+},
+/* js/app.js */ 48: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(16);
 const { icon, formData } = __req(17);
@@ -9666,6 +9890,9 @@ const rewards = __req(45).default;
 const journeyView = __req(22).default;
 const wrapView = __req(29).default;
 const wakeView = __req(46).default;
+const bodyView = __req(47).default;
+const { organActions } = __req(47);
+const { organById } = __req(12);
 const alarmNative = __req(40);
 const { floatXp, confetti, chime, buzz, showCelebration } = __req(28);
 const { BADGES } = __req(13);
@@ -9674,7 +9901,7 @@ const { closeSheet } = __req(25);
 const { sheetActions } = __req(26);
 const { daySummary, readDay } = __req(20);
 
-const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -9784,6 +10011,12 @@ function dialog({ message, ok, danger = false, input = null }) {
 }
 
 /** Turn the difference between two reward summaries into feedback. */
+function bodyUps(before, after) {
+  const b = before.stats?.body?.levels || {};
+  const a = after.stats?.body?.levels || {};
+  return Object.keys(a).filter((id) => b[id] && a[id].level > b[id].level).map((id) => ({ id, ...a[id] }));
+}
+
 function celebrate(before, after, prefs) {
   const gained = after.xp - before.xp;
   if (gained <= 0) return;
@@ -9809,6 +10042,12 @@ function celebrate(before, after, prefs) {
     sound = 'level';
     confetti(1.6);
     showCelebration({ kicker: `Level ${after.level}`, title: after.title, body: `You’ve earned ${after.xp.toLocaleString()} XP by showing up. ${(after.nextLevelAt - after.xp).toLocaleString()} XP to level ${after.level + 1}.`, iconName: 'star', ok: 'Keep going' });
+  } else if (bodyUps(before, after).length) {
+    const up = bodyUps(before, after)[0];
+    const o = organById(up.id);
+    sound = 'badge';
+    confetti(1);
+    showCelebration({ kicker: 'Body level up', title: `${o.emoji} ${o.name}: Level ${up.level}`, body: `${up.title}. Your consistency is paying off — keep this ring filling up week after week.`, iconName: 'star', ok: 'Nice!' });
   } else if (newBadges.length) {
     sound = 'badge';
     confetti(1);
@@ -9894,6 +10133,7 @@ function dispatch(kind, el, ev) {
 
 const GLOBAL = {
   ...sheetActions,
+  ...organActions,
   theme(el) {
     const t = el.dataset.value;
     if (t === 'auto') document.documentElement.removeAttribute('data-theme');
@@ -10037,7 +10277,7 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(47);
+__req(48);
 })();</script>
 </body>
 </html>

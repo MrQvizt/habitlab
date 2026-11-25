@@ -117,6 +117,8 @@ export function weekBody(state, ws, { asOf = addDays(ws, 6), habitsOnly = false,
   s.mealWalks = h('walk_after_meal');
   s.wind = h('sleep_window', 'screens_off', 'stress_reset');
   s.vegDays = h('veg_half', 'protein_first');
+  s.alcohol = h('alcohol_limit');
+  s.stepGoal = goal;
   // Weight (hidden in habits-only mode)
   const ser = series || trendSeries(state.weights || []);
   const endTrend = habitsOnly ? null : trendOn(ser, days[days.length - 1] || asOf);
@@ -171,26 +173,121 @@ export function lastWeekStart(state, today) {
   return start && addDays(ws, 6) >= start ? ws : null;
 }
 
-/** Organs thanked across all finished weeks: {organId: weeks}, plus full-body weeks. */
+// ---------- What each body part needs, and how to help it ----------
+// rows(stats) → what fills the ring this week: [label, value, target, unit]
+export const ORGAN_GUIDE = {
+  heart: {
+    needs: '150 active minutes a week. Brisk walks, cycling, swimming, dancing and hobbies all count, and vigorous minutes count double.',
+    rows: (s) => [['Active minutes', Math.round(s.activeMin), 150, 'min']],
+    tips: ['A 20-minute brisk walk on most days covers it.', 'Hobbies count: add the ones you already do in Move.', 'Breathing harder but still able to talk = moderate.'],
+    actions: [['Plan this week’s movement', '#/move'], ['Add an activity you already do', '#/move']],
+  },
+  muscle: {
+    needs: 'Two strength sessions a week, plus protein at each meal so muscle is kept while you lose fat.',
+    rows: (s) => [['Strength sessions', s.strength, 2, '']],
+    tips: ['Even one set of each exercise counts as a session.', 'Climbing, heavy gardening and yoga can count too.', 'A palm of protein at every meal helps.'],
+    actions: [['Start a strength session', '#/move']],
+  },
+  brain: {
+    needs: 'Movement on most days and a calm wind-down before bed. Both lift mood and support memory and focus.',
+    rows: (s) => [['Days with movement', s.activeDays, 5, 'days'], ['Wind-down habits', s.wind, 3, '']],
+    tips: ['Any movement counts: a walk, your step goal or a session.', 'Screens off 30 minutes before bed helps sleep.', 'Two minutes of slow breathing when stressed.'],
+    actions: [['Set a wind-down reminder', '#/settings/alarms'], ['Add a sleep or stress habit', '#/habits']],
+  },
+  knees: {
+    needs: 'Regular steps and, over time, a lighter load: every kilo lost takes about 4 kg off your knees with each step.',
+    rows: (s) => (s.stepLogged ? [['Steps', s.steps, s.stepGoal * Math.max(1, s.days), '']] : [['Days with movement', s.activeDays, 5, 'days']]),
+    tips: ['Log your steps each day to fill this ring.', 'Walking is kind to knees; build up gradually.', 'Strong thigh muscles protect the knee joint.'],
+    actions: [['Log today’s steps', '#/today']],
+  },
+  gut: {
+    needs: '25 g of fibre a day from vegetables, fruit, beans, lentils and whole grains. Your gut microbes feed on it.',
+    rows: (s) => [['Fibre per day', Math.round(s.fibreAvg), 25, 'g'], ['Days with meals logged', s.fibreDays, 4, 'days'], ['Veg-first meals', s.vegDays, 7, '']],
+    tips: ['Tick off the meals you eat so their fibre counts.', 'Half a plate of veg adds 5–10 g.', 'Beans or lentils in one meal is a big boost.'],
+    actions: [['See this week’s meals', '#/meals'], ['Add a veg habit', '#/habits']],
+  },
+  sugar: {
+    needs: 'Movement, steady meals and fewer sugary drinks keep blood sugar on an even keel and cut diabetes risk.',
+    rows: (s) => [['Active days', s.activeDays, 5, 'days'], ['Sugary drinks swapped', s.swaps, 7, ''], ['Walks after meals', s.mealWalks, 7, '']],
+    tips: ['A 10-minute walk after your biggest meal helps.', 'Swap one sugary drink for water.', 'Regular meal times avoid big swings.'],
+    actions: [['Add “water instead of sugary drinks”', '#/habits'], ['Add “walk after a meal”', '#/habits']],
+  },
+  kidneys: {
+    needs: 'Kidneys are protected by keeping blood pressure and blood sugar healthy: moving more, water instead of sugary drinks and a healthier weight.',
+    rows: (s) => [['Active days', s.activeDays, 5, 'days'], ['Water swaps', s.swaps, 7, ''], ['Alcohol kept to plan', s.alcohol, 7, '']],
+    tips: ['Choose water first.', 'Keep alcohol to planned days.', 'Every active day helps your blood pressure.'],
+    actions: [['Add “water instead of sugary drinks”', '#/habits'], ['Add “keep alcohol to planned days”', '#/habits']],
+  },
+};
+
+// ---------- Long-term body levels ----------
+// Each week a body part earns points for how full its ring got (capped at 100, so overdoing one
+// week doesn't beat showing up every week) plus a consistency bonus for back-to-back weeks at
+// half-full or more: +10 per week in the run, up to +50. Habits form through repetition, so the
+// steady weeks are what level a body part up.
+export const LEVEL_TITLES = ['Waking up', 'Warming up', 'Getting going', 'Steady', 'Strong', 'Thriving', 'Resilient', 'Powerhouse', 'Elite', 'Legendary'];
+export const bodyLevelStart = (n) => 50 * n * (n - 1); // 0, 100, 300, 600, 1000, 1500 …
+export function bodyLevelOf(points) {
+  let n = 1;
+  while (bodyLevelStart(n + 1) <= points) n++;
+  return n;
+}
+export const bodyLevelTitle = (n) => (n <= LEVEL_TITLES.length ? LEVEL_TITLES[n - 1] : `Legendary ${n - LEVEL_TITLES.length + 1}`);
+export function weekPoints(pct, streakBefore) {
+  const base = Math.round(Math.min(1, Math.max(0, pct)) * 100);
+  const bonus = pct >= 0.5 ? Math.min(50, 10 * streakBefore) : 0;
+  return { base, bonus, total: base + bonus };
+}
+
+/**
+ * Everything long-term about the body: thank-you counts per finished week (for medals and badges)
+ * and levels from every week so far, this week included (so the meter moves as you go).
+ */
 export function bodyCollection(state, today, { habitsOnly = false } = {}) {
   const p = state.profile || {};
   const counts = Object.fromEntries(ORGANS.map((o) => [o.id, 0]));
   const closedCounts = Object.fromEntries(ORGANS.map((o) => [o.id, 0]));
+  const prog = Object.fromEntries(ORGANS.map((o) => [o.id, { points: 0, streak: 0, best: 0, history: [], thisWeek: 0, thisWeekPts: 0 }]));
   let allClosed = 0;
   let weeks = 0;
-  if (!p.startDate) return { counts, closedCounts, allClosed, weeks };
-  const series = trendSeries(state.weights || []);
-  const last = addDays(weekStart(today), -7);
-  for (let ws = weekStart(p.startDate); ws <= last && daysBetween(ws, last) < 7 * 160; ws = addDays(ws, 7)) {
-    const w = weekBody(state, ws, { habitsOnly, series });
-    weeks++;
-    for (const o of w.organs) {
-      if (o.earned) counts[o.id]++;
-      if (o.closed) closedCounts[o.id]++;
+  const finish = () => {
+    const levels = {};
+    for (const o of ORGANS) {
+      const g = prog[o.id];
+      const level = bodyLevelOf(g.points);
+      levels[o.id] = { ...g, level, title: bodyLevelTitle(level), into: g.points - bodyLevelStart(level), need: bodyLevelStart(level + 1) - bodyLevelStart(level), history: g.history.slice(-12) };
     }
-    if (w.organs.every((o) => o.closed)) allClosed++;
+    return { counts, closedCounts, allClosed, weeks, levels };
+  };
+  if (!p.startDate) return finish();
+  const series = trendSeries(state.weights || []);
+  const cur = weekStart(today);
+  const last = addDays(cur, -7);
+  let first = weekStart(p.startDate);
+  if (daysBetween(first, cur) > 7 * 160) first = addDays(cur, -7 * 160);
+  for (let ws = first; ws <= cur; ws = addDays(ws, 7)) {
+    const current = ws === cur;
+    const w = weekBody(state, ws, { habitsOnly, series, ...(current ? { asOf: today } : {}) });
+    if (!current) weeks++;
+    for (const o of w.organs) {
+      const g = prog[o.id];
+      const pts = weekPoints(o.pct, g.streak);
+      g.points += pts.total;
+      g.history.push({ ws, pct: o.pct });
+      if (current) {
+        g.thisWeek = o.pct;
+        g.thisWeekPts = pts.total;
+      } else {
+        g.streak = o.pct >= 0.5 ? g.streak + 1 : 0;
+        g.best = Math.max(g.best, g.streak);
+        if (o.earned) counts[o.id]++;
+        if (o.closed) closedCounts[o.id]++;
+      }
+    }
+    if (!current && w.organs.every((o) => o.closed)) allClosed++;
+    if (ws > last && !current) break;
   }
-  return { counts, closedCounts, allClosed, weeks };
+  return finish();
 }
 
 export const MEDALS = [

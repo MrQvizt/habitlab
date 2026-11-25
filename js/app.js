@@ -16,6 +16,9 @@ import rewards from './views/rewards.js';
 import journeyView from './views/journey.js';
 import wrapView from './views/wrap.js';
 import wakeView from './views/wake.js';
+import bodyView from './views/body.js';
+import { organActions } from './views/body.js';
+import { organById } from './engine/body.js';
 import * as alarmNative from './alarm-native.js';
 import { floatXp, confetti, chime, buzz, showCelebration } from './ui/celebrate.js';
 import { BADGES } from './engine/game.js';
@@ -24,7 +27,7 @@ import { closeSheet } from './ui/sheet.js';
 import { sheetActions } from './views/sheets.js';
 import { daySummary, readDay } from './views/day.js';
 
-const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -134,6 +137,12 @@ function dialog({ message, ok, danger = false, input = null }) {
 }
 
 /** Turn the difference between two reward summaries into feedback. */
+function bodyUps(before, after) {
+  const b = before.stats?.body?.levels || {};
+  const a = after.stats?.body?.levels || {};
+  return Object.keys(a).filter((id) => b[id] && a[id].level > b[id].level).map((id) => ({ id, ...a[id] }));
+}
+
 function celebrate(before, after, prefs) {
   const gained = after.xp - before.xp;
   if (gained <= 0) return;
@@ -159,6 +168,12 @@ function celebrate(before, after, prefs) {
     sound = 'level';
     confetti(1.6);
     showCelebration({ kicker: `Level ${after.level}`, title: after.title, body: `You’ve earned ${after.xp.toLocaleString()} XP by showing up. ${(after.nextLevelAt - after.xp).toLocaleString()} XP to level ${after.level + 1}.`, iconName: 'star', ok: 'Keep going' });
+  } else if (bodyUps(before, after).length) {
+    const up = bodyUps(before, after)[0];
+    const o = organById(up.id);
+    sound = 'badge';
+    confetti(1);
+    showCelebration({ kicker: 'Body level up', title: `${o.emoji} ${o.name}: Level ${up.level}`, body: `${up.title}. Your consistency is paying off — keep this ring filling up week after week.`, iconName: 'star', ok: 'Nice!' });
   } else if (newBadges.length) {
     sound = 'badge';
     confetti(1);
@@ -244,6 +259,7 @@ function dispatch(kind, el, ev) {
 
 const GLOBAL = {
   ...sheetActions,
+  ...organActions,
   theme(el) {
     const t = el.dataset.value;
     if (t === 'auto') document.documentElement.removeAttribute('data-theme');

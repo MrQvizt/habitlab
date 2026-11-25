@@ -49,7 +49,7 @@ export default {
         ${p.phase === 'maintain' && state.maintainKg ? `<p style="font-size:.9rem;margin-top:6px"><strong>Maintenance:</strong> keep your trend between ${fmtWeight(state.maintainKg - 2, u)} and ${fmtWeight(state.maintainKg + 2, u)}. If it drifts above, the check-in starts a short reset plan.</p>` : ''}
         <p class="muted" style="font-size:.85rem;margin-top:6px">Dots are daily weigh-ins; the line is your smoothed trend. Water, salt, hormones and digestion move daily weight by 1–2 kg — the line shows what’s really happening.</p>
       </div>
-      <div class="card"><div class="card-head"><h2>Milestones</h2><a class="btn small tonal" href="#/journey">${icon('flag')}Your journey</a></div><ul class="list">
+      <div class="card"><div class="card-head"><h2>Milestones</h2><span class="row nowrap" style="gap:6px"><a class="btn small tonal" href="#/body">❤️ Body</a><a class="btn small tonal" href="#/journey">${icon('flag')}Journey</a></span></div><ul class="list">
         ${ms.map((m) => {
           const hit = trend <= m.weightKg;
           return `<li class="row nowrap"><span class="check ${hit ? 'on' : ''}" aria-hidden="true">${icon('check')}</span><div class="grow"><strong>${m.pct}% — ${fmtWeight(m.weightKg, u)}</strong>${hit ? ' <span class="tag green">reached</span>' : ` <span class="muted" style="font-size:.85rem">${fmtWeight(trend - m.weightKg, u)} to go</span>`}<div class="muted" style="font-size:.86rem">${esc(m.info)}</div></div></li>`;
