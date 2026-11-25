@@ -83,7 +83,7 @@ const shots = process.argv[3] || null;
   await page.keyboard.press('Escape');
   await page.waitForSelector('.tg-hero');
   // Body page: levels for every body part
-  await page.click('a[href="#/body"]');
+  await page.click('main a[href="#/body"]');
   await page.waitForSelector('.body-grid');
   if ((await page.locator('.body-tile').count()) !== 7) errors.push('expected 7 body tiles');
   if (!/Lv \d/.test(await page.textContent('.body-grid'))) errors.push('levels missing');

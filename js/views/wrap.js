@@ -60,7 +60,8 @@ function cards(state, w, today) {
       <h1 class="w-title">Your ${esc(w.nudge.name.toLowerCase())} would love a little more</h1>
       <p class="w-fact">${esc(w.nudge.tip)}</p>` });
   }
-  const claimed = !partial && state.wraps?.[w.ws];
+  // Only last week's wrap is collectable (matches the Today card and the Monday notification); older ones are for looking back.
+  const claimed = !partial && (state.wraps?.[w.ws] || w.ws !== lastWeekStart(state, today));
   out.push({ kind: 'end', c1: '#000', c2: '#1c1c1e', html: `
     <div class="w-kicker">${partial ? 'So far' : 'Week wrapped'}</div>
     <h1 class="w-title">${w.closed === w.organs.length ? 'Every ring closed. Legendary.' : n >= 4 ? 'What a week for your body.' : n ? 'Every thank-you counts.' : 'A fresh week, a fresh start.'}</h1>

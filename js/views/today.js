@@ -203,7 +203,7 @@ export default {
       <div class="today-grid">
         <div class="tg-hero">${wrapReadyCard(state, date)}${nextUp(state, date)}${hero(state)}</div>
         <div class="tg-food">${food(state, date)}</div>
-        <div class="tg-rest">${bodyRingsCard(state, date)}${journeyCard(state, date)}${habits(state, date)}${movement(state, date)}${firstWeek(state, date)}</div>
+        <div class="tg-rest">${habits(state, date)}${movement(state, date)}${bodyRingsCard(state, date)}${journeyCard(state, date)}${firstWeek(state, date)}</div>
       </div>`;
   },
   actions: {

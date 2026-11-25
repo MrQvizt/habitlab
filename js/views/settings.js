@@ -66,11 +66,11 @@ export default {
     const section = params[0] || '';
     const SECTIONS = [
       ['profile', 'About you', 'Body, goal, pace, health', 'today'],
-      ['day', 'Your day', (() => { const d = daySchedule(state.profile); return `Up ${toHHMM(d.wake)} · bed ${toHHMM(d.bed)} · kitchen closes ${toHHMM(d.last)}`; })(), 'clock'],
       ['food', 'Food', 'Diet, allergies, foods to avoid', 'meals'],
       ['movement', 'Movement', 'Equipment, joints, days', 'move'],
+      ['day', 'Your day', (() => { const d = daySchedule(state.profile); return `Up ${toHHMM(d.wake)} · bed ${toHHMM(d.bed)} · kitchen closes ${toHHMM(d.last)}`; })(), 'clock'],
       ['alarms', 'Alarms & wake-up', alarmsSummary(state), 'clock'],
-      ['reminders', 'Reminders', state.reminders?.enabled ? 'On' : 'Off', 'calendar'],
+      ['reminders', 'Reminders', state.reminders?.enabled ? 'Nudges to log, move and keep your streak · on' : 'Nudges to log, move and keep your streak · off', 'calendar'],
       ['appearance', 'Appearance & feedback', 'Theme, sounds, vibration', 'star'],
       ['data', 'Your data', 'Backup, import, delete', 'info'],
     ];
@@ -136,6 +136,7 @@ export default {
 `;
     if (section === 'alarms') return head('Alarms & wake-up') + alarmsPage(state);
     if (section === 'reminders') return head('Reminders') + `
+      <p class="muted" style="font-size:var(--text-sm);margin-top:-6px">Quiet notifications to log meals, move and keep your streak. Want something that rings, like a wake-up or bedtime alarm? <a href="#/settings/alarms">Alarms & wake-up</a></p>
       <form data-form="reminders" id="reminders">
         ${remindersHtml(state)}
       </form>

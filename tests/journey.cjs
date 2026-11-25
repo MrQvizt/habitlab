@@ -66,7 +66,7 @@ const shots = process.argv[3] || null;
 
   // Progress links to the journey; settings shows the healthy range
   await page.goto(base + '#/progress');
-  await page.waitForSelector('a[href="#/journey"]');
+  await page.waitForSelector('main a[href="#/journey"]');
   await page.goto(base + '#/settings/profile');
   if (!/Healthy range for your height/.test(await page.textContent('main'))) errors.push('settings goal hint missing');
 

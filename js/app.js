@@ -28,6 +28,8 @@ import { sheetActions } from './views/sheets.js';
 import { daySummary, readDay } from './views/day.js';
 
 const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+// Screens without their own tab light up the tab they belong to.
+const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today' };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -193,9 +195,10 @@ function parseRoute() {
 }
 
 function navHtml(active, kind) {
+  if (kind !== 'side') active = TAB_OF[active] || active;
   const links = NAV.map(([id, label, ic]) => `<a href="#/${id}" class="${kind === 'side' ? 'nav ' : ''}${active === id ? 'active' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`).join('');
   if (kind === 'side') {
-    const extra = [['rewards', 'Rewards', 'star'], ['learn', 'Learn', 'learn'], ['checkin', 'Weekly check-in', 'calendar'], ['settings', 'Settings', 'settings']];
+    const extra = [['journey', 'Journey', 'flag'], ['body', 'Your body', 'today'], ['rewards', 'Rewards', 'star'], ['checkin', 'Weekly check-in', 'calendar'], ['learn', 'The evidence', 'learn'], ['settings', 'Settings', 'settings']];
     return `<a class="brand" href="#/today"><span class="logo">HL</span>Habit Lab</a>${links}<div class="sep"></div>${extra.map(([id, label, ic]) => `<a href="#/${id}" class="nav ${active === id ? 'active' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`).join('')}<div class="spacer"></div>`;
   }
   return links;

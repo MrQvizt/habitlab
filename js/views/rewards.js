@@ -4,24 +4,20 @@ import { ring, barChart } from '../ui/charts.js';
 import * as store from '../store.js';
 import { BADGES, XP, levelTitle } from '../engine/game.js';
 import { addDays, weekStart } from '../engine/util.js';
-import { ORGANS, medalFor, nextMedal, lastWeekStart } from '../engine/body.js';
+import { ORGANS, lastWeekStart } from '../engine/body.js';
 import { ring as bodyRing } from './wrap.js';
 
 function bodyMedals(state, g, date) {
-  const b = g.stats.body;
+  const lv = g.stats.body.levels;
   const hide = store.habitsOnly(state);
+  const organs = ORGANS.filter((o) => !(hide && o.id === 'knees'));
+  const total = organs.reduce((a, o) => a + (lv[o.id]?.level || 1), 0);
   const last = lastWeekStart(state, date);
-  return `<div class="section-head"><h2>Body medals</h2><span class="meta">${last ? `<a href="#/wrap/${last}">Last week’s wrap</a>` : 'Your first wrap arrives Monday'}</span></div>
-    <div class="card"><p class="muted" style="font-size:var(--text-sm);margin-top:0">Every week a body part thanks you, it counts toward its medal: bronze 1 week, silver 4, gold 12, platinum 26.</p>
-    <div class="medal-wall">${ORGANS.filter((o) => !(hide && o.id === 'knees')).map((o) => {
-      const n = b.counts[o.id] || 0;
-      const m = medalFor(n);
-      const nx = nextMedal(n);
-      return `<button type="button" data-action="openOrgan" data-organ="${o.id}" class="body-medal ${m ? '' : 'locked'}" style="--mc:${m ? m.color : 'var(--line-strong)'};--oc:${o.color}">
-        <div class="bm-disc">${bodyRing(nx ? n / nx.n : 1, o.color, { size: 64, stroke: 6, label: o.emoji })}</div>
-        <strong>${esc(o.name)}</strong><small>${m ? `${m.name} · ` : ''}${n} week${n === 1 ? '' : 's'}${nx ? ` · ${nx.n - n} to ${nx.name.toLowerCase()}` : ''}</small><em>Level ${g.stats.body.levels[o.id].level}</em></button>`;
-    }).join('')}</div>
-    ${b.allClosed ? `<p style="margin:10px 0 0;font-weight:700">🏆 Full-body weeks: ${b.allClosed}</p>` : ''}</div>`;
+  return `<div class="section-head"><h2>Body levels</h2><a href="#/body">Body level ${total} →</a></div>
+    <div class="card"><div class="medal-wall">${organs.map((o) => `<button type="button" data-action="openOrgan" data-organ="${o.id}" class="body-medal" style="--mc:${o.color};--oc:${o.color}">
+        <div class="bm-disc">${bodyRing(lv[o.id].into / lv[o.id].need, o.color, { size: 64, stroke: 6, label: o.emoji })}</div>
+        <strong>${esc(o.name)}</strong><em>Level ${lv[o.id].level}</em><small>${esc(lv[o.id].title)}${lv[o.id].streak >= 2 ? ` · 🔥${lv[o.id].streak}` : ''}</small></button>`).join('')}</div>
+    <p class="muted" style="font-size:var(--text-sm);margin:12px 0 0">Body parts level up with every week their ring fills — steady weeks count most. ${last && !state.wraps?.[last] ? `<a href="#/wrap/${last}">Last week’s Body Wrap is waiting (+30 XP)</a>` : ''}</p></div>`;
 }
 
 export default {

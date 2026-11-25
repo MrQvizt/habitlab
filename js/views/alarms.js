@@ -46,6 +46,7 @@ export function alarmsPage(state) {
     ${card(`<div class="row between nowrap"><div class="grow"><div class="al-kicker">Meals</div><div class="al-meals">${slots.filter((s) => mt[s] != null).map((s) => `<span>${fmtTime(mt[s])}</span>`).join('')}</div></div>${sw('meals.on', a.meals.on, 'Meal alarms')}</div>
       <div class="row between" style="margin-top:8px"><label class="row nowrap" style="gap:8px;font-size:var(--text-sm)"><input type="checkbox" data-change="alarmSet" data-path="meals.snacks" ${a.meals.snacks ? 'checked' : ''}> Snacks too</label>${styleSeg('meals.style', a.meals.style)}</div>
       <p class="al-note">From your day schedule, so meals come at regular times.</p>`, a.meals.on ? 'on' : '')}
+    <p class="muted" style="font-size:var(--text-sm)">Times come from <a href="#/settings/day">Your day</a>. Quiet nudges to log meals and keep your streak are in <a href="#/settings/reminders">Reminders</a>.</p>
     <div class="card"><label class="row between nowrap" style="font-size:var(--text-sm)"><span>Snooze length</span><select data-change="alarmSnooze">${[5, 9, 10, 15].map((m) => `<option value="${m}" ${a.snooze === m ? 'selected' : ''}>${m} minutes</option>`).join('')}</select></label></div>
 
     <div class="section-head"><h2>Morning messages</h2><a href="#/learn/morning_mind">Why it works</a></div>

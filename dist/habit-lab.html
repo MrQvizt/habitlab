@@ -984,6 +984,29 @@ body.wrap-open .modal-wrap { z-index: 1200; }
 .bt-name { font-weight: 800; font-size: 1.02rem; }
 .bt-lvl { font-size: var(--text-sm); font-weight: 700; color: var(--oc); }
 .bt-meta { font-size: var(--text-xs); color: var(--ink-3); margin-top: 4px; }
+
+/* ---------- Progress hub ---------- */
+.hub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+@media (min-width: 900px) { .hub-grid { grid-template-columns: repeat(4, 1fr); } }
+.hub-tile { display: flex; flex-direction: column; gap: 2px; padding: 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); color: var(--ink); text-decoration: none; min-height: 112px; transition: transform .12s, border-color .15s; min-width: 0; }
+.hub-tile:hover { border-color: var(--accent); }
+.hub-tile:active { transform: scale(.97); }
+.hub-tile.due { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.hub-k { display: flex; align-items: center; gap: 5px; font-size: var(--text-xs); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.hub-k svg { width: 14px; height: 14px; }
+.hub-tile strong { font-size: 1.02rem; line-height: 1.25; margin-top: 4px; }
+.hub-s { font-size: var(--text-sm); color: var(--ink-3); line-height: 1.3; }
+.hub-tile .bar { display: block; }
+.hub-rings { display: flex; gap: 3px; margin-top: 8px; flex-wrap: wrap; }
+.wrap-row { padding: 12px 16px; text-decoration: none; color: var(--ink); gap: 10px; }
+.wrap-row .sub { display: block; font-size: var(--text-sm); color: var(--ink-3); }
+.wrap-row .hub-rings { margin: 0; flex-wrap: nowrap; }
+.wrap-row svg:last-child { width: 18px; height: 18px; flex: none; color: var(--ink-3); }
+@media (max-width: 420px) { .wrap-row .hub-rings { display: none; } }
+.learn-link { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); }
+.learn-link .sub { display: block; font-size: var(--text-sm); color: var(--ink-3); }
+.learn-link > svg { width: 22px; height: 22px; flex: none; color: var(--accent); }
+.body-medal em { display: block; }
 </style>
 </head>
 <body>
@@ -7052,7 +7075,8 @@ function cards(state, w, today) {
       <h1 class="w-title">Your ${esc(w.nudge.name.toLowerCase())} would love a little more</h1>
       <p class="w-fact">${esc(w.nudge.tip)}</p>` });
   }
-  const claimed = !partial && state.wraps?.[w.ws];
+  // Only last week's wrap is collectable (matches the Today card and the Monday notification); older ones are for looking back.
+  const claimed = !partial && (state.wraps?.[w.ws] || w.ws !== lastWeekStart(state, today));
   out.push({ kind: 'end', c1: '#000', c2: '#1c1c1e', html: `
     <div class="w-kicker">${partial ? 'So far' : 'Week wrapped'}</div>
     <h1 class="w-title">${w.closed === w.organs.length ? 'Every ring closed. Legendary.' : n >= 4 ? 'What a week for your body.' : n ? 'Every thank-you counts.' : 'A fresh week, a fresh start.'}</h1>
@@ -7362,7 +7386,7 @@ __m.default = {
       <div class="today-grid">
         <div class="tg-hero">${wrapReadyCard(state, date)}${nextUp(state, date)}${hero(state)}</div>
         <div class="tg-food">${food(state, date)}</div>
-        <div class="tg-rest">${bodyRingsCard(state, date)}${journeyCard(state, date)}${habits(state, date)}${movement(state, date)}${firstWeek(state, date)}</div>
+        <div class="tg-rest">${habits(state, date)}${movement(state, date)}${bodyRingsCard(state, date)}${journeyCard(state, date)}${firstWeek(state, date)}</div>
       </div>`;
   },
   actions: {
@@ -7873,13 +7897,58 @@ __m.default = {
 Object.assign(__m, {  });
 },
 /* js/views/progress.js */ 34: function (__m, __req) {
-// Progress: weight trend chart, milestones, rate, activity history, waist, check-in history.
+// Progress: the home for everything long-term. A hub (journey, body levels, rewards, weekly
+// check-in), past Body Wraps, then the weight trend, activity, weigh-ins, waist and check-in history.
 const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(17);
 const { weightChart, barChart } = __req(32);
 const store = __req(16);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
 const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
+const { journey, nextStops } = __req(21);
+const { weekBody } = __req(12);
+const { checkinDue } = __req(18);
+const { ring } = __req(29);
+
+/** The long-term hub at the top of Progress. */
+function hub(state, date, hide) {
+  const p = state.profile;
+  const u = p.units === 'imperial' ? 'imperial' : 'metric';
+  const g = store.game(state);
+  const lv = g.stats.body.levels;
+  const w = weekBody(state, weekStart(date), { asOf: date, habitsOnly: hide });
+  const bodyLevel = w.organs.reduce((a, o) => a + (lv[o.id]?.level || 1), 0);
+  const j = journey(state, { today: date, trendKg: store.trendWeight(state) });
+  const n = nextStops(j);
+  const next = hide ? n.time : n.weight || n.time;
+  const due = checkinDue(state, date);
+  const lastCheck = state.checkins.length ? state.checkins[state.checkins.length - 1].date : null;
+  const tile = (href, kicker, title, sub, extra = '', cls = '') => `<a class="hub-tile ${cls}" href="${href}"><span class="hub-k">${kicker}</span><strong>${title}</strong><span class="hub-s">${sub}</span>${extra}</a>`;
+  return `<div class="hub-grid">
+    ${tile('#/journey', `${icon('flag')} Journey`, p.phase === 'maintain' ? 'Keeping it off' : !hide && j.goalKg ? `${j.pct.toFixed(0)}% of the way` : 'The road ahead', next ? `Next: ${esc(next.title)}` : 'All stops reached', !hide && j.goalKg && p.phase !== 'maintain' ? `<span class="bar" style="margin-top:8px"><span style="width:${Math.max(2, j.pct).toFixed(1)}%"></span></span>` : '')}
+    ${tile('#/body', '❤️ Your body', `Body level ${bodyLevel}`, `${w.closed}/${w.organs.length} rings closed this week`, `<span class="hub-rings">${w.organs.map((o) => ring(o.pct, o.color, { size: 22, stroke: 3.5 })).join('')}</span>`)}
+    ${tile('#/rewards', `${icon('star')} Rewards`, `Level ${g.level} · ${esc(g.title)}`, `${g.streak}-day streak · ${g.badges.length} badges`)}
+    ${tile('#/checkin', `${icon('calendar')} Weekly check-in`, due ? 'Ready now' : 'Done for this week', due ? 'Two minutes · +50 XP' : lastCheck ? `Last: ${fmtDate(lastCheck, { day: 'numeric', month: 'short' })}` : 'Weekly, from day 7', '', due ? 'due' : '')}
+  </div>`;
+}
+
+/** The last few weeks' Body Wraps, so they can be opened again. */
+function wrapsCard(state, date, hide) {
+  const start = state.profile.startDate;
+  const weeks = [];
+  for (let i = 1; i <= 4; i++) {
+    const ws = addDays(weekStart(date), -7 * i);
+    if (addDays(ws, 6) < start) break;
+    weeks.push(ws);
+  }
+  if (!weeks.length) return '';
+  return `<div class="section-head"><h2>Body Wraps</h2><a href="#/wrap/${weekStart(date)}">This week so far</a></div>
+    <div class="card tight"><ul class="rows">${weeks.map((ws, i) => {
+      const w = weekBody(state, ws, { habitsOnly: hide });
+      const opened = state.wraps?.[ws];
+      return `<li><a class="row nowrap wrap-row" href="#/wrap/${ws}"><span class="grow"><strong>Week of ${fmtDate(ws, { day: 'numeric', month: 'short' })}</strong><span class="sub">${w.earned.length} thank-you note${w.earned.length === 1 ? '' : 's'} · ${w.closed}/${w.organs.length} rings closed${opened || i > 0 ? '' : ' · <b style="color:var(--accent)">new · +30 XP</b>'}</span></span><span class="hub-rings">${w.organs.map((o) => ring(o.pct, o.color, { size: 20, stroke: 3.5 })).join('')}</span>${icon('chevron')}</a></li>`;
+    }).join('')}</ul></div>`;
+}
 
 let range = 'all';
 
@@ -7922,17 +7991,15 @@ __m.default = {
         <div class="card-head"><h2>Weight trend</h2><div class="segmented">${[['4w', '4 weeks'], ['12w', '12 weeks'], ['all', 'All']].map(([k, l]) => `<button type="button" class="${range === k ? 'on' : ''}" data-action="range" data-value="${k}">${l}</button>`).join('')}</div></div>
         ${weightChart(shown, { width: narrow ? 360 : 640, height: narrow ? 230 : 240, goal: p.phase === 'maintain' ? null : p.goalWeightKg, band: p.phase === 'maintain' && state.maintainKg ? { lo: state.maintainKg - 2, hi: state.maintainKg + 2 } : null, milestones: p.phase === 'maintain' ? [] : ms, conv, unitLabel: u === 'imperial' ? 'lb' : 'kg' })}
         ${p.phase === 'maintain' && state.maintainKg ? `<p style="font-size:.9rem;margin-top:6px"><strong>Maintenance:</strong> keep your trend between ${fmtWeight(state.maintainKg - 2, u)} and ${fmtWeight(state.maintainKg + 2, u)}. If it drifts above, the check-in starts a short reset plan.</p>` : ''}
-        <p class="muted" style="font-size:.85rem;margin-top:6px">Dots are daily weigh-ins; the line is your smoothed trend. Water, salt, hormones and digestion move daily weight by 1–2 kg — the line shows what’s really happening.</p>
+        <p class="muted" style="font-size:.85rem;margin-top:6px">Dots are daily weigh-ins; the line is your smoothed trend. Water, salt, hormones and digestion move daily weight by 1–2 kg — the line shows what’s really happening. Dashed lines mark the 5–15% health milestones${p.goalWeightKg ? ` and your goal (${fmtWeight(p.goalWeightKg, u)})` : ''}.</p>
+        <p class="muted" style="font-size:.85rem">Current BMI ${bmi(trend, p.heightCm).toFixed(1)} (${bmiCategory(bmi(trend, p.heightCm))}). BMI is a rough screening number — waist size, blood tests and how you feel matter too. <a href="#/journey">See every stop on your journey</a></p>
       </div>
-      <div class="card"><div class="card-head"><h2>Milestones</h2><span class="row nowrap" style="gap:6px"><a class="btn small tonal" href="#/body">❤️ Body</a><a class="btn small tonal" href="#/journey">${icon('flag')}Journey</a></span></div><ul class="list">
-        ${ms.map((m) => {
-          const hit = trend <= m.weightKg;
-          return `<li class="row nowrap"><span class="check ${hit ? 'on' : ''}" aria-hidden="true">${icon('check')}</span><div class="grow"><strong>${m.pct}% — ${fmtWeight(m.weightKg, u)}</strong>${hit ? ' <span class="tag green">reached</span>' : ` <span class="muted" style="font-size:.85rem">${fmtWeight(trend - m.weightKg, u)} to go</span>`}<div class="muted" style="font-size:.86rem">${esc(m.info)}</div></div></li>`;
-        }).join('')}
-        ${p.goalWeightKg ? `<li><strong>Your goal: ${fmtWeight(p.goalWeightKg, u)}</strong> <span class="muted">— BMI ${bmi(p.goalWeightKg, p.heightCm).toFixed(1)}</span></li>` : ''}
-      </ul><p class="muted" style="font-size:.85rem">Current BMI ${bmi(trend, p.heightCm).toFixed(1)} (${bmiCategory(bmi(trend, p.heightCm))}). BMI is a rough screening number — waist size, blood tests and how you feel matter too.</p></div>`;
+`;
 
     return html`<header class="page-head"><div><div class="eyebrow">Since ${fmtDate(p.startDate, { day: 'numeric', month: 'short' })}</div><h1>Progress</h1></div></header>
+      ${hub(state, date, hide)}
+      ${wrapsCard(state, date, hide)}
+      ${hide ? '' : '<div class="section-head"><h2>Weight</h2></div>'}
       ${weightSection}
       <div class="grid two">
         <div class="card"><h2>Consistency (last 28 days)</h2>
@@ -7949,7 +8016,8 @@ __m.default = {
         <div class="card"><div class="card-head"><h2>Waist</h2><button class="btn small tonal" data-action="openWaist">${icon('plus')}Add</button></div><p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Often drops even when the scale stalls.</p>
           ${(state.waist || []).length ? `<table class="simple">${(state.waist || []).slice(-5).reverse().map((w) => `<tr><td>${fmtDate(w.date)}</td><td class="right num">${u === 'imperial' ? `${round(cmToIn(w.cm), 0.5)} in` : `${w.cm} cm`}</td></tr>`).join('')}</table>` : '<p class="muted" style="font-size:var(--text-sm)">No measurements yet.</p>'}</div>
       </div>`}
-      <div class="card"><h2>Check-in history</h2>${state.checkins.length ? `<table class="simple"><tr><th>Date</th><th>Rate</th><th>Changes</th></tr>${state.checkins.slice().reverse().map((c) => `<tr><td>${fmtDate(c.date)}</td><td>${c.rate == null || hide ? '–' : fmtDelta(c.rate, u, 2) + '/wk'}</td><td style="font-size:.86rem">${esc(describe(c.applied, hide))}</td></tr>`).join('')}</table>` : '<p class="muted">Your weekly check-ins will appear here.</p>'}</div>`;
+      <div class="card"><div class="card-head"><h2>Check-in history</h2>${checkinDue(state, date) ? `<a class="btn small primary" href="#/checkin">Do this week’s</a>` : ''}</div>${state.checkins.length ? `<table class="simple"><tr><th>Date</th><th>Rate</th><th>Changes</th></tr>${state.checkins.slice().reverse().map((c) => `<tr><td>${fmtDate(c.date)}</td><td>${c.rate == null || hide ? '–' : fmtDelta(c.rate, u, 2) + '/wk'}</td><td style="font-size:.86rem">${esc(describe(c.applied, hide))}</td></tr>`).join('')}</table>` : '<p class="muted">Your weekly check-ins will appear here.</p>'}</div>
+      <a class="card learn-link" href="#/learn">${icon('learn')}<span class="grow"><strong>The evidence</strong><span class="sub">The research behind every feature, in plain language</span></span>${icon('chevron')}</a>`;
   },
   actions: {
     range(el, ev, ctx) {
@@ -8852,6 +8920,7 @@ function alarmsPage(state) {
     ${card(`<div class="row between nowrap"><div class="grow"><div class="al-kicker">Meals</div><div class="al-meals">${slots.filter((s) => mt[s] != null).map((s) => `<span>${fmtTime(mt[s])}</span>`).join('')}</div></div>${sw('meals.on', a.meals.on, 'Meal alarms')}</div>
       <div class="row between" style="margin-top:8px"><label class="row nowrap" style="gap:8px;font-size:var(--text-sm)"><input type="checkbox" data-change="alarmSet" data-path="meals.snacks" ${a.meals.snacks ? 'checked' : ''}> Snacks too</label>${styleSeg('meals.style', a.meals.style)}</div>
       <p class="al-note">From your day schedule, so meals come at regular times.</p>`, a.meals.on ? 'on' : '')}
+    <p class="muted" style="font-size:var(--text-sm)">Times come from <a href="#/settings/day">Your day</a>. Quiet nudges to log meals and keep your streak are in <a href="#/settings/reminders">Reminders</a>.</p>
     <div class="card"><label class="row between nowrap" style="font-size:var(--text-sm)"><span>Snooze length</span><select data-change="alarmSnooze">${[5, 9, 10, 15].map((m) => `<option value="${m}" ${a.snooze === m ? 'selected' : ''}>${m} minutes</option>`).join('')}</select></label></div>
 
     <div class="section-head"><h2>Morning messages</h2><a href="#/learn/morning_mind">Why it works</a></div>
@@ -9193,11 +9262,11 @@ __m.default = {
     const section = params[0] || '';
     const SECTIONS = [
       ['profile', 'About you', 'Body, goal, pace, health', 'today'],
-      ['day', 'Your day', (() => { const d = daySchedule(state.profile); return `Up ${toHHMM(d.wake)} · bed ${toHHMM(d.bed)} · kitchen closes ${toHHMM(d.last)}`; })(), 'clock'],
       ['food', 'Food', 'Diet, allergies, foods to avoid', 'meals'],
       ['movement', 'Movement', 'Equipment, joints, days', 'move'],
+      ['day', 'Your day', (() => { const d = daySchedule(state.profile); return `Up ${toHHMM(d.wake)} · bed ${toHHMM(d.bed)} · kitchen closes ${toHHMM(d.last)}`; })(), 'clock'],
       ['alarms', 'Alarms & wake-up', alarmsSummary(state), 'clock'],
-      ['reminders', 'Reminders', state.reminders?.enabled ? 'On' : 'Off', 'calendar'],
+      ['reminders', 'Reminders', state.reminders?.enabled ? 'Nudges to log, move and keep your streak · on' : 'Nudges to log, move and keep your streak · off', 'calendar'],
       ['appearance', 'Appearance & feedback', 'Theme, sounds, vibration', 'star'],
       ['data', 'Your data', 'Backup, import, delete', 'info'],
     ];
@@ -9263,6 +9332,7 @@ __m.default = {
 `;
     if (section === 'alarms') return head('Alarms & wake-up') + alarmsPage(state);
     if (section === 'reminders') return head('Reminders') + `
+      <p class="muted" style="font-size:var(--text-sm);margin-top:-6px">Quiet notifications to log meals, move and keep your streak. Want something that rings, like a wake-up or bedtime alarm? <a href="#/settings/alarms">Alarms & wake-up</a></p>
       <form data-form="reminders" id="reminders">
         ${remindersHtml(state)}
       </form>
@@ -9560,24 +9630,20 @@ const { ring, barChart } = __req(32);
 const store = __req(16);
 const { BADGES, XP, levelTitle } = __req(13);
 const { addDays, weekStart } = __req(0);
-const { ORGANS, medalFor, nextMedal, lastWeekStart } = __req(12);
+const { ORGANS, lastWeekStart } = __req(12);
 const { ring: bodyRing } = __req(29);
 
 function bodyMedals(state, g, date) {
-  const b = g.stats.body;
+  const lv = g.stats.body.levels;
   const hide = store.habitsOnly(state);
+  const organs = ORGANS.filter((o) => !(hide && o.id === 'knees'));
+  const total = organs.reduce((a, o) => a + (lv[o.id]?.level || 1), 0);
   const last = lastWeekStart(state, date);
-  return `<div class="section-head"><h2>Body medals</h2><span class="meta">${last ? `<a href="#/wrap/${last}">Last week’s wrap</a>` : 'Your first wrap arrives Monday'}</span></div>
-    <div class="card"><p class="muted" style="font-size:var(--text-sm);margin-top:0">Every week a body part thanks you, it counts toward its medal: bronze 1 week, silver 4, gold 12, platinum 26.</p>
-    <div class="medal-wall">${ORGANS.filter((o) => !(hide && o.id === 'knees')).map((o) => {
-      const n = b.counts[o.id] || 0;
-      const m = medalFor(n);
-      const nx = nextMedal(n);
-      return `<button type="button" data-action="openOrgan" data-organ="${o.id}" class="body-medal ${m ? '' : 'locked'}" style="--mc:${m ? m.color : 'var(--line-strong)'};--oc:${o.color}">
-        <div class="bm-disc">${bodyRing(nx ? n / nx.n : 1, o.color, { size: 64, stroke: 6, label: o.emoji })}</div>
-        <strong>${esc(o.name)}</strong><small>${m ? `${m.name} · ` : ''}${n} week${n === 1 ? '' : 's'}${nx ? ` · ${nx.n - n} to ${nx.name.toLowerCase()}` : ''}</small><em>Level ${g.stats.body.levels[o.id].level}</em></button>`;
-    }).join('')}</div>
-    ${b.allClosed ? `<p style="margin:10px 0 0;font-weight:700">🏆 Full-body weeks: ${b.allClosed}</p>` : ''}</div>`;
+  return `<div class="section-head"><h2>Body levels</h2><a href="#/body">Body level ${total} →</a></div>
+    <div class="card"><div class="medal-wall">${organs.map((o) => `<button type="button" data-action="openOrgan" data-organ="${o.id}" class="body-medal" style="--mc:${o.color};--oc:${o.color}">
+        <div class="bm-disc">${bodyRing(lv[o.id].into / lv[o.id].need, o.color, { size: 64, stroke: 6, label: o.emoji })}</div>
+        <strong>${esc(o.name)}</strong><em>Level ${lv[o.id].level}</em><small>${esc(lv[o.id].title)}${lv[o.id].streak >= 2 ? ` · 🔥${lv[o.id].streak}` : ''}</small></button>`).join('')}</div>
+    <p class="muted" style="font-size:var(--text-sm);margin:12px 0 0">Body parts level up with every week their ring fills — steady weeks count most. ${last && !state.wraps?.[last] ? `<a href="#/wrap/${last}">Last week’s Body Wrap is waiting (+30 XP)</a>` : ''}</p></div>`;
 }
 
 __m.default = {
@@ -9902,6 +9968,8 @@ const { sheetActions } = __req(26);
 const { daySummary, readDay } = __req(20);
 
 const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+// Screens without their own tab light up the tab they belong to.
+const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today' };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -10067,9 +10135,10 @@ function parseRoute() {
 }
 
 function navHtml(active, kind) {
+  if (kind !== 'side') active = TAB_OF[active] || active;
   const links = NAV.map(([id, label, ic]) => `<a href="#/${id}" class="${kind === 'side' ? 'nav ' : ''}${active === id ? 'active' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`).join('');
   if (kind === 'side') {
-    const extra = [['rewards', 'Rewards', 'star'], ['learn', 'Learn', 'learn'], ['checkin', 'Weekly check-in', 'calendar'], ['settings', 'Settings', 'settings']];
+    const extra = [['journey', 'Journey', 'flag'], ['body', 'Your body', 'today'], ['rewards', 'Rewards', 'star'], ['checkin', 'Weekly check-in', 'calendar'], ['learn', 'The evidence', 'learn'], ['settings', 'Settings', 'settings']];
     return `<a class="brand" href="#/today"><span class="logo">HL</span>Habit Lab</a>${links}<div class="sep"></div>${extra.map(([id, label, ic]) => `<a href="#/${id}" class="nav ${active === id ? 'active' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`).join('')}<div class="spacer"></div>`;
   }
   return links;
