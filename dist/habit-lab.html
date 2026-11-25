@@ -1012,6 +1012,10 @@ body.wrap-open .modal-wrap { z-index: 1200; }
 .week-strip span { text-align: center; font-size: var(--text-xs); font-weight: 700; padding: 8px 0; border-radius: 8px; background: var(--surface-2); color: var(--ink-3); }
 .week-strip span.first { background: var(--accent); color: #fff; }
 .week-strip span.last { box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent); }
+
+.own-value { display: flex; gap: 8px; margin-top: 12px; }
+.own-value input { flex: 1; min-width: 0; }
+.chip.own span { border-style: dashed; }
 </style>
 </head>
 <body>
@@ -4626,7 +4630,7 @@ function sanitize(s) {
     };
     const f = s.affirm && typeof s.affirm === 'object' ? s.affirm : {};
     const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
-    s.affirm = { values: strs(f.values, 3, 20), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
+    s.affirm = { values: strs(f.values, 3, 30), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
   }
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
@@ -8732,9 +8736,9 @@ const MESSAGE_SETS = {
     label: 'Your values',
     hint: 'Built from what matters to you — the type of affirmation studied in brain-imaging research.',
     lines: [
-      '{Value} matters to you. Every healthy choice today is a quiet way of honouring it.',
+      'You care about {phrase}. Every healthy choice today is a quiet way of honouring that.',
       'Today you get to look after yourself for {phrase}. That’s a reason worth getting up for.',
-      'You care about {phrase}. A good breakfast and a short walk are investments in exactly that.',
+      '{Phrase} — a good breakfast and a short walk today are investments in exactly that.',
       'Think of one moment today where {phrase} will matter. Your habits are making room for it.',
     ],
   },
@@ -8790,6 +8794,27 @@ const MESSAGE_SETS = {
   },
 };
 
+const MAX_VALUES = 3;
+
+/**
+ * A value is a preset id ("family") or your own words ("My kids", "Painting").
+ * Own words are turned round to speak to you: "my kids" → "your kids".
+ */
+function valueInfo(v) {
+  if (VALUES[v]) return VALUES[v];
+  const label = String(v || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+  if (!label) return null;
+  const turned = label
+    .replace(/\bmy\b/gi, 'your')
+    .replace(/\bmine\b/gi, 'yours')
+    .replace(/\bmyself\b/gi, 'yourself')
+    .replace(/\b(I|me)\b/g, 'you');
+  // Lower-case the first letter unless it looks like a name or acronym (e.g. "NYC", "Max").
+  const keepCase = /^[A-Z]{2}/.test(turned) || (/^[A-Z][a-z]+$/.test(turned.split(' ')[0]) && !/^(Your|Being|Feeling|Having|Staying|Getting|Playing|Painting|Walking|Running|Reading|Cooking|Travel|Music|Art|Sport|Sports|Faith|Health|Energy|Family|Friends|Nature|Work)$/.test(turned.split(' ')[0]));
+  const phrase = keepCase ? turned : turned.charAt(0).toLowerCase() + turned.slice(1);
+  return { label: label.charAt(0).toUpperCase() + label.slice(1), phrase, custom: true };
+}
+
 const DEFAULT_SETS = ['values', 'future', 'compassion', 'worth', 'body', 'compliments'];
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -8800,7 +8825,7 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
  * @param affirm {values:[ids], why:string, sets:[ids], custom:[strings], favs:[strings]}
  */
 function morningMessages(affirm = {}) {
-  const values = (affirm.values || []).filter((v) => VALUES[v]);
+  const values = (affirm.values || []).map(valueInfo).filter(Boolean);
   const why = String(affirm.why || '').trim().replace(/[.!]+$/, '');
   const sets = (affirm.sets || DEFAULT_SETS).filter((s) => MESSAGE_SETS[s]);
   const lists = sets.map((id) => {
@@ -8809,9 +8834,9 @@ function morningMessages(affirm = {}) {
       if (line.includes('{why}') || line.includes('{Why}')) {
         if (!why) continue;
         lines.push(line.replace('{why}', why.charAt(0).toLowerCase() + why.slice(1)).replace('{Why}', cap(why)));
-      } else if (/\{(value|Value|phrase)\}/.test(line)) {
-        const v = values.length ? VALUES[values[i % values.length]] : { label: 'What you care about', phrase: 'what matters most to you' };
-        lines.push(line.replace('{Value}', v.label).replace('{value}', v.label.toLowerCase()).replace('{phrase}', v.phrase));
+      } else if (/\{(value|Value|phrase|Phrase)\}/.test(line)) {
+        const v = values.length ? values[i % values.length] : { label: 'What you care about', phrase: 'what matters most to you' };
+        lines.push(line.replace('{Value}', v.label).replace('{value}', v.label.toLowerCase()).replace('{Phrase}', cap(v.phrase)).replace('{phrase}', v.phrase));
       } else lines.push(line);
     }
     return lines;
@@ -8835,7 +8860,7 @@ function messageForDay(list, date = new Date()) {
   return list[Math.abs(epochDay) % list.length];
 }
 
-Object.assign(__m, { VALUES, MESSAGE_SETS, DEFAULT_SETS, morningMessages, messageForDay });
+Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, valueInfo, DEFAULT_SETS, morningMessages, messageForDay });
 },
 /* js/alarm-native.js */ 40: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
@@ -8923,7 +8948,7 @@ Object.assign(__m, { available, sync, status, openSettings, test, takeMessage, l
 const { esc, icon } = __req(17);
 const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(38);
 const { daySchedule, mealTimes } = __req(14);
-const { VALUES, MESSAGE_SETS, DEFAULT_SETS, morningMessages, messageForDay } = __req(39);
+const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, valueInfo, morningMessages, messageForDay } = __req(39);
 const alarmNative = __req(40);
 
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -8978,8 +9003,10 @@ function alarmsPage(state) {
     </div>
     <div class="card">
       <h3 style="margin-top:0">What matters most to you?</h3>
-      <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Pick up to 3. Reflecting on your own values is the form of self-affirmation shown in brain scans to engage reward and self-related areas — and to help people become more active.</p>
-      <div class="chips">${Object.entries(VALUES).map(([k, v]) => `<label class="chip"><input type="checkbox" data-change="affirmValue" value="${k}" ${(affirm.values || []).includes(k) ? 'checked' : ''}><span>${esc(v.label)}</span></label>`).join('')}</div>
+      <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Pick up to ${MAX_VALUES}, or add your own. Reflecting on your own values is the form of self-affirmation shown in brain scans to engage reward and self-related areas — and to help people become more active.</p>
+      <div class="chips">${Object.entries(VALUES).map(([k, v]) => `<label class="chip"><input type="checkbox" data-change="affirmValue" value="${k}" ${(affirm.values || []).includes(k) ? 'checked' : ''}><span>${esc(v.label)}</span></label>`).join('')}${(affirm.values || []).filter((v) => !VALUES[v]).map((v) => `<label class="chip own"><input type="checkbox" data-change="affirmValue" value="${esc(v)}" checked><span>${esc(valueInfo(v).label)}</span></label>`).join('')}</div>
+      <form class="own-value" data-form="affirmAddValue"><input type="text" name="value" maxlength="30" placeholder="Add your own — e.g. My kids, Painting, Being present" aria-label="Add your own value"><button class="btn small tonal" ${(affirm.values || []).length >= MAX_VALUES ? 'disabled title="Untick one first"' : ''}>Add</button></form>
+      ${(affirm.values || []).some((v) => !VALUES[v]) ? `<p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">Untick your own value to remove it.</p>` : ''}
       <label class="field" style="margin-top:14px"><span>Your “why” <span class="hint">Finish the sentence: I’m doing this…</span></span><input type="text" maxlength="120" data-change="affirmWhy" value="${esc(affirm.why || '')}" placeholder="to have energy to play with my kids"></label>
     </div>
     <div class="card">
@@ -9064,13 +9091,26 @@ const alarmActions = {
   },
   affirmValue(el, ev, ctx) {
     const picked = [...document.querySelectorAll('[data-change=affirmValue]:checked')].map((x) => x.value);
-    if (picked.length > 3) {
+    if (picked.length > MAX_VALUES) {
       el.checked = false;
-      return ctx.toast('Pick up to 3 — the ones that matter most');
+      return ctx.toast(`Pick up to ${MAX_VALUES} — the ones that matter most`);
     }
     save(ctx, (st) => {
       st.affirm = { ...(st.affirm || {}), values: picked };
     });
+  },
+  affirmAddValue(form, ev, ctx, data) {
+    const v = String(data.value || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+    if (!v) return;
+    const cur = ctx.state.affirm?.values || [];
+    if (cur.some((x) => valueInfo(x).label.toLowerCase() === valueInfo(v).label.toLowerCase())) return ctx.toast('Already on your list');
+    if (cur.length >= MAX_VALUES) return ctx.toast(`You have ${MAX_VALUES} already — untick one to add this`);
+    // A typed preset ("family") just ticks the preset.
+    const preset = Object.entries(VALUES).find(([, x]) => x.label.toLowerCase() === v.toLowerCase())?.[0];
+    save(ctx, (st) => {
+      st.affirm = { ...(st.affirm || {}), values: [...cur, preset || v] };
+    });
+    ctx.toast(`Added “${valueInfo(preset || v).label}”`);
   },
   affirmWhy(el, ev, ctx) {
     save(ctx, (st) => {
@@ -9833,7 +9873,7 @@ Object.assign(__m, { questsHtml });
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { VALUES, morningMessages, messageForDay } = __req(39);
+const { valueInfo, morningMessages, messageForDay } = __req(39);
 const { takeMessage } = __req(40);
 const { XP } = __req(13);
 const { confetti, chime, buzz, floatXp } = __req(28);
@@ -9858,7 +9898,7 @@ __m.default = {
       chosen = null;
     }
     const affirm = state.affirm || {};
-    const values = (affirm.values || []).filter((v) => VALUES[v]);
+    const values = (affirm.values || []).filter((v) => valueInfo(v));
     const fav = (affirm.favs || []).includes(message);
     const done = state.wakes?.[today];
     return `<div class="wake-screen" role="dialog" aria-label="Good morning">
@@ -9872,9 +9912,9 @@ __m.default = {
         <div class="wk-reflect">
           <div class="w-kicker">Today I’m doing this for…</div>
           ${values.length
-            ? `<div class="wk-values">${values.map((v) => `<button class="wk-value ${chosen === v ? 'on' : ''}" data-action="wakeValue" data-value="${v}">${esc(VALUES[v].label)}</button>`).join('')}<button class="wk-value ${chosen === 'me' ? 'on' : ''}" data-action="wakeValue" data-value="me">Me</button></div>`
+            ? `<div class="wk-values">${values.map((v) => `<button class="wk-value ${chosen === v ? 'on' : ''}" data-action="wakeValue" data-value="${esc(v)}">${esc(valueInfo(v).label)}</button>`).join('')}<button class="wk-value ${chosen === 'me' ? 'on' : ''}" data-action="wakeValue" data-value="me">Me</button></div>`
             : `<div class="wk-values"><button class="wk-value ${chosen === 'me' ? 'on' : ''}" data-action="wakeValue" data-value="me">Me</button><a class="wk-value ghost" href="#/settings/alarms">Choose what matters to you →</a></div>`}
-          ${chosen ? `<p class="wk-why">${esc(chosen === 'me' ? 'Good. You are reason enough.' : `Holding on to ${VALUES[chosen].phrase} today. Every good choice counts.`)}</p>` : ''}
+          ${chosen ? `<p class="wk-why">${esc(chosen === 'me' ? 'Good. You are reason enough.' : `Holding on to ${valueInfo(chosen)?.phrase || 'what matters'} today. Every good choice counts.`)}</p>` : ''}
         </div>
         ${done ? `<button class="w-btn" data-action="wakeStart">Start my day</button>` : `<button class="w-btn glow" data-action="wakeStart" ${chosen ? '' : 'disabled'}>${chosen ? `Start my day · +${XP.wake} XP` : 'Tap one to start your day'}</button>`}
       </div>

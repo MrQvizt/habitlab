@@ -3,7 +3,7 @@
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 import { esc, icon, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
-import { VALUES, morningMessages, messageForDay } from '../data/affirmations.js';
+import { valueInfo, morningMessages, messageForDay } from '../data/affirmations.js';
 import { takeMessage } from '../alarm-native.js';
 import { XP } from '../engine/game.js';
 import { confetti, chime, buzz, floatXp } from '../ui/celebrate.js';
@@ -28,7 +28,7 @@ export default {
       chosen = null;
     }
     const affirm = state.affirm || {};
-    const values = (affirm.values || []).filter((v) => VALUES[v]);
+    const values = (affirm.values || []).filter((v) => valueInfo(v));
     const fav = (affirm.favs || []).includes(message);
     const done = state.wakes?.[today];
     return `<div class="wake-screen" role="dialog" aria-label="Good morning">
@@ -42,9 +42,9 @@ export default {
         <div class="wk-reflect">
           <div class="w-kicker">Today I’m doing this for…</div>
           ${values.length
-            ? `<div class="wk-values">${values.map((v) => `<button class="wk-value ${chosen === v ? 'on' : ''}" data-action="wakeValue" data-value="${v}">${esc(VALUES[v].label)}</button>`).join('')}<button class="wk-value ${chosen === 'me' ? 'on' : ''}" data-action="wakeValue" data-value="me">Me</button></div>`
+            ? `<div class="wk-values">${values.map((v) => `<button class="wk-value ${chosen === v ? 'on' : ''}" data-action="wakeValue" data-value="${esc(v)}">${esc(valueInfo(v).label)}</button>`).join('')}<button class="wk-value ${chosen === 'me' ? 'on' : ''}" data-action="wakeValue" data-value="me">Me</button></div>`
             : `<div class="wk-values"><button class="wk-value ${chosen === 'me' ? 'on' : ''}" data-action="wakeValue" data-value="me">Me</button><a class="wk-value ghost" href="#/settings/alarms">Choose what matters to you →</a></div>`}
-          ${chosen ? `<p class="wk-why">${esc(chosen === 'me' ? 'Good. You are reason enough.' : `Holding on to ${VALUES[chosen].phrase} today. Every good choice counts.`)}</p>` : ''}
+          ${chosen ? `<p class="wk-why">${esc(chosen === 'me' ? 'Good. You are reason enough.' : `Holding on to ${valueInfo(chosen)?.phrase || 'what matters'} today. Every good choice counts.`)}</p>` : ''}
         </div>
         ${done ? `<button class="w-btn" data-action="wakeStart">Start my day</button>` : `<button class="w-btn glow" data-action="wakeStart" ${chosen ? '' : 'disabled'}>${chosen ? `Start my day · +${XP.wake} XP` : 'Tap one to start your day'}</button>`}
       </div>

@@ -2,7 +2,7 @@
 import { esc, icon } from '../ui/dom.js';
 import { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } from '../engine/alarms.js';
 import { daySchedule, mealTimes } from '../engine/schedule.js';
-import { VALUES, MESSAGE_SETS, DEFAULT_SETS, morningMessages, messageForDay } from '../data/affirmations.js';
+import { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, valueInfo, morningMessages, messageForDay } from '../data/affirmations.js';
 import * as alarmNative from '../alarm-native.js';
 
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -57,8 +57,10 @@ export function alarmsPage(state) {
     </div>
     <div class="card">
       <h3 style="margin-top:0">What matters most to you?</h3>
-      <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Pick up to 3. Reflecting on your own values is the form of self-affirmation shown in brain scans to engage reward and self-related areas — and to help people become more active.</p>
-      <div class="chips">${Object.entries(VALUES).map(([k, v]) => `<label class="chip"><input type="checkbox" data-change="affirmValue" value="${k}" ${(affirm.values || []).includes(k) ? 'checked' : ''}><span>${esc(v.label)}</span></label>`).join('')}</div>
+      <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Pick up to ${MAX_VALUES}, or add your own. Reflecting on your own values is the form of self-affirmation shown in brain scans to engage reward and self-related areas — and to help people become more active.</p>
+      <div class="chips">${Object.entries(VALUES).map(([k, v]) => `<label class="chip"><input type="checkbox" data-change="affirmValue" value="${k}" ${(affirm.values || []).includes(k) ? 'checked' : ''}><span>${esc(v.label)}</span></label>`).join('')}${(affirm.values || []).filter((v) => !VALUES[v]).map((v) => `<label class="chip own"><input type="checkbox" data-change="affirmValue" value="${esc(v)}" checked><span>${esc(valueInfo(v).label)}</span></label>`).join('')}</div>
+      <form class="own-value" data-form="affirmAddValue"><input type="text" name="value" maxlength="30" placeholder="Add your own — e.g. My kids, Painting, Being present" aria-label="Add your own value"><button class="btn small tonal" ${(affirm.values || []).length >= MAX_VALUES ? 'disabled title="Untick one first"' : ''}>Add</button></form>
+      ${(affirm.values || []).some((v) => !VALUES[v]) ? `<p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">Untick your own value to remove it.</p>` : ''}
       <label class="field" style="margin-top:14px"><span>Your “why” <span class="hint">Finish the sentence: I’m doing this…</span></span><input type="text" maxlength="120" data-change="affirmWhy" value="${esc(affirm.why || '')}" placeholder="to have energy to play with my kids"></label>
     </div>
     <div class="card">
@@ -143,13 +145,26 @@ export const alarmActions = {
   },
   affirmValue(el, ev, ctx) {
     const picked = [...document.querySelectorAll('[data-change=affirmValue]:checked')].map((x) => x.value);
-    if (picked.length > 3) {
+    if (picked.length > MAX_VALUES) {
       el.checked = false;
-      return ctx.toast('Pick up to 3 — the ones that matter most');
+      return ctx.toast(`Pick up to ${MAX_VALUES} — the ones that matter most`);
     }
     save(ctx, (st) => {
       st.affirm = { ...(st.affirm || {}), values: picked };
     });
+  },
+  affirmAddValue(form, ev, ctx, data) {
+    const v = String(data.value || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+    if (!v) return;
+    const cur = ctx.state.affirm?.values || [];
+    if (cur.some((x) => valueInfo(x).label.toLowerCase() === valueInfo(v).label.toLowerCase())) return ctx.toast('Already on your list');
+    if (cur.length >= MAX_VALUES) return ctx.toast(`You have ${MAX_VALUES} already — untick one to add this`);
+    // A typed preset ("family") just ticks the preset.
+    const preset = Object.entries(VALUES).find(([, x]) => x.label.toLowerCase() === v.toLowerCase())?.[0];
+    save(ctx, (st) => {
+      st.affirm = { ...(st.affirm || {}), values: [...cur, preset || v] };
+    });
+    ctx.toast(`Added “${valueInfo(preset || v).label}”`);
   },
   affirmWhy(el, ev, ctx) {
     save(ctx, (st) => {

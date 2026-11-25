@@ -567,7 +567,19 @@ test('alarms: specs from settings and day schedule; morning messages from values
   const msgs = morningMessages({ values: ['family', 'energy'], why: 'To have energy to play with my kids.', custom: ['You’ve got this.'], favs: ['You deserve a healthy life.'] });
   assert.ok(msgs.length >= 20);
   assert.ok(msgs.every((m) => !/[{}]/.test(m)), 'no placeholders left');
-  assert.ok(msgs.some((m) => /Family matters to you/.test(m)));
+  assert.ok(msgs.some((m) => /You care about the people you love/.test(m)));
+  // Your own values: turned round to speak to you, mixed with presets, no placeholders left
+  const { valueInfo } = await import('../js/data/affirmations.js');
+  assert.deepEqual(valueInfo('My kids'), { label: 'My kids', phrase: 'your kids', custom: true });
+  assert.equal(valueInfo('being there for my mum').phrase, 'being there for your mum');
+  assert.equal(valueInfo('NYC marathon').phrase, 'NYC marathon');
+  assert.equal(valueInfo('family').label, 'Family');
+  assert.equal(valueInfo('  '), null);
+  const own = morningMessages({ values: ['My kids', 'painting', 'family'], sets: ['values'] });
+  assert.ok(own.some((m) => m.startsWith('You care about your kids.')));
+  assert.ok(own.some((m) => /for painting\./.test(m)));
+  assert.ok(own.some((m) => /the people you love/i.test(m)));
+  assert.ok(own.every((m) => !/[{}]/.test(m)));
   assert.ok(msgs.some((m) => /to have energy to play with my kids/.test(m)));
   assert.ok(msgs.includes('You look beautiful today.'));
   assert.ok(msgs.filter((m) => m === 'You’ve got this.').length >= 3, 'own words come up more often');

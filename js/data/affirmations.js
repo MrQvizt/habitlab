@@ -35,9 +35,9 @@ export const MESSAGE_SETS = {
     label: 'Your values',
     hint: 'Built from what matters to you — the type of affirmation studied in brain-imaging research.',
     lines: [
-      '{Value} matters to you. Every healthy choice today is a quiet way of honouring it.',
+      'You care about {phrase}. Every healthy choice today is a quiet way of honouring that.',
       'Today you get to look after yourself for {phrase}. That’s a reason worth getting up for.',
-      'You care about {phrase}. A good breakfast and a short walk are investments in exactly that.',
+      '{Phrase} — a good breakfast and a short walk today are investments in exactly that.',
       'Think of one moment today where {phrase} will matter. Your habits are making room for it.',
     ],
   },
@@ -93,6 +93,27 @@ export const MESSAGE_SETS = {
   },
 };
 
+export const MAX_VALUES = 3;
+
+/**
+ * A value is a preset id ("family") or your own words ("My kids", "Painting").
+ * Own words are turned round to speak to you: "my kids" → "your kids".
+ */
+export function valueInfo(v) {
+  if (VALUES[v]) return VALUES[v];
+  const label = String(v || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+  if (!label) return null;
+  const turned = label
+    .replace(/\bmy\b/gi, 'your')
+    .replace(/\bmine\b/gi, 'yours')
+    .replace(/\bmyself\b/gi, 'yourself')
+    .replace(/\b(I|me)\b/g, 'you');
+  // Lower-case the first letter unless it looks like a name or acronym (e.g. "NYC", "Max").
+  const keepCase = /^[A-Z]{2}/.test(turned) || (/^[A-Z][a-z]+$/.test(turned.split(' ')[0]) && !/^(Your|Being|Feeling|Having|Staying|Getting|Playing|Painting|Walking|Running|Reading|Cooking|Travel|Music|Art|Sport|Sports|Faith|Health|Energy|Family|Friends|Nature|Work)$/.test(turned.split(' ')[0]));
+  const phrase = keepCase ? turned : turned.charAt(0).toLowerCase() + turned.slice(1);
+  return { label: label.charAt(0).toUpperCase() + label.slice(1), phrase, custom: true };
+}
+
 export const DEFAULT_SETS = ['values', 'future', 'compassion', 'worth', 'body', 'compliments'];
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -103,7 +124,7 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
  * @param affirm {values:[ids], why:string, sets:[ids], custom:[strings], favs:[strings]}
  */
 export function morningMessages(affirm = {}) {
-  const values = (affirm.values || []).filter((v) => VALUES[v]);
+  const values = (affirm.values || []).map(valueInfo).filter(Boolean);
   const why = String(affirm.why || '').trim().replace(/[.!]+$/, '');
   const sets = (affirm.sets || DEFAULT_SETS).filter((s) => MESSAGE_SETS[s]);
   const lists = sets.map((id) => {
@@ -112,9 +133,9 @@ export function morningMessages(affirm = {}) {
       if (line.includes('{why}') || line.includes('{Why}')) {
         if (!why) continue;
         lines.push(line.replace('{why}', why.charAt(0).toLowerCase() + why.slice(1)).replace('{Why}', cap(why)));
-      } else if (/\{(value|Value|phrase)\}/.test(line)) {
-        const v = values.length ? VALUES[values[i % values.length]] : { label: 'What you care about', phrase: 'what matters most to you' };
-        lines.push(line.replace('{Value}', v.label).replace('{value}', v.label.toLowerCase()).replace('{phrase}', v.phrase));
+      } else if (/\{(value|Value|phrase|Phrase)\}/.test(line)) {
+        const v = values.length ? values[i % values.length] : { label: 'What you care about', phrase: 'what matters most to you' };
+        lines.push(line.replace('{Value}', v.label).replace('{value}', v.label.toLowerCase()).replace('{Phrase}', cap(v.phrase)).replace('{phrase}', v.phrase));
       } else lines.push(line);
     }
     return lines;
