@@ -15,7 +15,16 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+
+import android.media.AudioAttributes;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
+
+import androidx.activity.result.ActivityResult;
+
+import org.json.JSONObject;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -134,6 +143,63 @@ public class HabitAlarmPlugin extends Plugin {
             return;
         }
         AlarmScheduler.test(getContext(), a, seconds);
+        call.resolve();
+    }
+
+    // ---------- Sounds from the phone ----------
+    private final SoundPlayer preview = new SoundPlayer();
+
+    /** Opens Android's sound picker; resolves {uri, title} (or {cancelled: true}). */
+    @PluginMethod
+    public void pickSound(PluginCall call) {
+        Intent i = new Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
+            .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALL)
+            .putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Alarm sound")
+            .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+            .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true);
+        String cur = call.getString("uri");
+        if (cur != null && !cur.isEmpty()) i.putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(cur));
+        startActivityForResult(call, i, "pickSoundResult");
+    }
+
+    @ActivityCallback
+    private void pickSoundResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        JSObject o = new JSObject();
+        Intent data = result.getData();
+        Uri uri = data == null ? null : data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI);
+        if (uri == null) {
+            o.put("cancelled", true);
+            call.resolve(o);
+            return;
+        }
+        String title = "Sound from phone";
+        try {
+            Ringtone r = RingtoneManager.getRingtone(getContext(), uri);
+            if (r != null) title = r.getTitle(getContext());
+        } catch (Exception ignored) {
+        }
+        o.put("uri", uri.toString());
+        o.put("title", title);
+        call.resolve(o);
+    }
+
+    /** Preview a phone sound ({sound: 'device'} or {sound: 'uri', uri}) for a few seconds. */
+    @PluginMethod
+    public void previewSound(PluginCall call) {
+        try {
+            JSONObject spec = new JSONObject(call.getData().toString());
+            preview.start(getContext(), spec, false, AudioAttributes.USAGE_NOTIFICATION_EVENT, null);
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(preview::stop, 6000);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Couldn’t play that sound");
+        }
+    }
+
+    @PluginMethod
+    public void stopPreview(PluginCall call) {
+        preview.stop();
         call.resolve();
     }
 

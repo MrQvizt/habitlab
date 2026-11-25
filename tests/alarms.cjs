@@ -35,6 +35,9 @@ const shots = process.argv[3] || null;
       getStatus: async () => ({ exact: true, notifications: true, fullScreen: false, next: Date.now() + 3600e3, count: a.set.at(-1)?.alarms.length || 0 }),
       openSettings: async (o) => void a.opened.push(o.which),
       test: async (o) => void a.tests.push(o),
+      pickSound: async () => ({ uri: 'content://media/internal/audio/media/42', title: 'Cesium' }),
+      previewSound: async (o) => void (a.previews = [...(a.previews || []), o]),
+      stopPreview: async () => {},
       consumeRoute: async () => {
         const r = a.route;
         a.route = null;
@@ -106,6 +109,34 @@ const shots = process.argv[3] || null;
   await snap('a1-alarms', true);
   await page.click('[data-action=alarmTest][data-id=wake]');
   await page.waitForTimeout(300);
+  // Sounds: the wake alarm gets Birdsong; the bedtime chime gets a sound picked on the phone
+  await page.click('[data-action=alarmSoundOpen][data-key=wake]');
+  await page.waitForSelector('.sheet.open .snd-list');
+  if ((await page.locator('.sheet.open .snd-row').count()) < 7) errors.push('too few sounds offered');
+  await page.click('.sheet.open [data-action=alarmSoundPlay][data-sound=marimba]'); // preview
+  await page.click('.sheet.open [data-action=alarmSoundSet][data-sound=birdsong]');
+  await page.waitForSelector('.sheet.open .snd-row.on:has-text("Birdsong")');
+  await snap('a1b-sounds');
+  await page.click('.sheet.open [data-action=alarmSoundPlay][data-sound=device]');
+  await page.click('.sheet.open [data-action=sheetClose]');
+  await page.waitForTimeout(400);
+  if (!/Birdsong/.test(await page.textContent('[data-action=alarmSoundOpen][data-key=wake]'))) errors.push('wake card should show Birdsong');
+  await page.click('label.switch:has(input[data-path="bed.on"])');
+  await page.click('[data-action=alarmSoundOpen][data-key=bed]');
+  await page.waitForSelector('.sheet.open [data-action=alarmSoundPhone]');
+  await page.click('.sheet.open [data-action=alarmSoundPhone]');
+  await page.waitForSelector('.sheet.open .snd-row.on:has-text("Cesium")');
+  await page.click('.sheet.open [data-action=sheetClose]');
+  await page.waitForTimeout(1500);
+  {
+    const s2 = (await page.evaluate(() => window.__alarm)).set.at(-1);
+    const w = s2.alarms.find((x) => x.id === 'wake');
+    const b = s2.alarms.find((x) => x.id === 'bed');
+    if (w?.sound !== 'melody' || w?.melody?.notes?.length !== 9) errors.push('wake alarm should carry the Birdsong melody: ' + JSON.stringify(w && { sound: w.sound, n: w.melody?.notes?.length }));
+    if (b?.sound !== 'uri' || b?.uri !== 'content://media/internal/audio/media/42') errors.push('bedtime should carry the picked phone sound');
+    const prev = (await page.evaluate(() => window.__alarm.previews)) || [];
+    if (!prev.some((p) => p.sound === 'device')) errors.push('phone sound preview not requested');
+  }
 
   const a = await page.evaluate(() => window.__alarm);
   const last = a.set.at(-1);

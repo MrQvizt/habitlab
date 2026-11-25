@@ -697,3 +697,38 @@ test('week start: user-chosen reset day; plans, history, wraps and reminders fol
     u.setWeekStart(0);
   }
 });
+
+test('alarm sounds: melody specs are valid, reach the native spec, and survive sanitising', async () => {
+  const { MELODIES, DEFAULT_SOUND, nativeSound, soundLabel, melodiesFor } = await import('../js/data/melodies.js');
+  const { alarmSpecs } = await import('../js/engine/alarms.js');
+  const { sanitize, emptyState } = await import('../js/store.js');
+  assert.ok(Object.keys(MELODIES).length >= 6);
+  for (const [id, m] of Object.entries(MELODIES)) {
+    assert.ok(m.name && m.hint, id);
+    assert.ok(m.beat > 0.03 && m.beat < 2 && m.decay >= 0 && m.attack > 0 && m.rest >= 0, id);
+    assert.ok(m.partials.every(([mult, amp]) => mult > 0 && amp > 0), id);
+    assert.ok(m.notes.some(([f]) => f > 0), id);
+    for (const [f, beats, to] of m.notes) assert.ok(f >= 0 && f < 6000 && beats > 0 && (to == null || (to > 0 && to < 6000)), `${id} note`);
+    const pattern = m.notes.reduce((t, [, b]) => t + b * m.beat, 0) + m.rest;
+    assert.ok(pattern > 0.8 && pattern < 8, `${id} pattern length ${pattern.toFixed(2)} s`);
+  }
+  for (const k of Object.keys(DEFAULT_SOUND)) assert.ok(MELODIES[DEFAULT_SOUND[k]], k);
+  assert.equal(melodiesFor('bed')[0][1].moods.includes('bed'), true); // night sounds listed first at night
+  assert.deepEqual(nativeSound('device'), { sound: 'device' });
+  assert.deepEqual(nativeSound('uri:content://media/internal/audio/media/12|Cesium'), { sound: 'uri', uri: 'content://media/internal/audio/media/12' });
+  assert.equal(soundLabel('uri:content://media/internal/audio/media/12|Cesium'), 'Cesium');
+  assert.equal(nativeSound('nope').melody.notes.length, MELODIES.sunrise.notes.length); // unknown → Sunrise
+  // Each alarm carries its sound; defaults per kind
+  const specs = alarmSpecs({ profile: { schedule: {} }, prefs: {}, alarms: { wake: { on: true, sound: 'birdsong' }, wind: { on: true }, meals: { on: true, sound: 'device' } } });
+  const by = Object.fromEntries(specs.map((s) => [s.id, s]));
+  assert.equal(by.wake.sound, 'melody');
+  assert.deepEqual(by.wake.melody.notes, MELODIES.birdsong.notes);
+  assert.deepEqual(by.wind.melody.notes, MELODIES.ocean.notes);
+  assert.equal(by.meal_lunch.sound, 'device');
+  // Sanitising keeps valid sounds and drops junk
+  const clean = sanitize({ ...emptyState(), alarms: { wake: { sound: 'birdsong' }, wind: { sound: 'uri:content://media/x/1|My song' }, bed: { sound: 'javascript:alert(1)' }, meals: { sound: 42 } } });
+  assert.equal(clean.alarms.wake.sound, 'birdsong');
+  assert.equal(clean.alarms.wind.sound, 'uri:content://media/x/1|My song');
+  assert.equal(clean.alarms.bed.sound, undefined);
+  assert.equal(clean.alarms.meals.sound, undefined);
+});

@@ -41,6 +41,29 @@ export async function openSettings(which) {
   if (p) await p.openSettings({ which }).catch(() => {});
 }
 
+/** Android's sound picker → {uri, title} or null. */
+export async function pickSound(uri) {
+  const p = plugin();
+  if (!p?.pickSound) return null;
+  try {
+    const r = await p.pickSound(uri ? { uri } : {});
+    return r?.uri ? r : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Preview the phone's own sound or a picked one. */
+export async function previewPhoneSound(spec) {
+  const p = plugin();
+  if (p?.previewSound) await p.previewSound(spec).catch(() => {});
+}
+
+export async function stopPhonePreview() {
+  const p = plugin();
+  if (p?.stopPreview) await p.stopPreview().catch(() => {});
+}
+
 export async function test(id, seconds = 5) {
   const p = plugin();
   if (!p) return false;

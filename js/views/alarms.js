@@ -4,6 +4,33 @@ import { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } from '../engine/alar
 import { daySchedule, mealTimes } from '../engine/schedule.js';
 import { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, valueInfo, morningMessages, messageForDay } from '../data/affirmations.js';
 import * as alarmNative from '../alarm-native.js';
+import { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } from '../data/melodies.js';
+import { openSheet, updateSheet } from '../ui/sheet.js';
+
+const KIND_NAME = { wake: 'Wake-up', wind: 'Wind-down', bed: 'Bedtime', meals: 'Meal' };
+const soundOf = (a, key) => a[key].sound || DEFAULT_SOUND[key];
+
+function soundRow(a, key) {
+  return `<button type="button" class="al-sound" data-action="alarmSoundOpen" data-key="${key}"><span class="al-sound-ico">♪</span><span class="grow"><span class="al-kicker">Sound</span><strong>${esc(soundLabel(soundOf(a, key)))}</strong></span>${icon('chevron')}</button>`;
+}
+
+/** The sound picker sheet for one alarm. */
+function soundSheet(state, key) {
+  const a = alarmsOf(state);
+  const cur = soundOf(a, key);
+  const native = alarmNative.available();
+  const row = (value, name, hint, play) => `<li class="snd-row ${cur === value ? 'on' : ''}">
+      <button type="button" class="snd-play" data-action="alarmSoundPlay" data-sound="${esc(value)}" aria-label="Play ${esc(name)}">▶</button>
+      <button type="button" class="snd-pick grow" data-action="alarmSoundSet" data-key="${key}" data-sound="${esc(value)}" aria-pressed="${cur === value}"><strong>${esc(name)}</strong><small>${esc(hint)}</small></button>
+      <span class="snd-check" aria-hidden="true">${cur === value ? icon('check') : ''}</span></li>`;
+  return `<div class="sheet-head"><div><div class="over">${KIND_NAME[key]} ${a[key].style === 'gentle' ? 'chime' : 'alarm'}</div><h2>Choose a sound</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+    <p class="muted" style="font-size:var(--text-sm);margin-top:-6px">Tap ▶ to listen. Melodic sounds were linked to feeling less groggy after waking than harsh beeps.</p>
+    <ul class="snd-list">${melodiesFor(key).map(([id, m]) => row(id, m.name, m.hint)).join('')}
+      ${native ? row('device', 'Phone’s alarm sound', 'The default alarm sound set on your phone') : ''}
+      ${native && cur.startsWith('uri:') ? row(cur, soundLabel(cur), 'Picked from your phone') : ''}</ul>
+    ${native ? `<button type="button" class="btn tonal" style="width:100%;margin-top:10px" data-action="alarmSoundPhone" data-key="${key}">Choose from phone…</button>` : '<p class="muted" style="font-size:var(--text-xs)">In the Android app you can also use your phone’s own sounds.</p>'}
+    ${a[key].style === 'ring' ? '<p class="muted" style="font-size:var(--text-xs);margin:10px 0 0">The alarm starts quietly and grows to full volume over about a minute.</p>' : '<p class="muted" style="font-size:var(--text-xs);margin:10px 0 0">A chime plays the sound twice, at notification volume.</p>'}`;
+}
 
 /** Your own values: saved even when not picked (older versions kept them only while picked). */
 export function ownValues(affirm = {}) {
@@ -48,15 +75,19 @@ export function alarmsPage(state) {
         <input class="al-time" type="time" value="${fmtTime(t.wake)}" data-change="alarmTime" aria-label="Wake-up time"></div>${sw('wake.on', a.wake.on, 'Wake-up alarm')}</div>
       <div class="al-days" role="group" aria-label="Days">${DAYS.map((l, i) => `<button type="button" class="al-day ${a.wake.days.includes(i) ? 'on' : ''}" data-action="alarmDay" data-day="${i}" aria-pressed="${a.wake.days.includes(i)}" aria-label="${DAY_NAMES[i]}">${l}</button>`).join('')}</div>
       <div class="row between" style="margin-top:12px">${styleSeg('wake.style', a.wake.style)}${native && a.wake.on ? `<button class="btn small tonal" data-action="alarmTest" data-id="wake">Test in 5 s</button>` : ''}</div>
+      ${soundRow(a, 'wake')}
       <p class="al-note">A soft melody that grows louder over a minute, a sunrise screen that slowly brightens, and a kind message to start the day. ${a.wake.days.length === 7 ? 'Same time every day — a regular wake time helps your body clock.' : 'Tip: the same time every day, weekends too, keeps your body clock steady.'}</p>`, a.wake.on ? 'on' : '')}
     ${card(`<div class="row between nowrap"><div class="grow"><div class="al-kicker">Wind down</div><div class="al-time small">${fmtTime(t.wind)}</div></div>${sw('wind.on', a.wind.on, 'Wind-down reminder')}</div>
       <div class="row between" style="margin-top:8px"><label class="row nowrap" style="gap:8px;font-size:var(--text-sm)"><select data-change="alarmBefore" aria-label="Minutes before bed">${[30, 45, 60, 90].map((m) => `<option value="${m}" ${a.wind.before === m ? 'selected' : ''}>${m} min</option>`).join('')}</select> before bed</label>${styleSeg('wind.style', a.wind.style)}</div>
+      ${soundRow(a, 'wind')}
       <p class="al-note">Time to dim the lights and put screens away: bright screens before bed delay sleep and leave you groggier the next morning.</p>`, a.wind.on ? 'on' : '')}
     ${card(`<div class="row between nowrap"><div class="grow"><div class="al-kicker">Bedtime</div><div class="al-time small">${fmtTime(d.bed)}</div></div>${sw('bed.on', a.bed.on, 'Bedtime alarm')}</div>
       <div class="row between" style="margin-top:8px"><a href="#/settings/day" style="font-size:var(--text-sm)">Change your sleep window</a>${styleSeg('bed.style', a.bed.style)}</div>
+      ${soundRow(a, 'bed')}
       <p class="al-note">About ${(d.sleepMinutes / 60).toFixed(1)} hours until your alarm. People who slept longer ate less the next day.</p>`, a.bed.on ? 'on' : '')}
     ${card(`<div class="row between nowrap"><div class="grow"><div class="al-kicker">Meals</div><div class="al-meals">${slots.filter((s) => mt[s] != null).map((s) => `<span>${fmtTime(mt[s])}</span>`).join('')}</div></div>${sw('meals.on', a.meals.on, 'Meal alarms')}</div>
       <div class="row between" style="margin-top:8px"><label class="row nowrap" style="gap:8px;font-size:var(--text-sm)"><input type="checkbox" data-change="alarmSet" data-path="meals.snacks" ${a.meals.snacks ? 'checked' : ''}> Snacks too</label>${styleSeg('meals.style', a.meals.style)}</div>
+      ${soundRow(a, 'meals')}
       <p class="al-note">From your day schedule, so meals come at regular times.</p>`, a.meals.on ? 'on' : '')}
     <p class="muted" style="font-size:var(--text-sm)">Times come from <a href="#/settings/day">Your day</a>. Quiet nudges to log meals and keep your streak are in <a href="#/settings/reminders">Reminders</a>.</p>
     <div class="card"><label class="row between nowrap" style="font-size:var(--text-sm)"><span>Snooze length</span><select data-change="alarmSnooze">${[5, 9, 10, 15].map((m) => `<option value="${m}" ${a.snooze === m ? 'selected' : ''}>${m} minutes</option>`).join('')}</select></label></div>
@@ -109,6 +140,35 @@ const save = (ctx, fn) => ctx.update((st) => {
 }, { quiet: true });
 
 export const alarmActions = {
+  alarmSoundOpen(el, ev, ctx) {
+    openSheet(soundSheet(ctx.state, el.dataset.key), { label: 'Alarm sound', onClose: () => {
+      stopPreview();
+      alarmNative.stopPhonePreview();
+    } });
+  },
+  alarmSoundPlay(el) {
+    const sound = el.dataset.sound;
+    stopPreview();
+    alarmNative.stopPhonePreview();
+    if (MELODIES[sound]) previewMelody(sound);
+    else alarmNative.previewPhoneSound(nativeSound(sound));
+  },
+  alarmSoundSet(el, ev, ctx) {
+    const { key, sound } = el.dataset;
+    save(ctx, (st) => setPath(st, `${key}.sound`, sound));
+    updateSheet(soundSheet(ctx.state, key));
+    if (MELODIES[sound]) previewMelody(sound, { passes: 1 });
+  },
+  async alarmSoundPhone(el, ev, ctx) {
+    const key = el.dataset.key;
+    const cur = soundOf(alarmsOf(ctx.state), key);
+    const r = await alarmNative.pickSound(cur.startsWith('uri:') ? cur.slice(4).split('|')[0] : null);
+    if (!r) return;
+    const title = String(r.title || 'Sound from phone').replace(/\|/g, ' ').slice(0, 80);
+    save(ctx, (st) => setPath(st, `${key}.sound`, `uri:${r.uri}|${title}`));
+    updateSheet(soundSheet(ctx.state, key));
+    ctx.toast(`${KIND_NAME[key]} sound: ${title}`);
+  },
   alarmSet(el, ev, ctx) {
     const path = el.dataset.path;
     const on = el.checked;

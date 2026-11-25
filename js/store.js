@@ -205,12 +205,14 @@ export function sanitize(s) {
     const a = s.alarms && typeof s.alarms === 'object' ? s.alarms : {};
     const time = (v) => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null);
     const style = (v) => (v === 'ring' || v === 'gentle' ? v : undefined);
+    // A melody id, the phone's alarm sound, or a sound picked on the phone ('uri:<content uri>|<title>').
+    const sound = (v) => (typeof v === 'string' && (/^[a-z]{2,20}$/.test(v) || /^uri:content:\/\/[^\s]{1,300}(\|.{0,80})?$/.test(v)) ? { sound: v } : {});
     const days = Array.isArray(a.wake?.days) ? [...new Set(a.wake.days.map(Number).filter((d) => d >= 0 && d <= 6))].sort() : undefined;
     s.alarms = {
-      wake: { on: !!a.wake?.on, time: time(a.wake?.time), ...(days ? { days } : {}), ...(style(a.wake?.style) ? { style: a.wake.style } : {}) },
-      wind: { on: !!a.wind?.on, before: num(a.wind?.before, 15, 120, 45), ...(style(a.wind?.style) ? { style: a.wind.style } : {}) },
-      bed: { on: !!a.bed?.on, ...(style(a.bed?.style) ? { style: a.bed.style } : {}) },
-      meals: { on: !!a.meals?.on, snacks: !!a.meals?.snacks, ...(style(a.meals?.style) ? { style: a.meals.style } : {}) },
+      wake: { on: !!a.wake?.on, time: time(a.wake?.time), ...(days ? { days } : {}), ...(style(a.wake?.style) ? { style: a.wake.style } : {}), ...sound(a.wake?.sound) },
+      wind: { on: !!a.wind?.on, before: num(a.wind?.before, 15, 120, 45), ...(style(a.wind?.style) ? { style: a.wind.style } : {}), ...sound(a.wind?.sound) },
+      bed: { on: !!a.bed?.on, ...(style(a.bed?.style) ? { style: a.bed.style } : {}), ...sound(a.bed?.sound) },
+      meals: { on: !!a.meals?.on, snacks: !!a.meals?.snacks, ...(style(a.meals?.style) ? { style: a.meals.style } : {}), ...sound(a.meals?.sound) },
       snooze: num(a.snooze, 1, 30, 9),
     };
     const f = s.affirm && typeof s.affirm === 'object' ? s.affirm : {};

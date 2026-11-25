@@ -19,6 +19,7 @@ import com.mrqvizt.habitlab.MainActivity;
 public class AlarmReceiver extends BroadcastReceiver {
     public static final String CH_ALARM = "habit_alarm";
     public static final String CH_GENTLE = "habit_gentle";
+    public static final String CH_CHIME = "habit_chime";
 
     @Override
     public void onReceive(Context ctx, Intent intent) {
@@ -33,11 +34,14 @@ public class AlarmReceiver extends BroadcastReceiver {
                 a = AlarmStore.find(ctx, id);
             }
             if (a != null) {
-                if ("gentle".equals(a.style)) gentle(ctx, a);
-                else {
-                    Intent s = new Intent(ctx, AlarmService.class).setAction(AlarmService.ACTION_START).putExtra(AlarmScheduler.EXTRA_ID, a.id)
-                        .putExtra("kind", a.kind).putExtra("label", a.label).putExtra("body", a.body).putExtra("route", a.route).putExtra("style", a.style);
+                boolean chime = "gentle".equals(a.style);
+                Intent s = new Intent(ctx, AlarmService.class).setAction(chime ? AlarmService.ACTION_CHIME : AlarmService.ACTION_START).putExtra(AlarmScheduler.EXTRA_ID, a.id)
+                    .putExtra("kind", a.kind).putExtra("label", a.label).putExtra("body", a.body).putExtra("route", a.route).putExtra("style", a.style)
+                    .putExtra("spec", a.raw.toString());
+                try {
                     ContextCompat.startForegroundService(ctx, s);
+                } catch (Exception e) {
+                    if (chime) gentle(ctx, a); // service not allowed: plain notification with the channel sound
                 }
             }
         }
@@ -62,6 +66,11 @@ public class AlarmReceiver extends BroadcastReceiver {
             new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
         gentle.enableVibration(true);
         nm.createNotificationChannel(gentle);
+        NotificationChannel chime = new NotificationChannel(CH_CHIME, "Chimes", NotificationManager.IMPORTANCE_HIGH);
+        chime.setDescription("Meal and wind-down chimes, with the melody you chose");
+        chime.setSound(null, null); // the app plays the chosen melody
+        chime.enableVibration(false);
+        nm.createNotificationChannel(chime);
     }
 
     static PendingIntent openApp(Context ctx, String route, String message, int code) {

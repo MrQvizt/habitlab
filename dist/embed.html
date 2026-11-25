@@ -1017,6 +1017,24 @@ body.wrap-open .modal-wrap { z-index: 1200; }
 .own-x { width: 30px; height: 30px; margin-left: -4px; border-radius: 50%; border: 0; background: transparent; color: var(--ink-3); display: grid; place-items: center; cursor: pointer; }
 .own-x:hover { background: var(--surface-2); color: var(--danger, #c0392b); }
 .own-x svg { width: 15px; height: 15px; }
+
+/* Alarm sounds */
+.al-sound { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.al-sound:hover { border-color: var(--accent); }
+.al-sound .al-kicker { display: block; }
+.al-sound strong { display: block; font-size: var(--text-md, 1rem); }
+.al-sound > svg { width: 18px; height: 18px; color: var(--ink-3); flex: none; }
+.al-sound-ico { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: 1.1rem; flex: none; }
+.snd-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.snd-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); }
+.snd-row.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.snd-play { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--accent); color: #fff; font-size: .95rem; cursor: pointer; flex: none; }
+.snd-play:active { transform: scale(.92); }
+.snd-pick { border: 0; background: none; font: inherit; color: var(--ink); text-align: left; padding: 6px 0; cursor: pointer; min-width: 0; }
+.snd-pick strong { display: block; }
+.snd-pick small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
+.snd-check { width: 22px; color: var(--accent); flex: none; }
+.snd-check svg { width: 20px; height: 20px; }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -4619,12 +4637,14 @@ function sanitize(s) {
     const a = s.alarms && typeof s.alarms === 'object' ? s.alarms : {};
     const time = (v) => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null);
     const style = (v) => (v === 'ring' || v === 'gentle' ? v : undefined);
+    // A melody id, the phone's alarm sound, or a sound picked on the phone ('uri:<content uri>|<title>').
+    const sound = (v) => (typeof v === 'string' && (/^[a-z]{2,20}$/.test(v) || /^uri:content:\/\/[^\s]{1,300}(\|.{0,80})?$/.test(v)) ? { sound: v } : {});
     const days = Array.isArray(a.wake?.days) ? [...new Set(a.wake.days.map(Number).filter((d) => d >= 0 && d <= 6))].sort() : undefined;
     s.alarms = {
-      wake: { on: !!a.wake?.on, time: time(a.wake?.time), ...(days ? { days } : {}), ...(style(a.wake?.style) ? { style: a.wake.style } : {}) },
-      wind: { on: !!a.wind?.on, before: num(a.wind?.before, 15, 120, 45), ...(style(a.wind?.style) ? { style: a.wind.style } : {}) },
-      bed: { on: !!a.bed?.on, ...(style(a.bed?.style) ? { style: a.bed.style } : {}) },
-      meals: { on: !!a.meals?.on, snacks: !!a.meals?.snacks, ...(style(a.meals?.style) ? { style: a.meals.style } : {}) },
+      wake: { on: !!a.wake?.on, time: time(a.wake?.time), ...(days ? { days } : {}), ...(style(a.wake?.style) ? { style: a.wake.style } : {}), ...sound(a.wake?.sound) },
+      wind: { on: !!a.wind?.on, before: num(a.wind?.before, 15, 120, 45), ...(style(a.wind?.style) ? { style: a.wind.style } : {}), ...sound(a.wind?.sound) },
+      bed: { on: !!a.bed?.on, ...(style(a.bed?.style) ? { style: a.bed.style } : {}), ...sound(a.bed?.sound) },
+      meals: { on: !!a.meals?.on, snacks: !!a.meals?.snacks, ...(style(a.meals?.style) ? { style: a.meals.style } : {}), ...sound(a.meals?.sound) },
       snooze: num(a.snooze, 1, 30, 9),
     };
     const f = s.affirm && typeof s.affirm === 'object' ? s.affirm : {};
@@ -8606,7 +8626,152 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/engine/alarms.js */ 38: function (__m, __req) {
+/* js/data/melodies.js */ 38: function (__m, __req) {
+// Alarm sounds. Each melody is data: the same spec is played by the in-app preview (Web Audio) and by
+// the native alarm (AlarmService.java synthesises it on the alarm stream), so what you hear when you
+// choose is exactly what wakes you.
+// Melodic sounds were linked to less morning grogginess than unmelodic ones (McFarlane et al. 2020),
+// so most choices are melodic; a classic beep is offered for people who want it.
+//
+// Spec: { notes: [[freq Hz, beats, glideTo Hz?], …] (freq 0 = silence), beat: seconds per beat,
+//         decay: amplitude decay per second, attack: seconds, partials: [[multiple, amplitude], …],
+//         rest: seconds of silence after the pattern }
+
+const N = { A3: 220, C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392, A4: 440, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, Fs5: 739.99, G5: 783.99, A5: 880, B5: 987.77, C6: 1046.5, Fs4: 369.99 };
+
+const MELODIES = {
+  sunrise: {
+    name: 'Sunrise', hint: 'A bright rising-and-falling melody', moods: ['wake'],
+    beat: 0.34, decay: 6.5, attack: 0.012, partials: [[1, 1], [2, 0.35], [3, 0.12]], rest: 0.9,
+    notes: [[N.C5, 1], [N.E5, 1], [N.G5, 1], [N.A5, 1], [N.C6, 1], [N.A5, 1], [N.G5, 1], [N.E5, 1]],
+  },
+  bells: {
+    name: 'Morning bells', hint: 'Slow, ringing church-style bells', moods: ['wake', 'bed'],
+    beat: 0.8, decay: 1.8, attack: 0.005, partials: [[1, 1], [2.76, 0.4], [5.4, 0.18]], rest: 1.2,
+    notes: [[N.G5, 1], [N.E5, 1], [N.C5, 1], [N.G4, 1.5]],
+  },
+  marimba: {
+    name: 'Marimba', hint: 'Light, bouncy wooden notes', moods: ['wake', 'meal'],
+    beat: 0.2, decay: 11, attack: 0.004, partials: [[1, 1], [4, 0.28], [10, 0.05]], rest: 0.7,
+    notes: [[N.D5, 1], [N.Fs5, 1], [N.A5, 1], [N.B5, 1], [N.A5, 1], [N.Fs5, 1], [N.D5, 1], [N.A4, 2]],
+  },
+  birdsong: {
+    name: 'Birdsong', hint: 'Bright chirps, like a garden at dawn', moods: ['wake'],
+    beat: 0.09, decay: 14, attack: 0.008, partials: [[1, 1], [2, 0.15]], rest: 1.1,
+    notes: [[2400, 1, 3300], [0, 0.6], [2600, 1, 3500], [0, 0.6], [2800, 1, 3900], [0, 3], [3200, 1.5, 2400], [0, 0.8], [3000, 1.5, 2200]],
+  },
+  ocean: {
+    name: 'Calm', hint: 'Low, warm and unhurried', moods: ['wind', 'bed', 'wake'],
+    beat: 0.6, decay: 2.6, attack: 0.06, partials: [[1, 1], [2, 0.2]], rest: 1.6,
+    notes: [[N.C4, 1], [N.G4, 1], [N.E4, 1], [N.G4, 1], [N.A3, 1], [N.E4, 1], [N.D4, 2]],
+  },
+  lullaby: {
+    name: 'Lullaby', hint: 'Soft and slow — made for winding down', moods: ['wind', 'bed'],
+    beat: 0.5, decay: 3.2, attack: 0.04, partials: [[1, 1], [3, 0.08]], rest: 1.8,
+    notes: [[N.A4, 1], [N.Fs4, 1], [N.D4, 2], [N.A4, 1], [N.B4, 1], [N.A4, 2]],
+  },
+  chime: {
+    name: 'Kitchen chime', hint: 'Two friendly notes — dinner’s ready', moods: ['meal'],
+    beat: 0.45, decay: 3.5, attack: 0.006, partials: [[1, 1], [2.4, 0.25]], rest: 1.2,
+    notes: [[N.E5, 1], [N.C5, 2]],
+  },
+  beep: {
+    name: 'Classic beep', hint: 'Not melodic — wakes fast, can feel harsher', moods: ['wake'],
+    beat: 0.13, decay: 0.5, attack: 0.002, partials: [[1, 1], [3, 0.33], [5, 0.2]], rest: 0.6,
+    notes: [[1000, 1], [0, 0.8], [1000, 1], [0, 0.8], [1000, 1], [0, 0.8], [1000, 1]],
+  },
+};
+
+/** Defaults: a melodic wake-up, calm sounds at night, a chime for meals. */
+const DEFAULT_SOUND = { wake: 'sunrise', wind: 'ocean', bed: 'lullaby', meals: 'chime' };
+
+/** Which melodies to list first for an alarm kind. */
+function melodiesFor(kind) {
+  const mood = kind === 'meals' ? 'meal' : kind;
+  return Object.entries(MELODIES).sort(([, a], [, b]) => Number(b.moods.includes(mood)) - Number(a.moods.includes(mood)));
+}
+
+/** Label for a saved sound value: a melody id, 'device', or 'uri:<content uri>|<title>'. */
+function soundLabel(sound) {
+  if (!sound) return MELODIES.sunrise.name;
+  if (MELODIES[sound]) return MELODIES[sound].name;
+  if (sound === 'device') return 'Phone’s alarm sound';
+  if (sound.startsWith('uri:')) return sound.split('|')[1] || 'Sound from phone';
+  return MELODIES.sunrise.name;
+}
+
+/** What the native alarm needs: either a melody spec or a ringtone. */
+function nativeSound(sound) {
+  if (sound === 'device') return { sound: 'device' };
+  if (sound?.startsWith('uri:')) return { sound: 'uri', uri: sound.slice(4).split('|')[0] };
+  const m = MELODIES[sound] || MELODIES.sunrise;
+  return { sound: 'melody', melody: { beat: m.beat, decay: m.decay, attack: m.attack, partials: m.partials, rest: m.rest, notes: m.notes } };
+}
+
+// ---------- In-app preview (Web Audio), mirroring the native synthesiser ----------
+let ctx = null;
+let playing = null;
+
+function stopPreview() {
+  if (playing) {
+    try {
+      playing.gain.gain.cancelScheduledValues(0);
+      playing.gain.gain.setValueAtTime(0, ctx.currentTime);
+      playing.nodes.forEach((n) => n.stop());
+    } catch (e) {
+      /* already stopped */
+    }
+    playing = null;
+  }
+}
+
+/** Play a melody twice (about 5–8 seconds). Returns false if audio isn't available. */
+function previewMelody(id, { passes = 2 } = {}) {
+  const m = MELODIES[id];
+  if (!m) return false;
+  try {
+    ctx ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+  } catch (e) {
+    return false;
+  }
+  stopPreview();
+  const out = ctx.createGain();
+  out.gain.value = 0.22;
+  out.connect(ctx.destination);
+  const nodes = [];
+  let t = ctx.currentTime + 0.05;
+  for (let p = 0; p < passes; p++) {
+    for (const [f, beats, to] of m.notes) {
+      const len = m.beat * beats;
+      if (f > 0) {
+        for (const [mult, amp] of m.partials) {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(f * mult, t);
+          if (to) o.frequency.linearRampToValueAtTime(to * mult, t + len);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.linearRampToValueAtTime(amp, t + m.attack);
+          g.gain.exponentialRampToValueAtTime(Math.max(0.0001, amp * Math.exp(-m.decay * len)), t + len);
+          g.gain.linearRampToValueAtTime(0.0001, t + len + 0.01);
+          o.connect(g).connect(out);
+          o.start(t);
+          o.stop(t + len + 0.02);
+          nodes.push(o);
+        }
+      }
+      t += len;
+    }
+    t += m.rest;
+  }
+  playing = { gain: out, nodes };
+  return true;
+}
+
+Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, stopPreview, previewMelody });
+},
+/* js/engine/alarms.js */ 39: function (__m, __req) {
 // Alarm clock settings → the specs the native alarm scheduler uses (js/alarm-native.js).
 // Defaults follow sleep research:
 // - The same wake time every day, weekends included: irregular sleep/wake timing is linked to a
@@ -8616,6 +8781,7 @@ Object.assign(__m, {  });
 //   compared with a printed book (Chang 2015).
 // - Meals at regular times from your day schedule.
 const { daySchedule, mealTimes, toHHMM, toMin } = __req(14);
+const { DEFAULT_SOUND, nativeSound } = __req(38);
 
 const DEFAULT_ALARMS = {
   wake: { on: false, time: null, days: [0, 1, 2, 3, 4, 5, 6], style: 'ring' },
@@ -8676,15 +8842,16 @@ function alarmSpecs(state) {
   const d = daySchedule(state.profile || {});
   const out = [];
   const bed = toHHMM(d.bed);
-  if (a.wake.on) out.push({ id: 'wake', kind: 'wake', label: 'Good morning', body: '', ...hm(t.wake), days: a.wake.days?.length ? a.wake.days : [0, 1, 2, 3, 4, 5, 6], style: a.wake.style, route: '#/wake' });
-  if (a.wind.on) out.push({ id: 'wind', kind: 'wind', label: 'Time to wind down', body: `Dim the lights and put screens away — bright screens before bed push sleep later. Bed at ${bed}.`, ...hm(t.wind), days: [0, 1, 2, 3, 4, 5, 6], style: a.wind.style, route: '#/today' });
-  if (a.bed.on) out.push({ id: 'bed', kind: 'bed', label: 'Bedtime', body: 'Lights out. A good night’s sleep makes tomorrow’s choices easier — people who slept longer ate less the next day.', ...hm(t.bed), days: [0, 1, 2, 3, 4, 5, 6], style: a.bed.style, route: '#/today' });
+  const snd = (key) => nativeSound(a[key].sound || DEFAULT_SOUND[key]);
+  if (a.wake.on) out.push({ id: 'wake', kind: 'wake', label: 'Good morning', body: '', ...hm(t.wake), days: a.wake.days?.length ? a.wake.days : [0, 1, 2, 3, 4, 5, 6], style: a.wake.style, route: '#/wake', ...snd('wake') });
+  if (a.wind.on) out.push({ id: 'wind', kind: 'wind', label: 'Time to wind down', body: `Dim the lights and put screens away — bright screens before bed push sleep later. Bed at ${bed}.`, ...hm(t.wind), days: [0, 1, 2, 3, 4, 5, 6], style: a.wind.style, route: '#/today', ...snd('wind') });
+  if (a.bed.on) out.push({ id: 'bed', kind: 'bed', label: 'Bedtime', body: 'Lights out. A good night’s sleep makes tomorrow’s choices easier — people who slept longer ate less the next day.', ...hm(t.bed), days: [0, 1, 2, 3, 4, 5, 6], style: a.bed.style, route: '#/today', ...snd('bed') });
   if (a.meals.on) {
     const slots = mealSlots(state, a.meals.snacks);
     const times = mealTimes(state.profile || {}, slots);
     for (const s of slots) {
       if (times[s] == null) continue;
-      out.push({ id: `meal_${s}`, kind: 'meal', label: `${SLOT_LABEL[s]} time`, body: 'Your meal is ready in today’s plan. Sit down, eat slowly, and tick it off.', ...hm(times[s]), days: [0, 1, 2, 3, 4, 5, 6], style: a.meals.style, route: '#/today' });
+      out.push({ id: `meal_${s}`, kind: 'meal', label: `${SLOT_LABEL[s]} time`, body: 'Your meal is ready in today’s plan. Sit down, eat slowly, and tick it off.', ...hm(times[s]), days: [0, 1, 2, 3, 4, 5, 6], style: a.meals.style, route: '#/today', ...snd('meals') });
     }
   }
   return out;
@@ -8697,7 +8864,7 @@ function fmtTime(min) {
 
 Object.assign(__m, { DEFAULT_ALARMS, DEFAULT_AFFIRM, STYLES, alarmsOf, alarmTimes, mealSlots, alarmSpecs, fmtTime });
 },
-/* js/data/affirmations.js */ 39: function (__m, __req) {
+/* js/data/affirmations.js */ 40: function (__m, __req) {
 // Morning messages shown when the wake-up alarm rings and on the Good-morning screen.
 // What the research says, and how it shapes these messages:
 // - Values-based self-affirmation: reflecting on what matters to you activates the brain's
@@ -8861,11 +9028,11 @@ function messageForDay(list, date = new Date()) {
 
 Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, valueInfo, DEFAULT_SETS, morningMessages, messageForDay });
 },
-/* js/alarm-native.js */ 40: function (__m, __req) {
+/* js/alarm-native.js */ 41: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
-const { alarmSpecs, alarmsOf } = __req(38);
-const { morningMessages } = __req(39);
+const { alarmSpecs, alarmsOf } = __req(39);
+const { morningMessages } = __req(40);
 
 let lastMessage = null;
 
@@ -8905,6 +9072,29 @@ async function openSettings(which) {
   if (p) await p.openSettings({ which }).catch(() => {});
 }
 
+/** Android's sound picker → {uri, title} or null. */
+async function pickSound(uri) {
+  const p = plugin();
+  if (!p?.pickSound) return null;
+  try {
+    const r = await p.pickSound(uri ? { uri } : {});
+    return r?.uri ? r : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Preview the phone's own sound or a picked one. */
+async function previewPhoneSound(spec) {
+  const p = plugin();
+  if (p?.previewSound) await p.previewSound(spec).catch(() => {});
+}
+
+async function stopPhonePreview() {
+  const p = plugin();
+  if (p?.stopPreview) await p.stopPreview().catch(() => {});
+}
+
 async function test(id, seconds = 5) {
   const p = plugin();
   if (!p) return false;
@@ -8940,15 +9130,42 @@ async function listen(go) {
   }
 }
 
-Object.assign(__m, { available, sync, status, openSettings, test, takeMessage, listen });
+Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, listen });
 },
-/* js/views/alarms.js */ 41: function (__m, __req) {
+/* js/views/alarms.js */ 42: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 const { esc, icon } = __req(17);
-const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(38);
+const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(39);
 const { daySchedule, mealTimes } = __req(14);
-const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, valueInfo, morningMessages, messageForDay } = __req(39);
-const alarmNative = __req(40);
+const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, valueInfo, morningMessages, messageForDay } = __req(40);
+const alarmNative = __req(41);
+const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(38);
+const { openSheet, updateSheet } = __req(25);
+
+const KIND_NAME = { wake: 'Wake-up', wind: 'Wind-down', bed: 'Bedtime', meals: 'Meal' };
+const soundOf = (a, key) => a[key].sound || DEFAULT_SOUND[key];
+
+function soundRow(a, key) {
+  return `<button type="button" class="al-sound" data-action="alarmSoundOpen" data-key="${key}"><span class="al-sound-ico">♪</span><span class="grow"><span class="al-kicker">Sound</span><strong>${esc(soundLabel(soundOf(a, key)))}</strong></span>${icon('chevron')}</button>`;
+}
+
+/** The sound picker sheet for one alarm. */
+function soundSheet(state, key) {
+  const a = alarmsOf(state);
+  const cur = soundOf(a, key);
+  const native = alarmNative.available();
+  const row = (value, name, hint, play) => `<li class="snd-row ${cur === value ? 'on' : ''}">
+      <button type="button" class="snd-play" data-action="alarmSoundPlay" data-sound="${esc(value)}" aria-label="Play ${esc(name)}">▶</button>
+      <button type="button" class="snd-pick grow" data-action="alarmSoundSet" data-key="${key}" data-sound="${esc(value)}" aria-pressed="${cur === value}"><strong>${esc(name)}</strong><small>${esc(hint)}</small></button>
+      <span class="snd-check" aria-hidden="true">${cur === value ? icon('check') : ''}</span></li>`;
+  return `<div class="sheet-head"><div><div class="over">${KIND_NAME[key]} ${a[key].style === 'gentle' ? 'chime' : 'alarm'}</div><h2>Choose a sound</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+    <p class="muted" style="font-size:var(--text-sm);margin-top:-6px">Tap ▶ to listen. Melodic sounds were linked to feeling less groggy after waking than harsh beeps.</p>
+    <ul class="snd-list">${melodiesFor(key).map(([id, m]) => row(id, m.name, m.hint)).join('')}
+      ${native ? row('device', 'Phone’s alarm sound', 'The default alarm sound set on your phone') : ''}
+      ${native && cur.startsWith('uri:') ? row(cur, soundLabel(cur), 'Picked from your phone') : ''}</ul>
+    ${native ? `<button type="button" class="btn tonal" style="width:100%;margin-top:10px" data-action="alarmSoundPhone" data-key="${key}">Choose from phone…</button>` : '<p class="muted" style="font-size:var(--text-xs)">In the Android app you can also use your phone’s own sounds.</p>'}
+    ${a[key].style === 'ring' ? '<p class="muted" style="font-size:var(--text-xs);margin:10px 0 0">The alarm starts quietly and grows to full volume over about a minute.</p>' : '<p class="muted" style="font-size:var(--text-xs);margin:10px 0 0">A chime plays the sound twice, at notification volume.</p>'}`;
+}
 
 /** Your own values: saved even when not picked (older versions kept them only while picked). */
 function ownValues(affirm = {}) {
@@ -8993,15 +9210,19 @@ function alarmsPage(state) {
         <input class="al-time" type="time" value="${fmtTime(t.wake)}" data-change="alarmTime" aria-label="Wake-up time"></div>${sw('wake.on', a.wake.on, 'Wake-up alarm')}</div>
       <div class="al-days" role="group" aria-label="Days">${DAYS.map((l, i) => `<button type="button" class="al-day ${a.wake.days.includes(i) ? 'on' : ''}" data-action="alarmDay" data-day="${i}" aria-pressed="${a.wake.days.includes(i)}" aria-label="${DAY_NAMES[i]}">${l}</button>`).join('')}</div>
       <div class="row between" style="margin-top:12px">${styleSeg('wake.style', a.wake.style)}${native && a.wake.on ? `<button class="btn small tonal" data-action="alarmTest" data-id="wake">Test in 5 s</button>` : ''}</div>
+      ${soundRow(a, 'wake')}
       <p class="al-note">A soft melody that grows louder over a minute, a sunrise screen that slowly brightens, and a kind message to start the day. ${a.wake.days.length === 7 ? 'Same time every day — a regular wake time helps your body clock.' : 'Tip: the same time every day, weekends too, keeps your body clock steady.'}</p>`, a.wake.on ? 'on' : '')}
     ${card(`<div class="row between nowrap"><div class="grow"><div class="al-kicker">Wind down</div><div class="al-time small">${fmtTime(t.wind)}</div></div>${sw('wind.on', a.wind.on, 'Wind-down reminder')}</div>
       <div class="row between" style="margin-top:8px"><label class="row nowrap" style="gap:8px;font-size:var(--text-sm)"><select data-change="alarmBefore" aria-label="Minutes before bed">${[30, 45, 60, 90].map((m) => `<option value="${m}" ${a.wind.before === m ? 'selected' : ''}>${m} min</option>`).join('')}</select> before bed</label>${styleSeg('wind.style', a.wind.style)}</div>
+      ${soundRow(a, 'wind')}
       <p class="al-note">Time to dim the lights and put screens away: bright screens before bed delay sleep and leave you groggier the next morning.</p>`, a.wind.on ? 'on' : '')}
     ${card(`<div class="row between nowrap"><div class="grow"><div class="al-kicker">Bedtime</div><div class="al-time small">${fmtTime(d.bed)}</div></div>${sw('bed.on', a.bed.on, 'Bedtime alarm')}</div>
       <div class="row between" style="margin-top:8px"><a href="#/settings/day" style="font-size:var(--text-sm)">Change your sleep window</a>${styleSeg('bed.style', a.bed.style)}</div>
+      ${soundRow(a, 'bed')}
       <p class="al-note">About ${(d.sleepMinutes / 60).toFixed(1)} hours until your alarm. People who slept longer ate less the next day.</p>`, a.bed.on ? 'on' : '')}
     ${card(`<div class="row between nowrap"><div class="grow"><div class="al-kicker">Meals</div><div class="al-meals">${slots.filter((s) => mt[s] != null).map((s) => `<span>${fmtTime(mt[s])}</span>`).join('')}</div></div>${sw('meals.on', a.meals.on, 'Meal alarms')}</div>
       <div class="row between" style="margin-top:8px"><label class="row nowrap" style="gap:8px;font-size:var(--text-sm)"><input type="checkbox" data-change="alarmSet" data-path="meals.snacks" ${a.meals.snacks ? 'checked' : ''}> Snacks too</label>${styleSeg('meals.style', a.meals.style)}</div>
+      ${soundRow(a, 'meals')}
       <p class="al-note">From your day schedule, so meals come at regular times.</p>`, a.meals.on ? 'on' : '')}
     <p class="muted" style="font-size:var(--text-sm)">Times come from <a href="#/settings/day">Your day</a>. Quiet nudges to log meals and keep your streak are in <a href="#/settings/reminders">Reminders</a>.</p>
     <div class="card"><label class="row between nowrap" style="font-size:var(--text-sm)"><span>Snooze length</span><select data-change="alarmSnooze">${[5, 9, 10, 15].map((m) => `<option value="${m}" ${a.snooze === m ? 'selected' : ''}>${m} minutes</option>`).join('')}</select></label></div>
@@ -9054,6 +9275,35 @@ const save = (ctx, fn) => ctx.update((st) => {
 }, { quiet: true });
 
 const alarmActions = {
+  alarmSoundOpen(el, ev, ctx) {
+    openSheet(soundSheet(ctx.state, el.dataset.key), { label: 'Alarm sound', onClose: () => {
+      stopPreview();
+      alarmNative.stopPhonePreview();
+    } });
+  },
+  alarmSoundPlay(el) {
+    const sound = el.dataset.sound;
+    stopPreview();
+    alarmNative.stopPhonePreview();
+    if (MELODIES[sound]) previewMelody(sound);
+    else alarmNative.previewPhoneSound(nativeSound(sound));
+  },
+  alarmSoundSet(el, ev, ctx) {
+    const { key, sound } = el.dataset;
+    save(ctx, (st) => setPath(st, `${key}.sound`, sound));
+    updateSheet(soundSheet(ctx.state, key));
+    if (MELODIES[sound]) previewMelody(sound, { passes: 1 });
+  },
+  async alarmSoundPhone(el, ev, ctx) {
+    const key = el.dataset.key;
+    const cur = soundOf(alarmsOf(ctx.state), key);
+    const r = await alarmNative.pickSound(cur.startsWith('uri:') ? cur.slice(4).split('|')[0] : null);
+    if (!r) return;
+    const title = String(r.title || 'Sound from phone').replace(/\|/g, ' ').slice(0, 80);
+    save(ctx, (st) => setPath(st, `${key}.sound`, `uri:${r.uri}|${title}`));
+    updateSheet(soundSheet(ctx.state, key));
+    ctx.toast(`${KIND_NAME[key]} sound: ${title}`);
+  },
   alarmSet(el, ev, ctx) {
     const path = el.dataset.path;
     const on = el.checked;
@@ -9168,7 +9418,7 @@ const alarmActions = {
 
 Object.assign(__m, { ownValues, alarmsSummary, alarmsPage, alarmsAfter, alarmActions });
 },
-/* js/notify.js */ 42: function (__m, __req) {
+/* js/notify.js */ 43: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -9305,10 +9555,10 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 43: function (__m, __req) {
+/* js/views/settings.js */ 44: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { goalHint } = __req(23);
-const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(41);
+const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(42);
 const { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(17);
 const store = __req(16);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
@@ -9316,7 +9566,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn, weekOrder } = __req(0);
-const notify = __req(42);
+const notify = __req(43);
 const { DEFAULT_REMINDERS } = __req(15);
 const { dayFields, daySummary, readDay } = __req(20);
 const { daySchedule, toHHMM } = __req(14);
@@ -9712,7 +9962,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 44: function (__m, __req) {
+/* js/views/shopping.js */ 45: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(17);
 const store = __req(16);
@@ -9760,7 +10010,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 45: function (__m, __req) {
+/* js/views/rewards.js */ 46: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(17);
 const { ring, barChart } = __req(32);
@@ -9892,14 +10142,14 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/views/wake.js */ 46: function (__m, __req) {
+/* js/views/wake.js */ 47: function (__m, __req) {
 // Good morning: the screen after "I'm up". The alarm's message, then a ten-second values
 // reflection ("Today I'm doing this for…") — the kind of self-affirmation shown to engage the brain's
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { valueInfo, morningMessages, messageForDay } = __req(39);
-const { takeMessage } = __req(40);
+const { valueInfo, morningMessages, messageForDay } = __req(40);
+const { takeMessage } = __req(41);
 const { XP } = __req(13);
 const { confetti, chime, buzz, floatXp } = __req(28);
 
@@ -9986,7 +10236,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/body.js */ 47: function (__m, __req) {
+/* js/views/body.js */ 48: function (__m, __req) {
 // Your body: one card per body part — this week's ring, its long-term level and what it needs.
 // Tap any ring (here, on Today or in the Body Wrap) to open the body-part sheet.
 const { esc, icon, fmtDate } = __req(17);
@@ -10074,7 +10324,7 @@ __m.default = {
 
 Object.assign(__m, { organSheetHtml, organActions });
 },
-/* js/app.js */ 48: function (__m, __req) {
+/* js/app.js */ 49: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(16);
 const { icon, formData } = __req(17);
@@ -10088,19 +10338,19 @@ const habits = __req(33).default;
 const progress = __req(34).default;
 const checkin = __req(36).default;
 const learn = __req(37).default;
-const settings = __req(43).default;
-const shopping = __req(44).default;
-const rewards = __req(45).default;
+const settings = __req(44).default;
+const shopping = __req(45).default;
+const rewards = __req(46).default;
 const journeyView = __req(22).default;
 const wrapView = __req(29).default;
-const wakeView = __req(46).default;
-const bodyView = __req(47).default;
-const { organActions } = __req(47);
+const wakeView = __req(47).default;
+const bodyView = __req(48).default;
+const { organActions } = __req(48);
 const { organById } = __req(12);
-const alarmNative = __req(40);
+const alarmNative = __req(41);
 const { floatXp, confetti, chime, buzz, showCelebration } = __req(28);
 const { BADGES } = __req(13);
-const notify = __req(42);
+const notify = __req(43);
 const { closeSheet } = __req(25);
 const { sheetActions } = __req(26);
 const { daySummary, readDay } = __req(20);
@@ -10485,5 +10735,5 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(48);
+__req(49);
 })();</script>

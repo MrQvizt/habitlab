@@ -7,6 +7,7 @@
 //   compared with a printed book (Chang 2015).
 // - Meals at regular times from your day schedule.
 import { daySchedule, mealTimes, toHHMM, toMin } from './schedule.js';
+import { DEFAULT_SOUND, nativeSound } from '../data/melodies.js';
 
 export const DEFAULT_ALARMS = {
   wake: { on: false, time: null, days: [0, 1, 2, 3, 4, 5, 6], style: 'ring' },
@@ -67,15 +68,16 @@ export function alarmSpecs(state) {
   const d = daySchedule(state.profile || {});
   const out = [];
   const bed = toHHMM(d.bed);
-  if (a.wake.on) out.push({ id: 'wake', kind: 'wake', label: 'Good morning', body: '', ...hm(t.wake), days: a.wake.days?.length ? a.wake.days : [0, 1, 2, 3, 4, 5, 6], style: a.wake.style, route: '#/wake' });
-  if (a.wind.on) out.push({ id: 'wind', kind: 'wind', label: 'Time to wind down', body: `Dim the lights and put screens away — bright screens before bed push sleep later. Bed at ${bed}.`, ...hm(t.wind), days: [0, 1, 2, 3, 4, 5, 6], style: a.wind.style, route: '#/today' });
-  if (a.bed.on) out.push({ id: 'bed', kind: 'bed', label: 'Bedtime', body: 'Lights out. A good night’s sleep makes tomorrow’s choices easier — people who slept longer ate less the next day.', ...hm(t.bed), days: [0, 1, 2, 3, 4, 5, 6], style: a.bed.style, route: '#/today' });
+  const snd = (key) => nativeSound(a[key].sound || DEFAULT_SOUND[key]);
+  if (a.wake.on) out.push({ id: 'wake', kind: 'wake', label: 'Good morning', body: '', ...hm(t.wake), days: a.wake.days?.length ? a.wake.days : [0, 1, 2, 3, 4, 5, 6], style: a.wake.style, route: '#/wake', ...snd('wake') });
+  if (a.wind.on) out.push({ id: 'wind', kind: 'wind', label: 'Time to wind down', body: `Dim the lights and put screens away — bright screens before bed push sleep later. Bed at ${bed}.`, ...hm(t.wind), days: [0, 1, 2, 3, 4, 5, 6], style: a.wind.style, route: '#/today', ...snd('wind') });
+  if (a.bed.on) out.push({ id: 'bed', kind: 'bed', label: 'Bedtime', body: 'Lights out. A good night’s sleep makes tomorrow’s choices easier — people who slept longer ate less the next day.', ...hm(t.bed), days: [0, 1, 2, 3, 4, 5, 6], style: a.bed.style, route: '#/today', ...snd('bed') });
   if (a.meals.on) {
     const slots = mealSlots(state, a.meals.snacks);
     const times = mealTimes(state.profile || {}, slots);
     for (const s of slots) {
       if (times[s] == null) continue;
-      out.push({ id: `meal_${s}`, kind: 'meal', label: `${SLOT_LABEL[s]} time`, body: 'Your meal is ready in today’s plan. Sit down, eat slowly, and tick it off.', ...hm(times[s]), days: [0, 1, 2, 3, 4, 5, 6], style: a.meals.style, route: '#/today' });
+      out.push({ id: `meal_${s}`, kind: 'meal', label: `${SLOT_LABEL[s]} time`, body: 'Your meal is ready in today’s plan. Sit down, eat slowly, and tick it off.', ...hm(times[s]), days: [0, 1, 2, 3, 4, 5, 6], style: a.meals.style, route: '#/today', ...snd('meals') });
     }
   }
   return out;

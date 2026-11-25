@@ -26,9 +26,12 @@ public final class AlarmStore {
         public boolean[] days = new boolean[7]; // Monday = 0
         public String style; // ring | gentle
         public String route;
+        /** The full spec from JS (sound, uri, melody …). */
+        public JSONObject raw = new JSONObject();
 
         static Alarm fromJson(JSONObject o) {
             Alarm a = new Alarm();
+            a.raw = o;
             a.id = o.optString("id", "alarm");
             a.kind = o.optString("kind", "wake");
             a.label = o.optString("label", "Alarm");
@@ -53,7 +56,7 @@ public final class AlarmStore {
         }
 
         JSONObject toJson() throws JSONException {
-            JSONObject o = new JSONObject();
+            JSONObject o = new JSONObject(raw.toString());
             o.put("id", id).put("kind", kind).put("label", label).put("body", body).put("hour", hour).put("minute", minute).put("style", style).put("route", route);
             JSONArray d = new JSONArray();
             for (int i = 0; i < 7; i++) if (days[i]) d.put(i);
@@ -131,6 +134,7 @@ public final class AlarmStore {
         s.body = a.body;
         s.style = a.style;
         s.route = a.route;
+        s.raw = a.raw;
         return s;
     }
 
