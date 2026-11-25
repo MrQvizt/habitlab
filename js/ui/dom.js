@@ -51,9 +51,14 @@ export function fmtNum(n, step = 1) {
   return Number.isFinite(n) ? round(n, step).toLocaleString() : '–';
 }
 
+// Date formatters are expensive to create (toLocaleDateString builds one per call), so they're cached
+// per option set: lists of hundreds of dates render in a few milliseconds.
+const dateFormats = new Map();
 export function fmtDate(iso, opts = { weekday: 'short', day: 'numeric', month: 'short' }) {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, opts);
+  const key = JSON.stringify(opts);
+  let f = dateFormats.get(key);
+  if (!f) dateFormats.set(key, (f = new Intl.DateTimeFormat(undefined, opts)));
+  return f.format(new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)));
 }
 
 export function icon(name, cls = '') {

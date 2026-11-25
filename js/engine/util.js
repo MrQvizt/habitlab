@@ -21,8 +21,7 @@ export function isoDate(d = new Date()) {
 
 /** Parse YYYY-MM-DD as a local-midnight Date. */
 export function parseDate(s) {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
+  return new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
 }
 
 export function addDays(iso, n) {

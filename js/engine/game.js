@@ -193,6 +193,37 @@ export const BADGES = [
   { id: 'milestone_10', name: '10% Health Win', icon: 'progress', how: 'Reach a 10% loss', check: (s) => s.lostPct >= 10, weight: true },
 ];
 
+// ---------- Per-day cache ----------
+// The summary walks every day since the start. A day's awards depend only on that day's logs, its
+// planned meals and a few profile settings, so each day is cached by a fingerprint of exactly that
+// input; after a tap only the changed day (today) is recomputed. Same results, far less work.
+const dayCache = new Map();
+/** For tests: forget cached days. */
+export function clearDayCache() {
+  dayCache.clear();
+}
+function dayFingerprint(state, date, idx) {
+  const plan = mealsFor(state, date).map((m) => m.slot + ':' + m.recipeId).join(',');
+  return JSON.stringify([
+    state.mealLog?.[date], plan, state.habits?.log?.[date], state.workouts?.log?.[date], state.steps?.[date] || 0,
+    idx.weighed.has(date), idx.checked.has(date), idx.wraps.get(date) || null, state.wakes?.[date] || null,
+  ]);
+}
+function dayIndexes(state) {
+  const wraps = new Map();
+  for (const [ws, seen] of Object.entries(state.wraps || {})) wraps.set(seen, [...(wraps.get(seen) || []), ws]);
+  return { weighed: new Set((state.weights || []).map((w) => w.date)), checked: new Set((state.checkins || []).map((c) => c.date)), wraps };
+}
+function cachedDayAwards(state, date, habitsOnly, ctxKey, idx) {
+  const fp = ctxKey + dayFingerprint(state, date, idx);
+  const hit = dayCache.get(date);
+  if (hit && hit.fp === fp) return hit.awards;
+  const awards = dayAwards(state, date, { habitsOnly });
+  if (dayCache.size > 4000) dayCache.clear();
+  dayCache.set(date, { fp, awards });
+  return awards;
+}
+
 /**
  * Full rewards summary, derived from state.
  */
@@ -206,9 +237,12 @@ export function summary(state, today, { habitsOnly = false, trendKg = null } = {
   const stats = { smallWins: 0, mealsLogged: 0, fullDays: 0, perfectDays: 0, strength: 0, stepDays: 0, weighIns: 0, checkins: (state.checkins || []).length, graduated: (state.habits?.retired || []).length };
   const recipes = new Set();
   const habitTicks = {};
+  // Settings that change any day's awards (quests use the active habit list and step goal).
+  const idx = dayIndexes(state);
+  const ctxKey = JSON.stringify([habitsOnly, p.baselineSteps, p.stepLevel, p.age, (state.habits?.active || []).map((a) => a.id)]);
   for (let i = span; i >= 0; i--) {
     const date = addDays(today, -i);
-    const awards = dayAwards(state, date, { habitsOnly });
+    const awards = cachedDayAwards(state, date, habitsOnly, ctxKey, idx);
     if (!awards.length) continue;
     activeDays.add(date);
     const dayXp = awards.reduce((a, x) => a + x.xp, 0);

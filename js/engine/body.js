@@ -8,6 +8,7 @@ import { byId, scaledNutrition } from './meals.js';
 import { trendSeries } from './trend.js';
 import { hobbyByName } from '../data/hobbies.js';
 
+const NUM = new Intl.NumberFormat(); // one formatter: toLocaleString() builds a new one per call
 export const KNEE_FACTOR = 4; // each kg lost ≈ 4 kg less load on the knee per step (Messier 2005)
 export const FIBRE_TARGET = 25;
 
@@ -137,7 +138,7 @@ export function weekBody(state, ws, { asOf = addDays(ws, 6), habitsOnly = false,
     sugar: (s.activeDays + s.swaps + s.mealWalks) / 7,
     kidneys: (s.activeDays + s.swaps + h('alcohol_limit')) / 7 + (s.lostPct >= 5 ? 0.25 : 0),
   };
-  const fmtN = (n) => Math.round(n).toLocaleString();
+  const fmtN = (n) => NUM.format(Math.round(n));
   const stat = {
     heart: [`${fmtN(s.activeMin)} min`, `active minutes · ${Math.round(ring.heart * 100)}% of the weekly target`],
     muscle: [`${s.strength}`, `strength session${s.strength === 1 ? '' : 's'} · target 2`],

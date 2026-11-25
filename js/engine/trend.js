@@ -7,7 +7,24 @@ export const ALPHA = 0.1; // smoothing per day (classic "Hacker's Diet" style 10
  * @param entries [{date: 'YYYY-MM-DD', kg}] (any order, may have gaps or duplicates)
  * @returns [{date, kg|null, trend}] one point per calendar day from first to last entry
  */
+// Cached per weigh-in array (the app replaces arrays rather than editing them).
+const seriesCache = new WeakMap();
 export function trendSeries(entries) {
+  if (Array.isArray(entries)) {
+    // Also keyed on length and the last entry, so an in-place push or edit of the latest weigh-in
+    // can never return a stale trend.
+    const last = entries[entries.length - 1];
+    const key = `${entries.length}|${last?.date}|${last?.kg}`;
+    const hit = seriesCache.get(entries);
+    if (hit && hit.key === key) return hit.out;
+    const out = computeSeries(entries);
+    seriesCache.set(entries, { key, out });
+    return out;
+  }
+  return computeSeries(entries || []);
+}
+
+function computeSeries(entries) {
   const byDate = new Map();
   for (const e of entries) {
     if (e && Number.isFinite(e.kg) && /^\d{4}-\d{2}-\d{2}$/.test(e.date)) byDate.set(e.date, e.kg); // last entry of the day wins

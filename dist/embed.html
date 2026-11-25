@@ -1067,8 +1067,7 @@ function isoDate(d = new Date()) {
 
 /** Parse YYYY-MM-DD as a local-midnight Date. */
 function parseDate(s) {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
+  return new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
 }
 
 function addDays(iso, n) {
@@ -1346,7 +1345,24 @@ const ALPHA = 0.1; // smoothing per day (classic "Hacker's Diet" style 10% movin
  * @param entries [{date: 'YYYY-MM-DD', kg}] (any order, may have gaps or duplicates)
  * @returns [{date, kg|null, trend}] one point per calendar day from first to last entry
  */
+// Cached per weigh-in array (the app replaces arrays rather than editing them).
+const seriesCache = new WeakMap();
 function trendSeries(entries) {
+  if (Array.isArray(entries)) {
+    // Also keyed on length and the last entry, so an in-place push or edit of the latest weigh-in
+    // can never return a stale trend.
+    const last = entries[entries.length - 1];
+    const key = `${entries.length}|${last?.date}|${last?.kg}`;
+    const hit = seriesCache.get(entries);
+    if (hit && hit.key === key) return hit.out;
+    const out = computeSeries(entries);
+    seriesCache.set(entries, { key, out });
+    return out;
+  }
+  return computeSeries(entries || []);
+}
+
+function computeSeries(entries) {
   const byDate = new Map();
   for (const e of entries) {
     if (e && Number.isFinite(e.kg) && /^\d{4}-\d{2}-\d{2}$/.test(e.date)) byDate.set(e.date, e.kg); // last entry of the day wins
@@ -3590,6 +3606,7 @@ const { byId, scaledNutrition } = __req(5);
 const { trendSeries } = __req(2);
 const { hobbyByName } = __req(11);
 
+const NUM = new Intl.NumberFormat(); // one formatter: toLocaleString() builds a new one per call
 const KNEE_FACTOR = 4; // each kg lost ≈ 4 kg less load on the knee per step (Messier 2005)
 const FIBRE_TARGET = 25;
 
@@ -3719,7 +3736,7 @@ function weekBody(state, ws, { asOf = addDays(ws, 6), habitsOnly = false, series
     sugar: (s.activeDays + s.swaps + s.mealWalks) / 7,
     kidneys: (s.activeDays + s.swaps + h('alcohol_limit')) / 7 + (s.lostPct >= 5 ? 0.25 : 0),
   };
-  const fmtN = (n) => Math.round(n).toLocaleString();
+  const fmtN = (n) => NUM.format(Math.round(n));
   const stat = {
     heart: [`${fmtN(s.activeMin)} min`, `active minutes · ${Math.round(ring.heart * 100)}% of the weekly target`],
     muscle: [`${s.strength}`, `strength session${s.strength === 1 ? '' : 's'} · target 2`],
@@ -4082,6 +4099,37 @@ const BADGES = [
   { id: 'milestone_10', name: '10% Health Win', icon: 'progress', how: 'Reach a 10% loss', check: (s) => s.lostPct >= 10, weight: true },
 ];
 
+// ---------- Per-day cache ----------
+// The summary walks every day since the start. A day's awards depend only on that day's logs, its
+// planned meals and a few profile settings, so each day is cached by a fingerprint of exactly that
+// input; after a tap only the changed day (today) is recomputed. Same results, far less work.
+const dayCache = new Map();
+/** For tests: forget cached days. */
+function clearDayCache() {
+  dayCache.clear();
+}
+function dayFingerprint(state, date, idx) {
+  const plan = mealsFor(state, date).map((m) => m.slot + ':' + m.recipeId).join(',');
+  return JSON.stringify([
+    state.mealLog?.[date], plan, state.habits?.log?.[date], state.workouts?.log?.[date], state.steps?.[date] || 0,
+    idx.weighed.has(date), idx.checked.has(date), idx.wraps.get(date) || null, state.wakes?.[date] || null,
+  ]);
+}
+function dayIndexes(state) {
+  const wraps = new Map();
+  for (const [ws, seen] of Object.entries(state.wraps || {})) wraps.set(seen, [...(wraps.get(seen) || []), ws]);
+  return { weighed: new Set((state.weights || []).map((w) => w.date)), checked: new Set((state.checkins || []).map((c) => c.date)), wraps };
+}
+function cachedDayAwards(state, date, habitsOnly, ctxKey, idx) {
+  const fp = ctxKey + dayFingerprint(state, date, idx);
+  const hit = dayCache.get(date);
+  if (hit && hit.fp === fp) return hit.awards;
+  const awards = dayAwards(state, date, { habitsOnly });
+  if (dayCache.size > 4000) dayCache.clear();
+  dayCache.set(date, { fp, awards });
+  return awards;
+}
+
 /**
  * Full rewards summary, derived from state.
  */
@@ -4095,9 +4143,12 @@ function summary(state, today, { habitsOnly = false, trendKg = null } = {}) {
   const stats = { smallWins: 0, mealsLogged: 0, fullDays: 0, perfectDays: 0, strength: 0, stepDays: 0, weighIns: 0, checkins: (state.checkins || []).length, graduated: (state.habits?.retired || []).length };
   const recipes = new Set();
   const habitTicks = {};
+  // Settings that change any day's awards (quests use the active habit list and step goal).
+  const idx = dayIndexes(state);
+  const ctxKey = JSON.stringify([habitsOnly, p.baselineSteps, p.stepLevel, p.age, (state.habits?.active || []).map((a) => a.id)]);
   for (let i = span; i >= 0; i--) {
     const date = addDays(today, -i);
-    const awards = dayAwards(state, date, { habitsOnly });
+    const awards = cachedDayAwards(state, date, habitsOnly, ctxKey, idx);
     if (!awards.length) continue;
     activeDays.add(date);
     const dayXp = awards.reduce((a, x) => a + x.xp, 0);
@@ -4157,7 +4208,7 @@ function summary(state, today, { habitsOnly = false, trendKg = null } = {}) {
   };
 }
 
-Object.assign(__m, { XP, levelStart, levelFromXp, LEVEL_TITLES, levelTitle, dayAwards, quests, showUpStreak, BADGES, summary });
+Object.assign(__m, { XP, levelStart, levelFromXp, LEVEL_TITLES, levelTitle, dayAwards, quests, showUpStreak, BADGES, clearDayCache, summary });
 },
 /* js/engine/schedule.js */ 14: function (__m, __req) {
 // Your day: wake/bed times and eating window → a timeline of meal times.
@@ -4813,9 +4864,17 @@ function importJson(text) {
 }
 
 /** Rewards summary (XP, level, streak, quests, badges) for a date. */
+// The rewards summary walks every logged day, and many screens ask for it during one render.
+// State objects are never mutated in place (updates clone, then replace), so it is cached per
+// state object and date: computed once per change instead of once per caller.
+const gameCache = new WeakMap();
 function game(state, date = today()) {
   if (!state.profile) return null;
-  return gameSummaryRaw(state, date, { habitsOnly: habitsOnly(state), trendKg: trendWeight(state) });
+  const hit = gameCache.get(state);
+  if (hit && hit.date === date) return hit.value;
+  const value = gameSummaryRaw(state, date, { habitsOnly: habitsOnly(state), trendKg: trendWeight(state) });
+  gameCache.set(state, { date, value });
+  return value;
 }
 
 
@@ -4876,9 +4935,14 @@ function fmtNum(n, step = 1) {
   return Number.isFinite(n) ? round(n, step).toLocaleString() : '–';
 }
 
+// Date formatters are expensive to create (toLocaleDateString builds one per call), so they're cached
+// per option set: lists of hundreds of dates render in a few milliseconds.
+const dateFormats = new Map();
 function fmtDate(iso, opts = { weekday: 'short', day: 'numeric', month: 'short' }) {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, opts);
+  const key = JSON.stringify(opts);
+  let f = dateFormats.get(key);
+  if (!f) dateFormats.set(key, (f = new Intl.DateTimeFormat(undefined, opts)));
+  return f.format(new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)));
 }
 
 function icon(name, cls = '') {

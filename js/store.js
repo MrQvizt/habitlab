@@ -381,9 +381,17 @@ export function importJson(text) {
 }
 
 /** Rewards summary (XP, level, streak, quests, badges) for a date. */
+// The rewards summary walks every logged day, and many screens ask for it during one render.
+// State objects are never mutated in place (updates clone, then replace), so it is cached per
+// state object and date: computed once per change instead of once per caller.
+const gameCache = new WeakMap();
 export function game(state, date = today()) {
   if (!state.profile) return null;
-  return gameSummaryRaw(state, date, { habitsOnly: habitsOnly(state), trendKg: trendWeight(state) });
+  const hit = gameCache.get(state);
+  if (hit && hit.date === date) return hit.value;
+  const value = gameSummaryRaw(state, date, { habitsOnly: habitsOnly(state), trendKg: trendWeight(state) });
+  gameCache.set(state, { date, value });
+  return value;
 }
 
 export { estimateTdee };
