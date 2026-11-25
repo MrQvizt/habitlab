@@ -5216,7 +5216,7 @@ function daySummary(profile, slots = ['breakfast', 'snack', 'lunch', 'snack2', '
         <span class="pill-stat">${icon('meals')}${Math.round(d.window / 60)} h eating window</span>
         <span class="pill-stat" style="background:var(--accent-soft);color:var(--accent)">Kitchen closes ${toHHMM(d.last)} · ${(d.gapBeforeBed / 60).toFixed(1)} h before bed</span>
       </div>
-      <div class="timeline">${line}</div>
+      <div class="timeline" role="region" aria-label="Your day, in order" tabindex="0">${line}</div>
       ${tips.map((x) => `<div class="notice ${x.level === 'warn' ? 'warn' : 'info'}" style="margin:10px 0 0">${icon(x.level === 'warn' ? 'alert' : 'info')}<div>${esc(x.text)}</div></div>`).join('')}
       <p class="muted" style="font-size:var(--text-xs);margin:10px 0 0">Why: eating late raises hunger and lowers energy use, and finishing 2–3 h before bed is easier on reflux and sleep. <a href="#/learn/meal_timing">The evidence</a></p>
     </div>`;
