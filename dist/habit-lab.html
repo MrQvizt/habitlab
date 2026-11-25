@@ -851,7 +851,7 @@ body.wrap-open .bottomnav, body.wrap-open .topbar { visibility: hidden; }
 @keyframes wbar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .w-close { position: absolute; z-index: 3; top: max(28px, calc(env(safe-area-inset-top) + 10px)); right: 14px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255,255,255,.16); color: #fff; display: grid; place-items: center; cursor: pointer; }
 .w-close svg { width: 20px; height: 20px; }
-.w-card { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; max-width: 520px; width: 100%; margin: 0 auto; animation: wcard 0.45s cubic-bezier(.2,.9,.25,1.15) both; position: relative; z-index: 1; pointer-events: none; }
+.w-card { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; max-width: 520px; width: 100%; margin: 0 auto; animation: wcard 0.45s cubic-bezier(.2,.9,.25,1.15) both; position: relative; z-index: 3; pointer-events: none; }
 .w-card a, .w-card button { pointer-events: auto; }
 @keyframes wcard { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
 .w-kicker { font-size: .78rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; opacity: .85; }
@@ -7149,7 +7149,7 @@ function bodyRingsCard(state, today) {
   const w = weekBody(state, ws, { asOf: today, habitsOnly: store.habitsOnly(state) });
   const lv = store.game(state)?.stats?.body?.levels || {};
   return `<div class="section-head"><h2>Your body this week</h2><a href="#/body">Levels →</a></div>
-    <div class="card body-rings">${w.organs.map((o) => `<button type="button" class="br" data-action="openOrgan" data-organ="${o.id}" aria-label="${esc(o.name)}: ${Math.round(o.pct * 100)}% this week">${ring(o.pct, o.color, { size: 44, stroke: 5.5, label: o.emoji })}<small>${esc(o.name)}</small>${lv[o.id] ? `<b>Lv ${lv[o.id].level}</b>` : ''}</button>`).join('')}
+    <div class="card body-rings" style="grid-template-columns:repeat(${w.organs.length},1fr)">${w.organs.map((o) => `<button type="button" class="br" data-action="openOrgan" data-organ="${o.id}" aria-label="${esc(o.name)}: ${Math.round(o.pct * 100)}% this week">${ring(o.pct, o.color, { size: 44, stroke: 5.5, label: o.emoji })}<small>${esc(o.name)}</small>${lv[o.id] ? `<b>Lv ${lv[o.id].level}</b>` : ''}</button>`).join('')}
       <a class="br-foot" href="#/wrap/${ws}">${w.closed}/${w.organs.length} rings closed · see this week’s wrap →</a></div>`;
 }
 
