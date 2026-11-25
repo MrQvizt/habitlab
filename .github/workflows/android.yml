@@ -51,6 +51,9 @@ jobs:
         run: npm test
       - name: Build web bundle and sync Android project
         run: npm run android:sync
+      - name: Native unit tests (alarm scheduling)
+        working-directory: android
+        run: ./gradlew testDebugUnitTest --no-daemon
       - name: Build APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
