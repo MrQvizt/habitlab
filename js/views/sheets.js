@@ -1,11 +1,10 @@
 // Bottom-sheet flows shared by Today and Meals: a meal's detail + logging, weigh-in stepper,
 // steps, extra food and habit detail. Every reversible change offers Undo instead of asking first.
-import { esc, icon, fmtNum, fmtWeight, toKg, weightNum } from '../ui/dom.js';
+import { esc, icon, fmtNum, toKg, weightNum } from '../ui/dom.js';
 import { openSheet, closeSheet, updateSheet } from '../ui/sheet.js';
 import * as store from '../store.js';
 import { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } from './shared.js';
 import { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } from '../engine/meals.js';
-import { FOODS } from '../data/foods.js';
 import { habitById, streak, habitLevels, levelIndex, levelValue } from '../engine/habits.js';
 import { stepGoal } from '../engine/workouts.js';
 import { round, weekStart, isoDate, addDays } from '../engine/util.js';

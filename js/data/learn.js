@@ -297,4 +297,3 @@ export const LEARN = [
     'Safety questions are asked at the start and every 4 weeks in the check-in.'),
 ];
 
-export const LEARN_BY_ID = Object.fromEntries(LEARN.map((c) => [c.id, c]));

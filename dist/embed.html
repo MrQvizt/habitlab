@@ -3906,20 +3906,7 @@ function bodyCollection(state, today, { habitsOnly = false } = {}) {
   return finish();
 }
 
-const MEDALS = [
-  { n: 1, name: 'Bronze', color: '#c7814b' },
-  { n: 4, name: 'Silver', color: '#a9b4bd' },
-  { n: 12, name: 'Gold', color: '#f5c242' },
-  { n: 26, name: 'Platinum', color: '#9fe3ff' },
-];
-function medalFor(n) {
-  return [...MEDALS].reverse().find((m) => n >= m.n) || null;
-}
-function nextMedal(n) {
-  return MEDALS.find((m) => n < m.n) || null;
-}
-
-Object.assign(__m, { KNEE_FACTOR, FIBRE_TARGET, ORGANS, organById, weekBody, lastWeekStart, ORGAN_GUIDE, LEVEL_TITLES, bodyLevelStart, bodyLevelOf, bodyLevelTitle, weekPoints, bodyCollection, MEDALS, medalFor, nextMedal });
+Object.assign(__m, { KNEE_FACTOR, FIBRE_TARGET, ORGANS, organById, weekBody, lastWeekStart, ORGAN_GUIDE, LEVEL_TITLES, bodyLevelStart, bodyLevelOf, bodyLevelTitle, weekPoints, bodyCollection });
 },
 /* js/engine/game.js */ 13: function (__m, __req) {
 // Rewards: XP, levels, daily quests, a "showing up" streak and badges.
@@ -4329,10 +4316,10 @@ Object.assign(__m, { BED_GAP_MIN, BED_GAP_FLOOR, toMin, toHHMM, daySchedule, mea
 // Principles: specific beats generic ("Lunch: Greek salad with chicken" > "Time to eat"); skip
 // anything already done; never shame; quiet by default at night; a few encouraging messages,
 // rotating so they don't go stale.
-const { addDays, weekStart, parseDate, hashString, isoDate, planDayFor, weekdayOf, getWeekStart } = __req(0);
+const { addDays, parseDate, hashString, isoDate, planDayFor, weekdayOf, getWeekStart } = __req(0);
 const { quests } = __req(13);
 const { byId } = __req(5);
-const { mealTimes, daySchedule, toHHMM } = __req(14);
+const { mealTimes, daySchedule } = __req(14);
 const { weekBody } = __req(12);
 
 const DEFAULT_REMINDERS = {
@@ -4500,7 +4487,7 @@ Object.assign(__m, { DEFAULT_REMINDERS, ENCOURAGEMENTS, reminderId, buildReminde
 },
 /* js/store.js */ 16: function (__m, __req) {
 // App state: one JSON object in localStorage. Everything stays on this device.
-const { isoDate, weekStart, addDays, hashString, weekdayOf, dateInWeek, planDayFor, setWeekStart } = __req(0);
+const { isoDate, weekStart, hashString, weekdayOf, dateInWeek, planDayFor, setWeekStart } = __req(0);
 const { dailyTargets, estimateTdee } = __req(1);
 const { latestTrend } = __req(2);
 const { planWeek } = __req(5);
@@ -5037,9 +5024,8 @@ Object.assign(__m, { esc, html, units, fmtWeight, fmtKg, weightNum, toKg, fmtDel
 },
 /* js/views/shared.js */ 18: function (__m, __req) {
 // Pieces shared by several views.
-const { esc, icon, fmtNum } = __req(17);
-const { byId, scaledNutrition, formatQty, SLOT_LABEL, dayTotals, ingredientText } = __req(5);
-const { FOODS } = __req(3);
+const { esc, icon } = __req(17);
+const { byId, scaledNutrition, SLOT_LABEL, ingredientText } = __req(5);
 const store = __req(16);
 const { orderMeals } = __req(14);
 const { daysBetween, weekdayOf, planDayFor } = __req(0);
@@ -5097,26 +5083,11 @@ function recipeDetails(m, units = 'metric', open = false) {
     <small class="muted">Season freely with herbs, spices, garlic, lemon, vinegar, mustard and salt to taste.</small></details>`;
 }
 
-function mealMeta(m, showNumbers = true) {
-  const r = byId(m.recipeId);
-  const n = scaledNutrition(r, m.scale);
-  const tags = [
-    m.leftover ? '<span class="tag warm">leftovers</span>' : '',
-    r.batch && !m.leftover ? '<span class="tag">batch-friendly</span>' : '',
-    r.nocook ? '<span class="tag">no-cook</span>' : '',
-  ].join('');
-  return `<div class="meta">${icon('clock', 'tiny')} ${m.leftover ? 'ready' : `${r.minutes} min`}${showNumbers ? ` · ${fmtNum(n.kcal, 10)} kcal · ${Math.round(n.p)} g protein · ${Math.round(n.fib)} g fibre` : ''} ${tags}</div>`;
-}
 
 function slotLabel(slot) {
   return SLOT_LABEL[slot] || slot;
 }
 
-function totalsLine(meals, showNumbers) {
-  if (!showNumbers) return '';
-  const t = dayTotals(meals);
-  return `${fmtNum(t.kcal, 10)} kcal · ${Math.round(t.p)} g protein · ${Math.round(t.c)} g carbs · ${Math.round(t.f)} g fat · ${Math.round(t.fib)} g fibre`;
-}
 
 function safetyNotices(state, levels = ['block', 'warn']) {
   const s = store.safety(state);
@@ -5149,7 +5120,7 @@ function markChosen(meals, previous, slot) {
   return meals.map((m) => ({ ...m, chosen: m.slot === slot || (prev[m.slot]?.chosen && prev[m.slot].recipeId === m.recipeId) || undefined }));
 }
 
-Object.assign(__m, { dayIndex, mealsFor, eatenSoFar, dayComplete, computeIntake, proteinEaten, recipeDetails, mealMeta, slotLabel, totalsLine, safetyNotices, checkinDue, setMealStatus, markChosen });
+Object.assign(__m, { dayIndex, mealsFor, eatenSoFar, dayComplete, computeIntake, proteinEaten, recipeDetails, slotLabel, safetyNotices, checkinDue, setMealStatus, markChosen });
 },
 /* js/demo.js */ 19: function (__m, __req) {
 // Demo profile with ~10 weeks of realistic history, so the app can be explored before real use.
@@ -5514,7 +5485,7 @@ Object.assign(__m, { whenLabel, stopRow, goalCard });
 /* js/views/onboarding.js */ 23: function (__m, __req) {
 // Onboarding wizard: about you → health check → food → movement → habits → your plan.
 const { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight, fmtKg } = __req(17);
-const { ACTIVITY_LEVELS, PACES, dailyTargets, bmi, weightAtBmi } = __req(1);
+const { ACTIVITY_LEVELS, PACES, dailyTargets, weightAtBmi } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { HABITS } = __req(9);
@@ -6239,9 +6210,6 @@ window.addEventListener('popstate', () => {
   if (current) closeSheet(false, { fromHistory: true });
 });
 
-function isOpen() {
-  return !!current;
-}
 
 function setBackgroundInert(on) {
   for (const el of document.querySelectorAll('body > .app, body > .bottomnav')) el.inert = on;
@@ -6346,17 +6314,16 @@ function updateSheet(html) {
   current.sheet.innerHTML = `<span class="grab" aria-hidden="true"></span>${html}`;
 }
 
-Object.assign(__m, { isOpen, openSheet, closeSheet, updateSheet });
+Object.assign(__m, { openSheet, closeSheet, updateSheet });
 },
 /* js/views/sheets.js */ 26: function (__m, __req) {
 // Bottom-sheet flows shared by Today and Meals: a meal's detail + logging, weigh-in stepper,
 // steps, extra food and habit detail. Every reversible change offers Undo instead of asking first.
-const { esc, icon, fmtNum, fmtWeight, toKg, weightNum } = __req(17);
+const { esc, icon, fmtNum, toKg, weightNum } = __req(17);
 const { openSheet, closeSheet, updateSheet } = __req(25);
 const store = __req(16);
 const { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } = __req(18);
 const { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } = __req(5);
-const { FOODS } = __req(3);
 const { habitById, streak, habitLevels, levelIndex, levelValue } = __req(10);
 const { stepGoal } = __req(7);
 const { round, weekStart, isoDate, addDays } = __req(0);
@@ -7043,9 +7010,8 @@ const LEARN = [
     'Safety questions are asked at the start and every 4 weeks in the check-in.'),
 ];
 
-const LEARN_BY_ID = Object.fromEntries(LEARN.map((c) => [c.id, c]));
 
-Object.assign(__m, { S, LEARN_SECTIONS, LEARN, LEARN_BY_ID });
+Object.assign(__m, { S, LEARN_SECTIONS, LEARN });
 },
 /* js/ui/celebrate.js */ 28: function (__m, __req) {
 // Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
@@ -7353,15 +7319,15 @@ Object.assign(__m, { ring, wrapReadyCard, bodyRingsCard });
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 const { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(17);
 const store = __req(16);
-const { mealsFor, eatenSoFar, proteinEaten, dayComplete, setMealStatus, safetyNotices, checkinDue, slotLabel, computeIntake } = __req(18);
-const { byId, scaledNutrition } = __req(5);
+const { mealsFor, eatenSoFar, proteinEaten, dayComplete, safetyNotices, checkinDue, slotLabel, computeIntake } = __req(18);
+const { byId } = __req(5);
 const { habitById, streak, habitLevels, levelIndex } = __req(10);
 const { stepGoal } = __req(7);
 const { CARDIO } = __req(6);
 const { daysBetween } = __req(0);
-const { toHHMM, daySchedule } = __req(14);
+const { toHHMM } = __req(14);
 const { itemDone, logPlannedActivity } = __req(24);
-const { slotIcon, toggleHabit, mealRows } = __req(26);
+const { toggleHabit, mealRows } = __req(26);
 const { journey, nextStops, recentTimeStop } = __req(21);
 const { whenLabel } = __req(22);
 const { wrapReadyCard, bodyRingsCard } = __req(29);
@@ -7612,9 +7578,9 @@ Object.assign(__m, { habitRow });
 const { html, esc, icon, chips, fmtDate, fmtNum } = __req(17);
 const { mealRows } = __req(26);
 const store = __req(16);
-const { recipeDetails, mealMeta, slotLabel, totalsLine, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(18);
+const { recipeDetails, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(18);
 const { markChosen } = __req(18);
-const { byId, swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL, dayTotals } = __req(5);
+const { swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL, dayTotals } = __req(5);
 const { RECIPES } = __req(4);
 const { rng } = __req(0);
 const { weekStart, dateInWeek, weekOrder } = __req(0);
@@ -8889,8 +8855,6 @@ const DEFAULT_ALARMS = {
   snooze: 9,
 };
 
-const DEFAULT_AFFIRM = { values: [], own: [], why: '', sets: null, custom: [], favs: [] };
-
 const STYLES = {
   ring: { label: 'Alarm', hint: 'Rings with a gentle melody until you tap “I’m up”' },
   gentle: { label: 'Chime', hint: 'One chime and a notification' },
@@ -8960,7 +8924,7 @@ function fmtTime(min) {
   return toHHMM(min);
 }
 
-Object.assign(__m, { DEFAULT_ALARMS, DEFAULT_AFFIRM, STYLES, alarmsOf, alarmTimes, mealSlots, alarmSpecs, fmtTime });
+Object.assign(__m, { DEFAULT_ALARMS, STYLES, alarmsOf, alarmTimes, mealSlots, alarmSpecs, fmtTime });
 },
 /* js/data/affirmations.js */ 40: function (__m, __req) {
 // Morning messages shown when the wake-up alarm rings and on the Good-morning screen.
@@ -9657,7 +9621,7 @@ Object.assign(__m, { platform, permissionState, requestPermission, listen, sync,
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { goalHint } = __req(23);
 const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(42);
-const { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(17);
+const { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(17);
 const store = __req(16);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);

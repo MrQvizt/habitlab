@@ -478,7 +478,7 @@ test('journey: healthy goal, multi-year timeline and stops along the way (182 cm
 });
 
 test('body wrap: organ rings from logged behaviour, knee maths, XP and medals', async () => {
-  const { weekBody, ORGANS, KNEE_FACTOR, bodyCollection, lastWeekStart, medalFor, nextMedal } = await import('../js/engine/body.js');
+  const { weekBody, ORGANS, KNEE_FACTOR, bodyCollection, lastWeekStart } = await import('../js/engine/body.js');
   const { addDays, weekStart, isoDate } = await import('../js/engine/util.js');
   const { demoState } = await import('../js/demo.js');
   const { summary, dayAwards, XP } = await import('../js/engine/game.js');
@@ -525,9 +525,6 @@ test('body wrap: organ rings from logged behaviour, knee maths, XP and medals', 
   assert.ok(g.badges.includes('wrap_1'));
   assert.ok(g.stats.body.weeks >= 9);
   assert.ok(Object.values(bodyCollection(s, today).counts).some((n) => n > 0));
-  assert.equal(medalFor(0), null);
-  assert.equal(medalFor(4).name, 'Silver');
-  assert.equal(nextMedal(4).name, 'Gold');
 
   // Monday reminder when last week's wrap is waiting; none once opened
   const monday = weekStart(addDays(today, 7));

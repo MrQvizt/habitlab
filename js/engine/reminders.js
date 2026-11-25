@@ -4,10 +4,10 @@
 // Principles: specific beats generic ("Lunch: Greek salad with chicken" > "Time to eat"); skip
 // anything already done; never shame; quiet by default at night; a few encouraging messages,
 // rotating so they don't go stale.
-import { addDays, weekStart, parseDate, hashString, isoDate, planDayFor, weekdayOf, getWeekStart } from './util.js';
+import { addDays, parseDate, hashString, isoDate, planDayFor, weekdayOf, getWeekStart } from './util.js';
 import { quests } from './game.js';
 import { byId } from './meals.js';
-import { mealTimes, daySchedule, toHHMM } from './schedule.js';
+import { mealTimes, daySchedule } from './schedule.js';
 import { weekBody } from './body.js';
 
 export const DEFAULT_REMINDERS = {

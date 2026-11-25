@@ -2,15 +2,15 @@
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 import { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
-import { mealsFor, eatenSoFar, proteinEaten, dayComplete, setMealStatus, safetyNotices, checkinDue, slotLabel, computeIntake } from './shared.js';
-import { byId, scaledNutrition } from '../engine/meals.js';
+import { mealsFor, eatenSoFar, proteinEaten, dayComplete, safetyNotices, checkinDue, slotLabel, computeIntake } from './shared.js';
+import { byId } from '../engine/meals.js';
 import { habitById, streak, habitLevels, levelIndex } from '../engine/habits.js';
 import { stepGoal } from '../engine/workouts.js';
 import { CARDIO } from '../data/exercises.js';
 import { daysBetween } from '../engine/util.js';
-import { toHHMM, daySchedule } from '../engine/schedule.js';
+import { toHHMM } from '../engine/schedule.js';
 import { itemDone, logPlannedActivity } from './move.js';
-import { slotIcon, toggleHabit, mealRows } from './sheets.js';
+import { toggleHabit, mealRows } from './sheets.js';
 import { journey, nextStops, recentTimeStop } from '../engine/journey.js';
 import { whenLabel } from './journey.js';
 import { wrapReadyCard, bodyRingsCard } from './wrap.js';

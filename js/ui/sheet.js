@@ -8,9 +8,6 @@ window.addEventListener('popstate', () => {
   if (current) closeSheet(false, { fromHistory: true });
 });
 
-export function isOpen() {
-  return !!current;
-}
 
 function setBackgroundInert(on) {
   for (const el of document.querySelectorAll('body > .app, body > .bottomnav')) el.inert = on;

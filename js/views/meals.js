@@ -2,9 +2,9 @@
 import { html, esc, icon, chips, fmtDate, fmtNum } from '../ui/dom.js';
 import { mealRows } from './sheets.js';
 import * as store from '../store.js';
-import { recipeDetails, mealMeta, slotLabel, totalsLine, dayIndex, setMealStatus, eatenSoFar, dayComplete } from './shared.js';
+import { recipeDetails, dayIndex, setMealStatus, eatenSoFar, dayComplete } from './shared.js';
 import { markChosen } from './shared.js';
-import { byId, swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL, dayTotals } from '../engine/meals.js';
+import { swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL, dayTotals } from '../engine/meals.js';
 import { RECIPES } from '../data/recipes.js';
 import { rng } from '../engine/util.js';
 import { weekStart, dateInWeek, weekOrder } from '../engine/util.js';

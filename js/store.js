@@ -1,5 +1,5 @@
 // App state: one JSON object in localStorage. Everything stays on this device.
-import { isoDate, weekStart, addDays, hashString, weekdayOf, dateInWeek, planDayFor, setWeekStart } from './engine/util.js';
+import { isoDate, weekStart, hashString, weekdayOf, dateInWeek, planDayFor, setWeekStart } from './engine/util.js';
 import { dailyTargets, estimateTdee } from './engine/calc.js';
 import { latestTrend } from './engine/trend.js';
 import { planWeek } from './engine/meals.js';

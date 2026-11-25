@@ -1,7 +1,7 @@
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 import { goalHint } from './onboarding.js';
 import { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } from './alarms.js';
-import { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } from '../ui/dom.js';
+import { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } from '../ui/dom.js';
 import * as store from '../store.js';
 import { ACTIVITY_LEVELS, PACES, weightAtBmi } from '../engine/calc.js';
 import { DIETS, ALLERGENS, FOODS } from '../data/foods.js';

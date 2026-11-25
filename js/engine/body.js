@@ -289,16 +289,3 @@ export function bodyCollection(state, today, { habitsOnly = false } = {}) {
   }
   return finish();
 }
-
-export const MEDALS = [
-  { n: 1, name: 'Bronze', color: '#c7814b' },
-  { n: 4, name: 'Silver', color: '#a9b4bd' },
-  { n: 12, name: 'Gold', color: '#f5c242' },
-  { n: 26, name: 'Platinum', color: '#9fe3ff' },
-];
-export function medalFor(n) {
-  return [...MEDALS].reverse().find((m) => n >= m.n) || null;
-}
-export function nextMedal(n) {
-  return MEDALS.find((m) => n < m.n) || null;
-}

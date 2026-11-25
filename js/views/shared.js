@@ -1,7 +1,6 @@
 // Pieces shared by several views.
-import { esc, icon, fmtNum } from '../ui/dom.js';
-import { byId, scaledNutrition, formatQty, SLOT_LABEL, dayTotals, ingredientText } from '../engine/meals.js';
-import { FOODS } from '../data/foods.js';
+import { esc, icon } from '../ui/dom.js';
+import { byId, scaledNutrition, SLOT_LABEL, ingredientText } from '../engine/meals.js';
 import * as store from '../store.js';
 import { orderMeals } from '../engine/schedule.js';
 import { daysBetween, weekdayOf, planDayFor } from '../engine/util.js';
@@ -59,26 +58,11 @@ export function recipeDetails(m, units = 'metric', open = false) {
     <small class="muted">Season freely with herbs, spices, garlic, lemon, vinegar, mustard and salt to taste.</small></details>`;
 }
 
-export function mealMeta(m, showNumbers = true) {
-  const r = byId(m.recipeId);
-  const n = scaledNutrition(r, m.scale);
-  const tags = [
-    m.leftover ? '<span class="tag warm">leftovers</span>' : '',
-    r.batch && !m.leftover ? '<span class="tag">batch-friendly</span>' : '',
-    r.nocook ? '<span class="tag">no-cook</span>' : '',
-  ].join('');
-  return `<div class="meta">${icon('clock', 'tiny')} ${m.leftover ? 'ready' : `${r.minutes} min`}${showNumbers ? ` · ${fmtNum(n.kcal, 10)} kcal · ${Math.round(n.p)} g protein · ${Math.round(n.fib)} g fibre` : ''} ${tags}</div>`;
-}
 
 export function slotLabel(slot) {
   return SLOT_LABEL[slot] || slot;
 }
 
-export function totalsLine(meals, showNumbers) {
-  if (!showNumbers) return '';
-  const t = dayTotals(meals);
-  return `${fmtNum(t.kcal, 10)} kcal · ${Math.round(t.p)} g protein · ${Math.round(t.c)} g carbs · ${Math.round(t.f)} g fat · ${Math.round(t.fib)} g fibre`;
-}
 
 export function safetyNotices(state, levels = ['block', 'warn']) {
   const s = store.safety(state);

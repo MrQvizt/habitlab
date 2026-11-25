@@ -1,6 +1,6 @@
 // Onboarding wizard: about you → health check → food → movement → habits → your plan.
 import { html, esc, chips, icon, toKg, weightNum, heightFromFtIn, fmtWeight, fmtKg } from '../ui/dom.js';
-import { ACTIVITY_LEVELS, PACES, dailyTargets, bmi, weightAtBmi } from '../engine/calc.js';
+import { ACTIVITY_LEVELS, PACES, dailyTargets, weightAtBmi } from '../engine/calc.js';
 import { DIETS, ALLERGENS, FOODS } from '../data/foods.js';
 import { CARDIO } from '../data/exercises.js';
 import { HABITS } from '../data/habits.js';
