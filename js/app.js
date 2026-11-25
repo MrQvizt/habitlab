@@ -40,6 +40,7 @@ const NAV = [
 ];
 
 let state = store.load();
+let saveFailing = false; // shown as a banner on every screen until saving works again
 const main = document.getElementById('main');
 const toastEl = document.querySelector('.toast');
 let toastTimer = null;
@@ -59,7 +60,9 @@ const ctx = {
     setWeekStart(state.prefs?.weekStart || 0);
     if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game));
     scheduleSync();
-    if (!store.save(state)) ctx.toast('Couldn’t save — your browser is blocking storage. Export your data in Settings to keep it.');
+    const saved = store.save(state);
+    if (!saved && !saveFailing) ctx.toast('Couldn’t save — this device’s storage is full or blocked.');
+    saveFailing = !saved;
     if (render) renderRoute();
   },
   update(fn, opts) {
@@ -238,7 +241,10 @@ function renderRoute() {
   const top = hasShell
     ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span>Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}<a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
     : '';
-  main.innerHTML = top + view.render(state, params, ctx);
+  const saveBanner = saveFailing && hasShell
+    ? `<div class="notice warn" role="alert">${icon('alert')}<div class="grow"><strong>Changes aren’t being saved.</strong> This device’s storage is full or blocked, so anything you log now will be lost when you close the app. <a href="#/settings/data">Export a backup</a>, then free up some space.</div></div>`
+    : '';
+  main.innerHTML = top + saveBanner + view.render(state, params, ctx);
   view.after?.(main, ctx, params);
   const routeKey = `${name}/${params.join('/')}`;
   if (routeKey !== lastRoute) {

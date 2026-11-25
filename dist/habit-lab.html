@@ -8103,7 +8103,7 @@ function hub(state, date, hide) {
     ${tile('#/journey', `${icon('flag')} Journey`, p.phase === 'maintain' ? 'Keeping it off' : !hide && j.goalKg ? `${j.pct.toFixed(0)}% of the way` : 'The road ahead', next ? `Next: ${esc(next.title)}` : 'All stops reached', !hide && j.goalKg && p.phase !== 'maintain' ? `<span class="bar" style="margin-top:8px"><span style="width:${Math.max(2, j.pct).toFixed(1)}%"></span></span>` : '')}
     ${tile('#/body', '❤️ Your body', `Body level ${bodyLevel}`, `${w.closed}/${w.organs.length} rings closed this week`, `<span class="hub-rings">${w.organs.map((o) => ring(o.pct, o.color, { size: 22, stroke: 3.5 })).join('')}</span>`)}
     ${tile('#/rewards', `${icon('star')} Rewards`, `Level ${g.level} · ${esc(g.title)}`, `${g.streak}-day streak · ${g.badges.length} badges`)}
-    ${tile('#/checkin', `${icon('calendar')} Weekly check-in`, due ? 'Ready now' : 'Done for this week', due ? 'Two minutes · +50 XP' : lastCheck ? `Last: ${fmtDate(lastCheck, { day: 'numeric', month: 'short' })}` : 'Weekly, from day 7', '', due ? 'due' : '')}
+    ${tile('#/checkin', `${icon('calendar')} Weekly check-in`, due ? 'Ready now' : lastCheck ? 'Done for this week' : 'Your first one is coming', due ? 'Two minutes · +50 XP' : `${lastCheck ? `Last ${fmtDate(lastCheck, { day: 'numeric', month: 'short' })} · next` : 'Opens'} ${fmtDate(addDays(lastCheck || p.startDate, 7), { weekday: 'short', day: 'numeric', month: 'short' })}`, '', due ? 'due' : '')}
   </div>`;
 }
 
@@ -10472,6 +10472,7 @@ const NAV = [
 ];
 
 let state = store.load();
+let saveFailing = false; // shown as a banner on every screen until saving works again
 const main = document.getElementById('main');
 const toastEl = document.querySelector('.toast');
 let toastTimer = null;
@@ -10491,7 +10492,9 @@ const ctx = {
     setWeekStart(state.prefs?.weekStart || 0);
     if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game));
     scheduleSync();
-    if (!store.save(state)) ctx.toast('Couldn’t save — your browser is blocking storage. Export your data in Settings to keep it.');
+    const saved = store.save(state);
+    if (!saved && !saveFailing) ctx.toast('Couldn’t save — this device’s storage is full or blocked.');
+    saveFailing = !saved;
     if (render) renderRoute();
   },
   update(fn, opts) {
@@ -10670,7 +10673,10 @@ function renderRoute() {
   const top = hasShell
     ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span>Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}<a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
     : '';
-  main.innerHTML = top + view.render(state, params, ctx);
+  const saveBanner = saveFailing && hasShell
+    ? `<div class="notice warn" role="alert">${icon('alert')}<div class="grow"><strong>Changes aren’t being saved.</strong> This device’s storage is full or blocked, so anything you log now will be lost when you close the app. <a href="#/settings/data">Export a backup</a>, then free up some space.</div></div>`
+    : '';
+  main.innerHTML = top + saveBanner + view.render(state, params, ctx);
   view.after?.(main, ctx, params);
   const routeKey = `${name}/${params.join('/')}`;
   if (routeKey !== lastRoute) {

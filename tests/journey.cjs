@@ -69,6 +69,11 @@ const shots = process.argv[3] || null;
   await page.waitForSelector('main a[href="#/journey"]');
   await page.goto(base + '#/settings/profile');
   if (!/Healthy range for your height/.test(await page.textContent('main'))) errors.push('settings goal hint missing');
+  // Day one on Progress: no check-in yet, so it must not claim one is done
+  await page.goto(base + '#/progress');
+  await page.waitForSelector('.hub-grid');
+  const checkTile = await page.textContent('.hub-tile[href="#/checkin"]');
+  if (/Done for this week/.test(checkTile) || !/first one/i.test(checkTile)) errors.push('day-one check-in tile: ' + checkTile);
 
   await browser.close();
   if (errors.length) {

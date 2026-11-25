@@ -53,6 +53,24 @@ const base = process.argv[2] || 'http://localhost:8770/';
   await page.waitForSelector('.hub-grid', { timeout: 15000 }).catch(() => errors.push('navigation failed offline'));
   await context.setOffline(false);
 
+  // Storage full or blocked: the app keeps working and says clearly, on every screen, that
+  // changes aren't being saved (a toast alone was replaced by the next toast).
+  const full = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await full.addInitScript(() => {
+    Storage.prototype.setItem = function () {
+      throw new DOMException('full', 'QuotaExceededError');
+    };
+  });
+  const fp = await full.newPage();
+  fp.on('pageerror', (e) => errors.push('storage-full pageerror: ' + e.message));
+  await fp.goto(base);
+  await fp.click('text=Explore with demo data first');
+  await fp.waitForSelector('.tg-hero');
+  await fp.goto(base + '#/progress');
+  await fp.waitForSelector('.hub-grid');
+  if (!/Changes aren’t being saved/.test((await fp.locator('main .notice[role=alert]').textContent().catch(() => '')) || '')) errors.push('no persistent warning when storage is full');
+  await full.close();
+
   await browser.close();
   const real = errors.filter((e) => !/net::ERR_INTERNET_DISCONNECTED|Failed to load resource/.test(e));
   if (real.length) {

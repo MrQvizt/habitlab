@@ -29,7 +29,7 @@ function hub(state, date, hide) {
     ${tile('#/journey', `${icon('flag')} Journey`, p.phase === 'maintain' ? 'Keeping it off' : !hide && j.goalKg ? `${j.pct.toFixed(0)}% of the way` : 'The road ahead', next ? `Next: ${esc(next.title)}` : 'All stops reached', !hide && j.goalKg && p.phase !== 'maintain' ? `<span class="bar" style="margin-top:8px"><span style="width:${Math.max(2, j.pct).toFixed(1)}%"></span></span>` : '')}
     ${tile('#/body', '❤️ Your body', `Body level ${bodyLevel}`, `${w.closed}/${w.organs.length} rings closed this week`, `<span class="hub-rings">${w.organs.map((o) => ring(o.pct, o.color, { size: 22, stroke: 3.5 })).join('')}</span>`)}
     ${tile('#/rewards', `${icon('star')} Rewards`, `Level ${g.level} · ${esc(g.title)}`, `${g.streak}-day streak · ${g.badges.length} badges`)}
-    ${tile('#/checkin', `${icon('calendar')} Weekly check-in`, due ? 'Ready now' : 'Done for this week', due ? 'Two minutes · +50 XP' : lastCheck ? `Last: ${fmtDate(lastCheck, { day: 'numeric', month: 'short' })}` : 'Weekly, from day 7', '', due ? 'due' : '')}
+    ${tile('#/checkin', `${icon('calendar')} Weekly check-in`, due ? 'Ready now' : lastCheck ? 'Done for this week' : 'Your first one is coming', due ? 'Two minutes · +50 XP' : `${lastCheck ? `Last ${fmtDate(lastCheck, { day: 'numeric', month: 'short' })} · next` : 'Opens'} ${fmtDate(addDays(lastCheck || p.startDate, 7), { weekday: 'short', day: 'numeric', month: 'short' })}`, '', due ? 'due' : '')}
   </div>`;
 }
 
