@@ -33,6 +33,9 @@ export function emptyState() {
     habits: { active: [], log: {}, retired: [] },
     checkins: [],
     wraps: {},
+    wakes: {},
+    alarms: {},
+    affirm: { values: [], why: '', sets: null, custom: [], favs: [] },
     kcalAdjust: 0,
     tdeeOffset: 0,
     flags: {},
@@ -196,6 +199,23 @@ export function sanitize(s) {
   s.intake = dateMap(s.intake, (v) => num(v, 0, 20000));
   s.steps = dateMap(s.steps, (v) => num(v, 0, 200000));
   s.wraps = dateMap(s.wraps, (v) => (typeof v === 'string' && ISO.test(v) ? v : null));
+  s.wakes = dateMap(s.wakes, (v) => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null));
+  {
+    const a = s.alarms && typeof s.alarms === 'object' ? s.alarms : {};
+    const time = (v) => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null);
+    const style = (v) => (v === 'ring' || v === 'gentle' ? v : undefined);
+    const days = Array.isArray(a.wake?.days) ? [...new Set(a.wake.days.map(Number).filter((d) => d >= 0 && d <= 6))].sort() : undefined;
+    s.alarms = {
+      wake: { on: !!a.wake?.on, time: time(a.wake?.time), ...(days ? { days } : {}), ...(style(a.wake?.style) ? { style: a.wake.style } : {}) },
+      wind: { on: !!a.wind?.on, before: num(a.wind?.before, 15, 120, 45), ...(style(a.wind?.style) ? { style: a.wind.style } : {}) },
+      bed: { on: !!a.bed?.on, ...(style(a.bed?.style) ? { style: a.bed.style } : {}) },
+      meals: { on: !!a.meals?.on, snacks: !!a.meals?.snacks, ...(style(a.meals?.style) ? { style: a.meals.style } : {}) },
+      snooze: num(a.snooze, 1, 30, 9),
+    };
+    const f = s.affirm && typeof s.affirm === 'object' ? s.affirm : {};
+    const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
+    s.affirm = { values: strs(f.values, 3, 20), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
+  }
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
   const g = s.game && typeof s.game === 'object' ? s.game : {};

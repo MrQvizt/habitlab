@@ -1,5 +1,6 @@
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 import { goalHint } from './onboarding.js';
+import { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } from './alarms.js';
 import { html, esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } from '../ui/dom.js';
 import * as store from '../store.js';
 import { ACTIVITY_LEVELS, PACES, weightAtBmi } from '../engine/calc.js';
@@ -68,6 +69,7 @@ export default {
       ['day', 'Your day', (() => { const d = daySchedule(state.profile); return `Up ${toHHMM(d.wake)} · bed ${toHHMM(d.bed)} · kitchen closes ${toHHMM(d.last)}`; })(), 'clock'],
       ['food', 'Food', 'Diet, allergies, foods to avoid', 'meals'],
       ['movement', 'Movement', 'Equipment, joints, days', 'move'],
+      ['alarms', 'Alarms & wake-up', alarmsSummary(state), 'clock'],
       ['reminders', 'Reminders', state.reminders?.enabled ? 'On' : 'Off', 'calendar'],
       ['appearance', 'Appearance & feedback', 'Theme, sounds, vibration', 'star'],
       ['data', 'Your data', 'Backup, import, delete', 'info'],
@@ -132,6 +134,7 @@ export default {
         <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
       </form>
 `;
+    if (section === 'alarms') return head('Alarms & wake-up') + alarmsPage(state);
     if (section === 'reminders') return head('Reminders') + `
       <form data-form="reminders" id="reminders">
         ${remindersHtml(state)}
@@ -162,7 +165,11 @@ export default {
       </ul></div>
       <p class="footer-note">Habit Lab${window.HABITLAB_VERSION ? ` ${esc(window.HABITLAB_VERSION)}` : ''} · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
+  after(root, ctx, params) {
+    if (params[0] === 'alarms') alarmsAfter(root, ctx);
+  },
   actions: {
+    ...alarmActions,
     useGoalDraft(el) {
       const input = el.closest('form')?.querySelector('[name=goal]');
       if (input) input.value = el.dataset.value;

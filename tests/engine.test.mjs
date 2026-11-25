@@ -537,3 +537,63 @@ test('body wrap: organ rings from logged behaviour, knee maths, XP and medals', 
   assert.ok(wrapR, 'Monday wrap reminder');
   assert.match(wrapR.title, /Body Wrap/);
 });
+
+test('alarms: specs from settings and day schedule; morning messages from values', async () => {
+  const { alarmSpecs, alarmTimes, alarmsOf } = await import('../js/engine/alarms.js');
+  const { morningMessages, messageForDay, MESSAGE_SETS } = await import('../js/data/affirmations.js');
+  const { sanitize, emptyState } = await import('../js/store.js');
+  const { dayAwards, XP } = await import('../js/engine/game.js');
+  const base = { profile: { schedule: { wake: '06:30', bed: '22:30' } }, prefs: { mealsPerDay: 4 } };
+  assert.deepEqual(alarmSpecs(base), []); // all off by default
+  const s = { ...base, alarms: { wake: { on: true, time: '06:45', days: [0, 1, 2, 3, 4] }, wind: { on: true, before: 60 }, bed: { on: true }, meals: { on: true } } };
+  const specs = alarmSpecs(s);
+  const by = Object.fromEntries(specs.map((x) => [x.id, x]));
+  assert.equal(by.wake.hour, 6);
+  assert.equal(by.wake.minute, 45);
+  assert.deepEqual(by.wake.days, [0, 1, 2, 3, 4]);
+  assert.equal(by.wake.style, 'ring');
+  assert.equal(by.wake.route, '#/wake');
+  assert.equal(`${by.wind.hour}:${by.wind.minute}`, '21:30'); // 60 min before 22:30
+  assert.equal(`${by.bed.hour}:${by.bed.minute}`, '22:30');
+  assert.equal(by.wind.style, 'gentle');
+  assert.ok(by.meal_breakfast && by.meal_lunch && by.meal_dinner && !by.meal_snack2);
+  assert.ok(by.meal_breakfast.hour * 60 + by.meal_breakfast.minute < by.meal_dinner.hour * 60 + by.meal_dinner.minute);
+  assert.match(by.wind.body, /22:30/);
+  // Wake time falls back to the day schedule
+  assert.equal(alarmTimes({ ...base, alarms: { wake: { on: true } } }).wake, 6 * 60 + 30);
+  assert.equal(alarmsOf({}).snooze, 9);
+
+  // Messages: values and why are woven in; no unreplaced placeholders; custom + favourites included
+  const msgs = morningMessages({ values: ['family', 'energy'], why: 'To have energy to play with my kids.', custom: ['You’ve got this.'], favs: ['You deserve a healthy life.'] });
+  assert.ok(msgs.length >= 20);
+  assert.ok(msgs.every((m) => !/[{}]/.test(m)), 'no placeholders left');
+  assert.ok(msgs.some((m) => /Family matters to you/.test(m)));
+  assert.ok(msgs.some((m) => /to have energy to play with my kids/.test(m)));
+  assert.ok(msgs.includes('You look beautiful today.'));
+  assert.ok(msgs.filter((m) => m === 'You’ve got this.').length >= 3, 'own words come up more often');
+  // Without a why, future lines that need it are skipped; without compliments, none appear
+  const plain = morningMessages({ sets: ['future', 'worth'] });
+  assert.ok(plain.every((m) => !/\{|undefined/.test(m)));
+  assert.ok(!morningMessages({ sets: ['worth', 'compassion'] }).some((m) => MESSAGE_SETS.compliments.lines.includes(m)));
+  // Same message all day, a different one tomorrow (matches the native epoch-day rotation)
+  const d1 = new Date('2026-11-25T06:00:00Z');
+  assert.equal(messageForDay(msgs, d1), msgs[Math.floor(d1.getTime() / 86400000) % msgs.length]);
+  assert.notEqual(messageForDay(msgs, d1), messageForDay(msgs, new Date(d1.getTime() + 86400000)));
+
+  // Store sanitising
+  const dirty = { ...emptyState(), alarms: { wake: { on: 1, time: '7am', days: [9, 1, 1, 0] }, wind: { before: 999 }, snooze: 99 }, affirm: { values: ['a', 'b', 'c', 'd'], why: 5, custom: ['x', 3, ''] }, wakes: { '2026-11-25': '06:31', bad: '1' } };
+  const clean = sanitize(dirty);
+  assert.equal(clean.alarms.wake.on, true);
+  assert.equal(clean.alarms.wake.time, null);
+  assert.deepEqual(clean.alarms.wake.days, [0, 1]);
+  assert.equal(clean.alarms.wind.before, 120);
+  assert.equal(clean.alarms.snooze, 30);
+  assert.equal(clean.affirm.values.length, 3);
+  assert.equal(clean.affirm.why, '');
+  assert.deepEqual(clean.affirm.custom, ['x']);
+  assert.deepEqual(Object.keys(clean.wakes), ['2026-11-25']);
+
+  // Morning intention earns XP once that day
+  const w = { ...emptyState(), profile: { startDate: '2026-11-01' }, wakes: { '2026-11-25': '06:31' } };
+  assert.ok(dayAwards(w, '2026-11-25').some((a) => a.kind === 'wake' && a.xp === XP.wake));
+});

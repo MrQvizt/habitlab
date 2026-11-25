@@ -15,6 +15,8 @@ import shopping from './views/shopping.js';
 import rewards from './views/rewards.js';
 import journeyView from './views/journey.js';
 import wrapView from './views/wrap.js';
+import wakeView from './views/wake.js';
+import * as alarmNative from './alarm-native.js';
 import { floatXp, confetti, chime, buzz, showCelebration } from './ui/celebrate.js';
 import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
@@ -22,7 +24,7 @@ import { closeSheet } from './ui/sheet.js';
 import { sheetActions } from './views/sheets.js';
 import { daySummary, readDay } from './views/day.js';
 
-const VIEWS = { rewards, journey: journeyView, wrap: wrapView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -212,7 +214,7 @@ function renderRoute() {
   document.querySelector('.bottomnav').style.display = hasShell ? '' : 'none';
   document.querySelector('.sidebar').style.display = hasShell ? '' : 'none';
   document.body.classList.toggle('no-nav', !hasShell);
-  document.body.classList.toggle('wrap-open', name === 'wrap' && hasShell);
+  document.body.classList.toggle('wrap-open', (name === 'wrap' || name === 'wake') && hasShell);
   const top = hasShell
     ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span>Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}<a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
     : '';
@@ -325,6 +327,7 @@ function scheduleSync() {
 }
 export function syncReminders() {
   if (!state.profile) return Promise.resolve(null);
+  alarmNative.sync(state);
   const g = store.game(state);
   return notify.sync(state, {
     habitsOnly: store.habitsOnly(state),
@@ -333,6 +336,7 @@ export function syncReminders() {
   });
 }
 notify.listen();
+alarmNative.listen((route) => ctx.go(route));
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
 
 let transitioning = false;
@@ -371,3 +375,4 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !doc
 
 export { ctx };
 ctx.syncReminders = () => syncReminders();
+ctx.syncAlarms = () => alarmNative.sync(state);

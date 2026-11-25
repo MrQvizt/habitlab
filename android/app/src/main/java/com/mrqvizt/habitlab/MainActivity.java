@@ -1,5 +1,14 @@
 package com.mrqvizt.habitlab;
 
-import com.getcapacitor.BridgeActivity;
+import android.os.Bundle;
 
-public class MainActivity extends BridgeActivity {}
+import com.getcapacitor.BridgeActivity;
+import com.mrqvizt.habitlab.alarm.HabitAlarmPlugin;
+
+public class MainActivity extends BridgeActivity {
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(HabitAlarmPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
+}

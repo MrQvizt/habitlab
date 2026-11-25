@@ -28,6 +28,7 @@ export const XP = {
   lucky: 10,
   badge: 50,
   wrap: 30, // opening last week's Body Wrap to the end
+  wake: 10, // morning intention after the wake-up alarm
 };
 
 // Level n starts at 50·n·(n−1) XP: 0, 100, 300, 600, 1000, 1500 …  A full, active day is ~150–200 XP.
@@ -96,6 +97,7 @@ export function dayAwards(state, date, { habitsOnly = false } = {}) {
   if ((state.steps?.[date] || 0) >= goal) add(`steps:${date}`, 'steps', 'Step goal reached', XP.steps);
   if (state.checkins?.some((c) => c.date === date)) add(`checkin:${date}`, 'checkin', 'Weekly check-in', XP.checkin);
   for (const [ws, seen] of Object.entries(state.wraps || {})) if (seen === date) add(`wrap:${ws}`, 'wrap', 'Body Wrap opened', XP.wrap);
+  if (state.wakes?.[date]) add(`wake:${date}`, 'wake', 'Morning intention', XP.wake);
   if (quests(state, date, { habitsOnly }).every((q) => q.done)) add(`perfect:${date}`, 'perfect', 'Perfect day', XP.perfectDay);
   return out;
 }
@@ -186,6 +188,8 @@ export const BADGES = [
   { id: 'wrap_8', name: 'Body Journalist', icon: 'star', how: 'Open 8 Body Wraps', check: (s) => s.wraps >= 8 },
   { id: 'big_heart', name: 'Big Heart', icon: 'move', how: 'Close your heart ring (150 active min) in 4 weeks', check: (s) => s.body.closedCounts.heart >= 4 },
   { id: 'full_body', name: 'Full Body Week', icon: 'star', how: 'Close all body rings in one week', check: (s) => s.body.allClosed >= 1 },
+  { id: 'morning_7', name: 'Rise & Shine', icon: 'clock', how: 'Start 7 days with a morning intention', check: (s) => s.wakes >= 7 },
+  { id: 'morning_30', name: 'Morning Person', icon: 'clock', how: 'Start 30 days with a morning intention', check: (s) => s.wakes >= 30 },
   { id: 'weigh_7', name: 'Trend Spotter', icon: 'scale', how: 'Log 7 weigh-ins', check: (s) => s.weighIns >= 7, weight: true },
   { id: 'milestone_5', name: '5% Health Win', icon: 'progress', how: 'Reach a 5% loss — real health benefits start here', check: (s) => s.lostPct >= 5, weight: true },
   { id: 'milestone_10', name: '10% Health Win', icon: 'progress', how: 'Reach a 10% loss', check: (s) => s.lostPct >= 10, weight: true },
@@ -237,6 +241,7 @@ export function summary(state, today, { habitsOnly = false, trendKg = null } = {
   }
   stats.bestWeekMinutes = bestWeek;
   stats.wraps = Object.keys(state.wraps || {}).length;
+  stats.wakes = Object.keys(state.wakes || {}).length;
   stats.body = bodyCollection(state, today, { habitsOnly });
   const trend = trendKg ?? p.weightKg;
   stats.lostPct = p.startWeightKg && trend ? ((p.startWeightKg - trend) / p.startWeightKg) * 100 : 0;

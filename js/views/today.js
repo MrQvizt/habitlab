@@ -186,6 +186,7 @@ function banners(state, date) {
   const overdue = daysBetween(last, date) >= 9;
   const checkinDay = (new Date(date + 'T12:00').getDay() + 6) % 7 === Number(state.reminders?.checkinDay ?? 6);
   if (checkinDue(state, date) && (overdue || checkinDay) && !nextUp(state, date).includes('Weekly check-in')) out.push(`<a class="notice ok" href="#/checkin" style="text-decoration:none;align-items:center">${icon('calendar')}<div class="grow"><strong>Weekly check-in</strong> · two minutes, +50 XP</div>${icon('chevron')}</a>`);
+  if (!state.alarms?.wake?.on && !state.flags?.alarmTip && !state.profile.demo && state.profile.schedule?.wake) out.push(`<div class="notice ok" style="align-items:center"><span style="font-size:1.3rem">⏰</span><a class="grow" href="#/settings/alarms" style="text-decoration:none;color:inherit"><strong>Wake up to something kind</strong> · a gentle alarm with a message just for you</a><button class="btn small ghost" data-action="dismissAlarmTip" aria-label="Dismiss">${icon('x')}</button></div>`);
   if (!state.profile.schedule?.wake && !state.flags?.dayAsked && !state.profile.demo) out.push(`<a class="notice info" href="#/settings/day" style="text-decoration:none;align-items:center">${icon('clock')}<div class="grow"><strong>Set your day</strong> · wake, bed and meal times so snacks and reminders fit you</div>${icon('chevron')}</a>`);
   if (state.dietBreakUntil && date <= state.dietBreakUntil) out.push(`<div class="notice info">${icon('info')}<div>Planned maintenance phase until ${fmtDate(state.dietBreakUntil)}: calories are at your estimated needs.</div></div>`);
   const calc = state.calcWeightKg ?? state.profile.weightKg;
@@ -226,6 +227,12 @@ export default {
         st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'cardio', mode: el.dataset.mode, minutes: Number(el.dataset.min) }];
         return st;
       });
+    },
+    dismissAlarmTip(el, ev, ctx) {
+      ctx.update((st) => {
+        st.flags = { ...(st.flags || {}), alarmTip: true };
+        return st;
+      }, { quiet: true });
     },
     dismissFirstWeek(el, ev, ctx) {
       ctx.undoable('Hidden', (st) => {
