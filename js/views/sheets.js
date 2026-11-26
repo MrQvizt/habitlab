@@ -149,6 +149,11 @@ function stepsSheetHtml(state) {
 }
 
 // ---------- Extra food ----------
+const nowHHMM = () => {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
 function extraSheetHtml(state) {
   const show = !store.habitsOnly(state);
   const n = picked().length;
@@ -159,6 +164,7 @@ function extraSheetHtml(state) {
         <label class="field" style="margin:8px 0 0"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. leftovers, a snack at work"></label>
       </details>
       ${show ? `<label class="field" style="margin-top:10px"><span>Calories ${n ? '<span class="hint">from your picks — change it if you like</span>' : '<span class="hint">roughly</span>'}</span>${n ? '' : `<div class="quick-chips">${[50, 100, 150, 250, 400].map((k) => `<button type="button" data-action="sheetQuickKcal" data-v="${k}">${k}</button>`).join('')}</div>`}<div class="inline-inputs"><input type="number" name="kcal" inputmode="numeric" min="0" max="5000" placeholder="kcal" value="${n ? totalOf(picked()).kcal : ''}"><span class="unit">kcal</span></div></label>` : ''}
+      <label class="field" style="margin-top:10px"><span>When did you have it?</span><input type="time" name="at" value="${logDate() === store.today() ? nowHHMM() : ''}" aria-label="Time eaten"></label>
       <button class="btn primary large block">Add</button>
       <p class="muted" style="font-size:var(--text-sm);margin-top:10px">Logging honestly is what matters — it earns the same as eating to plan.</p>
     </form>`;
@@ -353,7 +359,8 @@ export const sheetActions = {
     const date = logDate();
     closeSheet();
     ctx.undoable('Added', (st) => {
-      st.extras[date] = [...(st.extras[date] || []), { label: r.label || 'Extra', kcal: r.kcal, p: r.p }];
+      const at = /^([01]\d|2[0-3]):[0-5]\d$/.test(data.at || '') ? data.at : undefined;
+      st.extras[date] = [...(st.extras[date] || []), { label: r.label || 'Extra', kcal: r.kcal, p: r.p, ...(at ? { at } : {}) }];
       st.intake[date] = computeIntake(st, date);
       return st;
     });

@@ -108,6 +108,13 @@ const shots = process.argv[3] || null;
   const fd = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')));
   const tdy = Object.keys(fd.extras).sort().at(-1);
   if (!(fd.extras[tdy].find((x) => x.label === 'Latte')?.p > 0)) errors.push('extra protein not stored');
+  // It's placed in the day's timeline at the time you had it, not hidden under "Any time"
+  const latte = fd.extras[tdy].find((x) => x.label === 'Latte');
+  if (!/^\d{2}:\d{2}$/.test(latte?.at || '')) errors.push('extra time not stored: ' + JSON.stringify(latte));
+  const order = await page.$$eval('.timeline-list > li', (els) => els.map((e) => e.className));
+  const iLatte = order.findIndex((c) => c.includes('k-extra'));
+  const iAny = (await page.$$eval('.timeline-list > li', (els) => els.map((e) => e.textContent))).findIndex((t) => t === 'Any time today');
+  if (iLatte < 0 || iAny < 0 || iLatte > iAny) errors.push('added food not in the timeline');
   // Escape closes a sheet
   await page.click('.tg-day button[data-action=openMeal] >> nth=2');
   await page.waitForSelector('.sheet.open');

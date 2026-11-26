@@ -234,7 +234,7 @@ export function sanitize(s) {
   const sh = s.share;
   if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40), ...(num(sh.seen, 1, 1e15, 0) ? { seen: num(sh.seen, 1, 1e15, 0) } : {}) };
   else delete s.share;
-  s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 120), kcal: num(x?.kcal, 0, 10000, 0), ...(num(x?.p, 0, 500, 0) ? { p: num(x?.p, 0, 500, 0) } : {}) })) : null));
+  s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 120), kcal: num(x?.kcal, 0, 10000, 0), ...(num(x?.p, 0, 500, 0) ? { p: num(x?.p, 0, 500, 0) } : {}), ...(typeof x?.at === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x.at) ? { at: x.at } : {}) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
   const g = s.game && typeof s.game === 'object' ? s.game : {};
   s.game = {

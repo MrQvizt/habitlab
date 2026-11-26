@@ -203,8 +203,12 @@ function yourDay(state, date) {
   for (const m of moves.timed) plan.timed.push({ kind: 'movehtml', time: m.time, html: m.html, order: 1.6 });
   const evRow = (e) => `<li class="k-event"><button class="lrow" data-action="calEdit" data-id="${esc(e.id)}"><span class="slot-ico" style="font-size:1.15rem">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}</span><span class="body"><span class="over">${e.time ? esc(e.time) : 'Any time'} · Calendar${e.public ? ' · open to friends' : ''}</span><span class="title">${esc(e.title)}</span>${e.place ? `<span class="sub">${esc(e.place)}</span>` : ''}</span><span class="trail">${icon('chevron')}</span></button></li>`;
   for (const e of evs) if (e.time) plan.timed.push({ kind: 'event', time: toMin(e.time), ev: e, order: 1.5 });
+  // Food you added off the plan sits where you ate it (older entries without a time: under "Any time").
+  const extras = state.extras[date] || [];
+  const extraRow = (x, i) => `<li class="k-extra is-done"><div class="lrow"><span class="slot-ico" style="background:color-mix(in srgb, var(--ring-eat) 14%, transparent);color:var(--ring-eat-text)">${icon('check')}</span><div class="body">${x.at ? `<div class="over">${esc(x.at)} · You added</div>` : ''}<div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal${x.p ? ` · ${x.p} g protein` : ''}</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`;
+  extras.forEach((x, i) => x.at && plan.timed.push({ kind: 'extra', time: toMin(x.at), html: extraRow(x, i), order: 2.5 }));
   plan.timed.sort((a, b) => a.time - b.time || a.order - b.order);
-  const itemHtml = (it) => (it.kind === 'meal' ? mealHtml[it.slot] : it.kind === 'habit' ? habitHtml(it.id, it.label) : it.kind === 'event' ? evRow(it.ev) : it.kind === 'movehtml' ? it.html : weighRow(state, date));
+  const itemHtml = (it) => (it.kind === 'meal' ? mealHtml[it.slot] : it.kind === 'habit' ? habitHtml(it.id, it.label) : it.kind === 'event' ? evRow(it.ev) : it.kind === 'movehtml' || it.kind === 'extra' ? it.html : weighRow(state, date));
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const parts = [];
@@ -224,10 +228,9 @@ function yourDay(state, date) {
     parts.push(itemHtml(it));
   }
   if (!nowShown && date === store.today()) parts.push(nowLine);
-  const extras = state.extras[date] || [];
-  const extraRows = extras.map((x, i) => `<li class="k-extra is-done"><div class="lrow"><span class="slot-ico">${icon('plus')}</span><div class="body"><div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`).join('');
+  const extraRows = extras.map((x, i) => (x.at ? '' : extraRow(x, i))).join('');
   const any = [moves.any.join(''), ...evs.filter((e) => !e.time).map(evRow), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
-  const total = plan.timed.length + plan.anytime.length;
+  const total = plan.timed.filter((t) => t.kind !== 'extra').length + plan.anytime.length;
   const doneCount = meals.filter((m) => m.done).length + active.filter((a) => state.habits.log[date]?.[a.id]).length + (!hide && state.weights.some((w) => w.date === date) ? 1 : 0);
   const noHabit = active.length ? '' : `<li class="tl-empty"><a class="lrow" href="#/habits" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('habits')}</span><span class="body"><span class="title">Pick one small habit</span><span class="sub">It slots into your day at the moment you choose</span></span><span class="trail">${icon('chevron')}</span></a></li>`;
   return `<div class="section-head"><h2>Your day</h2><span class="day-count">${doneCount} of ${total} done</span></div>
