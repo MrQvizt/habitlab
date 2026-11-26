@@ -1,11 +1,9 @@
-// Today's three rings: Eat (meals logged), Move (planned movement + steps), Habits (today's habits).
+// Today's three rings: Eat (meals logged), Move (planned sessions and activities), Habits (today's habits).
 // Closing a ring is the small, visible daily win; closing all three is a perfect day.
 import * as store from '../store.js';
 import { mealsFor } from './shared.js';
-import { stepGoal } from '../engine/workouts.js';
 import { habitLevels, levelIndex } from '../engine/habits.js';
 import { itemDone } from './move.js';
-import { fmtNum } from '../ui/dom.js';
 
 export const RING_META = {
   eat: { label: 'Eat', color: 'var(--ring-eat)' },
@@ -23,13 +21,11 @@ export function dayRings(state, date = store.today()) {
   const { schedule } = store.schedule(state, date);
   const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items.filter((it) => it.kind !== 'rest');
   const done = items.filter((it) => itemDone(state.workouts.log[date] || [], it)).length;
-  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
-  const steps = state.steps?.[date] || 0;
-  const stepPart = Math.min(1, steps / goal);
-  // Either the planned movement or the step goal closes the ring (rest days: any logged movement or steps).
+  // Planned sessions and activities close the ring; on a rest day, resting is the plan (any movement logged is a bonus).
   const anyMove = (state.workouts.log[date] || []).length > 0;
-  const planPart = items.length ? done / items.length : anyMove ? 1 : 0;
-  const move = { pct: Math.max(planPart, stepPart), text: items.length && done === items.length ? (items.length > 1 ? 'All sessions done' : 'Session done') : stepPart >= 1 ? `${fmtNum(steps)} steps` : items.length ? `${done}/${items.length} session${items.length > 1 ? 's' : ''}` : `${fmtNum(steps)} / ${fmtNum(goal)} steps` };
+  const move = items.length
+    ? { pct: done / items.length, text: done === items.length ? (items.length > 1 ? 'All sessions done' : 'Session done') : `${done}/${items.length} session${items.length > 1 ? 's' : ''}` }
+    : { pct: 1, text: anyMove ? 'Rest day + you moved' : 'Rest day' };
 
   const habits = store.visibleHabits(state);
   const hlog = state.habits.log?.[date] || {};

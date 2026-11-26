@@ -6,7 +6,6 @@ import { setViewDate, logDate, MAX_BACK } from '../viewdate.js';
 import { mealsFor, eatenSoFar, proteinEaten, dayComplete, safetyNotices, checkinDue, slotLabel, computeIntake } from './shared.js';
 import { byId } from '../engine/meals.js';
 import { habitById, streak, habitLevels, levelIndex } from '../engine/habits.js';
-import { stepGoal } from '../engine/workouts.js';
 import { CARDIO } from '../data/exercises.js';
 import { daysBetween, addDays } from '../engine/util.js';
 import { toHHMM } from '../engine/schedule.js';
@@ -86,7 +85,6 @@ function quickLog(state) {
   return `<div class="quick-log" role="group" aria-label="Quick log">
     ${b('openExtra', 'plus', 'Food')}
     ${hide ? '' : b('openWeigh', 'scale', 'Weight')}
-    ${b('openSteps', 'progress', 'Steps')}
     <a class="ql-btn" href="#/move"><span class="ql-ico">${icon('move')}</span>Workout</a>
   </div>`;
 }
@@ -177,13 +175,6 @@ function moveRows(state, date, linked = {}) {
   return out;
 }
 
-function stepsRow(state, date) {
-  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
-  const steps = state.steps[date] || 0;
-  const pct = Math.min(100, (steps / goal) * 100);
-  return `<li class="k-steps ${steps >= goal ? 'is-done' : ''}"><button class="lrow" data-action="openSteps"><span class="slot-ico">${icon('progress')}</span><span class="body"><span class="title">${steps ? `${fmtNum(steps)} steps` : 'Add today’s steps'}</span><span class="meter" style="display:block;height:6px;margin:6px 0 0"><span style="width:${pct.toFixed(1)}%"></span></span><span class="sub" style="display:block">Goal ${fmtNum(goal)}</span></span><span class="trail">${icon('chevron')}</span></button></li>`;
-}
-
 function yourDay(state, date) {
   const hide = store.habitsOnly(state);
   const show = !hide;
@@ -229,7 +220,7 @@ function yourDay(state, date) {
   }
   if (!nowShown && date === store.today()) parts.push(nowLine);
   const extraRows = extras.map((x, i) => (x.at ? '' : extraRow(x, i))).join('');
-  const any = [moves.any.join(''), ...evs.filter((e) => !e.time).map(evRow), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
+  const any = [moves.any.join(''), ...evs.filter((e) => !e.time).map(evRow), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
   const total = plan.timed.filter((t) => t.kind !== 'extra').length + plan.anytime.length;
   const doneCount = meals.filter((m) => m.done).length + active.filter((a) => state.habits.log[date]?.[a.id]).length + (!hide && state.weights.some((w) => w.date === date) ? 1 : 0);
   const noHabit = active.length ? '' : `<li class="tl-empty"><a class="lrow" href="#/habits" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('habits')}</span><span class="body"><span class="title">Pick one small habit</span><span class="sub">It slots into your day at the moment you choose</span></span><span class="trail">${icon('chevron')}</span></a></li>`;

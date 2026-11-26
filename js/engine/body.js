@@ -30,7 +30,7 @@ export const ORGANS = [
   { id: 'knees', name: 'Knees', emoji: '🦵', color: '#ff9f0a', color2: '#ffd60a',
     heads: ['Your knees noticed', 'Your knees say thanks', 'Your knees are dancing'],
     fact: 'Every kilo lost takes about 4 kg of load off your knees with every single step.', src: 'messier2005',
-    tip: 'Log your steps each day — your knees love the maths.' },
+    tip: 'Move a little most days — your knees love the maths.' },
   { id: 'gut', name: 'Gut', emoji: '🌿', color: '#30d158', color2: '#66d4cf',
     heads: ['Your gut noticed', 'Your gut says thanks', 'Your gut microbes are partying'],
     fact: '25–29 g of fibre a day is linked to 15–30% less heart disease, stroke, type 2 diabetes and bowel cancer.', src: 'reynolds',

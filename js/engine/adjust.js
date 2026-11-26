@@ -168,14 +168,7 @@ export function weeklyReview(state, answers, today, opts = {}) {
     });
   }
 
-  // ----- Rule 15: step goal progression (hit ≥5/7 days)
-  const steps = state.steps || {};
-  const goal = stepGoal(p.baselineSteps, (p.stepLevel || 0), p.age);
-  let hitDays = 0;
-  for (let i = 0; i < 7; i++) if ((steps[addDays(today, -i)] || 0) >= goal) hitDays++;
-  if (hitDays >= 5 && goal < (p.age >= 60 ? 8000 : 10000)) {
-    recs.push({ id: 'steps_up', type: 'steps', priority: 3, preselect: true, title: `Steps goal met ${hitDays}/7 days — raise it by 500`, body: `New daily goal: ${goal + 500}. (Steps are for health and maintenance; they don’t earn extra food.)` });
-  }
+  // (Rule 15, step-goal progression, removed: the app no longer tracks steps.)
 
   // ----- Hunger / sleep / stress / alcohol / energy (rule 23)
   if (hunger >= 4 && !recs.some((r) => r.id === 'too_fast')) {

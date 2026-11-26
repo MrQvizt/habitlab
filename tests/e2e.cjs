@@ -134,12 +134,10 @@ const shots = process.argv[3] || null;
   await page.click('.tg-day .check.partial');
   await page.waitForTimeout(300);
   if (await page.locator('.tg-day .check.partial').count()) errors.push('check did not upgrade small win to full');
-  // Habit row + steps sheet
+  // Habit row; step tracking was removed — nothing on Today asks for steps
   await page.click('button[data-action=habitCheck] >> nth=0');
-  await page.click('button[data-action=openSteps]');
-  await page.fill('.sheet input[name=steps]', '5200');
-  await page.click('.sheet button:has-text("Save steps")');
-  await page.waitForSelector('text=5,200 steps');
+  if (await page.locator('[data-action=openSteps]').count()) errors.push('steps are still offered on Today');
+  if (/steps/i.test(await page.textContent('.tg-day'))) errors.push('Today still mentions steps');
 
   for (const route of ['meals', 'shopping', 'move', 'habits', 'progress', 'learn', 'settings', 'checkin']) {
     await page.goto(base + '#/' + route);

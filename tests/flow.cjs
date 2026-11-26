@@ -63,7 +63,21 @@ const shots = process.argv[3] || null;
   const eatAfter = await page.textContent('.ring-leg:nth-child(1)');
   if (!/✓/.test(eatAfter)) errors.push(`Eat ring did not close: ${eatBefore} → ${eatAfter}`);
   if (!/ring closed/.test((await page.locator('.ring-banner').textContent().catch(() => '')) || '')) errors.push('no "ring closed" celebration');
-  // Quick log row: food, weight, steps, workout
+  // No step tracking: the Move ring never mentions steps, and logged steps don't close it
+  await page.evaluate(() => {
+    const st = JSON.parse(localStorage.getItem('habitlab.v1'));
+    const d = new Date();
+    const t = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    st.steps[t] = 50000;
+    st.workouts.log[t] = [];
+    localStorage.setItem('habitlab.v1', JSON.stringify(st));
+  });
+  await page.reload();
+  await page.waitForSelector('.ring-leg');
+  const moveLeg = await page.textContent('.ring-leg:nth-child(2)');
+  if (/step/i.test(moveLeg)) errors.push('Move ring still shows steps: ' + moveLeg);
+  if (!/Rest day/.test(moveLeg) && /✓/.test(moveLeg)) errors.push('steps closed the Move ring: ' + moveLeg);
+  // Quick log row: food, weight, workout
   if ((await page.locator('.quick-log .ql-btn').count()) < 3) errors.push('quick log missing');
   // Forgot to log yesterday: step back on Today, tick a meal and a habit → saved to yesterday, not today
   const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -89,8 +103,8 @@ const shots = process.argv[3] || null;
   if (!Object.keys(back.habits.log[yday] || {}).length) errors.push('habit ticked on yesterday not saved to yesterday');
   // Up to 7 days back; not into the future
   await page.goto(base + '#/today/' + ymd(new Date(Date.now() - 7 * 864e5)));
-  await page.waitForSelector('.past-day');
-  if (!(await page.locator('.day-nav [aria-label="Previous day"][aria-disabled=true]').count())) errors.push('should stop at 7 days back');
+  // (wait for the new day to render — the previous past day's banner is already on screen)
+  await page.waitForSelector('.day-nav [aria-label="Previous day"][aria-disabled=true]', { timeout: 5000 }).catch(() => errors.push('should stop at 7 days back'));
   await page.goto(base + '#/today/' + ymd(new Date(Date.now() + 864e5)));
   await page.waitForSelector('.tg-hero');
   if (await page.locator('.past-day').count()) errors.push('future date should show today');

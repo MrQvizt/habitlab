@@ -140,7 +140,6 @@ export default {
         <fieldset><legend>Cardio types</legend>${chips('cardioPrefs', Object.fromEntries(Object.entries(CARDIO).map(([k, c]) => [k, c.label])), p.cardioPrefs)}</fieldset>
         <div class="grid two">
           <label class="field"><span>Session length</span><select name="sessionMinutes">${[15, 20, 30, 45].map((m) => `<option value="${m}" ${Number(p.sessionMinutes) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></label>
-          <label class="field"><span>Baseline daily steps</span><input type="number" name="baselineSteps" value="${esc(p.baselineSteps ?? '')}" min="0" max="40000" step="100"></label>
         </div>
         <button type="button" class="btn ghost small danger" data-action="resetProgress">Reset exercise levels</button>
         <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
@@ -303,7 +302,6 @@ export default {
           daysAvailable: (data.daysAvailable || []).map(Number),
           cardioPrefs: data.cardioPrefs?.length ? data.cardioPrefs : ['walk'],
           sessionMinutes: Number(data.sessionMinutes),
-          baselineSteps: data.baselineSteps ? Number(data.baselineSteps) : null,
         });
         // Re-fit each chain: keep the level if still available, otherwise drop to the nearest available rung.
         const fresh = initialProgress(p);

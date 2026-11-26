@@ -80,7 +80,6 @@ export default {
           ['Do a habit', XP.habit],
           ['Strength session', XP.strength],
           ['Cardio session', `${XP.cardioBase}–${XP.cardioMax}`],
-          ['Reach your step goal', XP.steps],
           ...(hide ? [] : [['Weigh in', XP.weighIn]]),
           ['Weekly check-in', XP.checkin],
           ['Open last week’s Body Wrap', XP.wrap],

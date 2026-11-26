@@ -3853,7 +3853,7 @@ const ORGANS = [
   { id: 'knees', name: 'Knees', emoji: '🦵', color: '#ff9f0a', color2: '#ffd60a',
     heads: ['Your knees noticed', 'Your knees say thanks', 'Your knees are dancing'],
     fact: 'Every kilo lost takes about 4 kg of load off your knees with every single step.', src: 'messier2005',
-    tip: 'Log your steps each day — your knees love the maths.' },
+    tip: 'Move a little most days — your knees love the maths.' },
   { id: 'gut', name: 'Gut', emoji: '🌿', color: '#30d158', color2: '#66d4cf',
     heads: ['Your gut noticed', 'Your gut says thanks', 'Your gut microbes are partying'],
     fact: '25–29 g of fibre a day is linked to 15–30% less heart disease, stroke, type 2 diabetes and bowel cancer.', src: 'reynolds',
@@ -5894,7 +5894,6 @@ function movement() {
       <label class="field"><span>Time per session</span><select name="sessionMinutes">
         ${[15, 20, 30, 45].map((m) => `<option value="${m}" ${Number(draft.sessionMinutes || 30) === m ? 'selected' : ''}>${m} minutes</option>`)}</select></label>
       <label class="field"><span>Current activity per week <span class="hint">Brisk walking, cycling, swimming… (minutes)</span></span>${num('baselineCardioMin', draft.baselineCardioMin ?? 30, { min: 0, max: 1500, step: 5, unit: 'min' })}</label>
-      <label class="field"><span>Average daily steps <span class="hint">From your phone or watch. Leave blank if unsure.</span></span>${num('baselineSteps', draft.baselineSteps ?? '', { min: 0, max: 40000, step: 100, required: false, placeholder: 'e.g. 4000' })}</label>
     </div>
     <fieldset><legend>Cardio you’d enjoy (or tolerate)</legend>${chips('cardioPrefs', Object.fromEntries(Object.entries(CARDIO).map(([k, c]) => [k, c.label])), draft.cardioPrefs || ['walk'])}</fieldset>
     <p class="muted" style="font-size:.88rem">Already walk with friends, play a sport or dance? You can add those on the Move page — they count toward your week, so the app plans less on top.</p>
@@ -6483,7 +6482,6 @@ function overview(state) {
   const { schedule, cardioMin, activityMin, strengthFromActivities } = store.schedule(state, date);
   const done = weekMinutes(state, wk);
   const strengthPlanned = schedule.reduce((a, d) => a + d.items.filter((i) => i.kind === 'strength').length, 0);
-  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
   const ti = dayIndex(date);
   const grid = weekOrder().map((i) => {
     const d = schedule[i];
@@ -6516,7 +6514,7 @@ function overview(state) {
       <div class="card"><h2>This week</h2>
         <div class="macro"><span>Cardio</span>${progressBar(done.cardio, cardioMin, { label: 'Cardio minutes' })}<span>${done.cardio}/${cardioMin} min</span></div>
         <div class="macro"><span>Strength</span>${progressBar(done.strength, strengthPlanned, { label: 'Strength sessions' })}<span>${done.strength}/${strengthPlanned}</span></div>
-        <p class="muted" style="font-size:.86rem;margin-top:8px">Target grows ~10% a week toward 150+ min.${activityMin ? ` Your regular activities cover about ${activityMin} min of it${strengthFromActivities ? ` and ${strengthFromActivities} strength session${strengthFromActivities > 1 ? 's' : ''}` : ''}.` : ''} Daily steps goal: ${fmtNum(goal)}.</p>
+        <p class="muted" style="font-size:.86rem;margin-top:8px">Target grows ~10% a week toward 150+ min.${activityMin ? ` Your regular activities cover about ${activityMin} min of it${strengthFromActivities ? ` and ${strengthFromActivities} strength session${strengthFromActivities > 1 ? 's' : ''}` : ''}.` : ''}</p>
       </div>
     </div>
     <div class="card"><h2>Week plan</h2><div class="week">${grid.join('')}</div>
@@ -7556,14 +7554,12 @@ function planDay(profile, { meals = [], habits = [], weigh = false }) {
 Object.assign(__m, { cueTime, PARTS, partOf, planDay });
 },
 /* js/views/dayrings.js */ 32: function (__m, __req) {
-// Today's three rings: Eat (meals logged), Move (planned movement + steps), Habits (today's habits).
+// Today's three rings: Eat (meals logged), Move (planned sessions and activities), Habits (today's habits).
 // Closing a ring is the small, visible daily win; closing all three is a perfect day.
 const store = __req(16);
 const { mealsFor } = __req(18);
-const { stepGoal } = __req(7);
 const { habitLevels, levelIndex } = __req(10);
 const { itemDone } = __req(27);
-const { fmtNum } = __req(17);
 
 const RING_META = {
   eat: { label: 'Eat', color: 'var(--ring-eat)' },
@@ -7581,13 +7577,11 @@ function dayRings(state, date = store.today()) {
   const { schedule } = store.schedule(state, date);
   const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items.filter((it) => it.kind !== 'rest');
   const done = items.filter((it) => itemDone(state.workouts.log[date] || [], it)).length;
-  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
-  const steps = state.steps?.[date] || 0;
-  const stepPart = Math.min(1, steps / goal);
-  // Either the planned movement or the step goal closes the ring (rest days: any logged movement or steps).
+  // Planned sessions and activities close the ring; on a rest day, resting is the plan (any movement logged is a bonus).
   const anyMove = (state.workouts.log[date] || []).length > 0;
-  const planPart = items.length ? done / items.length : anyMove ? 1 : 0;
-  const move = { pct: Math.max(planPart, stepPart), text: items.length && done === items.length ? (items.length > 1 ? 'All sessions done' : 'Session done') : stepPart >= 1 ? `${fmtNum(steps)} steps` : items.length ? `${done}/${items.length} session${items.length > 1 ? 's' : ''}` : `${fmtNum(steps)} / ${fmtNum(goal)} steps` };
+  const move = items.length
+    ? { pct: done / items.length, text: done === items.length ? (items.length > 1 ? 'All sessions done' : 'Session done') : `${done}/${items.length} session${items.length > 1 ? 's' : ''}` }
+    : { pct: 1, text: anyMove ? 'Rest day + you moved' : 'Rest day' };
 
   const habits = store.visibleHabits(state);
   const hlog = state.habits.log?.[date] || {};
@@ -8697,7 +8691,6 @@ const { setViewDate, logDate, MAX_BACK } = __req(24);
 const { mealsFor, eatenSoFar, proteinEaten, dayComplete, safetyNotices, checkinDue, slotLabel, computeIntake } = __req(18);
 const { byId } = __req(5);
 const { habitById, streak, habitLevels, levelIndex } = __req(10);
-const { stepGoal } = __req(7);
 const { CARDIO } = __req(6);
 const { daysBetween, addDays } = __req(0);
 const { toHHMM } = __req(14);
@@ -8777,7 +8770,6 @@ function quickLog(state) {
   return `<div class="quick-log" role="group" aria-label="Quick log">
     ${b('openExtra', 'plus', 'Food')}
     ${hide ? '' : b('openWeigh', 'scale', 'Weight')}
-    ${b('openSteps', 'progress', 'Steps')}
     <a class="ql-btn" href="#/move"><span class="ql-ico">${icon('move')}</span>Workout</a>
   </div>`;
 }
@@ -8868,13 +8860,6 @@ function moveRows(state, date, linked = {}) {
   return out;
 }
 
-function stepsRow(state, date) {
-  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
-  const steps = state.steps[date] || 0;
-  const pct = Math.min(100, (steps / goal) * 100);
-  return `<li class="k-steps ${steps >= goal ? 'is-done' : ''}"><button class="lrow" data-action="openSteps"><span class="slot-ico">${icon('progress')}</span><span class="body"><span class="title">${steps ? `${fmtNum(steps)} steps` : 'Add today’s steps'}</span><span class="meter" style="display:block;height:6px;margin:6px 0 0"><span style="width:${pct.toFixed(1)}%"></span></span><span class="sub" style="display:block">Goal ${fmtNum(goal)}</span></span><span class="trail">${icon('chevron')}</span></button></li>`;
-}
-
 function yourDay(state, date) {
   const hide = store.habitsOnly(state);
   const show = !hide;
@@ -8920,7 +8905,7 @@ function yourDay(state, date) {
   }
   if (!nowShown && date === store.today()) parts.push(nowLine);
   const extraRows = extras.map((x, i) => (x.at ? '' : extraRow(x, i))).join('');
-  const any = [moves.any.join(''), ...evs.filter((e) => !e.time).map(evRow), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
+  const any = [moves.any.join(''), ...evs.filter((e) => !e.time).map(evRow), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
   const total = plan.timed.filter((t) => t.kind !== 'extra').length + plan.anytime.length;
   const doneCount = meals.filter((m) => m.done).length + active.filter((a) => state.habits.log[date]?.[a.id]).length + (!hide && state.weights.some((w) => w.date === date) ? 1 : 0);
   const noHabit = active.length ? '' : `<li class="tl-empty"><a class="lrow" href="#/habits" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('habits')}</span><span class="body"><span class="title">Pick one small habit</span><span class="sub">It slots into your day at the moment you choose</span></span><span class="trail">${icon('chevron')}</span></a></li>`;
@@ -9884,14 +9869,7 @@ function weeklyReview(state, answers, today, opts = {}) {
     });
   }
 
-  // ----- Rule 15: step goal progression (hit ≥5/7 days)
-  const steps = state.steps || {};
-  const goal = stepGoal(p.baselineSteps, (p.stepLevel || 0), p.age);
-  let hitDays = 0;
-  for (let i = 0; i < 7; i++) if ((steps[addDays(today, -i)] || 0) >= goal) hitDays++;
-  if (hitDays >= 5 && goal < (p.age >= 60 ? 8000 : 10000)) {
-    recs.push({ id: 'steps_up', type: 'steps', priority: 3, preselect: true, title: `Steps goal met ${hitDays}/7 days — raise it by 500`, body: `New daily goal: ${goal + 500}. (Steps are for health and maintenance; they don’t earn extra food.)` });
-  }
+  // (Rule 15, step-goal progression, removed: the app no longer tracks steps.)
 
   // ----- Hunger / sleep / stress / alcohol / energy (rule 23)
   if (hunger >= 4 && !recs.some((r) => r.id === 'too_fast')) {
@@ -12010,7 +11988,6 @@ __m.default = {
         <fieldset><legend>Cardio types</legend>${chips('cardioPrefs', Object.fromEntries(Object.entries(CARDIO).map(([k, c]) => [k, c.label])), p.cardioPrefs)}</fieldset>
         <div class="grid two">
           <label class="field"><span>Session length</span><select name="sessionMinutes">${[15, 20, 30, 45].map((m) => `<option value="${m}" ${Number(p.sessionMinutes) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></label>
-          <label class="field"><span>Baseline daily steps</span><input type="number" name="baselineSteps" value="${esc(p.baselineSteps ?? '')}" min="0" max="40000" step="100"></label>
         </div>
         <button type="button" class="btn ghost small danger" data-action="resetProgress">Reset exercise levels</button>
         <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
@@ -12173,7 +12150,6 @@ __m.default = {
           daysAvailable: (data.daysAvailable || []).map(Number),
           cardioPrefs: data.cardioPrefs?.length ? data.cardioPrefs : ['walk'],
           sessionMinutes: Number(data.sessionMinutes),
-          baselineSteps: data.baselineSteps ? Number(data.baselineSteps) : null,
         });
         // Re-fit each chain: keep the level if still available, otherwise drop to the nearest available rung.
         const fresh = initialProgress(p);
@@ -12406,7 +12382,6 @@ __m.default = {
           ['Do a habit', XP.habit],
           ['Strength session', XP.strength],
           ['Cardio session', `${XP.cardioBase}–${XP.cardioMax}`],
-          ['Reach your step goal', XP.steps],
           ...(hide ? [] : [['Weigh in', XP.weighIn]]),
           ['Weekly check-in', XP.checkin],
           ['Open last week’s Body Wrap', XP.wrap],
