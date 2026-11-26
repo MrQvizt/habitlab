@@ -186,6 +186,8 @@ const R = [
 ];
 
 // Sides: added to a main ("sausage + side salad") so unplanned meals are tracked better.
+// Only everyday sides are shown as chips (SHOWN_SIDES); the rest (fries, sauces, drinks, desserts…)
+// are just as available through search. Nothing is labelled good or bad, and no food is pushed at you.
 const S = [
   ['side_salad', 'Side salad (no dressing)', 25, 1, 4, 0],
   ['side_salad_dressing', 'Side salad with dressing', 120, 1, 5, 11],
@@ -239,16 +241,19 @@ export const FOOD_CATS = { meal: 'Meals', fast: 'Fast food', breakfast: 'Breakfa
 
 export const FOOD_DB = R.map(([id, name, portion, kcal, p, c, f, cat]) => ({ id, name, portion, kcal, p, c, f, cat }));
 export const SIDES = S.map(([id, name, kcal, p, c, f]) => ({ id, name, portion: 'side', kcal, p, c, f, cat: 'side', side: true }));
+const SHOWN = new Set(['side_salad', 'side_salad_dressing', 'veg_steamed', 'veg_roasted', 'peas', 'corn', 'beans_baked', 'boiled_potatoes', 'mash', 'rice', 'pasta_side', 'noodles', 'bread_roll', 'hummus', 'avocado_side', 'egg_side', 'soup_side', 'fruit_side', 'water_side']);
+/** The side chips shown without searching. */
+export const SHOWN_SIDES = SIDES.filter((x) => SHOWN.has(x.id));
 
 const BY_ID = new Map([...FOOD_DB, ...SIDES].map((x) => [x.id, x]));
 export const foodById = (id) => BY_ID.get(id);
 
-/** Search by words in any order ("chicken curry", "curry chick"); best matches first. */
+/** Search foods and sides by words in any order ("chicken curry", "curry chick"); best matches first. */
 export function searchFoods(q, limit = 30) {
   const words = String(q || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   const scored = [];
-  for (const x of FOOD_DB) {
+  for (const x of [...FOOD_DB, ...SIDES]) {
     const name = x.name.toLowerCase();
     if (!words.every((w) => name.includes(w))) continue;
     scored.push([name.startsWith(words[0]) ? 0 : name.split(/\W+/).some((t) => t.startsWith(words[0])) ? 1 : 2, x]);

@@ -156,7 +156,7 @@ function extraSheetHtml(state) {
     <form data-form="sheetExtra">
       ${pickerHtml(show)}
       <details class="food-manual" ${n ? '' : ''}><summary>Not in the list? Type it</summary>
-        <label class="field" style="margin:8px 0 0"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. latte, biscuit, glass of wine"></label>
+        <label class="field" style="margin:8px 0 0"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. leftovers, a snack at work"></label>
       </details>
       ${show ? `<label class="field" style="margin-top:10px"><span>Calories ${n ? '<span class="hint">from your picks — change it if you like</span>' : '<span class="hint">roughly</span>'}</span>${n ? '' : `<div class="quick-chips">${[50, 100, 150, 250, 400].map((k) => `<button type="button" data-action="sheetQuickKcal" data-v="${k}">${k}</button>`).join('')}</div>`}<div class="inline-inputs"><input type="number" name="kcal" inputmode="numeric" min="0" max="5000" placeholder="kcal" value="${n ? totalOf(picked()).kcal : ''}"><span class="unit">kcal</span></div></label>` : ''}
       <button class="btn primary large block">Add</button>

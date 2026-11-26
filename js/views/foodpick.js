@@ -1,7 +1,7 @@
 // Food picker: search common foods, add sides ("sausage + side salad"), adjust portions.
 // Used by "Something else" on a planned meal and by "Add something else you ate".
 import { esc, icon, fmtNum } from '../ui/dom.js';
-import { FOOD_DB, SIDES, FOOD_CATS, searchFoods, totalOf, describe, foodById } from '../data/fooddb.js';
+import { FOOD_DB, SIDES, SHOWN_SIDES, FOOD_CATS, searchFoods, totalOf, describe, foodById } from '../data/fooddb.js';
 import { updateSheet } from '../ui/sheet.js';
 
 let items = [];
@@ -34,18 +34,20 @@ document.addEventListener('input', (ev) => {
 /** The picker block (inside a form). `show` = show calories. */
 export function pickerHtml(show) {
   const t = totalOf(items);
-  const sides = SIDES.map((x) => `<button type="button" class="side-chip ${items.some((i) => i.id === x.id) ? 'on' : ''}" data-action="foodAdd" data-id="${x.id}">${esc(x.name)}${show && x.kcal ? ` <small>${fmtNum(x.kcal)}</small>` : ''}</button>`).join('');
+  // Everyday sides as chips; anything else you picked through search stays visible too.
+  const chipSides = [...SHOWN_SIDES, ...SIDES.filter((x) => !SHOWN_SIDES.includes(x) && items.some((i) => i.id === x.id))];
+  const sides = chipSides.map((x) => `<button type="button" class="side-chip ${items.some((i) => i.id === x.id) ? 'on' : ''}" data-action="foodAdd" data-id="${x.id}">${esc(x.name)}${show && x.kcal ? ` <small>${fmtNum(x.kcal)}</small>` : ''}</button>`).join('');
   const list = items.map((it) => {
     const x = foodById(it.id);
     return `<li class="food-item"><span class="grow"><strong>${esc(x.name)}</strong><small>${it.n === 1 ? esc(x.portion) : `${it.n} × ${esc(x.portion)}`}${show ? ` · ${fmtNum(x.kcal * it.n)} kcal` : ''}</small></span>
       <span class="stepper"><button type="button" data-action="foodStep" data-id="${x.id}" data-d="-0.5" aria-label="Less ${esc(x.name)}">−</button><span>${it.n}</span><button type="button" data-action="foodStep" data-id="${x.id}" data-d="0.5" aria-label="More ${esc(x.name)}">+</button></span></li>`;
   }).join('');
   return `<div class="food-picker">
-      <label class="field" style="margin:0"><span>Search foods</span><input type="search" data-food-search data-show="${show ? 1 : 0}" placeholder="e.g. sausage, pizza, latte" autocomplete="off" aria-label="Search foods"></label>
+      <label class="field" style="margin:0"><span>Search foods</span><input type="search" data-food-search data-show="${show ? 1 : 0}" placeholder="e.g. chicken, soup, yogurt" autocomplete="off" aria-label="Search foods"></label>
       <ul class="food-results"></ul>
       ${items.length ? `<div class="food-picked"><div class="over">Your meal</div><ul>${list}</ul>${show ? `<div class="food-total"><strong>${fmtNum(t.kcal)} kcal</strong> · ${t.p} g protein · ${t.c} g carbs · ${t.f} g fat</div>` : ''}</div>` : ''}
-      <details class="food-sides" ${items.length ? 'open' : ''}><summary><strong>Add sides</strong> <span class="muted">salad, fries, veggies, sauce…</span></summary><div class="side-chips">${sides}</div></details>
-      <p class="muted" style="font-size:var(--text-xs);margin:8px 0 0">${FOOD_DB.length} common foods and ${SIDES.length} sides. Values are typical portions — close enough to learn from.</p>
+      <details class="food-sides" ${items.length ? 'open' : ''}><summary><strong>Add sides</strong> <span class="muted">salad, veggies, rice…</span></summary><div class="side-chips">${sides}</div><p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">Can’t see it? Everything else is in the search above.</p></details>
+      <p class="muted" style="font-size:var(--text-xs);margin:8px 0 0">${FOOD_DB.length + SIDES.length} foods to search. Values are typical portions — close enough to learn from. Every food fits; logging it honestly is what counts.</p>
     </div>`;
 }
 

@@ -86,6 +86,11 @@ const shots = process.argv[3] || null;
   await page.click('.tg-day button[data-action=openMeal] >> nth=1');
   await page.waitForSelector('.sheet.open');
   await page.click('.sheet button:has-text("Something else")');
+  // Nothing tempting is put in front of you: no treats or drinks shown until you search for them
+  const before = (await page.textContent('.sheet .food-picker')).toLowerCase();
+  for (const w of ['pizza', 'fries', 'beer', 'wine', 'dessert', 'soft drink', 'chocolate', 'crisps', 'sweets', 'cake', 'onion rings']) if (before.includes(w)) errors.push(`food picker shows "${w}" before searching`);
+  await page.fill('.sheet [data-food-search]', 'fries');
+  if (!(await page.locator('.sheet .food-hit:has-text("Fries (small)")').count())) errors.push('fries not findable by search');
   await page.fill('.sheet [data-food-search]', 'sausages');
   await page.click('.sheet .food-hit:has-text("Sausages (2)")');
   await page.click('.sheet .side-chip:has-text("Side salad (no dressing)")');

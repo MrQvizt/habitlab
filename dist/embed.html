@@ -6854,6 +6854,8 @@ const R = [
 ];
 
 // Sides: added to a main ("sausage + side salad") so unplanned meals are tracked better.
+// Only everyday sides are shown as chips (SHOWN_SIDES); the rest (fries, sauces, drinks, desserts…)
+// are just as available through search. Nothing is labelled good or bad, and no food is pushed at you.
 const S = [
   ['side_salad', 'Side salad (no dressing)', 25, 1, 4, 0],
   ['side_salad_dressing', 'Side salad with dressing', 120, 1, 5, 11],
@@ -6907,16 +6909,19 @@ const FOOD_CATS = { meal: 'Meals', fast: 'Fast food', breakfast: 'Breakfast', br
 
 const FOOD_DB = R.map(([id, name, portion, kcal, p, c, f, cat]) => ({ id, name, portion, kcal, p, c, f, cat }));
 const SIDES = S.map(([id, name, kcal, p, c, f]) => ({ id, name, portion: 'side', kcal, p, c, f, cat: 'side', side: true }));
+const SHOWN = new Set(['side_salad', 'side_salad_dressing', 'veg_steamed', 'veg_roasted', 'peas', 'corn', 'beans_baked', 'boiled_potatoes', 'mash', 'rice', 'pasta_side', 'noodles', 'bread_roll', 'hummus', 'avocado_side', 'egg_side', 'soup_side', 'fruit_side', 'water_side']);
+/** The side chips shown without searching. */
+const SHOWN_SIDES = SIDES.filter((x) => SHOWN.has(x.id));
 
 const BY_ID = new Map([...FOOD_DB, ...SIDES].map((x) => [x.id, x]));
 const foodById = (id) => BY_ID.get(id);
 
-/** Search by words in any order ("chicken curry", "curry chick"); best matches first. */
+/** Search foods and sides by words in any order ("chicken curry", "curry chick"); best matches first. */
 function searchFoods(q, limit = 30) {
   const words = String(q || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   const scored = [];
-  for (const x of FOOD_DB) {
+  for (const x of [...FOOD_DB, ...SIDES]) {
     const name = x.name.toLowerCase();
     if (!words.every((w) => name.includes(w))) continue;
     scored.push([name.startsWith(words[0]) ? 0 : name.split(/\W+/).some((t) => t.startsWith(words[0])) ? 1 : 2, x]);
@@ -6949,13 +6954,13 @@ function describe(items = []) {
   }).filter(Boolean).join(' + ');
 }
 
-Object.assign(__m, { FOOD_CATS, FOOD_DB, SIDES, foodById, searchFoods, totalOf, describe });
+Object.assign(__m, { FOOD_CATS, FOOD_DB, SIDES, SHOWN_SIDES, foodById, searchFoods, totalOf, describe });
 },
 /* js/views/foodpick.js */ 29: function (__m, __req) {
 // Food picker: search common foods, add sides ("sausage + side salad"), adjust portions.
 // Used by "Something else" on a planned meal and by "Add something else you ate".
 const { esc, icon, fmtNum } = __req(17);
-const { FOOD_DB, SIDES, FOOD_CATS, searchFoods, totalOf, describe, foodById } = __req(28);
+const { FOOD_DB, SIDES, SHOWN_SIDES, FOOD_CATS, searchFoods, totalOf, describe, foodById } = __req(28);
 const { updateSheet } = __req(25);
 
 let items = [];
@@ -6988,18 +6993,20 @@ document.addEventListener('input', (ev) => {
 /** The picker block (inside a form). `show` = show calories. */
 function pickerHtml(show) {
   const t = totalOf(items);
-  const sides = SIDES.map((x) => `<button type="button" class="side-chip ${items.some((i) => i.id === x.id) ? 'on' : ''}" data-action="foodAdd" data-id="${x.id}">${esc(x.name)}${show && x.kcal ? ` <small>${fmtNum(x.kcal)}</small>` : ''}</button>`).join('');
+  // Everyday sides as chips; anything else you picked through search stays visible too.
+  const chipSides = [...SHOWN_SIDES, ...SIDES.filter((x) => !SHOWN_SIDES.includes(x) && items.some((i) => i.id === x.id))];
+  const sides = chipSides.map((x) => `<button type="button" class="side-chip ${items.some((i) => i.id === x.id) ? 'on' : ''}" data-action="foodAdd" data-id="${x.id}">${esc(x.name)}${show && x.kcal ? ` <small>${fmtNum(x.kcal)}</small>` : ''}</button>`).join('');
   const list = items.map((it) => {
     const x = foodById(it.id);
     return `<li class="food-item"><span class="grow"><strong>${esc(x.name)}</strong><small>${it.n === 1 ? esc(x.portion) : `${it.n} × ${esc(x.portion)}`}${show ? ` · ${fmtNum(x.kcal * it.n)} kcal` : ''}</small></span>
       <span class="stepper"><button type="button" data-action="foodStep" data-id="${x.id}" data-d="-0.5" aria-label="Less ${esc(x.name)}">−</button><span>${it.n}</span><button type="button" data-action="foodStep" data-id="${x.id}" data-d="0.5" aria-label="More ${esc(x.name)}">+</button></span></li>`;
   }).join('');
   return `<div class="food-picker">
-      <label class="field" style="margin:0"><span>Search foods</span><input type="search" data-food-search data-show="${show ? 1 : 0}" placeholder="e.g. sausage, pizza, latte" autocomplete="off" aria-label="Search foods"></label>
+      <label class="field" style="margin:0"><span>Search foods</span><input type="search" data-food-search data-show="${show ? 1 : 0}" placeholder="e.g. chicken, soup, yogurt" autocomplete="off" aria-label="Search foods"></label>
       <ul class="food-results"></ul>
       ${items.length ? `<div class="food-picked"><div class="over">Your meal</div><ul>${list}</ul>${show ? `<div class="food-total"><strong>${fmtNum(t.kcal)} kcal</strong> · ${t.p} g protein · ${t.c} g carbs · ${t.f} g fat</div>` : ''}</div>` : ''}
-      <details class="food-sides" ${items.length ? 'open' : ''}><summary><strong>Add sides</strong> <span class="muted">salad, fries, veggies, sauce…</span></summary><div class="side-chips">${sides}</div></details>
-      <p class="muted" style="font-size:var(--text-xs);margin:8px 0 0">${FOOD_DB.length} common foods and ${SIDES.length} sides. Values are typical portions — close enough to learn from.</p>
+      <details class="food-sides" ${items.length ? 'open' : ''}><summary><strong>Add sides</strong> <span class="muted">salad, veggies, rice…</span></summary><div class="side-chips">${sides}</div><p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">Can’t see it? Everything else is in the search above.</p></details>
+      <p class="muted" style="font-size:var(--text-xs);margin:8px 0 0">${FOOD_DB.length + SIDES.length} foods to search. Values are typical portions — close enough to learn from. Every food fits; logging it honestly is what counts.</p>
     </div>`;
 }
 
@@ -7194,7 +7201,7 @@ function extraSheetHtml(state) {
     <form data-form="sheetExtra">
       ${pickerHtml(show)}
       <details class="food-manual" ${n ? '' : ''}><summary>Not in the list? Type it</summary>
-        <label class="field" style="margin:8px 0 0"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. latte, biscuit, glass of wine"></label>
+        <label class="field" style="margin:8px 0 0"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. leftovers, a snack at work"></label>
       </details>
       ${show ? `<label class="field" style="margin-top:10px"><span>Calories ${n ? '<span class="hint">from your picks — change it if you like</span>' : '<span class="hint">roughly</span>'}</span>${n ? '' : `<div class="quick-chips">${[50, 100, 150, 250, 400].map((k) => `<button type="button" data-action="sheetQuickKcal" data-v="${k}">${k}</button>`).join('')}</div>`}<div class="inline-inputs"><input type="number" name="kcal" inputmode="numeric" min="0" max="5000" placeholder="kcal" value="${n ? totalOf(picked()).kcal : ''}"><span class="unit">kcal</span></div></label>` : ''}
       <button class="btn primary large block">Add</button>

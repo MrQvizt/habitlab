@@ -854,3 +854,11 @@ test('evening planning: the wind-down alarm opens Plan tomorrow; else an evening
   assert.equal(plans({ ...base, alarms: { wind: { on: true } } }).length, 0, 'the wind-down alarm does it instead');
   assert.equal(plans({ ...base, flags: { planned: '2026-11-27' } }).length, 1, 'tonight already planned');
 });
+
+test('food picker never pushes trigger foods, but every food stays searchable', async () => {
+  const { SHOWN_SIDES, SIDES, searchFoods } = await import('../js/data/fooddb.js');
+  const shown = SHOWN_SIDES.map((x) => x.name.toLowerCase()).join(' | ');
+  for (const w of ['fries', 'onion rings', 'mozzarella', 'soft drink', 'beer', 'wine', 'dessert', 'ice cream', 'mayonnaise', 'béarnaise']) assert.ok(!shown.includes(w), `${w} shown by default`);
+  for (const q of ['fries', 'beer', 'dessert', 'pizza', 'chocolate', 'crisps', 'wine', 'ice cream']) assert.ok(searchFoods(q).length, `${q} not searchable`);
+  assert.ok(SIDES.length > SHOWN_SIDES.length);
+});
