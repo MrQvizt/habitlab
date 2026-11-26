@@ -1132,6 +1132,12 @@ h2.h3 { font-size: var(--text-lg); }
 .reason-grid { display: flex; flex-wrap: wrap; gap: 8px; max-height: 420px; overflow-y: auto; padding: 2px; }
 .reason-btn { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 8px 12px; min-height: 40px; font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer; text-align: left; }
 .reason-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+.page-head:has(.day-nav) { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.day-nav { display: flex; align-items: center; gap: 2px; flex: none; }
+.day-nav .icon-btn:first-child .icon { transform: rotate(180deg); }
+.day-nav .icon-btn[aria-disabled="true"] { opacity: .3; pointer-events: none; }
+.day-nav-label { font-size: var(--text-sm); font-weight: 700; color: var(--ink-2); min-width: 64px; text-align: center; }
 </style>
 </head>
 <body>
@@ -5983,10 +5989,40 @@ __m.default = {
 
 Object.assign(__m, { goalHint });
 },
-/* js/views/move.js */ 24: function (__m, __req) {
+/* js/viewdate.js */ 24: function (__m, __req) {
+// The day you're logging on Today. Normally today; step back up to 7 days to fill in what you forgot.
+const store = __req(16);
+const { addDays } = __req(0);
+
+const MAX_BACK = 7;
+let viewing = null;
+
+/** A date you may log on: today or up to MAX_BACK days before. */
+function validLogDate(d) {
+  const t = store.today();
+  return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= t && d >= addDays(t, -MAX_BACK);
+}
+
+function setViewDate(d) {
+  viewing = validLogDate(d) && d !== store.today() ? d : null;
+}
+
+/** Where taps on Today and its sheets are saved. */
+function logDate() {
+  return viewing && validLogDate(viewing) ? viewing : store.today();
+}
+
+function isPast() {
+  return logDate() !== store.today();
+}
+
+Object.assign(__m, { MAX_BACK, validLogDate, setViewDate, logDate, isPast });
+},
+/* js/views/move.js */ 25: function (__m, __req) {
 // Movement: the week's schedule, strength session player with feedback, cardio logging.
 const { html, esc, icon, progressBar, fmtNum } = __req(17);
 const store = __req(16);
+const { logDate, validLogDate } = __req(24);
 const { progressChain, stepOf, stepGoal, REP_RANGE, INTENSITY, creditedMinutes } = __req(7);
 const { chips } = __req(17);
 const { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } = __req(11);
@@ -6195,7 +6231,7 @@ __m.default = {
     logCardio(form, ev, ctx, data) {
       const minutes = Number(data.minutes);
       if (!(minutes > 0)) return;
-      const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
+      const date = validLogDate(data.date) ? data.date : logDate();
       let entry = { kind: 'cardio', mode: data.mode, minutes };
       if (data.mode === 'other') {
         const h = hobbyByName(data.name);
@@ -6275,7 +6311,7 @@ void REP_RANGE;
 function logPlannedActivity(ctx, id) {
   const a = (ctx.state.profile.activities || []).find((x) => x.id === id);
   if (!a) return;
-  const date = store.today();
+  const date = logDate();
   ctx.update((st) => {
     st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'activity', actId: a.id, name: a.name, intensity: a.intensity, minutes: a.minutes }];
     return st;
@@ -6285,7 +6321,7 @@ function logPlannedActivity(ctx, id) {
 
 Object.assign(__m, { itemDone, logPlannedActivity });
 },
-/* js/ui/sheet.js */ 25: function (__m, __req) {
+/* js/ui/sheet.js */ 26: function (__m, __req) {
 // Bottom sheet (dialog on wide screens): swipe-down / scrim / Escape to close, focus trapped,
 // focus returned to the opener. Content is HTML; buttons inside use the normal data-action routing.
 let current = null;
@@ -6402,12 +6438,13 @@ function updateSheet(html) {
 
 Object.assign(__m, { openSheet, closeSheet, updateSheet });
 },
-/* js/views/sheets.js */ 26: function (__m, __req) {
+/* js/views/sheets.js */ 27: function (__m, __req) {
 // Bottom-sheet flows shared by Today and Meals: a meal's detail + logging, weigh-in stepper,
 // steps, extra food and habit detail. Every reversible change offers Undo instead of asking first.
 const { esc, icon, fmtNum, toKg, weightNum } = __req(17);
-const { openSheet, closeSheet, updateSheet } = __req(25);
+const { openSheet, closeSheet, updateSheet } = __req(26);
 const store = __req(16);
+const { logDate, validLogDate } = __req(24);
 const { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } = __req(18);
 const { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } = __req(5);
 const { habitById, streak, habitLevels, levelIndex, levelValue } = __req(10);
@@ -6504,12 +6541,14 @@ function openMeal(ctx, date, slot) {
 function dateChips(name = 'date') {
   const t = store.today();
   const opts = [[t, 'Today'], [addDays(t, -1), 'Yesterday'], [addDays(t, -2), new Date(addDays(t, -2) + 'T12:00').toLocaleDateString(undefined, { weekday: 'long' })]];
-  return `<div class="segmented" role="radiogroup" aria-label="Date" style="margin:4px 0 6px">${opts.map(([v, l], i) => `<label><input type="radio" name="${name}" value="${v}" ${i === 0 ? 'checked' : ''}><span>${esc(l)}</span></label>`).join('')}</div>`;
+  const cur = logDate();
+  if (!opts.some(([v]) => v === cur)) opts.push([cur, new Date(cur + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })]);
+  return `<div class="segmented" role="radiogroup" aria-label="Date" style="margin:4px 0 6px">${opts.map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}" ${v === cur ? 'checked' : ''}><span>${esc(l)}</span></label>`).join('')}</div>`;
 }
 
 function weighSheetHtml(state, withDate = false) {
   const u = units(state);
-  const date = store.today();
+  const date = logDate();
   const todays = state.weights.find((w) => w.date === date);
   const last = todays?.kg ?? state.weights[state.weights.length - 1]?.kg ?? state.profile.weightKg;
   const v = round(weightNum(last, u), 0.1).toFixed(1);
@@ -6529,7 +6568,7 @@ function weighSheetHtml(state, withDate = false) {
 
 // ---------- Steps ----------
 function stepsSheetHtml(state) {
-  const date = store.today();
+  const date = logDate();
   const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
   const cur = state.steps[date] || 0;
   return `<div class="sheet-head"><div><div class="over">Steps · goal ${fmtNum(goal)}</div><h2>Steps today</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
@@ -6557,7 +6596,7 @@ function extraSheetHtml(state) {
 // ---------- Habit ----------
 /** "How did it go?" — every level counts; the last is the full habit. */
 function habitLevelsHtml(state, id) {
-  const date = store.today();
+  const date = logDate();
   const cur = levelIndex(id, state.habits.log[date]?.[id]);
   const levels = habitLevels(id);
   return `<div class="level-list" role="radiogroup" aria-label="How did it go?">${levels.map((l, i) => `<button type="button" class="level-opt ${cur === i ? 'on' : ''} ${l.full ? 'full' : ''}" role="radio" aria-checked="${cur === i}" data-action="sheetHabitLevel" data-id="${id}" data-level="${i}">
@@ -6571,7 +6610,7 @@ function habitSheetHtml(state, id) {
   const a = state.habits.active.find((x) => x.id === id);
   const h = habitById(id);
   if (!a || !h) return '';
-  const date = store.today();
+  const date = logDate();
   const st = streak(state.habits.log, id, date);
   return `<div class="sheet-head"><div><div class="over">Habit · ${st}-day streak</div><h2>${esc(h.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
     <p class="muted" style="margin:-4px 0 12px">${esc(a.cue)} → ${esc(h.title.toLowerCase())}</p>
@@ -6584,7 +6623,7 @@ function habitSheetHtml(state, id) {
 /** Actions to spread into a view's `actions`. */
 const sheetActions = {
   mealCheck(el, ev, ctx) {
-    const date = el.dataset.date || store.today();
+    const date = el.dataset.date || logDate();
     const slot = el.dataset.slot;
     const cur = ctx.state.mealLog[date]?.[slot];
     if (cur) ctx.undoable('Log cleared', (st) => setMealStatus(st, date, slot, () => null));
@@ -6615,7 +6654,7 @@ const sheetActions = {
     closeSheet();
   },
   openMeal(el, ev, ctx) {
-    openMeal(ctx, el.dataset.date || store.today(), el.dataset.slot);
+    openMeal(ctx, el.dataset.date || logDate(), el.dataset.slot);
   },
   sheetMealAte(el, ev, ctx) {
     const { date, slot } = el.dataset;
@@ -6682,7 +6721,7 @@ const sheetActions = {
     const v = Number(data.v);
     if (!(v > 20)) return;
     const cm = u === 'imperial' ? round(v * 2.54, 0.5) : v;
-    const date = store.today();
+    const date = logDate();
     closeSheet();
     ctx.undoable('Waist saved', (st) => {
       st.waist = (st.waist || []).filter((w) => w.date !== date).concat({ date, cm });
@@ -6704,7 +6743,7 @@ const sheetActions = {
     const u = units(ctx.state);
     const kg = toKg(Number(data.w), u);
     if (!(kg > 30 && kg < 400)) return ctx.toast('That number looks off — please check it.');
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
+    const date = validLogDate(data.date) ? data.date : logDate();
     const prevTrend = store.trendWeight(ctx.state);
     closeSheet();
     ctx.undoable(Math.abs(kg - prevTrend) > 8 ? 'Saved — that’s a big jump; double-check the units.' : 'Weigh-in saved', (st) => {
@@ -6719,7 +6758,7 @@ const sheetActions = {
   sheetSteps(form, ev, ctx, data) {
     const n = Math.round(Number(data.steps));
     if (!(n >= 0)) return;
-    const date = store.today();
+    const date = logDate();
     closeSheet();
     ctx.undoable('Steps saved', (st) => {
       st.steps[date] = n;
@@ -6733,7 +6772,7 @@ const sheetActions = {
   },
   sheetExtra(form, ev, ctx, data) {
     if (!data.label && !data.kcal) return;
-    const date = store.today();
+    const date = logDate();
     closeSheet();
     ctx.undoable('Added', (st) => {
       st.extras[date] = [...(st.extras[date] || []), { label: data.label || 'Extra', kcal: Number(data.kcal) || 0 }];
@@ -6774,7 +6813,7 @@ function keepCurrentPlan(st) {
 
 /** Check button: not done → full habit; small win → upgrade to full; full → clear (with Undo). */
 function toggleHabit(ctx, id) {
-  const date = store.today();
+  const date = logDate();
   const cur = ctx.state.habits.log[date]?.[id];
   const full = habitLevels(id).length - 1;
   if (cur && levelIndex(id, cur) === full) setHabitLevel(ctx, id, -1);
@@ -6783,7 +6822,7 @@ function toggleHabit(ctx, id) {
 
 /** Log a habit at a level index (−1 clears). */
 function setHabitLevel(ctx, id, index) {
-  const date = store.today();
+  const date = logDate();
   const levels = habitLevels(id);
   const apply = (st) => {
     const day = { ...(st.habits.log[date] || {}) };
@@ -6801,7 +6840,7 @@ function setHabitLevel(ctx, id, index) {
 
 Object.assign(__m, { slotIcon, mealRows, mealRowList, openMeal, habitLevelsHtml, sheetActions, toggleHabit, setHabitLevel, isoDate });
 },
-/* js/engine/dayplan.js */ 27: function (__m, __req) {
+/* js/engine/dayplan.js */ 28: function (__m, __req) {
 // "Your day": put meals, habits and the weigh-in on one clock so Today reads top to bottom
 // like the day itself. Habits are placed by their cue ("After I finish lunch" → after lunch),
 // which is the implementation intention the person wrote — the cue is the time.
@@ -6863,14 +6902,14 @@ function planDay(profile, { meals = [], habits = [], weigh = false }) {
 
 Object.assign(__m, { cueTime, PARTS, partOf, planDay });
 },
-/* js/views/dayrings.js */ 28: function (__m, __req) {
+/* js/views/dayrings.js */ 29: function (__m, __req) {
 // Today's three rings: Eat (meals logged), Move (planned movement + steps), Habits (today's habits).
 // Closing a ring is the small, visible daily win; closing all three is a perfect day.
 const store = __req(16);
 const { mealsFor } = __req(18);
 const { stepGoal } = __req(7);
 const { habitLevels, levelIndex } = __req(10);
-const { itemDone } = __req(24);
+const { itemDone } = __req(25);
 const { fmtNum } = __req(17);
 
 const RING_META = {
@@ -6944,7 +6983,7 @@ function allClosed(state) {
 
 Object.assign(__m, { RING_META, dayRings, ringsSvg, newlyClosed, allClosed });
 },
-/* js/data/learn.js */ 29: function (__m, __req) {
+/* js/data/learn.js */ 30: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -7247,7 +7286,7 @@ const LEARN = [
 
 Object.assign(__m, { S, LEARN_SECTIONS, LEARN });
 },
-/* js/ui/celebrate.js */ 30: function (__m, __req) {
+/* js/ui/celebrate.js */ 31: function (__m, __req) {
 // Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
 // Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
 // after the user has interacted with the page.
@@ -7390,18 +7429,18 @@ function showCelebration({ kicker, title, body, iconName = 'star', ok = 'Nice!' 
 
 Object.assign(__m, { floatXp, ringBanner, confetti, chime, buzz, showCelebration });
 },
-/* js/views/wrap.js */ 31: function (__m, __req) {
+/* js/views/wrap.js */ 32: function (__m, __req) {
 // Body Wrap: a short, story-style weekly recap. Each card is one body part thanking you for
 // what you did, with one research fact. Tap right/left (or use the arrow keys) to move through it.
 // Opening last week's wrap to the end earns XP once (derived from state.wraps in game.js).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(29);
+const { S: SOURCES } = __req(30);
 const { weekStart, addDays, getWeekStart } = __req(0);
 
 const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const { confetti, chime, buzz, floatXp } = __req(30);
+const { confetti, chime, buzz, floatXp } = __req(31);
 const { XP } = __req(13);
 
 let idx = 0;
@@ -7560,25 +7599,26 @@ function bodyRingsCard(state, today) {
 
 Object.assign(__m, { ring, wrapReadyCard, bodyRingsCard });
 },
-/* js/views/today.js */ 32: function (__m, __req) {
+/* js/views/today.js */ 33: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 const { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(17);
 const store = __req(16);
+const { setViewDate, logDate, MAX_BACK } = __req(24);
 const { mealsFor, eatenSoFar, proteinEaten, dayComplete, safetyNotices, checkinDue, slotLabel, computeIntake } = __req(18);
 const { byId } = __req(5);
 const { habitById, streak, habitLevels, levelIndex } = __req(10);
 const { stepGoal } = __req(7);
 const { CARDIO } = __req(6);
-const { daysBetween } = __req(0);
+const { daysBetween, addDays } = __req(0);
 const { toHHMM } = __req(14);
-const { itemDone, logPlannedActivity } = __req(24);
-const { toggleHabit, mealRowList } = __req(26);
-const { planDay, partOf, PARTS } = __req(27);
-const { dayRings, ringsSvg, RING_META } = __req(28);
+const { itemDone, logPlannedActivity } = __req(25);
+const { toggleHabit, mealRowList } = __req(27);
+const { planDay, partOf, PARTS } = __req(28);
+const { dayRings, ringsSvg, RING_META } = __req(29);
 const { journey, nextStops, recentTimeStop } = __req(21);
 const { whenLabel } = __req(22);
-const { wrapReadyCard, bodyRingsCard } = __req(31);
+const { wrapReadyCard, bodyRingsCard } = __req(32);
 
 // ---------- Journey: the next stop on the long road (or a time stop just reached) ----------
 function journeyCard(state, date) {
@@ -7598,6 +7638,11 @@ function journeyCard(state, date) {
 }
 
 const SLOT_HOUR = { breakfast: 7, snack: 10, lunch: 12, snack2: 15, dinner: 18, snack3: 20 };
+
+function dayLabel(date, today) {
+  if (date === addDays(today, -1)) return 'Yesterday';
+  return fmtDate(date, { weekday: 'long', day: 'numeric', month: 'short' });
+}
 
 function greeting() {
   const h = new Date().getHours();
@@ -7650,7 +7695,7 @@ function nextUp(state, date) {
   const due = meals.find((m) => !log[m.slot] && m.time <= nowMin + 30);
   if (due) return card(`Next up · ${toHHMM(due.time)} ${slotLabel(due.slot)}`, esc(byId(due.recipeId).name), 'Log it, whatever you ate · +10 XP', btn('Log', `data-action="openMeal" data-slot="${due.slot}" data-date="${date}"`));
   const { schedule } = store.schedule(state, date);
-  const items = schedule[(new Date().getDay() + 6) % 7].items;
+  const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items;
   const move = items.find((it) => it.kind !== 'rest' && !itemDone(state.workouts.log[date] || [], it));
   if (move && h >= 7) {
     if (move.kind === 'strength') return card('Next up · Movement', `Strength session ${move.variant}`, `About ${move.minutes} min · +40 XP`, `<a class="btn small" href="#/move/session/${move.variant}">Start</a>`);
@@ -7702,7 +7747,7 @@ function weighRow(state, date) {
 
 function moveRows(state, date) {
   const { schedule } = store.schedule(state, date);
-  const items = schedule[(new Date().getDay() + 6) % 7].items;
+  const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items;
   const logged = state.workouts.log[date] || [];
   const doneTag = `<span class="check on" style="animation:none" aria-label="Done">${icon('check')}</span>`;
   return items.map((it) => {
@@ -7740,7 +7785,7 @@ function yourDay(state, date) {
   let nowShown = false;
   const nowLine = `<li class="tl-now" aria-label="Now"><span>Now · ${toHHMM(nowMin)}</span></li>`;
   for (const it of plan.timed) {
-    if (!nowShown && it.time > nowMin) {
+    if (!nowShown && date === store.today() && it.time > nowMin) {
       parts.push(nowLine);
       nowShown = true;
     }
@@ -7751,7 +7796,7 @@ function yourDay(state, date) {
     }
     parts.push(itemHtml(it));
   }
-  if (!nowShown) parts.push(nowLine);
+  if (!nowShown && date === store.today()) parts.push(nowLine);
   const extras = state.extras[date] || [];
   const extraRows = extras.map((x, i) => `<li class="k-extra is-done"><div class="lrow"><span class="slot-ico">${icon('plus')}</span><div class="body"><div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`).join('');
   const any = [moveRows(state, date), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
@@ -7822,14 +7867,24 @@ function banners(state, date) {
 }
 
 __m.default = {
-  render(state) {
-    const date = store.today();
-    return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${greeting()}</h1></div></header>
-      ${banners(state, date)}
+  render(state, params = []) {
+    // Today, or a day up to a week back to fill in what you forgot (#/today/2026-11-24).
+    setViewDate(params[0]);
+    const date = logDate();
+    const today = store.today();
+    const past = date !== today;
+    const canBack = date > addDays(today, -MAX_BACK);
+    const dayNav = `<nav class="day-nav" aria-label="Choose a day">
+        <a class="icon-btn" ${canBack ? `href="#/today/${addDays(date, -1)}"` : 'aria-disabled="true"'} aria-label="Previous day">${icon('chevron')}</a>
+        <span class="day-nav-label">${past ? esc(dayLabel(date, today)) : 'Today'}</span>
+        <a class="icon-btn" ${past ? `href="${addDays(date, 1) === today ? '#/today' : `#/today/${addDays(date, 1)}`}"` : 'aria-disabled="true"'} aria-label="Next day">${icon('chevron')}</a>
+      </nav>`;
+    return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${past ? 'Fill in the gaps' : greeting()}</h1></div>${dayNav}</header>
+      ${past ? `<div class="notice info past-day" style="align-items:center">${icon('calendar')}<div class="grow"><strong>${esc(dayLabel(date, today))}</strong> — anything you tick here is saved to that day.</div><a class="btn small" href="#/today">Back to today</a></div>` : banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${welcomeBack(state, date)}${wrapReadyCard(state, date)}${hero(state, date)}${nextUp(state, date)}${quickLog(state)}</div>
+        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : nextUp(state, date)}${quickLog(state)}</div>
         <div class="tg-day">${yourDay(state, date)}</div>
-        <div class="tg-rest">${bodyRingsCard(state, date)}${journeyCard(state, date)}${firstWeek(state, date)}</div>
+        <div class="tg-rest">${past ? '' : bodyRingsCard(state, date) + journeyCard(state, date) + firstWeek(state, date)}</div>
       </div>`;
   },
   actions: {
@@ -7837,7 +7892,7 @@ __m.default = {
       toggleHabit(ctx, el.dataset.id);
     },
     rmExtra(el, ev, ctx) {
-      const date = store.today();
+      const date = logDate();
       ctx.undoable('Removed', (st) => {
         st.extras[date] = (st.extras[date] || []).filter((_, i) => i !== Number(el.dataset.i));
         st.intake[date] = computeIntake(st, date);
@@ -7848,7 +7903,7 @@ __m.default = {
       logPlannedActivity(ctx, el.dataset.id);
     },
     cardioDone(el, ev, ctx) {
-      const date = store.today();
+      const date = logDate();
       ctx.undoable('Nice work — logged', (st) => {
         st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'cardio', mode: el.dataset.mode, minutes: Number(el.dataset.min) }];
         return st;
@@ -7889,10 +7944,10 @@ __m.default = {
 
 Object.assign(__m, { habitRow, lastActive });
 },
-/* js/views/meals.js */ 33: function (__m, __req) {
+/* js/views/meals.js */ 34: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 const { html, esc, icon, chips, fmtDate, fmtNum } = __req(17);
-const { mealRows } = __req(26);
+const { mealRows } = __req(27);
 const store = __req(16);
 const { recipeDetails, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(18);
 const { markChosen } = __req(18);
@@ -8078,7 +8133,7 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 34: function (__m, __req) {
+/* js/ui/charts.js */ 35: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
 const { esc } = __req(17);
 const { daysBetween, addDays } = __req(0);
@@ -8190,16 +8245,16 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/habits.js */ 35: function (__m, __req) {
+/* js/views/habits.js */ 36: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
 const { esc, icon } = __req(17);
-const { habitGrid } = __req(34);
+const { habitGrid } = __req(35);
 const store = __req(16);
 const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(10);
 const { daysBetween } = __req(0);
-const { openSheet, closeSheet, updateSheet } = __req(25);
-const { toggleHabit, habitLevelsHtml } = __req(26);
+const { openSheet, closeSheet, updateSheet } = __req(26);
+const { toggleHabit, habitLevelsHtml } = __req(27);
 const { habitLevels, levelIndex } = __req(10);
 
 let filter = 'all';
@@ -8346,11 +8401,11 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/progress.js */ 36: function (__m, __req) {
+/* js/views/progress.js */ 37: function (__m, __req) {
 // Progress: the home for everything long-term. A hub (journey, body levels, rewards, weekly
 // check-in), past Body Wraps, then the weight trend, activity, weigh-ins, waist and check-in history.
 const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(17);
-const { weightChart, barChart } = __req(34);
+const { weightChart, barChart } = __req(35);
 const store = __req(16);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
@@ -8358,7 +8413,7 @@ const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
 const { journey, nextStops } = __req(21);
 const { weekBody } = __req(12);
 const { checkinDue } = __req(18);
-const { ring } = __req(31);
+const { ring } = __req(32);
 
 /** The long-term hub at the top of Progress. */
 function hub(state, date, hide) {
@@ -8533,7 +8588,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, {  });
 },
-/* js/engine/adjust.js */ 37: function (__m, __req) {
+/* js/engine/adjust.js */ 38: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -8809,11 +8864,11 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 38: function (__m, __req) {
+/* js/views/checkin.js */ 39: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
 const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(17);
 const store = __req(16);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(37);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(38);
 const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
@@ -8958,10 +9013,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/learn.js */ 39: function (__m, __req) {
+/* js/views/learn.js */ 40: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
 const { html, esc, icon } = __req(17);
-const { LEARN, LEARN_SECTIONS } = __req(29);
+const { LEARN, LEARN_SECTIONS } = __req(30);
 
 let section = 'all';
 let openAll = false;
@@ -9006,7 +9061,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/data/melodies.js */ 40: function (__m, __req) {
+/* js/data/melodies.js */ 41: function (__m, __req) {
 // Alarm sounds. Each melody is data: the same spec is played by the in-app preview (Web Audio) and by
 // the native alarm (AlarmService.java synthesises it on the alarm stream), so what you hear when you
 // choose is exactly what wakes you.
@@ -9151,7 +9206,7 @@ function previewMelody(id, { passes = 2 } = {}) {
 
 Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, stopPreview, previewMelody });
 },
-/* js/engine/alarms.js */ 41: function (__m, __req) {
+/* js/engine/alarms.js */ 42: function (__m, __req) {
 // Alarm clock settings → the specs the native alarm scheduler uses (js/alarm-native.js).
 // Defaults follow sleep research:
 // - The same wake time every day, weekends included: irregular sleep/wake timing is linked to a
@@ -9161,7 +9216,7 @@ Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSou
 //   compared with a printed book (Chang 2015).
 // - Meals at regular times from your day schedule.
 const { daySchedule, mealTimes, toHHMM, toMin } = __req(14);
-const { DEFAULT_SOUND, nativeSound } = __req(40);
+const { DEFAULT_SOUND, nativeSound } = __req(41);
 
 const DEFAULT_ALARMS = {
   wake: { on: false, time: null, days: [0, 1, 2, 3, 4, 5, 6], style: 'ring' },
@@ -9242,7 +9297,7 @@ function fmtTime(min) {
 
 Object.assign(__m, { DEFAULT_ALARMS, STYLES, alarmsOf, alarmTimes, mealSlots, alarmSpecs, fmtTime });
 },
-/* js/data/reasons.js */ 42: function (__m, __req) {
+/* js/data/reasons.js */ 43: function (__m, __req) {
 // One-word reasons people give for wanting to lose weight, to pick on the morning screen and in Settings.
 // Grouped by the themes found in research: health first, then appearance and mood (O’Brien 2007),
 // function and mobility, stigma (hospital programme, open-ended answers), family and milestones
@@ -9867,7 +9922,7 @@ const REASONS = [
 
 Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 },
-/* js/data/affirmations.js */ 43: function (__m, __req) {
+/* js/data/affirmations.js */ 44: function (__m, __req) {
 // Morning messages shown when the wake-up alarm rings and on the Good-morning screen.
 // What the research says, and how it shapes these messages:
 // - Values-based self-affirmation: reflecting on what matters to you activates the brain's
@@ -9883,7 +9938,7 @@ Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 // - Compliments ("You look beautiful") are included because people asked for them; they can be
 //   switched off, and you can add your own words.
 
-const { REASONS, REASON_YOUR, REASON_PROPER } = __req(42);
+const { REASONS, REASON_YOUR, REASON_PROPER } = __req(43);
 
 const LIBRARY = new Set(REASONS.map((r) => r[1].toLowerCase()));
 
@@ -10097,11 +10152,11 @@ function removeReason(affirm = {}, text) {
 
 Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, DEFAULT_SETS, morningMessages, messageForDay, reasonLine, addReason, removeReason });
 },
-/* js/alarm-native.js */ 44: function (__m, __req) {
+/* js/alarm-native.js */ 45: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
-const { alarmSpecs, alarmsOf } = __req(41);
-const { morningMessages, valueInfo } = __req(43);
+const { alarmSpecs, alarmsOf } = __req(42);
+const { morningMessages, valueInfo } = __req(44);
 
 let lastMessage = null;
 
@@ -10219,13 +10274,13 @@ async function listen(go, onWake) {
 
 Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, parseWake, listen });
 },
-/* js/views/alarms.js */ 45: function (__m, __req) {
+/* js/views/alarms.js */ 46: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 const { esc, icon } = __req(17);
-const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(41);
+const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(42);
 const { daySchedule, mealTimes } = __req(14);
-const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(43);
-const { REASONS, REASON_CATS } = __req(42);
+const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(44);
+const { REASONS, REASON_CATS } = __req(43);
 
 // Reason library state (kept across re-renders while you browse).
 let reasonCat = 'health';
@@ -10237,9 +10292,9 @@ document.addEventListener('input', (ev) => {
 document.addEventListener('toggle', (ev) => {
   if (ev.target.classList?.contains('reason-lib')) libOpen = ev.target.open;
 }, true);
-const alarmNative = __req(44);
-const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(40);
-const { openSheet, updateSheet } = __req(25);
+const alarmNative = __req(45);
+const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(41);
+const { openSheet, updateSheet } = __req(26);
 
 const KIND_NAME = { wake: 'Wake-up', wind: 'Wind-down', bed: 'Bedtime', meals: 'Meal' };
 const soundOf = (a, key) => a[key].sound || DEFAULT_SOUND[key];
@@ -10550,7 +10605,7 @@ const alarmActions = {
 
 Object.assign(__m, { ownValues, alarmsSummary, alarmsPage, alarmsAfter, alarmActions });
 },
-/* js/notify.js */ 46: function (__m, __req) {
+/* js/notify.js */ 47: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -10687,10 +10742,10 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 47: function (__m, __req) {
+/* js/views/settings.js */ 48: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { goalHint } = __req(23);
-const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(45);
+const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(46);
 const { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(17);
 const store = __req(16);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
@@ -10698,7 +10753,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn, weekOrder } = __req(0);
-const notify = __req(46);
+const notify = __req(47);
 const { DEFAULT_REMINDERS } = __req(15);
 const { dayFields, daySummary, readDay } = __req(20);
 const { daySchedule, toHHMM } = __req(14);
@@ -11094,7 +11149,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 48: function (__m, __req) {
+/* js/views/shopping.js */ 49: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(17);
 const store = __req(16);
@@ -11142,15 +11197,15 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 49: function (__m, __req) {
+/* js/views/rewards.js */ 50: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(17);
-const { ring, barChart } = __req(34);
+const { ring, barChart } = __req(35);
 const store = __req(16);
 const { BADGES, XP, levelTitle } = __req(13);
 const { addDays, weekStart } = __req(0);
 const { ORGANS, lastWeekStart } = __req(12);
-const { ring: bodyRing } = __req(31);
+const { ring: bodyRing } = __req(32);
 
 function bodyMedals(state, g, date) {
   const lv = g.stats.body.levels;
@@ -11274,17 +11329,17 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/views/wake.js */ 50: function (__m, __req) {
+/* js/views/wake.js */ 51: function (__m, __req) {
 // Good morning: the screen after "I'm up". The alarm's message, then a ten-second values
 // reflection ("Today I'm doing this for…") — the kind of self-affirmation shown to engage the brain's
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(43);
-const { REASONS } = __req(42);
-const { takeMessage } = __req(44);
+const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(44);
+const { REASONS } = __req(43);
+const { takeMessage } = __req(45);
 const { XP } = __req(13);
-const { confetti, chime, buzz, floatXp } = __req(30);
+const { confetti, chime, buzz, floatXp } = __req(31);
 
 let message = null;
 let msgDate = null;
@@ -11427,18 +11482,18 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/body.js */ 51: function (__m, __req) {
+/* js/views/body.js */ 52: function (__m, __req) {
 // Your body: one card per body part — this week's ring, its long-term level and what it needs.
 // Tap any ring (here, on Today or in the Body Wrap) to open the body-part sheet.
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { openSheet } = __req(25);
+const { openSheet } = __req(26);
 const { ORGAN_GUIDE, organById, weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(29);
+const { S: SOURCES } = __req(30);
 const { weekStart } = __req(0);
 
 const fmtDateShort = (iso) => fmtDate(iso, { day: 'numeric', month: 'short' });
-const { ring } = __req(31);
+const { ring } = __req(32);
 
 function data(state) {
   const today = store.today();
@@ -11515,37 +11570,38 @@ __m.default = {
 
 Object.assign(__m, { organSheetHtml, organActions });
 },
-/* js/app.js */ 52: function (__m, __req) {
+/* js/app.js */ 53: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(16);
 const { icon, formData } = __req(17);
 const { setWeekStart } = __req(0);
 const onboarding = __req(23).default;
 const { goalHint } = __req(23);
-const todayView = __req(32).default;
-const meals = __req(33).default;
-const move = __req(24).default;
-const habits = __req(35).default;
-const progress = __req(36).default;
-const checkin = __req(38).default;
-const learn = __req(39).default;
-const settings = __req(47).default;
-const shopping = __req(48).default;
-const rewards = __req(49).default;
+const todayView = __req(33).default;
+const meals = __req(34).default;
+const move = __req(25).default;
+const habits = __req(36).default;
+const progress = __req(37).default;
+const checkin = __req(39).default;
+const learn = __req(40).default;
+const settings = __req(48).default;
+const shopping = __req(49).default;
+const rewards = __req(50).default;
 const journeyView = __req(22).default;
-const wrapView = __req(31).default;
-const wakeView = __req(50).default;
-const bodyView = __req(51).default;
-const { organActions } = __req(51);
+const wrapView = __req(32).default;
+const wakeView = __req(51).default;
+const bodyView = __req(52).default;
+const { organActions } = __req(52);
 const { organById } = __req(12);
-const alarmNative = __req(44);
-const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(30);
-const { newlyClosed, allClosed } = __req(28);
-const { reasonLine, addReason } = __req(43);
+const alarmNative = __req(45);
+const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(31);
+const { newlyClosed, allClosed } = __req(29);
+const { setViewDate } = __req(24);
+const { reasonLine, addReason } = __req(44);
 const { BADGES } = __req(13);
-const notify = __req(46);
-const { closeSheet } = __req(25);
-const { sheetActions } = __req(26);
+const notify = __req(47);
+const { closeSheet } = __req(26);
+const { sheetActions } = __req(27);
 const { daySummary, readDay } = __req(20);
 
 const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
@@ -11778,6 +11834,7 @@ function renderRoute() {
   const saveBanner = saveFailing && hasShell
     ? `<div class="notice warn" role="alert">${icon('alert')}<div class="grow"><strong>Changes aren’t being saved.</strong> This device’s storage is full or blocked, so anything you log now will be lost when you close the app. <a href="#/settings/data">Export a backup</a>, then free up some space.</div></div>`
     : '';
+  if (name !== 'today') setViewDate(null); // past-day editing belongs to Today only
   main.innerHTML = top + saveBanner + view.render(state, params, ctx);
   view.after?.(main, ctx, params);
   const routeKey = `${name}/${params.join('/')}`;
@@ -11963,7 +12020,7 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(52);
+__req(53);
 })();</script>
 </body>
 </html>

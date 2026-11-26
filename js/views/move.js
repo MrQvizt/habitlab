@@ -1,6 +1,7 @@
 // Movement: the week's schedule, strength session player with feedback, cardio logging.
 import { html, esc, icon, progressBar, fmtNum } from '../ui/dom.js';
 import * as store from '../store.js';
+import { logDate, validLogDate } from '../viewdate.js';
 import { progressChain, stepOf, stepGoal, REP_RANGE, INTENSITY, creditedMinutes } from '../engine/workouts.js';
 import { chips } from '../ui/dom.js';
 import { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } from '../data/hobbies.js';
@@ -209,7 +210,7 @@ export default {
     logCardio(form, ev, ctx, data) {
       const minutes = Number(data.minutes);
       if (!(minutes > 0)) return;
-      const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
+      const date = validLogDate(data.date) ? data.date : logDate();
       let entry = { kind: 'cardio', mode: data.mode, minutes };
       if (data.mode === 'other') {
         const h = hobbyByName(data.name);
@@ -289,7 +290,7 @@ void REP_RANGE;
 export function logPlannedActivity(ctx, id) {
   const a = (ctx.state.profile.activities || []).find((x) => x.id === id);
   if (!a) return;
-  const date = store.today();
+  const date = logDate();
   ctx.update((st) => {
     st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'activity', actId: a.id, name: a.name, intensity: a.intensity, minutes: a.minutes }];
     return st;

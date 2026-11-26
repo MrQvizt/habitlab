@@ -65,6 +65,43 @@ const shots = process.argv[3] || null;
   if (!/ring closed/.test((await page.locator('.ring-banner').textContent().catch(() => '')) || '')) errors.push('no "ring closed" celebration');
   // Quick log row: food, weight, steps, workout
   if ((await page.locator('.quick-log .ql-btn').count()) < 3) errors.push('quick log missing');
+  // Forgot to log yesterday: step back on Today, tick a meal and a habit → saved to yesterday, not today
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const yday = ymd(new Date(Date.now() - 864e5));
+  await page.evaluate((y) => {
+    const st = JSON.parse(localStorage.getItem('habitlab.v1'));
+    delete st.mealLog[y];
+    delete st.habits.log[y];
+    localStorage.setItem('habitlab.v1', JSON.stringify(st));
+  }, yday);
+  await page.goto(base + '#/today');
+  await page.reload();
+  await page.waitForSelector('.day-nav');
+  await page.click('.day-nav a[aria-label="Previous day"]');
+  await page.waitForSelector('.past-day');
+  if (!/Yesterday/.test(await page.textContent('.day-nav-label'))) errors.push('day nav label: ' + (await page.textContent('.day-nav-label')));
+  await page.click('.tg-day button[data-action=mealCheck] >> nth=0');
+  await page.waitForTimeout(300);
+  await page.click('.tg-day button[data-action=habitCheck] >> nth=0');
+  await page.waitForTimeout(300);
+  const back = await page.evaluate((y) => JSON.parse(localStorage.getItem('habitlab.v1')), yday);
+  if (!Object.keys(back.mealLog[yday] || {}).length) errors.push('meal ticked on yesterday not saved to yesterday');
+  if (!Object.keys(back.habits.log[yday] || {}).length) errors.push('habit ticked on yesterday not saved to yesterday');
+  // Up to 7 days back; not into the future
+  await page.goto(base + '#/today/' + ymd(new Date(Date.now() - 7 * 864e5)));
+  await page.waitForSelector('.past-day');
+  if (!(await page.locator('.day-nav a[aria-label="Previous day"][aria-disabled=true]').count())) errors.push('should stop at 7 days back');
+  await page.goto(base + '#/today/' + ymd(new Date(Date.now() + 864e5)));
+  await page.waitForSelector('.tg-hero');
+  if (await page.locator('.past-day').count()) errors.push('future date should show today');
+  // Leaving Today resets: the weigh-in sheet elsewhere defaults to today
+  await page.goto(base + '#/today/' + yday);
+  await page.waitForSelector('.past-day');
+  await page.goto(base + '#/progress');
+  await page.goto(base + '#/today');
+  await page.waitForSelector('.tg-hero');
+  if (await page.locator('.past-day').count()) errors.push('Today should open on today again');
+
   // Lapsed user: nothing logged for 4 days → a kind welcome-back card, dismissible for today
   await page.evaluate(() => {
     const st = JSON.parse(localStorage.getItem('habitlab.v1'));

@@ -3,6 +3,7 @@
 import { esc, icon, fmtNum, toKg, weightNum } from '../ui/dom.js';
 import { openSheet, closeSheet, updateSheet } from '../ui/sheet.js';
 import * as store from '../store.js';
+import { logDate, validLogDate } from '../viewdate.js';
 import { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } from './shared.js';
 import { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } from '../engine/meals.js';
 import { habitById, streak, habitLevels, levelIndex, levelValue } from '../engine/habits.js';
@@ -99,12 +100,14 @@ export function openMeal(ctx, date, slot) {
 function dateChips(name = 'date') {
   const t = store.today();
   const opts = [[t, 'Today'], [addDays(t, -1), 'Yesterday'], [addDays(t, -2), new Date(addDays(t, -2) + 'T12:00').toLocaleDateString(undefined, { weekday: 'long' })]];
-  return `<div class="segmented" role="radiogroup" aria-label="Date" style="margin:4px 0 6px">${opts.map(([v, l], i) => `<label><input type="radio" name="${name}" value="${v}" ${i === 0 ? 'checked' : ''}><span>${esc(l)}</span></label>`).join('')}</div>`;
+  const cur = logDate();
+  if (!opts.some(([v]) => v === cur)) opts.push([cur, new Date(cur + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })]);
+  return `<div class="segmented" role="radiogroup" aria-label="Date" style="margin:4px 0 6px">${opts.map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}" ${v === cur ? 'checked' : ''}><span>${esc(l)}</span></label>`).join('')}</div>`;
 }
 
 function weighSheetHtml(state, withDate = false) {
   const u = units(state);
-  const date = store.today();
+  const date = logDate();
   const todays = state.weights.find((w) => w.date === date);
   const last = todays?.kg ?? state.weights[state.weights.length - 1]?.kg ?? state.profile.weightKg;
   const v = round(weightNum(last, u), 0.1).toFixed(1);
@@ -124,7 +127,7 @@ function weighSheetHtml(state, withDate = false) {
 
 // ---------- Steps ----------
 function stepsSheetHtml(state) {
-  const date = store.today();
+  const date = logDate();
   const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
   const cur = state.steps[date] || 0;
   return `<div class="sheet-head"><div><div class="over">Steps · goal ${fmtNum(goal)}</div><h2>Steps today</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
@@ -152,7 +155,7 @@ function extraSheetHtml(state) {
 // ---------- Habit ----------
 /** "How did it go?" — every level counts; the last is the full habit. */
 export function habitLevelsHtml(state, id) {
-  const date = store.today();
+  const date = logDate();
   const cur = levelIndex(id, state.habits.log[date]?.[id]);
   const levels = habitLevels(id);
   return `<div class="level-list" role="radiogroup" aria-label="How did it go?">${levels.map((l, i) => `<button type="button" class="level-opt ${cur === i ? 'on' : ''} ${l.full ? 'full' : ''}" role="radio" aria-checked="${cur === i}" data-action="sheetHabitLevel" data-id="${id}" data-level="${i}">
@@ -166,7 +169,7 @@ function habitSheetHtml(state, id) {
   const a = state.habits.active.find((x) => x.id === id);
   const h = habitById(id);
   if (!a || !h) return '';
-  const date = store.today();
+  const date = logDate();
   const st = streak(state.habits.log, id, date);
   return `<div class="sheet-head"><div><div class="over">Habit · ${st}-day streak</div><h2>${esc(h.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
     <p class="muted" style="margin:-4px 0 12px">${esc(a.cue)} → ${esc(h.title.toLowerCase())}</p>
@@ -179,7 +182,7 @@ function habitSheetHtml(state, id) {
 /** Actions to spread into a view's `actions`. */
 export const sheetActions = {
   mealCheck(el, ev, ctx) {
-    const date = el.dataset.date || store.today();
+    const date = el.dataset.date || logDate();
     const slot = el.dataset.slot;
     const cur = ctx.state.mealLog[date]?.[slot];
     if (cur) ctx.undoable('Log cleared', (st) => setMealStatus(st, date, slot, () => null));
@@ -210,7 +213,7 @@ export const sheetActions = {
     closeSheet();
   },
   openMeal(el, ev, ctx) {
-    openMeal(ctx, el.dataset.date || store.today(), el.dataset.slot);
+    openMeal(ctx, el.dataset.date || logDate(), el.dataset.slot);
   },
   sheetMealAte(el, ev, ctx) {
     const { date, slot } = el.dataset;
@@ -277,7 +280,7 @@ export const sheetActions = {
     const v = Number(data.v);
     if (!(v > 20)) return;
     const cm = u === 'imperial' ? round(v * 2.54, 0.5) : v;
-    const date = store.today();
+    const date = logDate();
     closeSheet();
     ctx.undoable('Waist saved', (st) => {
       st.waist = (st.waist || []).filter((w) => w.date !== date).concat({ date, cm });
@@ -299,7 +302,7 @@ export const sheetActions = {
     const u = units(ctx.state);
     const kg = toKg(Number(data.w), u);
     if (!(kg > 30 && kg < 400)) return ctx.toast('That number looks off — please check it.');
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
+    const date = validLogDate(data.date) ? data.date : logDate();
     const prevTrend = store.trendWeight(ctx.state);
     closeSheet();
     ctx.undoable(Math.abs(kg - prevTrend) > 8 ? 'Saved — that’s a big jump; double-check the units.' : 'Weigh-in saved', (st) => {
@@ -314,7 +317,7 @@ export const sheetActions = {
   sheetSteps(form, ev, ctx, data) {
     const n = Math.round(Number(data.steps));
     if (!(n >= 0)) return;
-    const date = store.today();
+    const date = logDate();
     closeSheet();
     ctx.undoable('Steps saved', (st) => {
       st.steps[date] = n;
@@ -328,7 +331,7 @@ export const sheetActions = {
   },
   sheetExtra(form, ev, ctx, data) {
     if (!data.label && !data.kcal) return;
-    const date = store.today();
+    const date = logDate();
     closeSheet();
     ctx.undoable('Added', (st) => {
       st.extras[date] = [...(st.extras[date] || []), { label: data.label || 'Extra', kcal: Number(data.kcal) || 0 }];
@@ -369,7 +372,7 @@ function keepCurrentPlan(st) {
 
 /** Check button: not done → full habit; small win → upgrade to full; full → clear (with Undo). */
 export function toggleHabit(ctx, id) {
-  const date = store.today();
+  const date = logDate();
   const cur = ctx.state.habits.log[date]?.[id];
   const full = habitLevels(id).length - 1;
   if (cur && levelIndex(id, cur) === full) setHabitLevel(ctx, id, -1);
@@ -378,7 +381,7 @@ export function toggleHabit(ctx, id) {
 
 /** Log a habit at a level index (−1 clears). */
 export function setHabitLevel(ctx, id, index) {
-  const date = store.today();
+  const date = logDate();
   const levels = habitLevels(id);
   const apply = (st) => {
     const day = { ...(st.habits.log[date] || {}) };

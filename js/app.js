@@ -23,6 +23,7 @@ import { organById } from './engine/body.js';
 import * as alarmNative from './alarm-native.js';
 import { floatXp, confetti, chime, buzz, showCelebration, ringBanner } from './ui/celebrate.js';
 import { newlyClosed, allClosed } from './views/dayrings.js';
+import { setViewDate } from './viewdate.js';
 import { reasonLine, addReason } from './data/affirmations.js';
 import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
@@ -260,6 +261,7 @@ function renderRoute() {
   const saveBanner = saveFailing && hasShell
     ? `<div class="notice warn" role="alert">${icon('alert')}<div class="grow"><strong>Changes aren’t being saved.</strong> This device’s storage is full or blocked, so anything you log now will be lost when you close the app. <a href="#/settings/data">Export a backup</a>, then free up some space.</div></div>`
     : '';
+  if (name !== 'today') setViewDate(null); // past-day editing belongs to Today only
   main.innerHTML = top + saveBanner + view.render(state, params, ctx);
   view.after?.(main, ctx, params);
   const routeKey = `${name}/${params.join('/')}`;

@@ -2,12 +2,13 @@
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 import { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
+import { setViewDate, logDate, MAX_BACK } from '../viewdate.js';
 import { mealsFor, eatenSoFar, proteinEaten, dayComplete, safetyNotices, checkinDue, slotLabel, computeIntake } from './shared.js';
 import { byId } from '../engine/meals.js';
 import { habitById, streak, habitLevels, levelIndex } from '../engine/habits.js';
 import { stepGoal } from '../engine/workouts.js';
 import { CARDIO } from '../data/exercises.js';
-import { daysBetween } from '../engine/util.js';
+import { daysBetween, addDays } from '../engine/util.js';
 import { toHHMM } from '../engine/schedule.js';
 import { itemDone, logPlannedActivity } from './move.js';
 import { toggleHabit, mealRowList } from './sheets.js';
@@ -35,6 +36,11 @@ function journeyCard(state, date) {
 }
 
 const SLOT_HOUR = { breakfast: 7, snack: 10, lunch: 12, snack2: 15, dinner: 18, snack3: 20 };
+
+function dayLabel(date, today) {
+  if (date === addDays(today, -1)) return 'Yesterday';
+  return fmtDate(date, { weekday: 'long', day: 'numeric', month: 'short' });
+}
 
 function greeting() {
   const h = new Date().getHours();
@@ -87,7 +93,7 @@ function nextUp(state, date) {
   const due = meals.find((m) => !log[m.slot] && m.time <= nowMin + 30);
   if (due) return card(`Next up · ${toHHMM(due.time)} ${slotLabel(due.slot)}`, esc(byId(due.recipeId).name), 'Log it, whatever you ate · +10 XP', btn('Log', `data-action="openMeal" data-slot="${due.slot}" data-date="${date}"`));
   const { schedule } = store.schedule(state, date);
-  const items = schedule[(new Date().getDay() + 6) % 7].items;
+  const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items;
   const move = items.find((it) => it.kind !== 'rest' && !itemDone(state.workouts.log[date] || [], it));
   if (move && h >= 7) {
     if (move.kind === 'strength') return card('Next up · Movement', `Strength session ${move.variant}`, `About ${move.minutes} min · +40 XP`, `<a class="btn small" href="#/move/session/${move.variant}">Start</a>`);
@@ -139,7 +145,7 @@ function weighRow(state, date) {
 
 function moveRows(state, date) {
   const { schedule } = store.schedule(state, date);
-  const items = schedule[(new Date().getDay() + 6) % 7].items;
+  const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items;
   const logged = state.workouts.log[date] || [];
   const doneTag = `<span class="check on" style="animation:none" aria-label="Done">${icon('check')}</span>`;
   return items.map((it) => {
@@ -177,7 +183,7 @@ function yourDay(state, date) {
   let nowShown = false;
   const nowLine = `<li class="tl-now" aria-label="Now"><span>Now · ${toHHMM(nowMin)}</span></li>`;
   for (const it of plan.timed) {
-    if (!nowShown && it.time > nowMin) {
+    if (!nowShown && date === store.today() && it.time > nowMin) {
       parts.push(nowLine);
       nowShown = true;
     }
@@ -188,7 +194,7 @@ function yourDay(state, date) {
     }
     parts.push(itemHtml(it));
   }
-  if (!nowShown) parts.push(nowLine);
+  if (!nowShown && date === store.today()) parts.push(nowLine);
   const extras = state.extras[date] || [];
   const extraRows = extras.map((x, i) => `<li class="k-extra is-done"><div class="lrow"><span class="slot-ico">${icon('plus')}</span><div class="body"><div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`).join('');
   const any = [moveRows(state, date), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
@@ -259,14 +265,24 @@ function banners(state, date) {
 }
 
 export default {
-  render(state) {
-    const date = store.today();
-    return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${greeting()}</h1></div></header>
-      ${banners(state, date)}
+  render(state, params = []) {
+    // Today, or a day up to a week back to fill in what you forgot (#/today/2026-11-24).
+    setViewDate(params[0]);
+    const date = logDate();
+    const today = store.today();
+    const past = date !== today;
+    const canBack = date > addDays(today, -MAX_BACK);
+    const dayNav = `<nav class="day-nav" aria-label="Choose a day">
+        <a class="icon-btn" ${canBack ? `href="#/today/${addDays(date, -1)}"` : 'aria-disabled="true"'} aria-label="Previous day">${icon('chevron')}</a>
+        <span class="day-nav-label">${past ? esc(dayLabel(date, today)) : 'Today'}</span>
+        <a class="icon-btn" ${past ? `href="${addDays(date, 1) === today ? '#/today' : `#/today/${addDays(date, 1)}`}"` : 'aria-disabled="true"'} aria-label="Next day">${icon('chevron')}</a>
+      </nav>`;
+    return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${past ? 'Fill in the gaps' : greeting()}</h1></div>${dayNav}</header>
+      ${past ? `<div class="notice info past-day" style="align-items:center">${icon('calendar')}<div class="grow"><strong>${esc(dayLabel(date, today))}</strong> — anything you tick here is saved to that day.</div><a class="btn small" href="#/today">Back to today</a></div>` : banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${welcomeBack(state, date)}${wrapReadyCard(state, date)}${hero(state, date)}${nextUp(state, date)}${quickLog(state)}</div>
+        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : nextUp(state, date)}${quickLog(state)}</div>
         <div class="tg-day">${yourDay(state, date)}</div>
-        <div class="tg-rest">${bodyRingsCard(state, date)}${journeyCard(state, date)}${firstWeek(state, date)}</div>
+        <div class="tg-rest">${past ? '' : bodyRingsCard(state, date) + journeyCard(state, date) + firstWeek(state, date)}</div>
       </div>`;
   },
   actions: {
@@ -274,7 +290,7 @@ export default {
       toggleHabit(ctx, el.dataset.id);
     },
     rmExtra(el, ev, ctx) {
-      const date = store.today();
+      const date = logDate();
       ctx.undoable('Removed', (st) => {
         st.extras[date] = (st.extras[date] || []).filter((_, i) => i !== Number(el.dataset.i));
         st.intake[date] = computeIntake(st, date);
@@ -285,7 +301,7 @@ export default {
       logPlannedActivity(ctx, el.dataset.id);
     },
     cardioDone(el, ev, ctx) {
-      const date = store.today();
+      const date = logDate();
       ctx.undoable('Nice work — logged', (st) => {
         st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'cardio', mode: el.dataset.mode, minutes: Number(el.dataset.min) }];
         return st;
