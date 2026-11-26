@@ -38,7 +38,7 @@ export default {
         <div class="w-kicker">${esc(fmtDate(today, { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
         <h1 class="wk-hello">${greeting()}</h1>
         <p class="wk-msg">${esc(message)}</p>
-        <button class="wk-heart ${fav ? 'on' : ''}" data-action="wakeFav" aria-pressed="${fav}">${fav ? '♥ Saved — you’ll see it more often' : '♡ This one helped'}</button>
+        <button class="wk-heart ${fav ? 'on' : ''}" data-action="wakeFav" aria-pressed="${fav}">${fav ? '♥ Saved — you’ll see it more often' : '♡ This one boosted me'}</button>
         <div class="wk-reflect">
           <div class="w-kicker">Today I’m doing this for…</div>
           ${values.length
