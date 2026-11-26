@@ -20,6 +20,18 @@ export function floatXp(amount, { lucky = false, label = '' } = {}) {
   setTimeout(() => el.remove(), reducedMotion() ? 1200 : 1300);
 }
 
+/** "Eat ring closed!" pill that drops in at the top; separate from the toast so Undo stays visible. */
+export function ringBanner(text, color = 'var(--accent)') {
+  document.querySelector('.ring-banner')?.remove();
+  const el = document.createElement('div');
+  el.className = 'ring-banner';
+  el.setAttribute('role', 'status');
+  el.style.setProperty('--rc', color);
+  el.innerHTML = `<span class="rb-dot"></span>${esc(text)}`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
 /** Confetti burst from the tap point (or top centre). */
 export function confetti(power = 1) {
   if (reducedMotion()) return;

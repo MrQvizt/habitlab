@@ -137,6 +137,9 @@ const isoOr = (v, dflt) => (typeof v === 'string' && ISO.test(v) ? v : dflt);
 const dateMap = (obj, fn) => Object.fromEntries(Object.entries(obj && typeof obj === 'object' ? obj : {}).filter(([k]) => ISO.test(k)).map(([k, v]) => [k, fn(v)]).filter(([, v]) => v != null));
 
 export function sanitize(s) {
+  // Containers the rest of sanitise writes into must be objects, whatever a corrupt file holds.
+  const base = emptyState();
+  for (const k of ['habits', 'workouts', 'prefs', 'reminders']) if (!s[k] || typeof s[k] !== 'object' || Array.isArray(s[k])) s[k] = structuredClone(base[k]);
   const p = s.profile;
   if (p && typeof p === 'object') {
     s.profile = {

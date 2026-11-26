@@ -37,11 +37,49 @@ const shots = process.argv[3] || null;
     const active = await page.evaluate(() => document.querySelector('.bottomnav a.active')?.getAttribute('href'));
     if (active !== '#/' + tab) errors.push(`${route}: expected ${tab} tab active, got ${active}`);
   }
-  // Today: daily actions come before reflection cards
+  // Today: rings hero, then one "Your day" timeline (meals, habits, movement together), then reflection cards
   await page.goto(base + '#/today');
-  await page.waitForSelector('.tg-rest');
-  const order = await page.evaluate(() => [...document.querySelectorAll('.tg-rest .section-head h2')].map((h) => h.textContent));
-  if (order.indexOf('Habits') > order.indexOf('Your body this week')) errors.push('Today: habits should come before the body rings — ' + order.join(' > '));
+  await page.waitForSelector('.tg-day');
+  const order = await page.evaluate(() => [...document.querySelectorAll('main .section-head h2')].map((h) => h.textContent));
+  if (order.indexOf('Your day') < 0 || order.indexOf('Your day') > order.indexOf('Your body this week')) errors.push('Today: Your day should come before the body rings — ' + order.join(' > '));
+  if (order.includes('Food') || order.includes('Habits')) errors.push('Today still has separate Food/Habits sections: ' + order.join(' > '));
+  if ((await page.locator('.rings-hero .day-rings-svg .rf').count()) !== 3) errors.push('Today: three day rings expected');
+  if ((await page.locator('.tl-now').count()) !== 1) errors.push('Today: exactly one Now line expected');
+  // Habits sit next to the meal their cue names ("After I finish lunch" right after lunch)
+  const seq = await page.$$eval('.timeline-list > li', (els) => els.map((e) => e.className.includes('k-meal') ? 'meal:' + e.querySelector('.over').textContent : e.className.includes('k-habit') ? 'habit:' + e.querySelector('.title').textContent : e.className));
+  const lunch = seq.findIndex((x) => /LUNCH|Lunch/.test(x));
+  const walk = seq.findIndex((x) => /10-minute walk after a meal/.test(x));
+  if (walk >= 0 && lunch >= 0 && walk < lunch) errors.push('after-lunch habit placed before lunch: ' + seq.join(' | '));
+  // Ticking every meal closes the Eat ring and celebrates
+  const eatBefore = await page.textContent('.ring-leg:nth-child(1)');
+  for (let i = 0; i < 8; i++) {
+    const open = page.locator('.tg-day button[data-action=mealCheck]:not(.on)');
+    if (!(await open.count())) break;
+    await open.first().click();
+    await page.waitForTimeout(120);
+    if (await page.locator('.sheet').count()) await page.keyboard.press('Escape');
+    await page.waitForTimeout(250);
+  }
+  const eatAfter = await page.textContent('.ring-leg:nth-child(1)');
+  if (!/✓/.test(eatAfter)) errors.push(`Eat ring did not close: ${eatBefore} → ${eatAfter}`);
+  if (!/ring closed/.test((await page.locator('.ring-banner').textContent().catch(() => '')) || '')) errors.push('no "ring closed" celebration');
+  // Quick log row: food, weight, steps, workout
+  if ((await page.locator('.quick-log .ql-btn').count()) < 3) errors.push('quick log missing');
+  // Lapsed user: nothing logged for 4 days → a kind welcome-back card, dismissible for today
+  await page.evaluate(() => {
+    const st = JSON.parse(localStorage.getItem('habitlab.v1'));
+    const cut = new Date(Date.now() - 4 * 864e5).toISOString().slice(0, 10);
+    for (const m of [st.mealLog, st.habits.log, st.workouts.log]) for (const d of Object.keys(m)) if (d > cut) delete m[d];
+    st.weights = st.weights.filter((w) => w.date <= cut);
+    localStorage.setItem('habitlab.v1', JSON.stringify(st));
+  });
+  await page.reload();
+  await page.waitForSelector('.tg-hero');
+  if (!/Welcome back/.test((await page.locator('.welcome-back').textContent().catch(() => '')) || '')) errors.push('no welcome-back card after 4 days away');
+  else {
+    await page.click('[data-action=freshStart]');
+    if (await page.locator('.welcome-back').count()) errors.push('welcome-back card did not dismiss');
+  }
   // One long-term meter per body part: Rewards shows levels (no separate medal counts)
   await page.goto(base + '#/rewards');
   await page.waitForSelector('.medal-wall');

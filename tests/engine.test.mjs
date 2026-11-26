@@ -729,3 +729,31 @@ test('alarm sounds: melody specs are valid, reach the native spec, and survive s
   assert.equal(clean.alarms.bed.sound, undefined);
   assert.equal(clean.alarms.meals.sound, undefined);
 });
+
+// ---------- Your day: habits placed by their cue ----------
+import { cueTime, planDay, partOf } from '../js/engine/dayplan.js';
+test('habit cues map to the right moment of the day', () => {
+  const profile = { schedule: { wake: '06:30', bed: '22:30', firstMeal: '07:00', lastMeal: '19:00' } };
+  const meals = { breakfast: 420, lunch: 750, dinner: 1140 };
+  assert.equal(cueTime('After I finish lunch', profile, meals).time, 780);
+  assert.equal(cueTime('After I finish washing up', profile, meals).label, 'After dinner');
+  assert.equal(cueTime('When I plate up dinner', profile, meals).time, 1139);
+  assert.equal(cueTime('When I check my phone at 6 pm', profile, meals).time, 18 * 60);
+  assert.equal(cueTime('After I use the bathroom in the morning', profile, meals).time, 400);
+  assert.equal(cueTime('After I brush my teeth at night', profile, meals).time, 22 * 60);
+  assert.equal(cueTime('When I feel like a soda or juice', profile, meals), null);
+  assert.equal(cueTime('', profile, meals), null);
+  assert.equal(partOf(400), 'morning');
+  assert.equal(partOf(780), 'afternoon');
+  assert.equal(partOf(1200), 'evening');
+});
+test('planDay orders meals and habits by time; unplaced habits go to any time', () => {
+  const profile = { schedule: { wake: '06:30', bed: '22:30', firstMeal: '07:00', lastMeal: '19:00' } };
+  const p = planDay(profile, {
+    meals: [{ slot: 'breakfast', time: 420 }, { slot: 'lunch', time: 750 }, { slot: 'dinner', time: 1140 }],
+    habits: [{ id: 'kitchen_closed', cue: 'After I finish washing up' }, { id: 'walk_after_meal', cue: 'After I finish lunch' }, { id: 'water_meals', cue: 'When I feel like a soda' }],
+    weigh: true,
+  });
+  assert.deepEqual(p.timed.map((x) => x.slot || x.id || x.kind), ['weigh', 'breakfast', 'lunch', 'walk_after_meal', 'dinner', 'kitchen_closed']);
+  assert.deepEqual(p.anytime.map((x) => x.id), ['water_meals']);
+});

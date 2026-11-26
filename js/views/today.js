@@ -10,7 +10,9 @@ import { CARDIO } from '../data/exercises.js';
 import { daysBetween } from '../engine/util.js';
 import { toHHMM } from '../engine/schedule.js';
 import { itemDone, logPlannedActivity } from './move.js';
-import { toggleHabit, mealRows } from './sheets.js';
+import { toggleHabit, mealRowList } from './sheets.js';
+import { planDay, partOf, PARTS } from '../engine/dayplan.js';
+import { dayRings, ringsSvg, RING_META } from './dayrings.js';
 import { journey, nextStops, recentTimeStop } from '../engine/journey.js';
 import { whenLabel } from './journey.js';
 import { wrapReadyCard, bodyRingsCard } from './wrap.js';
@@ -39,28 +41,37 @@ function greeting() {
   return h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 }
 
-// ---------- Hero: quests ring + XP + streak ----------
-function hero(state) {
+// ---------- Hero: today's three rings + XP + streak ----------
+function hero(state, date) {
   const g = store.game(state);
-  const done = g.quests.filter((q) => q.done).length;
-  const total = g.quests.length;
-  const r = 40;
-  const c = 2 * Math.PI * r;
-  const off = c * (1 - done / Math.max(1, total));
-  const title = done === total ? 'Perfect day!' : done === 0 ? 'Let’s get going' : `${total - done} quest${total - done > 1 ? 's' : ''} to a perfect day`;
-  return `<section class="hero-today" aria-label="Today's progress">
+  const r = dayRings(state, date);
+  const closed = Object.values(r).filter((x) => x.closed).length;
+  const title = closed === 3 ? 'All rings closed!' : closed === 0 ? 'Close your three rings' : `${3 - closed} ring${3 - closed > 1 ? 's' : ''} to go`;
+  const sub = closed === 3 ? 'A perfect day. This is what consistency looks like.' : 'Tick things off as your day happens.';
+  const leg = Object.entries(r).map(([k, x]) => `<li class="ring-leg ${x.closed ? 'closed' : ''}"><span class="rdot" style="background:${RING_META[k].color}"></span><span class="rl">${RING_META[k].label}</span><span class="rv">${x.closed ? '✓ ' : ''}${esc(x.text)}</span></li>`).join('');
+  return `<section class="hero-today rings-hero ${closed === 3 ? 'perfect' : ''}" aria-label="Today's rings: ${Object.entries(r).map(([k, x]) => `${RING_META[k].label} ${Math.round(x.pct * 100)}%`).join(', ')}">
     <div class="hero-top">
-      <div class="hero-ring"><svg viewBox="0 0 92 92" aria-hidden="true"><circle class="bg" cx="46" cy="46" r="${r}"/><circle class="fg" cx="46" cy="46" r="${r}" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg>
-        <div class="center"><div><b>${done}/${total}</b><span>quests</span></div></div></div>
-      <div class="hero-meta"><h2>${title}</h2>
-        <div class="hero-pills">
-          <a class="pill-stat xp" href="#/rewards">${icon('star')}${g.todayXp} XP today</a>
-          <a class="pill-stat streak" href="#/rewards">${icon('flame')}${g.streak}-day streak</a>
-          <a class="pill-stat" href="#/rewards">Level ${g.level}</a>
-        </div></div>
+      <a class="rings-wrap" href="#/rewards" aria-label="Rewards and quests">${ringsSvg(r)}<span class="rings-center">${closed}<small>/3</small></span></a>
+      <div class="hero-meta"><h2>${title}</h2><p class="hero-sub">${sub}</p><ul class="ring-legend">${leg}</ul></div>
     </div>
-    <div class="quest-grid">${g.quests.map((q) => `<a class="qchip ${q.done ? 'done' : ''}" href="${q.href}"><span class="dot">${q.done ? icon('check') : ''}</span>${esc(q.label)}${q.total > 1 && !q.done ? ` <span class="num">${q.progress}/${q.total}</span>` : ''}</a>`).join('')}</div>
+    <div class="hero-pills">
+      <a class="pill-stat streak" href="#/rewards">${icon('flame')}${g.streak}-day streak</a>
+      <a class="pill-stat xp" href="#/rewards">${icon('star')}${g.todayXp} XP today</a>
+      <a class="pill-stat" href="#/rewards">Level ${g.level}</a>
+    </div>
   </section>`;
+}
+
+// ---------- Quick log: the four things people log most, one tap away ----------
+function quickLog(state) {
+  const hide = store.habitsOnly(state);
+  const b = (action, ic, label, extra = '') => `<button class="ql-btn" data-action="${action}" ${extra}><span class="ql-ico">${icon(ic)}</span>${label}</button>`;
+  return `<div class="quick-log" role="group" aria-label="Quick log">
+    ${b('openExtra', 'plus', 'Food')}
+    ${hide ? '' : b('openWeigh', 'scale', 'Weight')}
+    ${b('openSteps', 'progress', 'Steps')}
+    <a class="ql-btn" href="#/move"><span class="ql-ico">${icon('move')}</span>Workout</a>
+  </div>`;
 }
 
 // ---------- Next up: the single most useful thing to do now ----------
@@ -91,30 +102,9 @@ function nextUp(state, date) {
   return card('All done', 'Everything’s ticked off for today', 'Rest up — see you tomorrow.', '', true);
 }
 
-// ---------- Food ----------
-function food(state, date) {
-  const t = store.targets(state, date);
-  const meals = mealsFor(state, date);
-  const log = state.mealLog[date] || {};
-  const show = !store.habitsOnly(state);
-  const eaten = eatenSoFar(state, date);
-  const p = proteinEaten(state, date);
-  const extras = state.extras[date] || [];
-  const rows = mealRows(state, date);
-  const extraRows = extras.map((x, i) => `<li><div class="lrow"><span class="slot-ico">${icon('plus')}</span><div class="body"><div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`).join('');
-  const summary = show
-    ? `<div class="kcal-sum"><div class="row between nowrap"><div><span class="big">${fmtNum(eaten)}</span> <span class="of">/ ${fmtNum(t.kcal)} kcal</span></div><span class="of">${Math.max(0, t.kcal - eaten).toLocaleString()} left</span></div>
-        <div class="meter" role="progressbar" aria-label="Calories eaten" aria-valuenow="${eaten}" aria-valuemax="${t.kcal}"><span style="width:${Math.min(100, (eaten / t.kcal) * 100).toFixed(1)}%"></span></div>
-        <div class="meter-legend"><span>Protein ${Math.round(p)} / ${t.proteinG} g</span><span>${dayComplete(state, date) ? '✓ Whole day logged' : 'Tick meals as you go'}</span></div></div>`
-    : '';
-  return `<div class="section-head"><h2>Food</h2><a href="#/meals">Week plan</a></div>
-    <div class="card tight">${summary}<ul class="rows">${rows}${extraRows}
-      <li><button class="lrow" data-action="openExtra" style="min-height:54px"><span class="slot-ico" style="background:var(--accent-tint);color:var(--accent)">${icon('plus')}</span><span class="body"><span class="title" style="color:var(--accent)">Add something else you ate</span></span></button></li></ul></div>`;
-}
-
 // ---------- Habits ----------
 /** Habit row: check = full habit (or upgrade a small win); "Small win" logs a smaller level. */
-export function habitRow(state, a, date, checkAction, openAction) {
+export function habitRow(state, a, date, checkAction, openAction, over = '') {
   const h = habitById(a.id);
   const val = state.habits.log[date]?.[a.id];
   const levels = habitLevels(a.id);
@@ -123,44 +113,96 @@ export function habitRow(state, a, date, checkAction, openAction) {
   const partial = idx >= 0 && !full;
   const st = streak(state.habits.log, a.id, date);
   const sub = partial ? `<span style="color:var(--accent);font-weight:650">Small win · ${esc(levels[idx].label)}</span>` : esc(a.cue);
-  return `<li><div class="lrow ${full ? 'done' : ''}">
+  return `<li class="k-habit ${full ? 'is-done' : ''}"><div class="lrow ${full ? 'done' : ''}">
       <button class="check ${full ? 'on' : partial ? 'partial' : ''}" data-action="${checkAction}" data-id="${a.id}" aria-pressed="${full}" aria-label="${partial ? 'Upgrade to full: ' : ''}${esc(h.title)}">${icon('check')}</button>
-      <button class="body row-btn" data-action="${openAction}" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${sub}</div></button>
+      <button class="body row-btn" data-action="${openAction}" data-id="${a.id}">${over ? `<div class="over">${esc(over)} · Habit</div>` : ''}<div class="title"><span>${esc(h.title)}</span></div><div class="sub">${sub}</div></button>
       <span class="trail" style="flex-direction:column;align-items:flex-end;gap:4px">${!full && levels.length > 1 ? `<button class="win-chip" data-action="openSmallWin" data-id="${a.id}">${partial ? 'Change' : 'Small win'}</button>` : ''}${st ? `<span class="tag warm">${icon('flame', 'tiny')}${st}</span>` : ''}</span></div></li>`;
 }
 
-function habits(state, date) {
-  const active = store.visibleHabits(state);
-  if (!active.length) return `<div class="section-head"><h2>Habits</h2><a href="#/habits">Choose one</a></div><div class="card empty-state">${icon('habits')}<strong>No habit yet</strong>Pick one small habit to start with.</div>`;
-  const log = state.habits.log[date] || {};
-  return `<div class="section-head"><h2>Habits</h2><a href="#/habits">Manage</a></div><div class="card tight"><ul class="rows">${active.map((a) => {
-    return habitRow(state, a, date, 'habitCheck', 'openHabit');
-  }).join('')}</ul></div>`;
+// ---------- Your day: one timeline, in the order the day happens ----------
+function kcalSummary(state, date) {
+  if (store.habitsOnly(state)) return '';
+  const t = store.targets(state, date);
+  const eaten = eatenSoFar(state, date);
+  const p = proteinEaten(state, date);
+  return `<div class="kcal-sum"><div class="row between nowrap"><div><span class="big">${fmtNum(eaten)}</span> <span class="of">/ ${fmtNum(t.kcal)} kcal</span></div><span class="of">${Math.max(0, t.kcal - eaten).toLocaleString()} left</span></div>
+      <div class="meter" role="progressbar" aria-label="Calories eaten" aria-valuenow="${eaten}" aria-valuemax="${t.kcal}"><span style="width:${Math.min(100, (eaten / t.kcal) * 100).toFixed(1)}%"></span></div>
+      <div class="meter-legend"><span>Protein ${Math.round(p)} / ${t.proteinG} g</span><span>${dayComplete(state, date) ? '✓ Whole day logged' : 'Tick meals as you go'}</span></div></div>`;
 }
 
-// ---------- Movement + weigh-in ----------
-function movement(state, date) {
-  const { schedule } = store.schedule(state, date);
-  const items = schedule[(new Date().getDay() + 6) % 7].items;
-  const logged = state.workouts.log[date] || [];
-  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
-  const steps = state.steps[date] || 0;
-  const hide = store.habitsOnly(state);
+function weighRow(state, date) {
   const todays = state.weights.find((w) => w.date === date);
   const u = state.profile.units === 'imperial' ? 'imperial' : 'metric';
   const trend = store.trendWeight(state);
-  const rows = items.map((it) => {
+  return `<li class="k-weigh ${todays ? 'is-done' : ''}"><div class="lrow ${todays ? 'done' : ''}"><button class="check ${todays ? 'on' : ''}" data-action="openWeigh" aria-label="${todays ? 'Weighed in' : 'Weigh in'}">${icon(todays ? 'check' : 'scale')}</button><button class="body row-btn" data-action="openWeigh"><div class="over">Morning · after the bathroom</div><div class="title">${todays ? `Weighed in · ${fmtWeight(todays.kg, u)}` : 'Weigh in'}</div><div class="sub">Trend ${fmtWeight(trend, u)}${Math.abs(state.profile.startWeightKg - trend) >= 0.1 ? ` · ${fmtDelta(trend - state.profile.startWeightKg, u)} since start` : ''}</div></button><span class="trail" aria-hidden="true">${icon('chevron')}</span></div></li>`;
+}
+
+function moveRows(state, date) {
+  const { schedule } = store.schedule(state, date);
+  const items = schedule[(new Date().getDay() + 6) % 7].items;
+  const logged = state.workouts.log[date] || [];
+  const doneTag = `<span class="check on" style="animation:none" aria-label="Done">${icon('check')}</span>`;
+  return items.map((it) => {
     const done = itemDone(logged, it);
-    if (it.kind === 'rest') return `<li><div class="lrow"><span class="slot-ico">${icon('move')}</span><div class="body"><div class="title">Rest day</div><div class="sub">A relaxed walk still counts</div></div></div></li>`;
-    const doneTag = `<span class="check on" style="width:30px;height:30px;animation:none" aria-label="Done">${icon('check')}</span>`;
-    if (it.kind === 'strength') return `<li><a class="lrow" href="#/move/session/${it.variant}" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('move')}</span><div class="body"><div class="title">Strength session ${it.variant}</div><div class="sub">${it.exercises.length} exercises · ~${it.minutes} min</div></div><span class="trail">${done ? doneTag : `<span class="btn small primary">Start</span>`}</span></a></li>`;
-    if (it.kind === 'activity') return `<li><div class="lrow"><span class="slot-ico" style="background:var(--warm-soft);color:color-mix(in srgb,var(--warm) 80%,var(--ink))">${icon('flame')}</span><div class="body"><div class="title">${esc(it.name)}</div><div class="sub">${it.minutes} min · your activity</div></div><span class="trail">${done ? doneTag : `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`}</span></div></li>`;
-    return `<li><div class="lrow"><span class="slot-ico" style="background:var(--info-soft);color:var(--info)">${icon('move')}</span><div class="body"><div class="title">${esc(CARDIO[it.mode].label)}</div><div class="sub">${it.minutes} min · chatty pace</div></div><span class="trail">${done ? doneTag : `<button class="btn small primary" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}">Done</button>`}</span></div></li>`;
+    const cls = `k-move ${done ? 'is-done' : ''}`;
+    if (it.kind === 'rest') return `<li class="k-move"><div class="lrow"><span class="slot-ico">${icon('move')}</span><div class="body"><div class="title">Rest day</div><div class="sub">A relaxed walk still counts</div></div></div></li>`;
+    if (it.kind === 'strength') return `<li class="${cls}"><a class="lrow ${done ? 'done' : ''}" href="#/move/session/${it.variant}" style="text-decoration:none">${done ? doneTag : `<span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('move')}</span>`}<div class="body"><div class="over">Movement · +40 XP</div><div class="title">Strength session ${it.variant}</div><div class="sub">${it.exercises.length} exercises · ~${it.minutes} min</div></div><span class="trail">${done ? '' : `<span class="btn small primary">Start</span>`}</span></a></li>`;
+    if (it.kind === 'activity') return `<li class="${cls}"><div class="lrow ${done ? 'done' : ''}">${done ? doneTag : `<button class="check" data-action="activityDone" data-id="${esc(it.id)}" aria-label="Done: ${esc(it.name)}">${icon('check')}</button>`}<div class="body"><div class="over">Movement · your activity</div><div class="title">${esc(it.name)}</div><div class="sub">${it.minutes} min</div></div></div></li>`;
+    return `<li class="${cls}"><div class="lrow ${done ? 'done' : ''}">${done ? doneTag : `<button class="check" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}" aria-label="Done: ${esc(CARDIO[it.mode].label)}">${icon('check')}</button>`}<div class="body"><div class="over">Movement</div><div class="title">${esc(CARDIO[it.mode].label)}</div><div class="sub">${it.minutes} min · chatty pace</div></div></div></li>`;
   }).join('');
+}
+
+function stepsRow(state, date) {
+  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
+  const steps = state.steps[date] || 0;
   const pct = Math.min(100, (steps / goal) * 100);
-  const stepsRow = `<li><button class="lrow" data-action="openSteps"><span class="slot-ico">${icon('progress')}</span><span class="body"><span class="title">${steps ? `${fmtNum(steps)} steps` : 'Add today’s steps'}</span><span class="meter" style="display:block;height:6px;margin:6px 0 0"><span style="width:${pct.toFixed(1)}%"></span></span><span class="sub" style="display:block">Goal ${fmtNum(goal)}</span></span><span class="trail">${icon('chevron')}</span></button></li>`;
-  const weighRow = hide ? '' : `<li><button class="lrow" data-action="openWeigh"><span class="slot-ico">${icon('scale')}</span><span class="body"><span class="title">${todays ? `Weighed in · ${fmtWeight(todays.kg, u)}` : 'Weigh in'}</span><span class="sub" style="display:block">Trend ${fmtWeight(trend, u)}${Math.abs(state.profile.startWeightKg - trend) >= 0.1 ? ` · ${fmtDelta(trend - state.profile.startWeightKg, u)} since start` : ''}</span></span><span class="trail">${todays ? `<span class="check on" style="width:30px;height:30px;animation:none" aria-label="Done">${icon('check')}</span>` : icon('chevron')}</span></button></li>`;
-  return `<div class="section-head"><h2>Movement & body</h2><a href="#/move">This week</a></div><div class="card tight"><ul class="rows">${rows}${stepsRow}${weighRow}</ul></div>`;
+  return `<li class="k-steps ${steps >= goal ? 'is-done' : ''}"><button class="lrow" data-action="openSteps"><span class="slot-ico">${icon('progress')}</span><span class="body"><span class="title">${steps ? `${fmtNum(steps)} steps` : 'Add today’s steps'}</span><span class="meter" style="display:block;height:6px;margin:6px 0 0"><span style="width:${pct.toFixed(1)}%"></span></span><span class="sub" style="display:block">Goal ${fmtNum(goal)}</span></span><span class="trail">${icon('chevron')}</span></button></li>`;
+}
+
+function yourDay(state, date) {
+  const hide = store.habitsOnly(state);
+  const show = !hide;
+  const meals = mealRowList(state, date);
+  const active = store.visibleHabits(state);
+  // The weigh-daily habit already sits in the morning; don't show the weigh-in twice.
+  const plan = planDay(state.profile, { meals, habits: active, weigh: !hide && !active.some((a) => a.id === 'weigh_daily') });
+  const byId = Object.fromEntries(active.map((a) => [a.id, a]));
+  const mealHtml = Object.fromEntries(meals.map((m) => [m.slot, m.html]));
+  const habitHtml = (id, label) => habitRow(state, byId[id], date, 'habitCheck', 'openHabit', label);
+  const itemHtml = (it) => (it.kind === 'meal' ? mealHtml[it.slot] : it.kind === 'habit' ? habitHtml(it.id, it.label) : weighRow(state, date));
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const parts = [];
+  let part = null;
+  let nowShown = false;
+  const nowLine = `<li class="tl-now" aria-label="Now"><span>Now · ${toHHMM(nowMin)}</span></li>`;
+  for (const it of plan.timed) {
+    if (!nowShown && it.time > nowMin) {
+      parts.push(nowLine);
+      nowShown = true;
+    }
+    const p = partOf(it.time);
+    if (p !== part) {
+      part = p;
+      parts.push(`<li class="tl-part" aria-hidden="true">${PARTS.find((x) => x.id === p).label}</li>`);
+    }
+    parts.push(itemHtml(it));
+  }
+  if (!nowShown) parts.push(nowLine);
+  const extras = state.extras[date] || [];
+  const extraRows = extras.map((x, i) => `<li class="k-extra is-done"><div class="lrow"><span class="slot-ico">${icon('plus')}</span><div class="body"><div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`).join('');
+  const any = [moveRows(state, date), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
+  const total = plan.timed.length + plan.anytime.length;
+  const doneCount = meals.filter((m) => m.done).length + active.filter((a) => state.habits.log[date]?.[a.id]).length + (!hide && state.weights.some((w) => w.date === date) ? 1 : 0);
+  const noHabit = active.length ? '' : `<li class="tl-empty"><a class="lrow" href="#/habits" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('habits')}</span><span class="body"><span class="title">Pick one small habit</span><span class="sub">It slots into your day at the moment you choose</span></span><span class="trail">${icon('chevron')}</span></a></li>`;
+  return `<div class="section-head"><h2>Your day</h2><span class="day-count">${doneCount} of ${total} done</span></div>
+    <div class="card tight day-card">${kcalSummary(state, date)}
+      <ul class="rows timeline-list">${parts.join('')}${noHabit}
+        <li class="tl-part" aria-hidden="true">Any time today</li>${any}
+        <li><button class="lrow" data-action="openExtra" style="min-height:54px"><span class="slot-ico" style="background:var(--accent-tint);color:var(--accent)">${icon('plus')}</span><span class="body"><span class="title" style="color:var(--accent)">Add something else you ate</span></span></button></li>
+      </ul>
+      <div class="day-links"><a href="#/meals">Week meal plan</a><a href="#/habits">Manage habits</a><a href="#/move">This week’s movement</a></div>
+    </div>`;
 }
 
 function firstWeek(state, date) {
@@ -177,6 +219,27 @@ function firstWeek(state, date) {
   return `<details class="card" style="padding:14px 16px"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('star')}</span><span class="grow"><strong>Your first week</strong><span class="sub" style="display:block;font-size:var(--text-sm);color:var(--ink-3)">${done} of ${steps.length} done · small and consistent beats perfect</span></span>${icon('chevron')}</summary>
     <ul class="rows" style="margin-top:8px">${steps.map(([t, ok]) => `<li class="row nowrap" style="padding:8px 0;gap:10px"><span class="check ${ok ? 'on' : ''}" style="width:26px;height:26px" aria-hidden="true">${icon('check')}</span><span>${t}</span></li>`).join('')}</ul>
     <button class="btn small ghost" data-action="dismissFirstWeek" style="margin-top:6px">Hide this</button></details>`;
+}
+
+// ---------- Welcome back: the moment people usually quit, met with kindness ----------
+export function lastActive(state) {
+  let last = '';
+  const keys = (o) => Object.keys(o || {}).filter((d) => Object.keys(o[d] || {}).length || (Array.isArray(o[d]) && o[d].length));
+  for (const d of [...keys(state.mealLog), ...keys(state.habits?.log), ...keys(state.workouts?.log), ...(state.weights || []).map((w) => w.date)]) if (d > last) last = d;
+  return last || null;
+}
+
+function welcomeBack(state, date) {
+  const last = lastActive(state);
+  if (!last || last >= date || state.flags?.welcomeBack === date) return '';
+  const gap = daysBetween(last, date);
+  if (gap < 3) return '';
+  return `<section class="welcome-back" aria-label="Welcome back">
+    <div class="wb-emoji" aria-hidden="true">🌱</div>
+    <h2>Welcome back</h2>
+    <p>${gap} days away doesn’t undo anything. In habit research, missing the odd day didn’t stop habits forming — what matters is picking it up again. Today is a fresh start.</p>
+    <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn primary" data-action="freshStart">Start fresh today</button><a class="btn ghost" href="#/learn/self_compassion">Why slips don’t count</a></div>
+  </section>`;
 }
 
 function banners(state, date) {
@@ -201,9 +264,9 @@ export default {
     return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${greeting()}</h1></div></header>
       ${banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${wrapReadyCard(state, date)}${nextUp(state, date)}${hero(state)}</div>
-        <div class="tg-food">${food(state, date)}</div>
-        <div class="tg-rest">${habits(state, date)}${movement(state, date)}${bodyRingsCard(state, date)}${journeyCard(state, date)}${firstWeek(state, date)}</div>
+        <div class="tg-hero">${welcomeBack(state, date)}${wrapReadyCard(state, date)}${hero(state, date)}${nextUp(state, date)}${quickLog(state)}</div>
+        <div class="tg-day">${yourDay(state, date)}</div>
+        <div class="tg-rest">${bodyRingsCard(state, date)}${journeyCard(state, date)}${firstWeek(state, date)}</div>
       </div>`;
   },
   actions: {
@@ -233,6 +296,13 @@ export default {
         st.flags = { ...(st.flags || {}), alarmTip: true };
         return st;
       }, { quiet: true });
+    },
+    freshStart(el, ev, ctx) {
+      ctx.update((st) => {
+        st.flags = { ...(st.flags || {}), welcomeBack: store.today() };
+        return st;
+      }, { quiet: true });
+      ctx.toast('Fresh start. One small thing today is enough 🌱');
     },
     dismissFirstWeek(el, ev, ctx) {
       ctx.undoable('Hidden', (st) => {

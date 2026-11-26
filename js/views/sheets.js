@@ -67,6 +67,11 @@ function mealSheetHtml(state, date, slot, mode = '') {
 
 /** Meal rows (shared by Today and Meals). Ticking is possible for today and past days. */
 export function mealRows(state, date) {
+  return mealRowList(state, date).map((x) => x.html).join('');
+}
+
+/** One `<li>` per planned meal, with its slot and time (Today interleaves them with habits). */
+export function mealRowList(state, date) {
   const meals = mealsFor(state, date);
   const log = state.mealLog[date] || {};
   const show = !store.habitsOnly(state);
@@ -80,10 +85,10 @@ export function mealRows(state, date) {
     const lead = canLog
       ? `<button class="check ${st === 'ate' || st === 'other' ? 'on' : st === 'skip' ? 'skip' : ''}" data-action="mealCheck" data-date="${date}" data-slot="${m.slot}" aria-pressed="${!!st}" aria-label="${st ? 'Clear log for' : 'Mark eaten:'} ${esc(r.name)}">${st === 'skip' ? icon('x') : icon('check')}</button>`
       : `<span class="slot-ico">${icon(slotIcon(m.slot))}</span>`;
-    return `<li><div class="lrow ${st ? 'done' : ''}">${lead}
+    return `<li class="k-meal ${st ? 'is-done' : ''}"><div class="lrow ${st ? 'done' : ''}">${lead}
       <button class="body row-btn" data-action="openMeal" data-slot="${m.slot}" data-date="${date}"><div class="over"><span class="meal-time">${toHHMM(m.time)}</span> ${esc(SLOT_LABEL[m.slot] || m.slot)}${show ? ` · ${fmtNum(n.kcal, 10)} kcal` : ''}${favs.has(r.id) ? ' · ★' : ''}</div><div class="title"><span>${esc(r.name)}</span></div><div class="sub">${sub}</div></button>
       <span class="trail" aria-hidden="true">${icon('chevron')}</span></div></li>`;
-  }).join('');
+  }).map((html, i) => ({ slot: meals[i].slot, time: meals[i].time, done: !!log[meals[i].slot], html }));
 }
 
 export function openMeal(ctx, date, slot) {

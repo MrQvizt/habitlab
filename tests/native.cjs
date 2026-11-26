@@ -56,7 +56,7 @@ const url = process.argv[2] || 'file://' + path.join(__dirname, '..', 'www', 'in
   // Logging a meal reschedules (debounced) and drops that meal's reminder for today.
   const before = ln.schedule.length;
   await page.goto(url + '#/today');
-  await page.click('.tg-food button[data-action=mealCheck] >> nth=0');
+  await page.click('.tg-day button[data-action=mealCheck] >> nth=0');
   await page.waitForTimeout(1500);
   const after = await page.evaluate(() => window.__ln.schedule.length);
   if (after <= before) errors.push('no reschedule after logging');

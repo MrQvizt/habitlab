@@ -68,13 +68,13 @@ const shots = process.argv[3] || null;
   await page.click('.sheet button:has-text("Save weigh-in")');
   await page.waitForSelector('text=Weigh-in saved');
   // Quick tick + Undo
-  await page.click('.tg-food button[data-action=mealCheck] >> nth=0');
+  await page.click('.tg-day button[data-action=mealCheck] >> nth=0');
   await page.waitForSelector('.toast.show >> text=Meal logged');
   await page.click('.toast button:has-text("Undo")');
-  if (await page.locator('.tg-food button[data-action=mealCheck].on').count()) errors.push('undo did not clear the meal tick');
-  await page.click('.tg-food button[data-action=mealCheck] >> nth=0');
+  if (await page.locator('.tg-day button[data-action=mealCheck].on').count()) errors.push('undo did not clear the meal tick');
+  await page.click('.tg-day button[data-action=mealCheck] >> nth=0');
   // Meal sheet: swap, then "something else" with quick chips
-  await page.click('.tg-food button[data-action=openMeal] >> nth=1');
+  await page.click('.tg-day button[data-action=openMeal] >> nth=1');
   await page.waitForSelector('.sheet.open');
   await page.click('.sheet button:has-text("Swap")');
   await page.waitForSelector('.toast.show >> text=Swapped for');
@@ -83,7 +83,7 @@ const shots = process.argv[3] || null;
   await page.click('.sheet button:has-text("Save")');
   await page.waitForSelector('text=Something else · 700 kcal');
   // Escape closes a sheet
-  await page.click('.tg-food button[data-action=openMeal] >> nth=2');
+  await page.click('.tg-day button[data-action=openMeal] >> nth=2');
   await page.waitForSelector('.sheet.open');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(400);
@@ -92,15 +92,15 @@ const shots = process.argv[3] || null;
   await page.goto(base + '#/habits');
   await page.click('button[aria-label="Add Drink water instead of sugary drinks"]');
   await page.goto(base + '#/today');
-  await page.waitForSelector('.tg-rest button[data-action=openSmallWin]');
-  await page.click('.tg-rest button[data-action=openSmallWin] >> nth=0');
+  await page.waitForSelector('.tg-day button[data-action=openSmallWin]');
+  await page.click('.tg-day button[data-action=openSmallWin] >> nth=0');
   await page.waitForSelector('.sheet.open .level-opt');
   await page.click('.sheet .level-opt >> nth=0');
   await page.waitForSelector('.toast.show >> text=Small win!');
-  await page.waitForSelector('.tg-rest .check.partial');
-  await page.click('.tg-rest .check.partial');
+  await page.waitForSelector('.tg-day .check.partial');
+  await page.click('.tg-day .check.partial');
   await page.waitForTimeout(300);
-  if (await page.locator('.tg-rest .check.partial').count()) errors.push('check did not upgrade small win to full');
+  if (await page.locator('.tg-day .check.partial').count()) errors.push('check did not upgrade small win to full');
   // Habit row + steps sheet
   await page.click('button[data-action=habitCheck] >> nth=0');
   await page.click('button[data-action=openSteps]');
@@ -123,8 +123,8 @@ const shots = process.argv[3] || null;
   await page.click('form[data-form=daySave] button.primary');
   await page.waitForSelector('text=Your day is saved');
   await page.goto(base + '#/today');
-  await page.waitForSelector('.tg-food .meal-time');
-  const times = await page.$$eval('.tg-food .meal-time', (els) => els.map((e) => e.textContent.trim()));
+  await page.waitForSelector('.tg-day .meal-time');
+  const times = await page.$$eval('.tg-day .meal-time', (els) => els.map((e) => e.textContent.trim()));
   if (times.join() !== [...times].sort().join()) errors.push('meals not in time order: ' + times.join(', '));
   if (times[0] !== '06:30' || times[times.length - 1] !== '19:00') errors.push('timeline does not match the eating window: ' + times.join(', '));
 

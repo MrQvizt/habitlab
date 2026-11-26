@@ -13,7 +13,7 @@ There is no server and no database: every user's data lives on their own device.
 
 ```bash
 npm ci
-npm test                                   # 54 unit tests (engines, store, fuzzing, performance budgets, CSP hash)
+npm test                                   # 56 unit tests (engines, store, fuzzing, performance budgets, CSP hash)
 npm install --no-save playwright@1.63.0 axe-core@4.10.2 && npx playwright install chromium
 npm run build && npm run test:browser      # 11 browser suites against the production build and headers
 cd android && ./gradlew testDebugUnitTest  # native alarm scheduling
@@ -73,7 +73,7 @@ widened to that one endpoint.
 
 | Requirement | Evidence | Status |
 | --- | --- | --- |
-| Core functionality works | 11 browser suites cover every screen and journey; 54 unit tests | ✅ |
+| Core functionality works | 11 browser suites cover every screen and journey; 56 unit tests | ✅ |
 | Critical journeys tested | Onboarding, logging, check-in, journey, Body Wrap, alarms, week start | ✅ |
 | No known critical security issues | `xss` suite (16 fields), strict CSP verified in `web`, fuzzed import, private alarm receiver | ✅ |
 | Build succeeds | `npm run build`, `assembleDebug`, CI | ✅ |

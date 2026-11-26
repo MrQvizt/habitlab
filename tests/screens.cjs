@@ -22,7 +22,7 @@ const routes = process.argv.slice(4).length ? process.argv.slice(4) : ['today', 
     if (routes.includes('today')) {
       await page.goto(base + '#/today');
       await page.waitForTimeout(300);
-      await page.click('.tg-food .row-btn >> nth=0');
+      await page.click('.tg-day .k-meal .row-btn >> nth=0');
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/${label}-sheet-meal.png` });
       await page.keyboard.press('Escape');
