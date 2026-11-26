@@ -222,7 +222,7 @@ export function sanitize(s) {
     s.flags = { ...(s.flags && typeof s.flags === 'object' ? s.flags : {}), snooze5: true };
     const f = s.affirm && typeof s.affirm === 'object' ? s.affirm : {};
     const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
-    s.affirm = { values: strs(f.values, 3, 30), own: strs(f.own, 12, 30), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
+    s.affirm = { values: strs(f.values, 60, 40), own: strs(f.own, 200, 40), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
   }
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};

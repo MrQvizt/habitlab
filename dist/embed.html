@@ -941,6 +941,10 @@ body.wrap-open .bottomnav, body.wrap-open .topbar { visibility: hidden; }
 .wk-value.ghost { background: transparent; color: #fff; border: 1px dashed rgba(255,255,255,.7); }
 .wk-why { margin: 10px 0 0; font-weight: 650; }
 .wk-hint { text-transform: none; letter-spacing: 0; font-weight: 600; opacity: .8; margin-left: 4px; }
+.wk-add { display: flex; gap: 8px; margin-top: 10px; }
+.wk-add .wk-other { margin-top: 0; flex: 1; min-width: 0; }
+.wk-add-btn { border: 0; border-radius: 14px; padding: 0 16px; min-height: 46px; font: inherit; font-weight: 750; background: #3a2a5c; color: #fff; cursor: pointer; }
+.wk-note { margin: 6px 0 0; font-size: var(--text-xs); opacity: .85; }
 .wk-other { width: 100%; margin-top: 10px; min-height: 46px; border-radius: 14px; border: 0; padding: 10px 14px; font: inherit; font-weight: 650; background: rgba(255,255,255,.95); color: #3a2a5c; }
 .wk-other::placeholder { color: #7a6a95; }
 .wk-link { display: inline-block; margin-top: 10px; color: #fff; font-weight: 650; }
@@ -1116,6 +1120,13 @@ h2.h3 { font-size: var(--text-lg); }
 .welcome-back .wb-emoji { font-size: 2rem; line-height: 1; }
 .welcome-back h2 { margin: 6px 0 4px; font-size: var(--text-xl); }
 .welcome-back p { margin: 0 0 12px; color: var(--ink-2); font-size: var(--text-sm); line-height: 1.5; }
+
+.reason-lib { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.reason-lib summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; gap: 6px; }
+.reason-search { width: 100%; margin-top: 8px; }
+.reason-grid { display: flex; flex-wrap: wrap; gap: 8px; max-height: 420px; overflow-y: auto; padding: 2px; }
+.reason-btn { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 8px 12px; min-height: 40px; font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer; text-align: left; }
+.reason-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -4773,7 +4784,7 @@ function sanitize(s) {
     s.flags = { ...(s.flags && typeof s.flags === 'object' ? s.flags : {}), snooze5: true };
     const f = s.affirm && typeof s.affirm === 'object' ? s.affirm : {};
     const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
-    s.affirm = { values: strs(f.values, 3, 30), own: strs(f.own, 12, 30), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
+    s.affirm = { values: strs(f.values, 60, 40), own: strs(f.own, 200, 40), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
   }
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
@@ -9320,25 +9331,40 @@ const MESSAGE_SETS = {
   },
 };
 
-const MAX_VALUES = 3;
+// Your reasons: as many as you like (a sane cap keeps the morning screen and storage tidy).
+const MAX_VALUES = 60;
+const MAX_OWN = 200;
+const VALUE_LEN = 40;
+
+// A reason written as an action ("Keep up with my kids") reads as a quote; a one-word value ("Freedom")
+// works inside a sentence ("You care about freedom").
+const REASON_LINES = [
+  'Your reason: {Reason}. Every healthy choice today is a step towards it.',
+  '{Reason} — that’s worth getting up for. Small choices today get you there.',
+  'Think of one moment today that brings you closer to this: {reason}.',
+  'Remember why you started: {reason}. Today counts.',
+];
+// Common words that start a reason or name a value; anything else capitalised alone may be a name ("Emma").
+const COMMON = /^(freedom|confidence|courage|pride|joy|hope|strength|balance|discipline|independence|self-worth|self-respect|peace|love|health|energy|family|friends|faith|nature|work|travel|music|art|sport|sports|me|myself|kids|children|future|happiness|fitness|life|mobility|longevity|beauty|calm|focus|respect|dignity|adventure)$/i;
 
 /**
  * A value is a preset id ("family") or your own words ("My kids", "Painting").
  * Own words are turned round to speak to you: "my kids" → "your kids".
  */
 function valueInfo(v) {
-  if (VALUES[v]) return VALUES[v];
-  const label = String(v || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+  if (VALUES[v]) return { ...VALUES[v], kind: 'value' };
+  const label = String(v || '').trim().replace(/\s+/g, ' ').slice(0, VALUE_LEN);
   if (!label) return null;
   const turned = label
     .replace(/\bmy\b/gi, 'your')
     .replace(/\bmine\b/gi, 'yours')
     .replace(/\bmyself\b/gi, 'yourself')
     .replace(/\b(I|me)\b/g, 'you');
-  // Lower-case the first letter unless it looks like a name or acronym (e.g. "NYC", "Max").
-  const keepCase = /^[A-Z]{2}/.test(turned) || (/^[A-Z][a-z]+$/.test(turned.split(' ')[0]) && !/^(Your|Being|Feeling|Having|Staying|Getting|Playing|Painting|Walking|Running|Reading|Cooking|Travel|Music|Art|Sport|Sports|Faith|Health|Energy|Family|Friends|Nature|Work)$/.test(turned.split(' ')[0]));
+  const words = turned.split(' ');
+  // Keep the capital for acronyms ("NYC"), a name on its own ("Emma") or a name's ("Emma’s wedding").
+  const keepCase = /^[A-Z]{2}/.test(turned) || (words.length === 1 && /^[A-Z][a-z]+$/.test(turned) && !COMMON.test(turned)) || /^[A-Z][a-z]+[’']s$/.test(words[0]);
   const phrase = keepCase ? turned : turned.charAt(0).toLowerCase() + turned.slice(1);
-  return { label: label.charAt(0).toUpperCase() + label.slice(1), phrase, custom: true };
+  return { label: label.charAt(0).toUpperCase() + label.slice(1), phrase, custom: true, kind: words.length > 1 && !/^(your|the|a|an|our|\w+ing)$/i.test(words[0]) ? 'reason' : 'value' };
 }
 
 const DEFAULT_SETS = ['values', 'future', 'compassion', 'worth', 'body', 'compliments'];
@@ -9361,9 +9387,20 @@ function morningMessages(affirm = {}) {
         if (!why) continue;
         lines.push(line.replace('{why}', why.charAt(0).toLowerCase() + why.slice(1)).replace('{Why}', cap(why)));
       } else if (/\{(value|Value|phrase|Phrase)\}/.test(line)) {
+        if (id === 'values' && values.length) continue; // built per reason below
         const v = values.length ? values[i % values.length] : { label: 'What you care about', phrase: 'what matters most to you' };
         lines.push(line.replace('{Value}', v.label).replace('{value}', v.label.toLowerCase()).replace('{Phrase}', cap(v.phrase)).replace('{phrase}', v.phrase));
       } else lines.push(line);
+    }
+    if (id === 'values') {
+      // One message per reason (up to 16), alternating the wordings.
+      values.slice(0, 16).forEach((v, j) => {
+        if (v.kind === 'reason') lines.push(REASON_LINES[j % REASON_LINES.length].replace('{Reason}', cap(v.phrase)).replace('{reason}', v.phrase));
+        else {
+          const t = MESSAGE_SETS.values.lines[j % MESSAGE_SETS.values.lines.length];
+          lines.push(t.replace('{Phrase}', cap(v.phrase)).replace('{phrase}', v.phrase));
+        }
+      });
     }
     return lines;
   }).filter((l) => l.length);
@@ -9386,20 +9423,651 @@ function messageForDay(list, date = new Date()) {
   return list[Math.abs(epochDay) % list.length];
 }
 
-/** "Holding on to A and B today…" for the reasons picked on the morning screen (values, "me", your own words). */
+/** The line under your picks on the morning screen (values, "me", your own words). */
 function reasonLine(picked = [], other = '') {
   const me = picked.includes('me');
   const parts = picked.filter((v) => v !== 'me').map((v) => valueInfo(v)?.phrase).filter(Boolean);
-  const own = String(other || '').trim().replace(/\s+/g, ' ').slice(0, 60);
-  if (own) parts.push(own);
+  const own = String(other || '').trim().replace(/\s+/g, ' ').slice(0, VALUE_LEN);
+  if (own) parts.push(valueInfo(own).phrase);
   const list = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
   if (!parts.length) return me ? 'Good. You are reason enough.' : '';
-  return me ? `For you, and for ${list(parts)}. Every good choice counts.` : `Holding on to ${list(parts)} today. Every good choice counts.`;
+  return `Your reasons today: ${list(me ? ['you', ...parts] : parts)}. Every good choice counts.`;
 }
 
-Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, valueInfo, DEFAULT_SETS, morningMessages, messageForDay, reasonLine });
+/** Add a reason to your list and pick it (a preset's name ticks the preset). Returns the new affirm object. */
+function addReason(affirm = {}, text) {
+  const v = String(text || '').trim().replace(/\s+/g, ' ').slice(0, VALUE_LEN);
+  if (!v) return affirm;
+  const preset = Object.entries(VALUES).find(([, x]) => x.label.toLowerCase() === v.toLowerCase())?.[0];
+  const key = preset || v;
+  const own = [...(affirm.own || [])];
+  if (!preset && !own.some((x) => x.toLowerCase() === v.toLowerCase())) own.push(v);
+  const values = [...(affirm.values || [])];
+  if (!values.some((x) => x.toLowerCase() === key.toLowerCase())) values.push(key);
+  return { ...affirm, own: own.slice(-MAX_OWN), values: values.slice(-MAX_VALUES) };
+}
+
+/** Take a reason off your list. */
+function removeReason(affirm = {}, text) {
+  const k = String(text || '').toLowerCase();
+  return { ...affirm, own: (affirm.own || []).filter((x) => x.toLowerCase() !== k), values: (affirm.values || []).filter((x) => x.toLowerCase() !== k) };
+}
+
+Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, DEFAULT_SETS, morningMessages, messageForDay, reasonLine, addReason, removeReason });
 },
-/* js/alarm-native.js */ 43: function (__m, __req) {
+/* js/data/reasons.js */ 43: function (__m, __req) {
+// Reasons people give for wanting to lose weight, to pick on the morning screen and in Settings.
+// Grouped by the themes found in research: health first, then appearance and mood (O’Brien 2007),
+// function and mobility, stigma (hospital programme, open-ended answers) and family and milestones
+// (HealthTalk interviews). Generated by scratchpad/gen/reasons.py; written in the first person
+// so valueInfo() can turn them round ("my kids" → "your kids").
+const REASON_CATS = {"health": "Health", "moving": "Moving", "family": "Family & friends", "mind": "Mind & mood", "looks": "Look & feel", "everyday": "Everyday life", "goals": "Goals & dreams"};
+const REASONS = [
+  ["health", "Lower my blood pressure"],
+  ["health", "Lower my blood sugar"],
+  ["health", "Lower my cholesterol"],
+  ["health", "Prevent type 2 diabetes"],
+  ["health", "Put my diabetes into remission"],
+  ["health", "Need fewer pills"],
+  ["health", "Come off my blood pressure meds"],
+  ["health", "Protect my heart"],
+  ["health", "Lower my risk of stroke"],
+  ["health", "Lower my risk of cancer"],
+  ["health", "Breathe more easily"],
+  ["health", "Stop snoring"],
+  ["health", "Help my sleep apnoea"],
+  ["health", "Ease my acid reflux"],
+  ["health", "Help my fatty liver"],
+  ["health", "Protect my kidneys"],
+  ["health", "Ease my back pain"],
+  ["health", "Ease my knee pain"],
+  ["health", "Ease my hip pain"],
+  ["health", "Take pressure off my joints"],
+  ["health", "Have fewer headaches"],
+  ["health", "Help my asthma"],
+  ["health", "Fewer aches in the morning"],
+  ["health", "Reduce inflammation"],
+  ["health", "Improve my fertility"],
+  ["health", "A healthier pregnancy"],
+  ["health", "Balance my hormones"],
+  ["health", "Help my PCOS"],
+  ["health", "Ease my gout"],
+  ["health", "Avoid a knee replacement"],
+  ["health", "Be ready for surgery"],
+  ["health", "Recover faster from illness"],
+  ["health", "A stronger immune system"],
+  ["health", "Better blood tests"],
+  ["health", "Make my doctor proud"],
+  ["health", "Pass my health check"],
+  ["health", "Get a lower BMI"],
+  ["health", "A smaller waist for my heart"],
+  ["health", "Less swelling in my legs"],
+  ["health", "Healthier skin"],
+  ["health", "Fewer heartburn nights"],
+  ["health", "Steadier energy all day"],
+  ["health", "Fewer sick days"],
+  ["health", "Protect my brain as I age"],
+  ["health", "Lower my dementia risk"],
+  ["health", "Healthier digestion"],
+  ["health", "Ease my varicose veins"],
+  ["health", "Help my thyroid treatment work"],
+  ["health", "Ease my plantar fasciitis"],
+  ["health", "Less pain in my feet"],
+  ["health", "Avoid what my parents went through"],
+  ["health", "Break the family history"],
+  ["health", "Live longer"],
+  ["health", "Live healthier for longer"],
+  ["health", "Add good years to my life"],
+  ["health", "Age well"],
+  ["health", "Stay independent as I get older"],
+  ["health", "Keep my own teeth and health"],
+  ["health", "Feel well, not just get by"],
+  ["health", "Take my health back"],
+  ["health", "Lower my resting heart rate"],
+  ["health", "Better lung capacity"],
+  ["health", "Less joint stiffness"],
+  ["health", "Fewer cramps"],
+  ["health", "A healthier gut"],
+  ["health", "Better circulation"],
+  ["health", "Stronger bones"],
+  ["health", "Less water retention"],
+  ["health", "Fewer migraines"],
+  ["health", "Avoid medication side effects"],
+  ["health", "Lower my triglycerides"],
+  ["health", "Better insulin sensitivity"],
+  ["health", "Keep my eyesight healthy"],
+  ["health", "Protect my liver"],
+  ["health", "Calm my IBS"],
+  ["health", "Lower my HbA1c"],
+  ["health", "Get off insulin"],
+  ["health", "Avoid weight-loss surgery"],
+  ["health", "Qualify for my operation"],
+  ["health", "Heal faster after surgery"],
+  ["health", "Protect my pancreas"],
+  ["health", "Fewer infections"],
+  ["health", "Less shortness of breath"],
+  ["health", "A healthier heart rhythm"],
+  ["health", "Lower my heart disease risk"],
+  ["health", "Feel better during my period"],
+  ["health", "Ease my arthritis"],
+  ["health", "Fewer hot flushes"],
+  ["health", "Lower my risk of gallstones"],
+  ["health", "Protect my future health"],
+  ["moving", "Tie my shoes without effort"],
+  ["moving", "Climb the stairs without stopping"],
+  ["moving", "Walk without getting breathless"],
+  ["moving", "Get up from the floor easily"],
+  ["moving", "Kneel in the garden"],
+  ["moving", "Sit comfortably in any chair"],
+  ["moving", "Cross my legs"],
+  ["moving", "Bend down to pick things up"],
+  ["moving", "Get out of a car easily"],
+  ["moving", "Fit in a plane seat"],
+  ["moving", "No seatbelt extender"],
+  ["moving", "Fit in a theme park ride"],
+  ["moving", "Run for the bus"],
+  ["moving", "Walk all day on holiday"],
+  ["moving", "Hike a mountain"],
+  ["moving", "Run a 5K"],
+  ["moving", "Run a 10K"],
+  ["moving", "Run a half marathon"],
+  ["moving", "Run a marathon"],
+  ["moving", "Do a full push-up"],
+  ["moving", "Do a pull-up"],
+  ["moving", "Touch my toes"],
+  ["moving", "Do a cartwheel again"],
+  ["moving", "Swim a mile"],
+  ["moving", "Cycle to work"],
+  ["moving", "Climb trees with my kids"],
+  ["moving", "Dance all night"],
+  ["moving", "Move more freely"],
+  ["moving", "Feel light on my feet"],
+  ["moving", "Keep up on group walks"],
+  ["moving", "Do yoga poses I can’t do yet"],
+  ["moving", "Lift heavier weights"],
+  ["moving", "Join a sports team"],
+  ["moving", "Play football again"],
+  ["moving", "Play tennis again"],
+  ["moving", "Play golf all 18 holes"],
+  ["moving", "Ski again"],
+  ["moving", "Go surfing"],
+  ["moving", "Go horse riding"],
+  ["moving", "Try rock climbing"],
+  ["moving", "Go scuba diving"],
+  ["moving", "Go kayaking"],
+  ["moving", "Ride a bike again"],
+  ["moving", "Ride a zipline"],
+  ["moving", "Try skydiving"],
+  ["moving", "Play padel"],
+  ["moving", "Take a dance class"],
+  ["moving", "Do a triathlon"],
+  ["moving", "Walk the Camino"],
+  ["moving", "Climb Kilimanjaro"],
+  ["moving", "Hike the Grand Canyon"],
+  ["moving", "Walk my dog for longer"],
+  ["moving", "Hike with friends"],
+  ["moving", "Take the stairs at work"],
+  ["moving", "Garden without back pain"],
+  ["moving", "Clean the house without stopping"],
+  ["moving", "Carry the shopping in one go"],
+  ["moving", "Move house without help"],
+  ["moving", "Paint a room without aching"],
+  ["moving", "Play on the floor with kids"],
+  ["moving", "Play badminton again"],
+  ["moving", "Play basketball again"],
+  ["moving", "Play volleyball again"],
+  ["moving", "Play hockey again"],
+  ["moving", "Play rugby again"],
+  ["moving", "Play squash again"],
+  ["moving", "Play table tennis again"],
+  ["moving", "Play netball again"],
+  ["moving", "Play handball again"],
+  ["moving", "Play baseball again"],
+  ["moving", "Play softball again"],
+  ["moving", "Play cricket again"],
+  ["moving", "Try boxing"],
+  ["moving", "Play pickleball again"],
+  ["moving", "Try bowling"],
+  ["moving", "Play frisbee again"],
+  ["moving", "Try ice skating"],
+  ["moving", "Try roller skating"],
+  ["moving", "Try skateboarding"],
+  ["moving", "Try snowboarding"],
+  ["moving", "Squat without holding on"],
+  ["moving", "Carry my groceries upstairs"],
+  ["moving", "Play hide and seek"],
+  ["moving", "Jump on a trampoline"],
+  ["moving", "Walk on the beach"],
+  ["moving", "Climb a ladder safely"],
+  ["moving", "Stand for a whole concert"],
+  ["moving", "Stand all day at work"],
+  ["moving", "Do a plank for a minute"],
+  ["moving", "Balance on one leg"],
+  ["moving", "Sprint again"],
+  ["moving", "Swim lengths without stopping"],
+  ["moving", "Walk around the lake"],
+  ["moving", "Hike to a waterfall"],
+  ["moving", "Go cross-country skiing"],
+  ["family", "Be there for my kids"],
+  ["family", "Keep up with my kids"],
+  ["family", "Play with my grandkids"],
+  ["family", "See my kids grow up"],
+  ["family", "Walk my daughter down the aisle"],
+  ["family", "Walk my son down the aisle"],
+  ["family", "Meet my grandchildren"],
+  ["family", "Be a role model for my kids"],
+  ["family", "Teach my kids healthy habits"],
+  ["family", "Run around the park with my kids"],
+  ["family", "Carry my kids on my shoulders"],
+  ["family", "Be an active parent"],
+  ["family", "Be an active grandparent"],
+  ["family", "Grow old with my partner"],
+  ["family", "Feel good next to my partner"],
+  ["family", "Be around for my family"],
+  ["family", "Make my family proud"],
+  ["family", "Not be a worry for my family"],
+  ["family", "Take care of my parents"],
+  ["family", "Be strong for my family"],
+  ["family", "Have a baby"],
+  ["family", "Be fit for pregnancy"],
+  ["family", "Chase my toddler"],
+  ["family", "Go on bike rides as a family"],
+  ["family", "Swim with my kids"],
+  ["family", "Be in family photos"],
+  ["family", "Dance at my child’s wedding"],
+  ["family", "Hug without feeling self-conscious"],
+  ["family", "Be present for my partner"],
+  ["family", "Feel close to my partner again"],
+  ["family", "Travel with my family"],
+  ["family", "Play sports with my kids"],
+  ["family", "Coach my kid’s team"],
+  ["family", "Keep up with my nieces and nephews"],
+  ["family", "Make memories with my family"],
+  ["family", "Show my kids it’s never too late"],
+  ["family", "Break the cycle for my kids"],
+  ["family", "Cook healthy food for my family"],
+  ["family", "Be the fun parent"],
+  ["family", "Be there for my friends"],
+  ["family", "Go out with my friends again"],
+  ["family", "Feel good at reunions"],
+  ["family", "Say yes to invitations"],
+  ["family", "Make new friends"],
+  ["family", "Join friends on adventures"],
+  ["family", "Date again"],
+  ["family", "Feel ready to find love"],
+  ["family", "Feel attractive to my partner"],
+  ["family", "Enjoy intimacy more"],
+  ["family", "Be a good example at work"],
+  ["family", "Make my late mum proud"],
+  ["family", "Make my late dad proud"],
+  ["family", "Keep a promise I made"],
+  ["family", "Do it for my pet"],
+  ["family", "Walk with my best friend"],
+  ["family", "Do it for my wife"],
+  ["family", "Do it for my husband"],
+  ["family", "Do it for my partner"],
+  ["family", "Do it for my children"],
+  ["family", "Do it for my son"],
+  ["family", "Do it for my daughter"],
+  ["family", "Do it for my grandchildren"],
+  ["family", "Do it for my mum"],
+  ["family", "Do it for my dad"],
+  ["family", "Do it for my brother"],
+  ["family", "Do it for my sister"],
+  ["family", "Do it for my friends"],
+  ["family", "Do it for my team"],
+  ["family", "Do it for my students"],
+  ["family", "Do it for my patients"],
+  ["family", "Do it for my future self"],
+  ["family", "Do it for my younger self"],
+  ["family", "Do it for my dog"],
+  ["family", "Push my kids on the swings"],
+  ["family", "Lift my grandchild"],
+  ["family", "Go to the playground with my kids"],
+  ["family", "Run a race with my kids"],
+  ["family", "Kick a ball with my grandkids"],
+  ["family", "Teach my kids to ride a bike"],
+  ["family", "Hold my baby without back pain"],
+  ["family", "Have a family hike"],
+  ["family", "Be the parent at sports day"],
+  ["family", "Win the parents’ race"],
+  ["family", "Be there at every milestone"],
+  ["family", "Grow old with my friends"],
+  ["family", "Keep up with my partner"],
+  ["family", "Train with my partner"],
+  ["family", "Make my partner proud"],
+  ["mind", "Confidence"],
+  ["mind", "Freedom"],
+  ["mind", "Feel confident"],
+  ["mind", "Feel proud of myself"],
+  ["mind", "Like what I see in the mirror"],
+  ["mind", "Feel comfortable in my skin"],
+  ["mind", "Stop hiding"],
+  ["mind", "Stop worrying what people think"],
+  ["mind", "Speak up more"],
+  ["mind", "Feel calmer"],
+  ["mind", "Less anxiety"],
+  ["mind", "Lift my mood"],
+  ["mind", "Feel happier"],
+  ["mind", "Ease my depression"],
+  ["mind", "Sleep better"],
+  ["mind", "Think more clearly"],
+  ["mind", "Less brain fog"],
+  ["mind", "More energy"],
+  ["mind", "Feel in control"],
+  ["mind", "Feel free"],
+  ["mind", "Prove to myself I can"],
+  ["mind", "Keep a promise to myself"],
+  ["mind", "Finish what I start"],
+  ["mind", "Trust myself again"],
+  ["mind", "Feel strong"],
+  ["mind", "Respect my body"],
+  ["mind", "Be kind to myself"],
+  ["mind", "Love my body"],
+  ["mind", "Feel at peace with food"],
+  ["mind", "Stop emotional eating"],
+  ["mind", "Stop the guilt around food"],
+  ["mind", "Feel in charge of cravings"],
+  ["mind", "Less stress"],
+  ["mind", "Feel younger"],
+  ["mind", "Feel like myself again"],
+  ["mind", "Get my spark back"],
+  ["mind", "Feel alive"],
+  ["mind", "Feel lighter in mind and body"],
+  ["mind", "Be the best version of me"],
+  ["mind", "Self-respect"],
+  ["mind", "Discipline"],
+  ["mind", "Courage"],
+  ["mind", "Pride"],
+  ["mind", "Peace of mind"],
+  ["mind", "Joy"],
+  ["mind", "Independence"],
+  ["mind", "Self-worth"],
+  ["mind", "Balance"],
+  ["mind", "Strength"],
+  ["mind", "Hope"],
+  ["mind", "Feel brave"],
+  ["mind", "Feel sexy"],
+  ["mind", "Feel energetic"],
+  ["mind", "Feel motivated"],
+  ["mind", "Feel accomplished"],
+  ["mind", "Stop putting myself last"],
+  ["mind", "Choose myself"],
+  ["mind", "Heal my relationship with food"],
+  ["mind", "Show up for myself"],
+  ["mind", "Do something just for me"],
+  ["mind", "Feel good"],
+  ["mind", "Feel healthy"],
+  ["mind", "Feel worthy"],
+  ["mind", "Feel capable"],
+  ["mind", "Feel free to move"],
+  ["mind", "Feel light"],
+  ["mind", "Feel steady"],
+  ["mind", "Feel grounded"],
+  ["mind", "Feel bold"],
+  ["mind", "Feel beautiful"],
+  ["mind", "Feel handsome"],
+  ["mind", "Feel fit"],
+  ["mind", "Feel fresh"],
+  ["mind", "Feel energised in the morning"],
+  ["mind", "Feel at home in my body"],
+  ["mind", "Stop the self-criticism"],
+  ["mind", "Feel at ease in groups"],
+  ["mind", "Walk into a room with confidence"],
+  ["mind", "Stop avoiding cameras"],
+  ["mind", "Feel good at the gym"],
+  ["mind", "Celebrate small wins"],
+  ["mind", "Feel better than yesterday"],
+  ["mind", "Not let my weight define me"],
+  ["mind", "Feel in control of my life"],
+  ["mind", "Start fresh"],
+  ["mind", "Reset my habits"],
+  ["mind", "Feel proud at the doctor’s"],
+  ["mind", "Have more patience"],
+  ["mind", "Be more present"],
+  ["mind", "Feel like I belong"],
+  ["looks", "Fit into my favourite jeans"],
+  ["looks", "Wear a swimsuit with confidence"],
+  ["looks", "Buy clothes I love"],
+  ["looks", "Shop in any store"],
+  ["looks", "Wear a fitted dress"],
+  ["looks", "Wear shorts in summer"],
+  ["looks", "Tuck in my shirt"],
+  ["looks", "Wear a belt again"],
+  ["looks", "Fit into my wedding dress"],
+  ["looks", "Fit into my suit"],
+  ["looks", "Look good in photos"],
+  ["looks", "Love my holiday photos"],
+  ["looks", "Look great at a wedding"],
+  ["looks", "Look good on my birthday"],
+  ["looks", "Wear a bikini"],
+  ["looks", "Go down a dress size"],
+  ["looks", "Go down a jeans size"],
+  ["looks", "Feel good naked"],
+  ["looks", "See my muscles"],
+  ["looks", "See my abs"],
+  ["looks", "Have a flatter stomach"],
+  ["looks", "Toned arms"],
+  ["looks", "Feel good in tight clothes"],
+  ["looks", "Wear heels comfortably"],
+  ["looks", "Stop buying bigger sizes"],
+  ["looks", "Wear my old clothes again"],
+  ["looks", "Rock a new hairstyle and outfit"],
+  ["looks", "Stand tall"],
+  ["looks", "Better posture"],
+  ["looks", "A slimmer face"],
+  ["looks", "Less double chin"],
+  ["looks", "Look as young as I feel"],
+  ["looks", "Glow up"],
+  ["looks", "Feel good on dates"],
+  ["looks", "Take a selfie I like"],
+  ["looks", "Model for a photo shoot"],
+  ["looks", "Look good at my reunion"],
+  ["looks", "Wear what I want"],
+  ["looks", "Look healthy"],
+  ["looks", "Clear skin"],
+  ["looks", "Feel good at the beach"],
+  ["looks", "Wear sleeveless tops"],
+  ["looks", "Feel good in gym clothes"],
+  ["looks", "Wear a crop top"],
+  ["looks", "Feel good in a suit"],
+  ["looks", "Feel great for my wedding"],
+  ["looks", "Feel great for my anniversary"],
+  ["looks", "Feel great for my 40th"],
+  ["looks", "Feel great for my 50th"],
+  ["looks", "Feel great for my 60th"],
+  ["looks", "Feel great for my graduation"],
+  ["looks", "Feel great for my sister’s wedding"],
+  ["looks", "Feel great for my brother’s wedding"],
+  ["looks", "Feel great for my best friend’s wedding"],
+  ["looks", "Feel great for our family holiday"],
+  ["looks", "Feel great for summer"],
+  ["looks", "Feel great for my school reunion"],
+  ["looks", "Feel great for a big birthday"],
+  ["looks", "Feel great for a holiday abroad"],
+  ["looks", "Feel great for the new season"],
+  ["looks", "Wear a fitted shirt"],
+  ["looks", "Wear skinny jeans"],
+  ["looks", "Fit into a vintage dress"],
+  ["looks", "Look sharp in a blazer"],
+  ["looks", "Feel good in leggings"],
+  ["looks", "Wear a tight dress"],
+  ["looks", "Have defined legs"],
+  ["looks", "Get a jawline back"],
+  ["looks", "Look fit"],
+  ["looks", "Fill out my clothes right"],
+  ["looks", "Wear a wetsuit"],
+  ["looks", "Look good on stage"],
+  ["looks", "Feel good in my work clothes"],
+  ["looks", "Love my reflection"],
+  ["looks", "Look rested"],
+  ["everyday", "Sleep through the night"],
+  ["everyday", "Wake up rested"],
+  ["everyday", "Less sweating"],
+  ["everyday", "Stay cool in summer"],
+  ["everyday", "No chafing"],
+  ["everyday", "Sit through a film comfortably"],
+  ["everyday", "Sit on the floor comfortably"],
+  ["everyday", "Fit in a booth"],
+  ["everyday", "Fly without worry"],
+  ["everyday", "Travel comfortably"],
+  ["everyday", "Enjoy long car rides"],
+  ["everyday", "Sit in any restaurant chair"],
+  ["everyday", "Do my own shopping"],
+  ["everyday", "Walk to the shops"],
+  ["everyday", "Get around without a car"],
+  ["everyday", "Climb to the top floor"],
+  ["everyday", "Keep up with colleagues"],
+  ["everyday", "Have energy after work"],
+  ["everyday", "Enjoy my weekends"],
+  ["everyday", "Do more on my days off"],
+  ["everyday", "Spend less on food"],
+  ["everyday", "Spend less on medicine"],
+  ["everyday", "Lower my insurance cost"],
+  ["everyday", "Save money"],
+  ["everyday", "Need fewer doctor visits"],
+  ["everyday", "Cook more at home"],
+  ["everyday", "Eat better food"],
+  ["everyday", "Enjoy food without guilt"],
+  ["everyday", "Taste food more"],
+  ["everyday", "Have fewer takeaways"],
+  ["everyday", "Drink less"],
+  ["everyday", "Stop smoking too"],
+  ["everyday", "Keep my house tidy"],
+  ["everyday", "Get through busy days"],
+  ["everyday", "Be on time more"],
+  ["everyday", "Feel good at the doctor’s"],
+  ["everyday", "Have easier check-ups"],
+  ["everyday", "Get my body back after baby"],
+  ["everyday", "Feel good after menopause"],
+  ["everyday", "Be ready for summer"],
+  ["everyday", "Be ready for my holiday"],
+  ["everyday", "Enjoy the festive season"],
+  ["everyday", "Feel good at Christmas"],
+  ["everyday", "Start the new year right"],
+  ["everyday", "Celebrate my birthday healthy"],
+  ["everyday", "Fit in the bath comfortably"],
+  ["everyday", "Paint my toenails easily"],
+  ["everyday", "Shave my legs easily"],
+  ["everyday", "Put on socks standing up"],
+  ["everyday", "Get dressed quickly"],
+  ["everyday", "Sleep on my stomach"],
+  ["everyday", "Find clothes that fit"],
+  ["everyday", "Feel good in uniform"],
+  ["everyday", "Feel comfy on the sofa"],
+  ["everyday", "Ride a bike to the shops"],
+  ["everyday", "Walk the kids to school"],
+  ["everyday", "Stroll after dinner"],
+  ["everyday", "Garden all afternoon"],
+  ["everyday", "Go to the gym without fear"],
+  ["everyday", "Enjoy the sauna"],
+  ["everyday", "Breathe easy on hills"],
+  ["everyday", "Have energy to cook"],
+  ["everyday", "Enjoy evenings out"],
+  ["everyday", "Stay out late with friends"],
+  ["everyday", "Walk to work"],
+  ["everyday", "Fit through the turnstile"],
+  ["everyday", "Enjoy a hot day"],
+  ["everyday", "Sit in the garden chair"],
+  ["everyday", "Ride the bus comfortably"],
+  ["everyday", "Feel fine in crowds"],
+  ["everyday", "Get through airports easily"],
+  ["everyday", "Have a lie-in less often"],
+  ["everyday", "Feel good at the pool"],
+  ["everyday", "Go camping"],
+  ["everyday", "Enjoy festivals"],
+  ["goals", "Join the army"],
+  ["goals", "Join the police"],
+  ["goals", "Become a firefighter"],
+  ["goals", "Pass a fitness test"],
+  ["goals", "Get a job I want"],
+  ["goals", "Get promoted"],
+  ["goals", "Feel confident at work"],
+  ["goals", "Give a talk with confidence"],
+  ["goals", "Start my own business"],
+  ["goals", "Do a physical job"],
+  ["goals", "Be a fitness coach one day"],
+  ["goals", "Work longer and healthier"],
+  ["goals", "Retire healthy"],
+  ["goals", "Enjoy my retirement"],
+  ["goals", "Travel the world"],
+  ["goals", "Go on a safari"],
+  ["goals", "Visit Japan"],
+  ["goals", "Backpack across Europe"],
+  ["goals", "Go on a road trip"],
+  ["goals", "Sail a boat"],
+  ["goals", "Learn to surf"],
+  ["goals", "Learn to dance"],
+  ["goals", "Learn martial arts"],
+  ["goals", "Get a black belt"],
+  ["goals", "Go to a festival"],
+  ["goals", "Climb a famous peak"],
+  ["goals", "Walk a long-distance trail"],
+  ["goals", "Do a charity run"],
+  ["goals", "Raise money for charity"],
+  ["goals", "Inspire others"],
+  ["goals", "Share my story"],
+  ["goals", "Help others lose weight"],
+  ["goals", "Be a role model"],
+  ["goals", "Join a running club"],
+  ["goals", "Win a medal"],
+  ["goals", "Beat my personal best"],
+  ["goals", "Reach my goal weight"],
+  ["goals", "Reach a healthy weight"],
+  ["goals", "Hit my first 5 kg"],
+  ["goals", "Reach my first 10%"],
+  ["goals", "See a new number on the scale"],
+  ["goals", "Celebrate a milestone"],
+  ["goals", "Get to one-derland"],
+  ["goals", "Get under 100 kg"],
+  ["goals", "Never go back"],
+  ["goals", "Explore Paris on foot"],
+  ["goals", "Explore Rome on foot"],
+  ["goals", "Explore New York on foot"],
+  ["goals", "Explore Iceland on foot"],
+  ["goals", "Explore Norway on foot"],
+  ["goals", "Explore the Alps on foot"],
+  ["goals", "Explore Machu Picchu on foot"],
+  ["goals", "Explore Thailand on foot"],
+  ["goals", "Explore Bali on foot"],
+  ["goals", "Explore Australia on foot"],
+  ["goals", "Explore Disneyland on foot"],
+  ["goals", "Explore the Great Wall on foot"],
+  ["goals", "Explore Lapland on foot"],
+  ["goals", "Explore Scotland on foot"],
+  ["goals", "Explore Lisbon on foot"],
+  ["goals", "Do a pull-up by summer"],
+  ["goals", "Run without stopping"],
+  ["goals", "Walk 10,000 steps a day"],
+  ["goals", "Swim in the sea"],
+  ["goals", "Climb the stairs of a tower"],
+  ["goals", "Bike 100 km"],
+  ["goals", "Hike for a whole weekend"],
+  ["goals", "Finish a fun run"],
+  ["goals", "Do a mud run"],
+  ["goals", "Join a hiking group"],
+  ["goals", "Feel proud on the finish line"],
+  ["goals", "Run with my dog"],
+  ["goals", "Do a sponsored walk"],
+  ["goals", "Climb Ben Nevis"],
+  ["goals", "Walk the Great Wall"],
+  ["goals", "Hike in Patagonia"],
+  ["goals", "See the northern lights"],
+  ["goals", "Cycle a long route"],
+  ["goals", "Join a dragon boat team"],
+  ["goals", "Coach a youth team"],
+  ["goals", "Try a new sport every year"],
+  ["goals", "Win a weight-loss challenge"],
+  ["goals", "Get stronger every month"],
+  ["goals", "Reach 100 days of habits"],
+  ["goals", "Make this year different"],
+  ["goals", "Write a new chapter"],
+  ["goals", "Become the person I want to be"],
+];
+
+Object.assign(__m, { REASON_CATS, REASONS });
+},
+/* js/alarm-native.js */ 44: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
 const { alarmSpecs, alarmsOf } = __req(41);
@@ -9493,7 +10161,8 @@ function parseWake(raw) {
     const w = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (!w || !/^\d{4}-\d{2}-\d{2}$/.test(w.date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(w.at)) return null;
     const picked = (Array.isArray(w.values) ? w.values : typeof w.value === 'string' && w.value ? [w.value] : []).filter((v) => typeof v === 'string' && v).map((v) => v.slice(0, 30)).slice(0, 6);
-    return { date: w.date, at: w.at, values: picked, other: typeof w.other === 'string' ? w.other.trim().slice(0, 60) : '', fav: w.fav === true, message: typeof w.message === 'string' ? w.message.slice(0, 200) : '' };
+    const added = (Array.isArray(w.added) ? w.added : []).filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, 40)).slice(0, 10);
+    return { date: w.date, at: w.at, values: picked, added, other: typeof w.other === 'string' ? w.other.trim().slice(0, 60) : '', fav: w.fav === true, message: typeof w.message === 'string' ? w.message.slice(0, 200) : '' };
   } catch (e) {
     return null;
   }
@@ -9520,13 +10189,25 @@ async function listen(go, onWake) {
 
 Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, parseWake, listen });
 },
-/* js/views/alarms.js */ 44: function (__m, __req) {
+/* js/views/alarms.js */ 45: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 const { esc, icon } = __req(17);
 const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(41);
 const { daySchedule, mealTimes } = __req(14);
-const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, valueInfo, morningMessages, messageForDay } = __req(42);
-const alarmNative = __req(43);
+const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(42);
+const { REASONS, REASON_CATS } = __req(43);
+
+// Reason library state (kept across re-renders while you browse).
+let reasonCat = 'health';
+let reasonQuery = '';
+let libOpen = false;
+document.addEventListener('input', (ev) => {
+  if (ev.target.dataset?.filter === 'reason') reasonQuery = ev.target.value;
+});
+document.addEventListener('toggle', (ev) => {
+  if (ev.target.classList?.contains('reason-lib')) libOpen = ev.target.open;
+}, true);
+const alarmNative = __req(44);
 const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(40);
 const { openSheet, updateSheet } = __req(25);
 
@@ -9553,6 +10234,25 @@ function soundSheet(state, key) {
       ${native && cur.startsWith('uri:') ? row(cur, soundLabel(cur), 'Picked from your phone') : ''}</ul>
     ${native ? `<button type="button" class="btn tonal" style="width:100%;margin-top:10px" data-action="alarmSoundPhone" data-key="${key}">Choose from phone…</button>` : '<p class="muted" style="font-size:var(--text-xs)">In the Android app you can also use your phone’s own sounds.</p>'}
     ${a[key].style === 'ring' ? '<p class="muted" style="font-size:var(--text-xs);margin:10px 0 0">The alarm starts quietly and grows to full volume over about a minute.</p>' : '<p class="muted" style="font-size:var(--text-xs);margin:10px 0 0">A chime plays the sound twice, at notification volume.</p>'}`;
+}
+
+/** The library of reasons: search, themes, tap to add or remove. */
+function reasonLibrary(affirm) {
+  const picked = new Set((affirm.values || []).map((v) => v.toLowerCase()));
+  const q = reasonQuery.trim().toLowerCase();
+  const tabs = Object.entries(REASON_CATS).map(([k, l]) => [k, l, REASONS.filter((r) => r[0] === k).length]);
+  const mine = REASONS.filter((r) => picked.has(r[1].toLowerCase())).length;
+  return `<details class="reason-lib" ${libOpen ? 'open' : ''}><summary><strong>Browse ${REASONS.length} reasons</strong>${mine ? ` <span class="muted">· ${mine} picked</span>` : ''}</summary>
+      <input type="search" class="reason-search" data-filter="reason" value="${esc(reasonQuery)}" placeholder="Search — e.g. kids, knees, holiday" aria-label="Search reasons">
+      <div class="scroll-x" style="margin:8px 0 10px">${tabs.map(([k, l, n]) => `<button type="button" class="qchip ${reasonCat === k ? 'done' : ''}" style="padding-left:12px" data-action="reasonCat" data-value="${k}" aria-pressed="${reasonCat === k}">${esc(l)} <span class="muted">${n}</span></button>`).join('')}</div>
+      <div class="reason-grid" data-filter-target="reason">${REASONS.map(([c, t]) => {
+        const on = picked.has(t.toLowerCase());
+        const text = t.toLowerCase();
+        const hide = q ? !text.includes(q) : c !== reasonCat;
+        return `<button type="button" class="reason-btn ${on ? 'on' : ''}" data-action="reasonToggle" data-value="${esc(t)}" aria-pressed="${on}" data-filter-text="${esc(text)} ${esc(REASON_CATS[c].toLowerCase())}"${c === reasonCat ? '' : ' data-out="1"'}${hide ? ' hidden' : ''}>${on ? '✓ ' : '+ '}${esc(t)}</button>`;
+      }).join('')}</div>
+      <p class="muted" style="font-size:var(--text-xs);margin:8px 0 0">Gathered from what people say in weight-loss research and interviews: health comes first for most, then how they feel, look and move, and the people they do it for.</p>
+    </details>`;
 }
 
 /** Your own values: saved even when not picked (older versions kept them only while picked). */
@@ -9622,11 +10322,12 @@ function alarmsPage(state) {
       <a class="btn small ghost" href="#/wake">See the good-morning screen</a>
     </div>
     <div class="card">
-      <h3 style="margin-top:0">What matters most to you?</h3>
-      <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Pick up to ${MAX_VALUES}, or add your own. Reflecting on your own values is the form of self-affirmation shown in brain scans to engage reward and self-related areas — and to help people become more active.</p>
+      <h3 style="margin-top:0">Your reasons</h3>
+      <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Pick as many as you like, add your own, or browse ${REASONS.length} reasons people give. The ticked ones show on your morning screen. Reflecting on your own values is the form of self-affirmation shown in brain scans to engage reward and self-related areas — and to help people become more active.</p>
       <div class="chips">${Object.entries(VALUES).map(([k, v]) => `<label class="chip"><input type="checkbox" data-change="affirmValue" value="${k}" ${(affirm.values || []).includes(k) ? 'checked' : ''}><span>${esc(v.label)}</span></label>`).join('')}${ownValues(affirm).map((v) => `<span class="own-chip"><label class="chip own"><input type="checkbox" data-change="affirmValue" value="${esc(v)}" ${(affirm.values || []).includes(v) ? 'checked' : ''}><span>${esc(valueInfo(v).label)}</span></label><button type="button" class="own-x" data-action="affirmRemoveOwn" data-value="${esc(v)}" aria-label="Delete ${esc(valueInfo(v).label)}">${icon('x')}</button></span>`).join('')}</div>
-      <form class="own-value" data-form="affirmAddValue"><input type="text" name="value" maxlength="30" placeholder="Add your own — e.g. My kids, Painting, Being present" aria-label="Add your own value"><button class="btn small tonal">Add</button></form>
-      ${ownValues(affirm).length ? `<p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">Your own values stay on the list — tick the ones to use, tap × to delete one. ${(affirm.values || []).length}/${MAX_VALUES} picked.</p>` : ''}
+      <form class="own-value" data-form="affirmAddValue"><input type="text" name="value" maxlength="${VALUE_LEN}" placeholder="Add your own — e.g. Freedom, My kids, Run a 5K" aria-label="Add your own reason"><button class="btn small tonal">Add</button></form>
+      ${ownValues(affirm).length ? `<p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">Your own reasons stay on the list — tick the ones to use, tap × to delete one. ${(affirm.values || []).length} picked.</p>` : ''}
+      ${reasonLibrary(affirm)}
       <label class="field" style="margin-top:14px"><span>Your “why” <span class="hint">Finish the sentence: I’m doing this…</span></span><input type="text" maxlength="120" data-change="affirmWhy" value="${esc(affirm.why || '')}" placeholder="to have energy to play with my kids"></label>
     </div>
     <div class="card">
@@ -9744,30 +10445,38 @@ const alarmActions = {
     const picked = [...document.querySelectorAll('[data-change=affirmValue]:checked')].map((x) => x.value);
     if (picked.length > MAX_VALUES) {
       el.checked = false;
-      return ctx.toast(`Pick up to ${MAX_VALUES} — the ones that matter most`);
+      return ctx.toast(`That’s ${MAX_VALUES} — untick one to pick another`);
     }
     save(ctx, (st) => {
-      // Keep own values on the list when they're unticked.
+      // Keep own reasons on the list when they're unticked.
       st.affirm = { ...(st.affirm || {}), own: ownValues(st.affirm || {}), values: picked };
     });
   },
   affirmAddValue(form, ev, ctx, data) {
-    const v = String(data.value || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+    const v = String(data.value || '').trim().replace(/\s+/g, ' ').slice(0, VALUE_LEN);
     if (!v) return;
     const affirm = ctx.state.affirm || {};
-    const picked = affirm.values || [];
-    // A typed preset ("family") just ticks the preset.
-    const preset = Object.entries(VALUES).find(([, x]) => x.label.toLowerCase() === v.toLowerCase())?.[0];
-    const own = ownValues(affirm);
-    if (!preset && own.some((x) => x.toLowerCase() === v.toLowerCase())) return ctx.toast('Already on your list');
-    if (!preset && own.length >= 12) return ctx.toast('That’s 12 of your own — delete one to add another');
-    const room = picked.length < MAX_VALUES;
+    if ((affirm.values || []).some((x) => x.toLowerCase() === v.toLowerCase())) return ctx.toast('Already on your list');
+    if (ownValues(affirm).length >= MAX_OWN) return ctx.toast(`That’s ${MAX_OWN} of your own — delete one to add another`);
     save(ctx, (st) => {
-      const cur = st.affirm || {};
-      const values = cur.values || [];
-      st.affirm = { ...cur, own: preset ? ownValues(cur) : [...ownValues(cur), v], values: room && !values.includes(preset || v) ? [...values, preset || v] : values };
+      st.affirm = addReason({ ...(st.affirm || {}), own: ownValues(st.affirm || {}) }, v);
     });
-    ctx.toast(room ? `Added and picked “${valueInfo(preset || v).label}”` : `Saved “${valueInfo(preset || v).label}” — you have ${MAX_VALUES} picked, untick one to use it`);
+    ctx.toast(`Added “${valueInfo(v).label}”`);
+  },
+  reasonToggle(el, ev, ctx) {
+    const v = el.dataset.value;
+    const on = (ctx.state.affirm?.values || []).some((x) => x.toLowerCase() === v.toLowerCase());
+    libOpen = true;
+    save(ctx, (st) => {
+      const cur = { ...(st.affirm || {}), own: ownValues(st.affirm || {}) };
+      st.affirm = on ? removeReason(cur, v) : addReason(cur, v);
+    });
+  },
+  reasonCat(el, ev, ctx) {
+    reasonCat = el.dataset.value;
+    reasonQuery = '';
+    libOpen = true;
+    ctx.rerender();
   },
   affirmRemoveOwn(el, ev, ctx) {
     const v = el.dataset.value;
@@ -9808,7 +10517,7 @@ const alarmActions = {
 
 Object.assign(__m, { ownValues, alarmsSummary, alarmsPage, alarmsAfter, alarmActions });
 },
-/* js/notify.js */ 45: function (__m, __req) {
+/* js/notify.js */ 46: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -9945,10 +10654,10 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 46: function (__m, __req) {
+/* js/views/settings.js */ 47: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { goalHint } = __req(23);
-const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(44);
+const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(45);
 const { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(17);
 const store = __req(16);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
@@ -9956,7 +10665,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn, weekOrder } = __req(0);
-const notify = __req(45);
+const notify = __req(46);
 const { DEFAULT_REMINDERS } = __req(15);
 const { dayFields, daySummary, readDay } = __req(20);
 const { daySchedule, toHHMM } = __req(14);
@@ -10352,7 +11061,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 47: function (__m, __req) {
+/* js/views/shopping.js */ 48: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(17);
 const store = __req(16);
@@ -10400,7 +11109,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 48: function (__m, __req) {
+/* js/views/rewards.js */ 49: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(17);
 const { ring, barChart } = __req(34);
@@ -10532,14 +11241,14 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/views/wake.js */ 49: function (__m, __req) {
+/* js/views/wake.js */ 50: function (__m, __req) {
 // Good morning: the screen after "I'm up". The alarm's message, then a ten-second values
 // reflection ("Today I'm doing this for…") — the kind of self-affirmation shown to engage the brain's
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { valueInfo, morningMessages, messageForDay, reasonLine } = __req(42);
-const { takeMessage } = __req(43);
+const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(42);
+const { takeMessage } = __req(44);
 const { XP } = __req(13);
 const { confetti, chime, buzz, floatXp } = __req(30);
 
@@ -10605,8 +11314,8 @@ __m.default = {
         <div class="wk-reflect">
           <div class="w-kicker">Today I’m doing this for… <span class="wk-hint">pick any</span></div>
           <div class="wk-values">${values.map((v) => `<button class="wk-value ${chosen.has(v) ? 'on' : ''}" data-action="wakeValue" data-value="${esc(v)}" aria-pressed="${chosen.has(v)}">${esc(valueInfo(v).label)}</button>`).join('')}<button class="wk-value ${chosen.has('me') ? 'on' : ''}" data-action="wakeValue" data-value="me" aria-pressed="${chosen.has('me')}">Me</button>${otherOpen ? '' : `<button class="wk-value ghost" data-action="wakeOther">＋ Something else</button>`}</div>
-          ${otherOpen ? `<input class="wk-other" data-wake-other maxlength="60" placeholder="Something else, in your words" aria-label="Something else I’m doing this for" value="${esc(other)}">` : ''}
-          ${values.length ? '' : `<a class="wk-link" href="#/settings/alarms">Choose what matters to you →</a>`}
+          ${otherOpen ? `<form class="wk-add" data-form="wakeAdd"><input class="wk-other" name="reason" data-wake-other maxlength="40" placeholder="Something else, in your words" aria-label="Something else I’m doing this for" value="${esc(other)}" enterkeyhint="done"><button class="wk-add-btn">Add</button></form><p class="wk-note">Saved to your reasons, so it’s here next time.</p>` : ''}
+          <a class="wk-link" href="#/settings/alarms">${values.length ? 'Browse more reasons →' : 'Choose what matters to you →'}</a>
           <p class="wk-why" ${reasonLine([...chosen], other) ? '' : 'hidden'}>${esc(reasonLine([...chosen], other))}</p>
         </div>
         ${done ? `<button class="w-btn" data-action="wakeStart">Start my day</button>` : `<button class="w-btn glow" data-action="wakeStart" data-fresh ${ready() ? '' : 'disabled'}>${ready() ? `Start my day · +${XP.wake} XP` : 'Tap one or more to start your day'}</button>`}
@@ -10619,6 +11328,20 @@ __m.default = {
       if (chosen.has(v)) chosen.delete(v);
       else chosen.add(v);
       if (ctx.state.game?.haptics !== false) buzz(10);
+      ctx.rerender();
+    },
+    wakeAdd(form, ev, ctx, data) {
+      const v = String(data.reason || '').trim();
+      if (!v) return;
+      ctx.update((st) => {
+        st.affirm = addReason(st.affirm || {}, v);
+        return st;
+      }, { quiet: true, render: false });
+      const lv = v.toLowerCase().replace(/\s+/g, ' ');
+      chosen.add((ctx.state.affirm.values || []).find((x) => x.toLowerCase() === lv || valueInfo(x)?.label.toLowerCase() === lv) || v);
+      other = '';
+      otherOpen = false;
+      ctx.syncAlarms?.();
       ctx.rerender();
     },
     wakeOther(el, ev, ctx) {
@@ -10639,6 +11362,13 @@ __m.default = {
     },
     wakeStart(el, ev, ctx) {
       const today = store.today();
+      if (other.trim()) {
+        const v = other.trim();
+        ctx.update((st) => {
+          st.affirm = addReason(st.affirm || {}, v);
+          return st;
+        }, { quiet: true, render: false });
+      }
       if (!ctx.state.wakes?.[today]) {
         const now = new Date();
         const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -10663,7 +11393,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/body.js */ 50: function (__m, __req) {
+/* js/views/body.js */ 51: function (__m, __req) {
 // Your body: one card per body part — this week's ring, its long-term level and what it needs.
 // Tap any ring (here, on Today or in the Body Wrap) to open the body-part sheet.
 const { esc, icon, fmtDate } = __req(17);
@@ -10751,7 +11481,7 @@ __m.default = {
 
 Object.assign(__m, { organSheetHtml, organActions });
 },
-/* js/app.js */ 51: function (__m, __req) {
+/* js/app.js */ 52: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(16);
 const { icon, formData } = __req(17);
@@ -10765,21 +11495,21 @@ const habits = __req(35).default;
 const progress = __req(36).default;
 const checkin = __req(38).default;
 const learn = __req(39).default;
-const settings = __req(46).default;
-const shopping = __req(47).default;
-const rewards = __req(48).default;
+const settings = __req(47).default;
+const shopping = __req(48).default;
+const rewards = __req(49).default;
 const journeyView = __req(22).default;
 const wrapView = __req(31).default;
-const wakeView = __req(49).default;
-const bodyView = __req(50).default;
-const { organActions } = __req(50);
+const wakeView = __req(50).default;
+const bodyView = __req(51).default;
+const { organActions } = __req(51);
 const { organById } = __req(12);
-const alarmNative = __req(43);
+const alarmNative = __req(44);
 const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(30);
 const { newlyClosed, allClosed } = __req(28);
-const { reasonLine } = __req(42);
+const { reasonLine, addReason } = __req(42);
 const { BADGES } = __req(13);
-const notify = __req(45);
+const notify = __req(46);
 const { closeSheet } = __req(25);
 const { sheetActions } = __req(26);
 const { daySummary, readDay } = __req(20);
@@ -11137,6 +11867,8 @@ alarmNative.listen((route) => ctx.go(route), (w) => {
   // "Start my day" on the lock screen: record the morning (once a day) and the message you liked.
   ctx.update((st) => {
     if (!st.wakes?.[w.date]) st.wakes = { ...(st.wakes || {}), [w.date]: w.at };
+    // Reasons typed on the lock screen join your list, so they're a choice next time.
+    for (const r of w.added) st.affirm = addReason(st.affirm || {}, r);
     if (w.message) {
       const favs = new Set(st.affirm?.favs || []);
       if (w.fav) favs.add(w.message);
@@ -11197,5 +11929,5 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(51);
+__req(52);
 })();</script>

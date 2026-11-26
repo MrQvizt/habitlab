@@ -93,25 +93,40 @@ export const MESSAGE_SETS = {
   },
 };
 
-export const MAX_VALUES = 3;
+// Your reasons: as many as you like (a sane cap keeps the morning screen and storage tidy).
+export const MAX_VALUES = 60;
+export const MAX_OWN = 200;
+export const VALUE_LEN = 40;
+
+// A reason written as an action ("Keep up with my kids") reads as a quote; a one-word value ("Freedom")
+// works inside a sentence ("You care about freedom").
+const REASON_LINES = [
+  'Your reason: {Reason}. Every healthy choice today is a step towards it.',
+  '{Reason} — that’s worth getting up for. Small choices today get you there.',
+  'Think of one moment today that brings you closer to this: {reason}.',
+  'Remember why you started: {reason}. Today counts.',
+];
+// Common words that start a reason or name a value; anything else capitalised alone may be a name ("Emma").
+const COMMON = /^(freedom|confidence|courage|pride|joy|hope|strength|balance|discipline|independence|self-worth|self-respect|peace|love|health|energy|family|friends|faith|nature|work|travel|music|art|sport|sports|me|myself|kids|children|future|happiness|fitness|life|mobility|longevity|beauty|calm|focus|respect|dignity|adventure)$/i;
 
 /**
  * A value is a preset id ("family") or your own words ("My kids", "Painting").
  * Own words are turned round to speak to you: "my kids" → "your kids".
  */
 export function valueInfo(v) {
-  if (VALUES[v]) return VALUES[v];
-  const label = String(v || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+  if (VALUES[v]) return { ...VALUES[v], kind: 'value' };
+  const label = String(v || '').trim().replace(/\s+/g, ' ').slice(0, VALUE_LEN);
   if (!label) return null;
   const turned = label
     .replace(/\bmy\b/gi, 'your')
     .replace(/\bmine\b/gi, 'yours')
     .replace(/\bmyself\b/gi, 'yourself')
     .replace(/\b(I|me)\b/g, 'you');
-  // Lower-case the first letter unless it looks like a name or acronym (e.g. "NYC", "Max").
-  const keepCase = /^[A-Z]{2}/.test(turned) || (/^[A-Z][a-z]+$/.test(turned.split(' ')[0]) && !/^(Your|Being|Feeling|Having|Staying|Getting|Playing|Painting|Walking|Running|Reading|Cooking|Travel|Music|Art|Sport|Sports|Faith|Health|Energy|Family|Friends|Nature|Work)$/.test(turned.split(' ')[0]));
+  const words = turned.split(' ');
+  // Keep the capital for acronyms ("NYC"), a name on its own ("Emma") or a name's ("Emma’s wedding").
+  const keepCase = /^[A-Z]{2}/.test(turned) || (words.length === 1 && /^[A-Z][a-z]+$/.test(turned) && !COMMON.test(turned)) || /^[A-Z][a-z]+[’']s$/.test(words[0]);
   const phrase = keepCase ? turned : turned.charAt(0).toLowerCase() + turned.slice(1);
-  return { label: label.charAt(0).toUpperCase() + label.slice(1), phrase, custom: true };
+  return { label: label.charAt(0).toUpperCase() + label.slice(1), phrase, custom: true, kind: words.length > 1 && !/^(your|the|a|an|our|\w+ing)$/i.test(words[0]) ? 'reason' : 'value' };
 }
 
 export const DEFAULT_SETS = ['values', 'future', 'compassion', 'worth', 'body', 'compliments'];
@@ -134,9 +149,20 @@ export function morningMessages(affirm = {}) {
         if (!why) continue;
         lines.push(line.replace('{why}', why.charAt(0).toLowerCase() + why.slice(1)).replace('{Why}', cap(why)));
       } else if (/\{(value|Value|phrase|Phrase)\}/.test(line)) {
+        if (id === 'values' && values.length) continue; // built per reason below
         const v = values.length ? values[i % values.length] : { label: 'What you care about', phrase: 'what matters most to you' };
         lines.push(line.replace('{Value}', v.label).replace('{value}', v.label.toLowerCase()).replace('{Phrase}', cap(v.phrase)).replace('{phrase}', v.phrase));
       } else lines.push(line);
+    }
+    if (id === 'values') {
+      // One message per reason (up to 16), alternating the wordings.
+      values.slice(0, 16).forEach((v, j) => {
+        if (v.kind === 'reason') lines.push(REASON_LINES[j % REASON_LINES.length].replace('{Reason}', cap(v.phrase)).replace('{reason}', v.phrase));
+        else {
+          const t = MESSAGE_SETS.values.lines[j % MESSAGE_SETS.values.lines.length];
+          lines.push(t.replace('{Phrase}', cap(v.phrase)).replace('{phrase}', v.phrase));
+        }
+      });
     }
     return lines;
   }).filter((l) => l.length);
@@ -159,13 +185,32 @@ export function messageForDay(list, date = new Date()) {
   return list[Math.abs(epochDay) % list.length];
 }
 
-/** "Holding on to A and B today…" for the reasons picked on the morning screen (values, "me", your own words). */
+/** The line under your picks on the morning screen (values, "me", your own words). */
 export function reasonLine(picked = [], other = '') {
   const me = picked.includes('me');
   const parts = picked.filter((v) => v !== 'me').map((v) => valueInfo(v)?.phrase).filter(Boolean);
-  const own = String(other || '').trim().replace(/\s+/g, ' ').slice(0, 60);
-  if (own) parts.push(own);
+  const own = String(other || '').trim().replace(/\s+/g, ' ').slice(0, VALUE_LEN);
+  if (own) parts.push(valueInfo(own).phrase);
   const list = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
   if (!parts.length) return me ? 'Good. You are reason enough.' : '';
-  return me ? `For you, and for ${list(parts)}. Every good choice counts.` : `Holding on to ${list(parts)} today. Every good choice counts.`;
+  return `Your reasons today: ${list(me ? ['you', ...parts] : parts)}. Every good choice counts.`;
+}
+
+/** Add a reason to your list and pick it (a preset's name ticks the preset). Returns the new affirm object. */
+export function addReason(affirm = {}, text) {
+  const v = String(text || '').trim().replace(/\s+/g, ' ').slice(0, VALUE_LEN);
+  if (!v) return affirm;
+  const preset = Object.entries(VALUES).find(([, x]) => x.label.toLowerCase() === v.toLowerCase())?.[0];
+  const key = preset || v;
+  const own = [...(affirm.own || [])];
+  if (!preset && !own.some((x) => x.toLowerCase() === v.toLowerCase())) own.push(v);
+  const values = [...(affirm.values || [])];
+  if (!values.some((x) => x.toLowerCase() === key.toLowerCase())) values.push(key);
+  return { ...affirm, own: own.slice(-MAX_OWN), values: values.slice(-MAX_VALUES) };
+}
+
+/** Take a reason off your list. */
+export function removeReason(affirm = {}, text) {
+  const k = String(text || '').toLowerCase();
+  return { ...affirm, own: (affirm.own || []).filter((x) => x.toLowerCase() !== k), values: (affirm.values || []).filter((x) => x.toLowerCase() !== k) };
 }

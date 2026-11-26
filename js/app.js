@@ -23,7 +23,7 @@ import { organById } from './engine/body.js';
 import * as alarmNative from './alarm-native.js';
 import { floatXp, confetti, chime, buzz, showCelebration, ringBanner } from './ui/celebrate.js';
 import { newlyClosed, allClosed } from './views/dayrings.js';
-import { reasonLine } from './data/affirmations.js';
+import { reasonLine, addReason } from './data/affirmations.js';
 import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
 import { closeSheet } from './ui/sheet.js';
@@ -383,6 +383,8 @@ alarmNative.listen((route) => ctx.go(route), (w) => {
   // "Start my day" on the lock screen: record the morning (once a day) and the message you liked.
   ctx.update((st) => {
     if (!st.wakes?.[w.date]) st.wakes = { ...(st.wakes || {}), [w.date]: w.at };
+    // Reasons typed on the lock screen join your list, so they're a choice next time.
+    for (const r of w.added) st.affirm = addReason(st.affirm || {}, r);
     if (w.message) {
       const favs = new Set(st.affirm?.favs || []);
       if (w.fav) favs.add(w.message);

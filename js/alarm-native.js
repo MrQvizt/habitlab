@@ -91,7 +91,8 @@ export function parseWake(raw) {
     const w = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (!w || !/^\d{4}-\d{2}-\d{2}$/.test(w.date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(w.at)) return null;
     const picked = (Array.isArray(w.values) ? w.values : typeof w.value === 'string' && w.value ? [w.value] : []).filter((v) => typeof v === 'string' && v).map((v) => v.slice(0, 30)).slice(0, 6);
-    return { date: w.date, at: w.at, values: picked, other: typeof w.other === 'string' ? w.other.trim().slice(0, 60) : '', fav: w.fav === true, message: typeof w.message === 'string' ? w.message.slice(0, 200) : '' };
+    const added = (Array.isArray(w.added) ? w.added : []).filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, 40)).slice(0, 10);
+    return { date: w.date, at: w.at, values: picked, added, other: typeof w.other === 'string' ? w.other.trim().slice(0, 60) : '', fav: w.fav === true, message: typeof w.message === 'string' ? w.message.slice(0, 200) : '' };
   } catch (e) {
     return null;
   }

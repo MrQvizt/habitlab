@@ -189,6 +189,11 @@ public class AlarmActivity extends Activity {
     // ---------- Morning screen (after "I'm up"), shown over the lock screen ----------
     private final java.util.LinkedHashSet<String> chosen = new java.util.LinkedHashSet<>();
     private String other = "";
+    private final java.util.List<String> added = new java.util.ArrayList<>();
+
+    private interface Adder {
+        void add(String label);
+    }
     private final java.util.Map<String, String> phrases = new java.util.HashMap<>();
     private boolean fav;
 
@@ -256,13 +261,14 @@ public class AlarmActivity extends Activity {
         start.setAlpha(0.6f);
         java.util.List<String[]> vals = new java.util.ArrayList<>();
         JSONArray arr = AlarmStore.values(this);
-        for (int i = 0; i < arr.length() && i < 3; i++) {
+        for (int i = 0; i < arr.length() && i < 60; i++) {
             JSONObject o = arr.optJSONObject(i);
             if (o != null && !o.optString("id").isEmpty()) vals.add(new String[] {o.optString("id"), o.optString("label", o.optString("id")), o.optString("phrase", "")});
         }
         vals.add(new String[] {"me", "Me", ""});
         vals.add(new String[] {"other", "\uFF0B Something else", ""});
         final EditText otherField = new EditText(this);
+        final View[] otherRow = new View[1];
         final Runnable refresh = () -> {
             String line = reasonLine();
             why.setText(line);
@@ -287,7 +293,7 @@ public class AlarmActivity extends Activity {
             if ("other".equals(val[0])) {
                 chip.setOnClickListener(v -> {
                     chip.setVisibility(View.GONE);
-                    otherField.setVisibility(View.VISIBLE);
+                    otherRow[0].setVisibility(View.VISIBLE);
                     otherField.requestFocus();
                     android.view.inputmethod.InputMethodManager im = (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
                     if (im != null) im.showSoftInput(otherField, 0);
@@ -315,7 +321,8 @@ public class AlarmActivity extends Activity {
         if (vals.size() % 2 == 1) rowL.addView(new View(this), new LinearLayout.LayoutParams(0, dp(52), 1f));
         otherField.setHint("Something else, in your words");
         otherField.setSingleLine(true);
-        otherField.setFilters(new android.text.InputFilter[] {new android.text.InputFilter.LengthFilter(60)});
+        otherField.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
+        otherField.setFilters(new android.text.InputFilter[] {new android.text.InputFilter.LengthFilter(40)});
         otherField.setTextColor(0xFF2D1B4E);
         otherField.setHintTextColor(0xFF7A6A95);
         otherField.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
@@ -324,7 +331,6 @@ public class AlarmActivity extends Activity {
         ob.setCornerRadius(dp(16));
         ob.setColor(0xFFFFF6EE);
         otherField.setBackground(ob);
-        otherField.setVisibility(View.GONE);
         otherField.addTextChangedListener(new android.text.TextWatcher() {
             public void beforeTextChanged(CharSequence c, int a, int b, int d) {}
             public void onTextChanged(CharSequence c, int a, int b, int d) {}
@@ -333,9 +339,60 @@ public class AlarmActivity extends Activity {
                 refresh.run();
             }
         });
+        final LinearLayout addRow = new LinearLayout(this);
+        addRow.setOrientation(LinearLayout.HORIZONTAL);
+        addRow.setVisibility(View.GONE);
+        addRow.addView(otherField, new LinearLayout.LayoutParams(0, dp(50), 1f));
+        Button addBtn = button("Add", false);
+        addBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        GradientDrawable ab = new GradientDrawable();
+        ab.setCornerRadius(dp(16));
+        ab.setColor(0xFF2D1B4E);
+        addBtn.setBackground(ab);
+        LinearLayout.LayoutParams abp = new LinearLayout.LayoutParams(dp(72), dp(50));
+        abp.leftMargin = dp(8);
+        addRow.addView(addBtn, abp);
         LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(50));
         op.topMargin = dp(10);
-        card.addView(otherField, op);
+        card.addView(addRow, op);
+        otherRow[0] = addRow;
+        final TextView note = left(text("Saved to your reasons, so it\u2019s here next time.", 12, false));
+        note.setAlpha(0.85f);
+        note.setVisibility(View.GONE);
+        card.addView(note);
+        // Add: the words become a picked chip and are saved for next time.
+        final Adder adder = label -> {
+            String t = label.trim().replaceAll("\\s+", " ");
+            if (t.isEmpty()) return;
+            if (t.length() > 40) t = t.substring(0, 40);
+            String key = t;
+            phrases.put(key, turn(t));
+            if (!added.contains(key)) added.add(key);
+            AlarmStore.addValue(this, key, turn(t));
+            chosen.add(key);
+            final String k2 = key;
+            final Button chip = pill(t, false);
+            styleChip(chip, true);
+            chip.setOnClickListener(v -> {
+                boolean on = !chosen.contains(k2);
+                if (on) chosen.add(k2);
+                else chosen.remove(k2);
+                styleChip(chip, on);
+                refresh.run();
+            });
+            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(52));
+            cl.topMargin = dp(10);
+            card.addView(chip, card.indexOfChild(addRow), cl);
+            otherField.setText("");
+            other = "";
+            note.setVisibility(View.VISIBLE);
+            refresh.run();
+        };
+        addBtn.setOnClickListener(v -> adder.add(otherField.getText().toString()));
+        otherField.setOnEditorActionListener((v, actionId, ev) -> {
+            adder.add(otherField.getText().toString());
+            return true;
+        });
         why.setVisibility(View.GONE);
         why.setPadding(0, dp(12), 0, 0);
         card.addView(why);
@@ -370,6 +427,10 @@ public class AlarmActivity extends Activity {
             w.put("values", picked);
             w.put("value", chosen.isEmpty() ? "" : chosen.iterator().next());
             w.put("other", other.trim());
+            JSONArray add = new JSONArray();
+            for (String a : added) add.put(a);
+            if (!other.trim().isEmpty()) add.put(other.trim());
+            w.put("added", add);
             w.put("fav", fav);
             w.put("message", message);
             w.put("date", new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date()));
@@ -395,16 +456,24 @@ public class AlarmActivity extends Activity {
         }
     }
 
+    /** "Keep up with my kids" → "keep up with your kids" (as valueInfo does in the app). */
+    static String turn(String label) {
+        String t = label.replaceAll("(?i)\\bmyself\\b", "yourself").replaceAll("(?i)\\bmine\\b", "yours").replaceAll("(?i)\\bmy\\b", "your").replaceAll("\\b(I|me)\\b", "you");
+        boolean keep = t.length() > 1 && Character.isUpperCase(t.charAt(0)) && Character.isUpperCase(t.charAt(1));
+        return keep || t.isEmpty() ? t : Character.toLowerCase(t.charAt(0)) + t.substring(1);
+    }
+
     /** Same wording as the app (reasonLine in js/data/affirmations.js). */
     private String reasonLine() {
         boolean me = chosen.contains("me");
         java.util.List<String> parts = new java.util.ArrayList<>();
         for (String c : chosen) if (!"me".equals(c) && phrases.get(c) != null) parts.add(phrases.get(c));
         String own = other.trim().replaceAll("\\s+", " ");
-        if (!own.isEmpty()) parts.add(own);
+        if (!own.isEmpty()) parts.add(turn(own));
         if (parts.isEmpty()) return me ? "Good. You are reason enough." : "";
+        if (me) parts.add(0, "you");
         String list = parts.size() < 2 ? parts.get(0) : android.text.TextUtils.join(", ", parts.subList(0, parts.size() - 1)) + " and " + parts.get(parts.size() - 1);
-        return me ? "For you, and for " + list + ". Every good choice counts." : "Holding on to " + list + " today. Every good choice counts.";
+        return "Your reasons today: " + list + ". Every good choice counts.";
     }
 
     private String greeting() {

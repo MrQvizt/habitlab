@@ -567,7 +567,7 @@ test('alarms: specs from settings and day schedule; morning messages from values
   assert.ok(msgs.some((m) => /You care about the people you love/.test(m)));
   // Your own values: turned round to speak to you, mixed with presets, no placeholders left
   const { valueInfo } = await import('../js/data/affirmations.js');
-  assert.deepEqual(valueInfo('My kids'), { label: 'My kids', phrase: 'your kids', custom: true });
+  assert.deepEqual(valueInfo('My kids'), { label: 'My kids', phrase: 'your kids', custom: true, kind: 'value' });
   assert.equal(valueInfo('being there for my mum').phrase, 'being there for your mum');
   assert.equal(valueInfo('NYC marathon').phrase, 'NYC marathon');
   assert.equal(valueInfo('family').label, 'Family');
@@ -597,7 +597,8 @@ test('alarms: specs from settings and day schedule; morning messages from values
   assert.deepEqual(clean.alarms.wake.days, [0, 1]);
   assert.equal(clean.alarms.wind.before, 120);
   assert.equal(clean.alarms.snooze, 30);
-  assert.equal(clean.affirm.values.length, 3);
+  assert.equal(clean.affirm.values.length, 4); // no limit of 3 any more (cap 60)
+  assert.equal(sanitize({ ...emptyState(), affirm: { values: Array.from({ length: 80 }, (_, i) => 'R' + i) } }).affirm.values.length, 60);
   assert.equal(clean.affirm.why, '');
   assert.deepEqual(clean.affirm.custom, ['x']);
   assert.deepEqual(Object.keys(clean.wakes), ['2026-11-25']);
@@ -773,7 +774,7 @@ test('snooze starts at 5 minutes; the old 9-minute default moves to 5 once, a ch
 
 test('lock-screen morning hand-off is validated', async () => {
   const { parseWake } = await import('../js/alarm-native.js');
-  assert.deepEqual(parseWake('{"date":"2026-11-26","at":"06:52","value":"family","fav":true,"message":"Hi"}'), { date: '2026-11-26', at: '06:52', values: ['family'], other: '', fav: true, message: 'Hi' });
+  assert.deepEqual(parseWake('{"date":"2026-11-26","at":"06:52","value":"family","fav":true,"message":"Hi"}'), { date: '2026-11-26', at: '06:52', values: ['family'], added: [], other: '', fav: true, message: 'Hi' });
   assert.deepEqual(parseWake('{"date":"2026-11-26","at":"06:52","values":["family","me",5],"other":" my kids "}').values, ['family', 'me']);
   assert.equal(parseWake('{"date":"2026-11-26","at":"06:52","values":[],"other":" my kids "}').other, 'my kids');
   assert.equal(parseWake('{"date":"<b>","at":"06:52"}'), null);
@@ -783,11 +784,26 @@ test('lock-screen morning hand-off is validated', async () => {
 });
 
 test('morning reasons: several values, me, and your own words', async () => {
-  const { reasonLine } = await import('../js/data/affirmations.js');
+  const { reasonLine, valueInfo, morningMessages } = await import('../js/data/affirmations.js');
   assert.equal(reasonLine(['me']), 'Good. You are reason enough.');
   assert.equal(reasonLine([]), '');
-  assert.equal(reasonLine(['family']), 'Holding on to the people you love today. Every good choice counts.');
-  assert.equal(reasonLine(['family', 'health'], 'my kids'), 'Holding on to the people you love, feeling healthy and strong and my kids today. Every good choice counts.');
-  assert.equal(reasonLine(['me', 'family']), 'For you, and for the people you love. Every good choice counts.');
-  assert.equal(reasonLine([], '  a walk  with Sam '), 'Holding on to a walk with Sam today. Every good choice counts.');
+  assert.equal(reasonLine(['family']), 'Your reasons today: the people you love. Every good choice counts.');
+  assert.equal(reasonLine(['me', 'Freedom', 'Keep up with my kids'], 'my health check'), 'Your reasons today: you, freedom, keep up with your kids and your health check. Every good choice counts.');
+  // Casing: common words lower-case, names and acronyms keep theirs; long reasons are not cut
+  assert.equal(valueInfo('Freedom').phrase, 'freedom');
+  assert.equal(valueInfo('Emma').phrase, 'Emma');
+  assert.equal(valueInfo('NYC trip').phrase, 'NYC trip');
+  assert.equal(valueInfo('Go to the playground with my kids').phrase, 'go to the playground with your kids');
+  // One message per reason; action reasons are quoted, not forced into "You care about …"
+  const msgs = morningMessages({ values: ['Freedom', 'Lower my blood pressure'] });
+  assert.ok(msgs.some((m) => /freedom/.test(m)));
+  assert.ok(msgs.some((m) => /lower your blood pressure/i.test(m) && !/care about lower/i.test(m)));
+});
+
+test('reason library: 600 distinct reasons in every theme', async () => {
+  const { REASONS, REASON_CATS } = await import('../js/data/reasons.js');
+  assert.ok(REASONS.length >= 600, String(REASONS.length));
+  assert.equal(new Set(REASONS.map((r) => r[1].toLowerCase())).size, REASONS.length);
+  for (const c of Object.keys(REASON_CATS)) assert.ok(REASONS.filter((r) => r[0] === c).length >= 70, c);
+  assert.ok(REASONS.every((r) => r[1].length <= 40 && REASON_CATS[r[0]]));
 });

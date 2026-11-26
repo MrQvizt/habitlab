@@ -98,6 +98,20 @@ public final class AlarmStore {
         }
     }
 
+    /** A reason typed on the lock screen: on your list straight away (the app adds it too when it opens). */
+    public static void addValue(Context c, String label, String phrase) {
+        JSONArray a = values(c);
+        for (int i = 0; i < a.length(); i++) {
+            JSONObject o = a.optJSONObject(i);
+            if (o != null && label.equalsIgnoreCase(o.optString("id"))) return;
+        }
+        try {
+            a.put(new JSONObject().put("id", label).put("label", label).put("phrase", phrase));
+        } catch (JSONException ignored) {
+        }
+        prefs(c).edit().putString("values", a.toString()).apply();
+    }
+
     public static boolean isFav(Context c, String message) {
         if (message == null) return false;
         try {
