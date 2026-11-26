@@ -111,7 +111,7 @@ const csp = [
   "img-src 'self' data:",
   "manifest-src 'self'",
   "worker-src 'self'",
-  "connect-src 'self'",
+  "connect-src 'self' https://jwjabhcebwnzhfphsuwg.supabase.co", // shared calendar (js/share.js)
   "base-uri 'none'",
   "form-action 'none'",
   "frame-ancestors 'none'",

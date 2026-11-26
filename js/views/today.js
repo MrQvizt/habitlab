@@ -14,6 +14,8 @@ import { itemDone, logPlannedActivity } from './move.js';
 import { toggleHabit, mealRowList } from './sheets.js';
 import { planDay, partOf, PARTS } from '../engine/dayplan.js';
 import { dayRings, ringsSvg, RING_META } from './dayrings.js';
+import { eventsOn, EVENT_KINDS } from './calendar.js';
+import { toMin } from '../engine/schedule.js';
 import { journey, nextStops, recentTimeStop } from '../engine/journey.js';
 import { whenLabel } from './journey.js';
 import { wrapReadyCard, bodyRingsCard } from './wrap.js';
@@ -175,7 +177,12 @@ function yourDay(state, date) {
   const byId = Object.fromEntries(active.map((a) => [a.id, a]));
   const mealHtml = Object.fromEntries(meals.map((m) => [m.slot, m.html]));
   const habitHtml = (id, label) => habitRow(state, byId[id], date, 'habitCheck', 'openHabit', label);
-  const itemHtml = (it) => (it.kind === 'meal' ? mealHtml[it.slot] : it.kind === 'habit' ? habitHtml(it.id, it.label) : weighRow(state, date));
+  // Your calendar events for the day sit at their time (untimed ones under "Any time").
+  const evs = eventsOn(state, date);
+  const evRow = (e) => `<li class="k-event"><button class="lrow" data-action="calEdit" data-id="${esc(e.id)}"><span class="slot-ico" style="font-size:1.15rem">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}</span><span class="body"><span class="over">${e.time ? esc(e.time) : 'Any time'} · Calendar${e.public ? ' · open to friends' : ''}</span><span class="title">${esc(e.title)}</span>${e.place ? `<span class="sub">${esc(e.place)}</span>` : ''}</span><span class="trail">${icon('chevron')}</span></button></li>`;
+  for (const e of evs) if (e.time) plan.timed.push({ kind: 'event', time: toMin(e.time), ev: e, order: 1.5 });
+  plan.timed.sort((a, b) => a.time - b.time || a.order - b.order);
+  const itemHtml = (it) => (it.kind === 'meal' ? mealHtml[it.slot] : it.kind === 'habit' ? habitHtml(it.id, it.label) : it.kind === 'event' ? evRow(it.ev) : weighRow(state, date));
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const parts = [];
@@ -197,7 +204,7 @@ function yourDay(state, date) {
   if (!nowShown && date === store.today()) parts.push(nowLine);
   const extras = state.extras[date] || [];
   const extraRows = extras.map((x, i) => `<li class="k-extra is-done"><div class="lrow"><span class="slot-ico">${icon('plus')}</span><div class="body"><div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`).join('');
-  const any = [moveRows(state, date), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
+  const any = [moveRows(state, date), ...evs.filter((e) => !e.time).map(evRow), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
   const total = plan.timed.length + plan.anytime.length;
   const doneCount = meals.filter((m) => m.done).length + active.filter((a) => state.habits.log[date]?.[a.id]).length + (!hide && state.weights.some((w) => w.date === date) ? 1 : 0);
   const noHabit = active.length ? '' : `<li class="tl-empty"><a class="lrow" href="#/habits" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('habits')}</span><span class="body"><span class="title">Pick one small habit</span><span class="sub">It slots into your day at the moment you choose</span></span><span class="trail">${icon('chevron')}</span></a></li>`;
@@ -207,7 +214,7 @@ function yourDay(state, date) {
         <li class="tl-part" aria-hidden="true">Any time today</li>${any}
         <li><button class="lrow" data-action="openExtra" style="min-height:54px"><span class="slot-ico" style="background:var(--accent-tint);color:var(--accent)">${icon('plus')}</span><span class="body"><span class="title" style="color:var(--accent)">Add something else you ate</span></span></button></li>
       </ul>
-      <div class="day-links"><a href="#/meals">Week meal plan</a><a href="#/habits">Manage habits</a><a href="#/move">This week’s movement</a></div>
+      <div class="day-links"><a href="#/calendar">Calendar</a><a href="#/meals">Week meal plan</a><a href="#/habits">Manage habits</a><a href="#/move">This week’s movement</a></div>
     </div>`;
 }
 

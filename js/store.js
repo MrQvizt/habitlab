@@ -224,6 +224,15 @@ export function sanitize(s) {
     const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
     s.affirm = { values: strs(f.values, 60, 40), own: strs(f.own, 200, 40), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
   }
+  // Your calendar events, and your shared-calendar link (id + secret key stay on this device).
+  const KINDS = ['walk', 'workout', 'sport', 'outdoors', 'cooking', 'shopping', 'habit', 'other'];
+  s.events = (Array.isArray(s.events) ? s.events : []).filter((e) => e && typeof e.id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(e.id) && ISO.test(e.date) && typeof e.title === 'string' && e.title.trim()).slice(-500).map((e) => ({
+    id: e.id, title: e.title.trim().slice(0, 60), date: e.date, time: typeof e.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(e.time) ? e.time : '',
+    place: typeof e.place === 'string' ? e.place.slice(0, 80) : '', kind: KINDS.includes(e.kind) ? e.kind : 'other', notes: typeof e.notes === 'string' ? e.notes.slice(0, 140) : '', public: e.public === true,
+  }));
+  const sh = s.share;
+  if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40) };
+  else delete s.share;
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 120), kcal: num(x?.kcal, 0, 10000, 0), ...(num(x?.p, 0, 500, 0) ? { p: num(x?.p, 0, 500, 0) } : {}) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
   const g = s.game && typeof s.game === 'object' ? s.game : {};

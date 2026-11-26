@@ -1,0 +1,3 @@
+-- Applied to the Supabase project "habitlab" (ref jwjabhcebwnzhfphsuwg, eu-north-1) as migration
+-- "shared_calendars". Kept here so the backend is reviewable and reproducible.
+-- (see migration body below)

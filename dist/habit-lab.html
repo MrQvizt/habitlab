@@ -1174,6 +1174,35 @@ button.pill { font: inherit; border: 0; cursor: pointer; }
 .int-opt { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 14px; cursor: pointer; }
 .int-opt small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
 .int-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+
+/* ---------- Calendar ---------- */
+.cal { display: grid; gap: 10px; }
+.cal-day { display: grid; grid-template-columns: 52px 1fr; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 10px 12px; }
+.cal-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.cal-date { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 4px; }
+.cal-date b { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
+.cal-date span { font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cal-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cal-ev, .cal-plan, .cal-add { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; font: inherit; color: var(--ink); background: var(--surface-2); border: 0; border-radius: 12px; padding: 8px 10px; cursor: pointer; min-height: 44px; }
+.cal-plan { background: transparent; border: 1px dashed var(--line-strong); }
+.cal-ev small, .cal-plan small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
+.cal-add { background: transparent; color: var(--accent); font-weight: 650; font-size: var(--text-sm); min-height: 36px; }
+.cal-add .icon { width: 16px; height: 16px; }
+.cal-emoji { font-size: 1.25rem; line-height: 1; flex: none; }
+.cal-emoji.big { font-size: 1.8rem; }
+.cal-public { gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 14px; cursor: pointer; }
+.cal-public small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
+.cal-public input { margin-top: 4px; }
+.share-link { display: flex; gap: 6px; }
+.share-link input { flex: 1; min-width: 0; font-size: var(--text-sm); }
+/* ---------- Join page (friends) ---------- */
+.join-page { max-width: 560px; margin: 0 auto; padding: 28px 4px 40px; }
+.join-page h1 { margin: 4px 0 8px; }
+.join-intro { color: var(--ink-2); margin: 0 0 18px; }
+.join-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.join-ev { margin: 0; }
+.cal-link { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); }
+.cal-link small { display: block; color: var(--ink-3); font-size: var(--text-sm); }
 </style>
 </head>
 <body>
@@ -4860,6 +4889,15 @@ function sanitize(s) {
     const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
     s.affirm = { values: strs(f.values, 60, 40), own: strs(f.own, 200, 40), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
   }
+  // Your calendar events, and your shared-calendar link (id + secret key stay on this device).
+  const KINDS = ['walk', 'workout', 'sport', 'outdoors', 'cooking', 'shopping', 'habit', 'other'];
+  s.events = (Array.isArray(s.events) ? s.events : []).filter((e) => e && typeof e.id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(e.id) && ISO.test(e.date) && typeof e.title === 'string' && e.title.trim()).slice(-500).map((e) => ({
+    id: e.id, title: e.title.trim().slice(0, 60), date: e.date, time: typeof e.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(e.time) ? e.time : '',
+    place: typeof e.place === 'string' ? e.place.slice(0, 80) : '', kind: KINDS.includes(e.kind) ? e.kind : 'other', notes: typeof e.notes === 'string' ? e.notes.slice(0, 140) : '', public: e.public === true,
+  }));
+  const sh = s.share;
+  if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40) };
+  else delete s.share;
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 120), kcal: num(x?.kcal, 0, 10000, 0), ...(num(x?.p, 0, 500, 0) ? { p: num(x?.p, 0, 500, 0) } : {}) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
   const g = s.game && typeof s.game === 'object' ? s.game : {};
@@ -6426,6 +6464,7 @@ function overview(state) {
   const prog = state.workouts.progress;
   return html`<header class="page-head"><div><div class="eyebrow">Week ${store.weeksSinceStart(state, date) + 1}</div><h1>Move</h1></div></header>
     <p class="muted" style="margin:-8px 0 14px">For health, mood and keeping weight off — not to earn food. Start low, go slow; the plan builds with you.</p>
+    <a class="card cal-link" href="#/calendar"><span class="cal-emoji big" aria-hidden="true">📅</span><span class="grow"><strong>Calendar</strong><small>Set when and where, add walks and batch cooking, invite friends</small></span>${icon('chevron')}</a>
     <div class="grid two">
       <div class="card"><h2>Today</h2>${today.items.map((it) => {
         if (it.kind === 'rest') return '<p class="muted">Rest day — gentle walking is still great.</p>';
@@ -7545,7 +7584,302 @@ function allClosed(state) {
 
 Object.assign(__m, { RING_META, dayRings, ringsSvg, newlyClosed, allClosed });
 },
-/* js/data/learn.js */ 33: function (__m, __req) {
+/* js/share.js */ 33: function (__m, __req) {
+// Sharing your calendar: the activities you open to friends are published to a small Supabase
+// database (project "habitlab"); friends open your link and tap "I'll join". Only what, when and
+// where is shared, plus the names people type when they join. Nothing else leaves the device.
+// Server side: four functions (hl_publish / hl_calendar / hl_join / hl_signups) over locked tables.
+const { esc, icon } = __req(17);
+const store = __req(16);
+const { addDays } = __req(0);
+
+const SUPABASE_URL = 'https://jwjabhcebwnzhfphsuwg.supabase.co';
+// Publishable key: safe to ship in an app (it only reaches the four functions above).
+const PUBLISHABLE_KEY = 'sb_publishable_wRKoEGC_8OtpR9SoT8tGkQ_Z9rhDWjl';
+const SHARE_BASE = 'https://habitlab-eight.vercel.app/';
+
+let signups = []; // [{event, name, at}] for your calendar
+let lastFetch = 0;
+
+async function rpc(fn, args) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: { apikey: PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  });
+  const text = await res.text();
+  let body = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch (e) {
+    body = null;
+  }
+  if (!res.ok) throw new Error(body?.message || 'The calendar service didn’t answer. Try again in a moment.');
+  return body;
+}
+
+const randomHex = (n) => [...crypto.getRandomValues(new Uint8Array(n))].map((b) => b.toString(16).padStart(2, '0')).join('');
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `${randomHex(4)}-${randomHex(2)}-4${randomHex(2).slice(1)}-a${randomHex(2).slice(1)}-${randomHex(6)}`);
+
+const shareLink = (state) => (state.share?.id ? `${SHARE_BASE}#/join/${state.share.id}` : '');
+const signupsFor = (eventId) => signups.filter((s) => s.event === eventId);
+
+/** The events friends can see: open to friends, from yesterday on. */
+function publicEvents(state) {
+  const from = addDays(store.today(), -1);
+  return (state.events || []).filter((e) => e.public && e.date >= from).map(({ id, title, date, time, place, kind, notes }) => ({ id, title, date, time, place, kind, notes }));
+}
+
+/** Publish after a change (only once you've created a link). */
+async function sync(ctx) {
+  const s = ctx.state.share;
+  if (!s?.id) return;
+  try {
+    await rpc('hl_publish', { p_id: s.id, p_key: s.key, p_name: s.name || '', p_events: publicEvents(ctx.state) });
+  } catch (e) {
+    ctx.toast('Couldn’t update your shared calendar — you may be offline. It updates next time.');
+  }
+}
+
+/** Fetch who's joining (at most every 20 s). */
+async function refresh(ctx, force = false) {
+  const s = ctx.state.share;
+  if (!s?.id || (!force && Date.now() - lastFetch < 20000)) return;
+  lastFetch = Date.now();
+  try {
+    const list = await rpc('hl_signups', { p_id: s.id, p_key: s.key });
+    if (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(signups)) {
+      signups = list;
+      ctx.rerender();
+    }
+  } catch (e) {
+    /* offline: keep what we have */
+  }
+}
+
+function shareCardHtml(state, pubCount) {
+  const s = state.share;
+  if (!s?.id) {
+    return `<div class="card share-card"><h3 style="margin-top:0">${icon('star')} Make changes together</h3>
+      <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Share a link to your calendar. Friends see the activities you mark <strong>Open to friends</strong> and can tap “I’ll join”. Only what, when and where is shared.</p>
+      <form data-form="shareCreate" class="row nowrap" style="gap:8px"><input type="text" name="name" maxlength="40" required placeholder="Your first name" aria-label="Your first name" style="flex:1;min-width:0"><button class="btn primary small">Create my link</button></form></div>`;
+  }
+  const link = shareLink(state);
+  const total = signups.length;
+  return `<div class="card share-card"><div class="row between nowrap"><h3 style="margin:0">${icon('star')} Your shared calendar</h3>${total ? `<span class="tag green">${total} joining</span>` : ''}</div>
+    <p class="muted" style="font-size:var(--text-sm);margin:6px 0 8px">${pubCount ? `${pubCount} upcoming ${pubCount === 1 ? 'activity is' : 'activities are'} open to friends.` : 'Nothing open to friends yet — tap an activity and switch on “Open to friends”.'}</p>
+    <div class="share-link"><input type="text" readonly value="${esc(link)}" aria-label="Your calendar link"><button class="btn small" data-action="shareCopy">Copy</button>${navigator.share ? '<button class="btn small primary" data-action="shareNative">Share</button>' : ''}</div>
+    <button class="btn ghost small" data-action="shareStop" style="margin-top:8px">Stop sharing</button></div>`;
+}
+
+const shareActions = {
+  async shareCreate(form, ev, ctx, data) {
+    const name = String(data.name || '').trim().slice(0, 40);
+    if (!name) return;
+    const share = { id: uuid(), key: randomHex(24), name };
+    try {
+      await rpc('hl_publish', { p_id: share.id, p_key: share.key, p_name: name, p_events: publicEvents(ctx.state) });
+    } catch (e) {
+      return ctx.toast('Couldn’t create your link — check your connection and try again.');
+    }
+    ctx.update((st) => {
+      st.share = share;
+      return st;
+    }, { quiet: true });
+    ctx.toast('Your link is ready — share it with friends.');
+  },
+  async shareCopy(el, ev, ctx) {
+    try {
+      await navigator.clipboard.writeText(shareLink(ctx.state));
+      ctx.toast('Link copied');
+    } catch (e) {
+      document.querySelector('.share-link input')?.select();
+    }
+  },
+  async shareNative(el, ev, ctx) {
+    try {
+      await navigator.share({ title: 'Join me', text: `I’m making some healthy changes — join me for a walk or two? ${ctx.state.share?.name ? `— ${ctx.state.share.name}` : ''}`, url: shareLink(ctx.state) });
+    } catch (e) {
+      /* cancelled */
+    }
+  },
+  async shareStop(el, ev, ctx) {
+    if (!(await ctx.confirm('Stop sharing? Your link stops working and the list of who’s joining is deleted.', { ok: 'Stop sharing' }))) return;
+    const s = ctx.state.share;
+    try {
+      await rpc('hl_unpublish', { p_id: s.id, p_key: s.key });
+    } catch (e) {
+      return ctx.toast('Couldn’t reach the calendar service — try again when you’re online.');
+    }
+    signups = [];
+    ctx.update((st) => {
+      delete st.share;
+      return st;
+    }, { quiet: true });
+    ctx.toast('Sharing stopped');
+  },
+};
+
+Object.assign(__m, { SUPABASE_URL, SHARE_BASE, rpc, shareLink, signupsFor, publicEvents, sync, refresh, shareCardHtml, shareActions });
+},
+/* js/views/calendar.js */ 34: function (__m, __req) {
+// Activity calendar: your planned week plus your own events (walks, batch cooking, a gym class,
+// a habit you want to do at a set time). Events can be opened to friends, who can sign up from
+// your shared link (js/share.js).
+const { esc, icon, fmtDate } = __req(17);
+const store = __req(16);
+const { addDays, weekStart } = __req(0);
+const { openSheet, closeSheet } = __req(25);
+const { itemName } = __req(26);
+const { itemKey } = __req(7);
+const share = __req(33);
+
+const EVENT_KINDS = {
+  walk: { label: 'Walk', emoji: '🚶' },
+  workout: { label: 'Workout', emoji: '💪' },
+  sport: { label: 'Sport / class', emoji: '🏸' },
+  outdoors: { label: 'Outdoors', emoji: '🥾' },
+  cooking: { label: 'Batch cooking', emoji: '🍲' },
+  shopping: { label: 'Food shopping', emoji: '🛒' },
+  habit: { label: 'Habit', emoji: '✅' },
+  other: { label: 'Other', emoji: '📌' },
+};
+const QUICK = [['walk', 'Walk'], ['cooking', 'Batch cooking'], ['workout', 'Gym'], ['outdoors', 'Hike'], ['sport', 'Swim'], ['shopping', 'Food shopping'], ['cooking', 'Meal prep'], ['walk', 'Walk with friends']];
+
+let anchor = null; // first day shown (agenda of 14 days)
+
+/** Your events on a date, by time. */
+function eventsOn(state, date) {
+  return (state.events || []).filter((e) => e.date === date).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+}
+
+const plannedOn = (state, date) => store.schedule(state, date).schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items.filter((i) => i.kind !== 'rest');
+
+function eventRow(state, e) {
+  const k = EVENT_KINDS[e.kind] || EVENT_KINDS.other;
+  const joins = share.signupsFor(e.id);
+  return `<li><button class="cal-ev" data-action="calEdit" data-id="${esc(e.id)}"><span class="cal-emoji" aria-hidden="true">${k.emoji}</span><span class="grow"><strong>${esc(e.title)}</strong><small>${e.time ? esc(e.time) : 'Any time'}${e.place ? ` · ${esc(e.place)}` : ''}</small></span>${e.public ? `<span class="tag ${joins.length ? 'green' : ''}">${joins.length ? `${joins.length} joining` : 'Open to friends'}</span>` : ''}</button></li>`;
+}
+
+function agenda(state, from, days = 14) {
+  const today = store.today();
+  const out = [];
+  for (let i = 0; i < days; i++) {
+    const d = addDays(from, i);
+    const evs = eventsOn(state, d);
+    const plan = plannedOn(state, d);
+    out.push(`<section class="cal-day ${d === today ? 'today' : ''}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}">
+      <div class="cal-date"><b>${esc(fmtDate(d, { weekday: 'short' }))}</b><span>${new Date(d + 'T12:00').getDate()}</span></div>
+      <ul class="cal-items">
+        ${plan.map((it) => `<li><button class="cal-plan" data-action="calFromPlan" data-date="${d}" data-key="${esc(itemKey(it))}" data-title="${esc(itemName(it))}" data-kind="${it.kind === 'activity' ? 'sport' : it.kind === 'cardio' ? 'walk' : 'workout'}"><span class="cal-emoji" aria-hidden="true">${it.kind === 'strength' ? '💪' : it.kind === 'cardio' ? '🚶' : '🏸'}</span><span class="grow">${esc(itemName(it))}<small>From your plan · tap to set a time and place</small></span></button></li>`).join('')}
+        ${evs.map((e) => eventRow(state, e)).join('')}
+        <li><button class="cal-add" data-action="calAdd" data-date="${d}">${icon('plus')} Add</button></li>
+      </ul></section>`);
+  }
+  return out.join('');
+}
+
+function editorHtml(state, ev) {
+  const e = ev || { id: '', title: '', date: store.today(), time: '', place: '', kind: 'walk', notes: '', public: false };
+  const isNew = !ev?.id;
+  const joins = e.id ? share.signupsFor(e.id) : [];
+  return `<div class="sheet-head"><div><div class="over">${isNew ? 'New in your calendar' : 'Your calendar'}</div><h2>${isNew ? 'Plan something' : esc(e.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+    <form data-form="calSave" data-id="${esc(e.id)}">
+      ${isNew ? `<div class="quick-chips" style="margin-bottom:8px">${QUICK.map(([k, t]) => `<button type="button" data-action="calQuick" data-kind="${k}" data-title="${esc(t)}">${EVENT_KINDS[k].emoji} ${esc(t)}</button>`).join('')}</div>` : ''}
+      <label class="field"><span>What</span><input type="text" name="title" maxlength="60" required value="${esc(e.title)}" placeholder="e.g. Walk round the lake"></label>
+      <div class="grid two" style="gap:0 12px;margin:0">
+        <label class="field"><span>Day</span><input type="date" name="date" required value="${esc(e.date)}" min="${addDays(store.today(), -7)}"></label>
+        <label class="field"><span>Time</span><input type="time" name="time" value="${esc(e.time || '')}"></label>
+      </div>
+      <label class="field"><span>Where <span class="hint">optional</span></span><input type="text" name="place" maxlength="80" value="${esc(e.place || '')}" placeholder="e.g. the park by the library"></label>
+      <label class="field"><span>Type</span><select name="kind">${Object.entries(EVENT_KINDS).map(([k, v]) => `<option value="${k}" ${k === e.kind ? 'selected' : ''}>${v.emoji} ${v.label}</option>`).join('')}</select></label>
+      <label class="field"><span>Note <span class="hint">optional</span></span><input type="text" name="notes" maxlength="140" value="${esc(e.notes || '')}" placeholder="e.g. bring water, 5 km loop"></label>
+      <label class="row nowrap cal-public"><input type="checkbox" name="public" value="1" ${e.public ? 'checked' : ''}><span><strong>Open to friends</strong><small>Shows on your shared calendar so people can say “I’ll join”. Only what, when and where is shared.</small></span></label>
+      ${joins.length ? `<div class="notice ok" style="margin-top:10px">${icon('check')}<div><strong>${joins.length} joining:</strong> ${joins.map((j) => esc(j.name)).join(', ')}</div></div>` : ''}
+      <div class="row" style="margin-top:14px"><button class="btn primary">${isNew ? 'Add to calendar' : 'Save'}</button>${isNew ? '' : `<button type="button" class="btn ghost danger" data-action="calDelete" data-id="${esc(e.id)}">Delete</button>`}</div>
+    </form>`;
+}
+
+let draft = null;
+
+__m.default = {
+  render(state) {
+    const today = store.today();
+    if (!anchor || anchor < addDays(today, -28)) anchor = today;
+    const pub = (state.events || []).filter((e) => e.public && e.date >= today).length;
+    return `<header class="page-head"><div><div class="eyebrow">Move</div><h1>Calendar</h1></div></header>
+      <p class="muted" style="margin:-8px 0 12px">Your plan, plus your own walks, batch cooking and plans with friends. Deciding <em>when and where</em> makes it far more likely to happen.</p>
+      ${share.shareCardHtml(state, pub)}
+      <div class="row between nowrap" style="margin:6px 0 10px">
+        <button class="btn small ghost" data-action="calShift" data-d="-7">${icon('chevron')} Earlier</button>
+        ${anchor !== today ? '<button class="btn small" data-action="calShift" data-d="0">Today</button>' : ''}
+        <button class="btn small ghost" data-action="calShift" data-d="7">Later ${icon('chevron')}</button>
+      </div>
+      <div class="cal">${agenda(state, anchor)}</div>
+      <button class="btn primary block" data-action="calAdd" data-date="${today}" style="margin-top:12px">${icon('plus')} Add to calendar</button>`;
+  },
+  after(root, ctx) {
+    share.refresh(ctx);
+  },
+  actions: {
+    calShift(el, ev, ctx) {
+      const d = Number(el.dataset.d);
+      anchor = d === 0 ? store.today() : addDays(anchor, d);
+      ctx.rerender();
+    },
+    ...share.shareActions,
+  },
+};
+
+/** Global actions (also used from Today and evening planning). */
+const calendarActions = {
+  calAdd(el, ev, ctx) {
+    draft = null;
+    openSheet(editorHtml(ctx.state, { id: '', title: '', date: el.dataset.date || store.today(), time: el.dataset.time || '', place: '', kind: el.dataset.kind || 'walk', notes: '', public: false }), { label: 'Add to calendar' });
+  },
+  calFromPlan(el, ev, ctx) {
+    openSheet(editorHtml(ctx.state, { id: '', title: el.dataset.title, date: el.dataset.date, time: '', place: '', kind: el.dataset.kind, notes: '', public: false, planKey: el.dataset.key }), { label: 'Set a time' });
+  },
+  calQuick(el) {
+    const f = el.closest('form');
+    f.querySelector('[name=title]').value = el.dataset.title;
+    f.querySelector('[name=kind]').value = el.dataset.kind;
+    f.querySelector('[name=time]').focus();
+  },
+  calEdit(el, ev, ctx) {
+    const e = (ctx.state.events || []).find((x) => x.id === el.dataset.id);
+    if (e) openSheet(editorHtml(ctx.state, e), { label: 'Edit' });
+  },
+  calSave(form, ev, ctx, data) {
+    const title = String(data.title || '').trim().slice(0, 60);
+    if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(data.date || '')) return;
+    const id = form.dataset.id || `ev_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const e = { id, title, date: data.date, time: /^\d{2}:\d{2}$/.test(data.time || '') ? data.time : '', place: String(data.place || '').trim().slice(0, 80), kind: EVENT_KINDS[data.kind] ? data.kind : 'other', notes: String(data.notes || '').trim().slice(0, 140), public: data.public === '1' };
+    closeSheet();
+    ctx.update((st) => {
+      const list = (st.events || []).filter((x) => x.id !== id);
+      st.events = [...list, e].sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
+      return st;
+    }, { quiet: true });
+    ctx.toast(form.dataset.id ? 'Saved' : `Added — ${fmtDate(e.date, { weekday: 'long' })}${e.time ? ` at ${e.time}` : ''}`);
+    share.sync(ctx);
+  },
+  async calDelete(el, ev, ctx) {
+    if (!(await ctx.confirm('Delete this from your calendar?', { ok: 'Delete' }))) return;
+    closeSheet();
+    ctx.update((st) => {
+      st.events = (st.events || []).filter((x) => x.id !== el.dataset.id);
+      return st;
+    }, { quiet: true });
+    share.sync(ctx);
+  },
+};
+
+void weekStart;
+
+Object.assign(__m, { EVENT_KINDS, eventsOn, calendarActions });
+},
+/* js/data/learn.js */ 35: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -7848,7 +8182,7 @@ const LEARN = [
 
 Object.assign(__m, { S, LEARN_SECTIONS, LEARN });
 },
-/* js/ui/celebrate.js */ 34: function (__m, __req) {
+/* js/ui/celebrate.js */ 36: function (__m, __req) {
 // Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
 // Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
 // after the user has interacted with the page.
@@ -7991,18 +8325,18 @@ function showCelebration({ kicker, title, body, iconName = 'star', ok = 'Nice!' 
 
 Object.assign(__m, { floatXp, ringBanner, confetti, chime, buzz, showCelebration });
 },
-/* js/views/wrap.js */ 35: function (__m, __req) {
+/* js/views/wrap.js */ 37: function (__m, __req) {
 // Body Wrap: a short, story-style weekly recap. Each card is one body part thanking you for
 // what you did, with one research fact. Tap right/left (or use the arrow keys) to move through it.
 // Opening last week's wrap to the end earns XP once (derived from state.wraps in game.js).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(33);
+const { S: SOURCES } = __req(35);
 const { weekStart, addDays, getWeekStart } = __req(0);
 
 const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const { confetti, chime, buzz, floatXp } = __req(34);
+const { confetti, chime, buzz, floatXp } = __req(36);
 const { XP } = __req(13);
 
 let idx = 0;
@@ -8161,7 +8495,7 @@ function bodyRingsCard(state, today) {
 
 Object.assign(__m, { ring, wrapReadyCard, bodyRingsCard });
 },
-/* js/views/today.js */ 36: function (__m, __req) {
+/* js/views/today.js */ 38: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 const { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(17);
@@ -8178,9 +8512,11 @@ const { itemDone, logPlannedActivity } = __req(27);
 const { toggleHabit, mealRowList } = __req(30);
 const { planDay, partOf, PARTS } = __req(31);
 const { dayRings, ringsSvg, RING_META } = __req(32);
+const { eventsOn, EVENT_KINDS } = __req(34);
+const { toMin } = __req(14);
 const { journey, nextStops, recentTimeStop } = __req(21);
 const { whenLabel } = __req(22);
-const { wrapReadyCard, bodyRingsCard } = __req(35);
+const { wrapReadyCard, bodyRingsCard } = __req(37);
 
 // ---------- Journey: the next stop on the long road (or a time stop just reached) ----------
 function journeyCard(state, date) {
@@ -8339,7 +8675,12 @@ function yourDay(state, date) {
   const byId = Object.fromEntries(active.map((a) => [a.id, a]));
   const mealHtml = Object.fromEntries(meals.map((m) => [m.slot, m.html]));
   const habitHtml = (id, label) => habitRow(state, byId[id], date, 'habitCheck', 'openHabit', label);
-  const itemHtml = (it) => (it.kind === 'meal' ? mealHtml[it.slot] : it.kind === 'habit' ? habitHtml(it.id, it.label) : weighRow(state, date));
+  // Your calendar events for the day sit at their time (untimed ones under "Any time").
+  const evs = eventsOn(state, date);
+  const evRow = (e) => `<li class="k-event"><button class="lrow" data-action="calEdit" data-id="${esc(e.id)}"><span class="slot-ico" style="font-size:1.15rem">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}</span><span class="body"><span class="over">${e.time ? esc(e.time) : 'Any time'} · Calendar${e.public ? ' · open to friends' : ''}</span><span class="title">${esc(e.title)}</span>${e.place ? `<span class="sub">${esc(e.place)}</span>` : ''}</span><span class="trail">${icon('chevron')}</span></button></li>`;
+  for (const e of evs) if (e.time) plan.timed.push({ kind: 'event', time: toMin(e.time), ev: e, order: 1.5 });
+  plan.timed.sort((a, b) => a.time - b.time || a.order - b.order);
+  const itemHtml = (it) => (it.kind === 'meal' ? mealHtml[it.slot] : it.kind === 'habit' ? habitHtml(it.id, it.label) : it.kind === 'event' ? evRow(it.ev) : weighRow(state, date));
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const parts = [];
@@ -8361,7 +8702,7 @@ function yourDay(state, date) {
   if (!nowShown && date === store.today()) parts.push(nowLine);
   const extras = state.extras[date] || [];
   const extraRows = extras.map((x, i) => `<li class="k-extra is-done"><div class="lrow"><span class="slot-ico">${icon('plus')}</span><div class="body"><div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`).join('');
-  const any = [moveRows(state, date), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
+  const any = [moveRows(state, date), ...evs.filter((e) => !e.time).map(evRow), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
   const total = plan.timed.length + plan.anytime.length;
   const doneCount = meals.filter((m) => m.done).length + active.filter((a) => state.habits.log[date]?.[a.id]).length + (!hide && state.weights.some((w) => w.date === date) ? 1 : 0);
   const noHabit = active.length ? '' : `<li class="tl-empty"><a class="lrow" href="#/habits" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('habits')}</span><span class="body"><span class="title">Pick one small habit</span><span class="sub">It slots into your day at the moment you choose</span></span><span class="trail">${icon('chevron')}</span></a></li>`;
@@ -8371,7 +8712,7 @@ function yourDay(state, date) {
         <li class="tl-part" aria-hidden="true">Any time today</li>${any}
         <li><button class="lrow" data-action="openExtra" style="min-height:54px"><span class="slot-ico" style="background:var(--accent-tint);color:var(--accent)">${icon('plus')}</span><span class="body"><span class="title" style="color:var(--accent)">Add something else you ate</span></span></button></li>
       </ul>
-      <div class="day-links"><a href="#/meals">Week meal plan</a><a href="#/habits">Manage habits</a><a href="#/move">This week’s movement</a></div>
+      <div class="day-links"><a href="#/calendar">Calendar</a><a href="#/meals">Week meal plan</a><a href="#/habits">Manage habits</a><a href="#/move">This week’s movement</a></div>
     </div>`;
 }
 
@@ -8506,7 +8847,7 @@ __m.default = {
 
 Object.assign(__m, { habitRow, lastActive });
 },
-/* js/views/meals.js */ 37: function (__m, __req) {
+/* js/views/meals.js */ 39: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 const { html, esc, icon, chips, fmtDate, fmtNum } = __req(17);
 const { mealRows } = __req(30);
@@ -8695,7 +9036,7 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 38: function (__m, __req) {
+/* js/ui/charts.js */ 40: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
 const { esc } = __req(17);
 const { daysBetween, addDays } = __req(0);
@@ -8807,10 +9148,10 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/habits.js */ 39: function (__m, __req) {
+/* js/views/habits.js */ 41: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
 const { esc, icon } = __req(17);
-const { habitGrid } = __req(38);
+const { habitGrid } = __req(40);
 const store = __req(16);
 const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(10);
@@ -8963,11 +9304,11 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/progress.js */ 40: function (__m, __req) {
+/* js/views/progress.js */ 42: function (__m, __req) {
 // Progress: the home for everything long-term. A hub (journey, body levels, rewards, weekly
 // check-in), past Body Wraps, then the weight trend, activity, weigh-ins, waist and check-in history.
 const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(17);
-const { weightChart, barChart } = __req(38);
+const { weightChart, barChart } = __req(40);
 const store = __req(16);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
@@ -8975,7 +9316,7 @@ const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
 const { journey, nextStops } = __req(21);
 const { weekBody } = __req(12);
 const { checkinDue } = __req(18);
-const { ring } = __req(35);
+const { ring } = __req(37);
 
 /** The long-term hub at the top of Progress. */
 function hub(state, date, hide) {
@@ -9150,7 +9491,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, {  });
 },
-/* js/engine/adjust.js */ 41: function (__m, __req) {
+/* js/engine/adjust.js */ 43: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -9426,11 +9767,11 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 42: function (__m, __req) {
+/* js/views/checkin.js */ 44: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
 const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(17);
 const store = __req(16);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(41);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(43);
 const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
@@ -9575,10 +9916,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/learn.js */ 43: function (__m, __req) {
+/* js/views/learn.js */ 45: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
 const { html, esc, icon } = __req(17);
-const { LEARN, LEARN_SECTIONS } = __req(33);
+const { LEARN, LEARN_SECTIONS } = __req(35);
 
 let section = 'all';
 let openAll = false;
@@ -9623,7 +9964,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/data/melodies.js */ 44: function (__m, __req) {
+/* js/data/melodies.js */ 46: function (__m, __req) {
 // Alarm sounds. Each melody is data: the same spec is played by the in-app preview (Web Audio) and by
 // the native alarm (AlarmService.java synthesises it on the alarm stream), so what you hear when you
 // choose is exactly what wakes you.
@@ -9768,7 +10109,7 @@ function previewMelody(id, { passes = 2 } = {}) {
 
 Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, stopPreview, previewMelody });
 },
-/* js/engine/alarms.js */ 45: function (__m, __req) {
+/* js/engine/alarms.js */ 47: function (__m, __req) {
 // Alarm clock settings → the specs the native alarm scheduler uses (js/alarm-native.js).
 // Defaults follow sleep research:
 // - The same wake time every day, weekends included: irregular sleep/wake timing is linked to a
@@ -9778,7 +10119,7 @@ Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSou
 //   compared with a printed book (Chang 2015).
 // - Meals at regular times from your day schedule.
 const { daySchedule, mealTimes, toHHMM, toMin } = __req(14);
-const { DEFAULT_SOUND, nativeSound } = __req(44);
+const { DEFAULT_SOUND, nativeSound } = __req(46);
 
 const DEFAULT_ALARMS = {
   wake: { on: false, time: null, days: [0, 1, 2, 3, 4, 5, 6], style: 'ring' },
@@ -9859,7 +10200,7 @@ function fmtTime(min) {
 
 Object.assign(__m, { DEFAULT_ALARMS, STYLES, alarmsOf, alarmTimes, mealSlots, alarmSpecs, fmtTime });
 },
-/* js/data/reasons.js */ 46: function (__m, __req) {
+/* js/data/reasons.js */ 48: function (__m, __req) {
 // One-word reasons people give for wanting to lose weight, to pick on the morning screen and in Settings.
 // Grouped by the themes found in research: health first, then appearance and mood (O’Brien 2007),
 // function and mobility, stigma (hospital programme, open-ended answers), family and milestones
@@ -10484,7 +10825,7 @@ const REASONS = [
 
 Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 },
-/* js/data/affirmations.js */ 47: function (__m, __req) {
+/* js/data/affirmations.js */ 49: function (__m, __req) {
 // Morning messages shown when the wake-up alarm rings and on the Good-morning screen.
 // What the research says, and how it shapes these messages:
 // - Values-based self-affirmation: reflecting on what matters to you activates the brain's
@@ -10500,7 +10841,7 @@ Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 // - Compliments ("You look beautiful") are included because people asked for them; they can be
 //   switched off, and you can add your own words.
 
-const { REASONS, REASON_YOUR, REASON_PROPER } = __req(46);
+const { REASONS, REASON_YOUR, REASON_PROPER } = __req(48);
 
 const LIBRARY = new Set(REASONS.map((r) => r[1].toLowerCase()));
 
@@ -10714,11 +11055,11 @@ function removeReason(affirm = {}, text) {
 
 Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, DEFAULT_SETS, morningMessages, messageForDay, reasonLine, addReason, removeReason });
 },
-/* js/alarm-native.js */ 48: function (__m, __req) {
+/* js/alarm-native.js */ 50: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
-const { alarmSpecs, alarmsOf } = __req(45);
-const { morningMessages, valueInfo } = __req(47);
+const { alarmSpecs, alarmsOf } = __req(47);
+const { morningMessages, valueInfo } = __req(49);
 
 let lastMessage = null;
 
@@ -10836,13 +11177,13 @@ async function listen(go, onWake) {
 
 Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, parseWake, listen });
 },
-/* js/views/alarms.js */ 49: function (__m, __req) {
+/* js/views/alarms.js */ 51: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 const { esc, icon } = __req(17);
-const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(45);
+const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(47);
 const { daySchedule, mealTimes } = __req(14);
-const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(47);
-const { REASONS, REASON_CATS } = __req(46);
+const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(49);
+const { REASONS, REASON_CATS } = __req(48);
 
 // Reason library state (kept across re-renders while you browse).
 let reasonCat = 'health';
@@ -10854,8 +11195,8 @@ document.addEventListener('input', (ev) => {
 document.addEventListener('toggle', (ev) => {
   if (ev.target.classList?.contains('reason-lib')) libOpen = ev.target.open;
 }, true);
-const alarmNative = __req(48);
-const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(44);
+const alarmNative = __req(50);
+const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(46);
 const { openSheet, updateSheet } = __req(25);
 
 const KIND_NAME = { wake: 'Wake-up', wind: 'Wind-down', bed: 'Bedtime', meals: 'Meal' };
@@ -11167,7 +11508,7 @@ const alarmActions = {
 
 Object.assign(__m, { ownValues, alarmsSummary, alarmsPage, alarmsAfter, alarmActions });
 },
-/* js/notify.js */ 50: function (__m, __req) {
+/* js/notify.js */ 52: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -11304,10 +11645,10 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 51: function (__m, __req) {
+/* js/views/settings.js */ 53: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { goalHint } = __req(23);
-const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(49);
+const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(51);
 const { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(17);
 const store = __req(16);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
@@ -11315,7 +11656,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn, weekOrder } = __req(0);
-const notify = __req(50);
+const notify = __req(52);
 const { DEFAULT_REMINDERS } = __req(15);
 const { dayFields, daySummary, readDay } = __req(20);
 const { daySchedule, toHHMM } = __req(14);
@@ -11711,7 +12052,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 52: function (__m, __req) {
+/* js/views/shopping.js */ 54: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(17);
 const store = __req(16);
@@ -11759,15 +12100,15 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 53: function (__m, __req) {
+/* js/views/rewards.js */ 55: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(17);
-const { ring, barChart } = __req(38);
+const { ring, barChart } = __req(40);
 const store = __req(16);
 const { BADGES, XP, levelTitle } = __req(13);
 const { addDays, weekStart } = __req(0);
 const { ORGANS, lastWeekStart } = __req(12);
-const { ring: bodyRing } = __req(35);
+const { ring: bodyRing } = __req(37);
 
 function bodyMedals(state, g, date) {
   const lv = g.stats.body.levels;
@@ -11891,17 +12232,17 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/views/wake.js */ 54: function (__m, __req) {
+/* js/views/wake.js */ 56: function (__m, __req) {
 // Good morning: the screen after "I'm up". The alarm's message, then a ten-second values
 // reflection ("Today I'm doing this for…") — the kind of self-affirmation shown to engage the brain's
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(47);
-const { REASONS } = __req(46);
-const { takeMessage } = __req(48);
+const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(49);
+const { REASONS } = __req(48);
+const { takeMessage } = __req(50);
 const { XP } = __req(13);
-const { confetti, chime, buzz, floatXp } = __req(34);
+const { confetti, chime, buzz, floatXp } = __req(36);
 
 let message = null;
 let msgDate = null;
@@ -12044,18 +12385,18 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/body.js */ 55: function (__m, __req) {
+/* js/views/body.js */ 57: function (__m, __req) {
 // Your body: one card per body part — this week's ring, its long-term level and what it needs.
 // Tap any ring (here, on Today or in the Body Wrap) to open the body-part sheet.
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { openSheet } = __req(25);
 const { ORGAN_GUIDE, organById, weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(33);
+const { S: SOURCES } = __req(35);
 const { weekStart } = __req(0);
 
 const fmtDateShort = (iso) => fmtDate(iso, { day: 'numeric', month: 'short' });
-const { ring } = __req(35);
+const { ring } = __req(37);
 
 function data(state) {
   const today = store.today();
@@ -12132,43 +12473,142 @@ __m.default = {
 
 Object.assign(__m, { organSheetHtml, organActions });
 },
-/* js/app.js */ 56: function (__m, __req) {
+/* js/views/join.js */ 58: function (__m, __req) {
+// The page friends see from your shared link (#/join/<id>): your upcoming open activities and an
+// "I'll join" button. Works without a Habit Lab account or any data on their device.
+const { esc, icon, fmtDate } = __req(17);
+const { rpc } = __req(33);
+const { EVENT_KINDS } = __req(34);
+
+let data = null; // { id, cal, error }
+const joined = new Set();
+let asking = null;
+
+const myName = () => {
+  try {
+    return localStorage.getItem('habitlab.joinName') || '';
+  } catch (e) {
+    return '';
+  }
+};
+
+function eventCard(e, id) {
+  const k = EVENT_KINDS[e.kind] || EVENT_KINDS.other;
+  const key = `${id}:${e.id}`;
+  const done = joined.has(key);
+  return `<li class="join-ev card">
+    <div class="row nowrap" style="gap:12px;align-items:flex-start"><span class="cal-emoji big" aria-hidden="true">${k.emoji}</span>
+      <div class="grow"><strong>${esc(e.title)}</strong>
+        <div class="muted" style="font-size:var(--text-sm)">${esc(fmtDate(e.date, { weekday: 'long', day: 'numeric', month: 'long' }))}${e.time ? ` · ${esc(e.time)}` : ''}${e.place ? ` · ${esc(e.place)}` : ''}</div>
+        ${e.notes ? `<div style="font-size:var(--text-sm);margin-top:4px">${esc(e.notes)}</div>` : ''}
+        <div class="muted" style="font-size:var(--text-xs);margin-top:4px">${e.going ? `${e.going} joining` : 'Be the first to join'}</div></div></div>
+    ${done ? `<div class="notice ok" style="margin:10px 0 0">${icon('check')}<div>You’re in! See you there.</div></div>`
+      : asking === key ? `<form data-form="joinSave" data-event="${esc(e.id)}" class="row nowrap" style="gap:8px;margin-top:10px"><input type="text" name="name" maxlength="40" required value="${esc(myName())}" placeholder="Your name" aria-label="Your name" style="flex:1;min-width:0" autofocus><button class="btn primary">Join</button></form>`
+      : `<button class="btn primary block" data-action="joinAsk" data-event="${esc(e.id)}" style="margin-top:10px">I’ll join</button>`}
+  </li>`;
+}
+
+__m.default = {
+  render(state, params) {
+    const id = params[0] || '';
+    if (data?.id !== id) data = { id, cal: undefined };
+    const cal = data.cal;
+    const body = !/^[0-9a-f-]{36}$/i.test(id) ? '<p>This link doesn’t look right — ask for it again.</p>'
+      : data.error ? `<div class="notice warn">${icon('alert')}<div>${esc(data.error)}</div></div><button class="btn" data-action="joinReload">Try again</button>`
+      : cal === undefined ? '<p class="muted">Loading…</p>'
+      : cal === null ? '<p>This calendar isn’t shared any more.</p>'
+      : cal.events.length ? `<ul class="join-list">${cal.events.map((e) => eventCard(e, id)).join('')}</ul>` : '<p class="muted">Nothing planned to join right now — check back soon.</p>';
+    return `<div class="join-page">
+      <div class="eyebrow">Habit Lab</div>
+      <h1>${cal?.name ? `Join ${esc(cal.name)}` : 'Join in'}</h1>
+      <p class="join-intro">${cal?.name ? esc(cal.name) : 'Your friend'} is making some healthy changes — and it’s easier together. Pick something to join.</p>
+      ${body}
+      <p class="muted" style="font-size:var(--text-xs);margin-top:24px">Joining shares only the name you type with ${cal?.name ? esc(cal.name) : 'them'}. <a href="#/start">Make your own plan with Habit Lab</a></p>
+    </div>`;
+  },
+  async after(root, ctx, params) {
+    if (data.cal !== undefined || data.error || !/^[0-9a-f-]{36}$/i.test(data.id)) return;
+    try {
+      data.cal = await rpc('hl_calendar', { p_id: data.id });
+    } catch (e) {
+      data.error = 'Couldn’t load the calendar. Check your connection.';
+    }
+    ctx.rerender();
+  },
+  actions: {
+    joinAsk(el, ev, ctx) {
+      asking = `${data.id}:${el.dataset.event}`;
+      ctx.rerender();
+      setTimeout(() => document.querySelector('form[data-form=joinSave] input')?.focus(), 30);
+    },
+    async joinSave(form, ev, ctx, d) {
+      const name = String(d.name || '').trim().slice(0, 40);
+      if (!name) return;
+      try {
+        localStorage.setItem('habitlab.joinName', name);
+      } catch (e) {
+        /* private mode */
+      }
+      try {
+        const r = await rpc('hl_join', { p_id: data.id, p_event: form.dataset.event, p_name: name });
+        joined.add(`${data.id}:${form.dataset.event}`);
+        const e = data.cal.events.find((x) => x.id === form.dataset.event);
+        if (e && r?.going) e.going = r.going;
+        asking = null;
+        ctx.rerender();
+      } catch (e) {
+        ctx.toast(e.message || 'Couldn’t join — try again.');
+      }
+    },
+    joinReload(el, ev, ctx) {
+      data = null;
+      ctx.rerender();
+    },
+  },
+};
+
+Object.assign(__m, {  });
+},
+/* js/app.js */ 59: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(16);
 const { icon, formData } = __req(17);
 const { setWeekStart } = __req(0);
 const onboarding = __req(23).default;
 const { goalHint } = __req(23);
-const todayView = __req(36).default;
-const meals = __req(37).default;
+const todayView = __req(38).default;
+const meals = __req(39).default;
 const move = __req(27).default;
-const habits = __req(39).default;
-const progress = __req(40).default;
-const checkin = __req(42).default;
-const learn = __req(43).default;
-const settings = __req(51).default;
-const shopping = __req(52).default;
-const rewards = __req(53).default;
+const habits = __req(41).default;
+const progress = __req(42).default;
+const checkin = __req(44).default;
+const learn = __req(45).default;
+const settings = __req(53).default;
+const shopping = __req(54).default;
+const rewards = __req(55).default;
 const journeyView = __req(22).default;
-const wrapView = __req(35).default;
-const wakeView = __req(54).default;
-const bodyView = __req(55).default;
-const { organActions } = __req(55);
+const wrapView = __req(37).default;
+const wakeView = __req(56).default;
+const bodyView = __req(57).default;
+const calendarView = __req(34).default;
+const { calendarActions } = __req(34);
+const joinView = __req(58).default;
+const { organActions } = __req(57);
 const { organById } = __req(12);
-const alarmNative = __req(48);
-const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(34);
+const alarmNative = __req(50);
+const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(36);
 const { newlyClosed, allClosed } = __req(32);
 const { setViewDate } = __req(24);
-const { reasonLine, addReason } = __req(47);
+const { reasonLine, addReason } = __req(49);
 const { BADGES } = __req(13);
-const notify = __req(50);
+const notify = __req(52);
 const { closeSheet } = __req(25);
 const { sheetActions } = __req(30);
 const { daySummary, readDay } = __req(20);
 
-const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 // Screens without their own tab light up the tab they belong to.
-const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today' };
+const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today', calendar: 'move' };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -12371,7 +12811,7 @@ function xpChip() {
 let lastRoute = '';
 function renderRoute() {
   let { name, params } = parseRoute();
-  if (!state.profile && name !== 'start' && name !== 'learn') name = 'start';
+  if (!state.profile && name !== 'start' && name !== 'learn' && name !== 'join') name = 'start';
   if (state.profile && name === 'start') name = 'today';
   const view = VIEWS[name] || todayView;
   // Make sure derived data (this week's plan, workout progress) exists before rendering.
@@ -12383,7 +12823,7 @@ function renderRoute() {
       store.save(state);
     }
   }
-  const hasShell = !!state.profile;
+  const hasShell = !!state.profile && name !== 'join';
   document.querySelector('.sidebar').innerHTML = hasShell ? navHtml(name, 'side') : '';
   document.querySelector('.bottomnav').innerHTML = hasShell ? navHtml(name, 'bottom') : '';
   document.querySelector('.bottomnav').style.display = hasShell ? '' : 'none';
@@ -12409,7 +12849,7 @@ function renderRoute() {
 
 function currentView() {
   const { name } = parseRoute();
-  return VIEWS[state.profile ? name : 'start'] || todayView;
+  return VIEWS[state.profile || name === 'join' ? name : 'start'] || todayView;
 }
 
 function dispatch(kind, el, ev) {
@@ -12423,6 +12863,7 @@ function dispatch(kind, el, ev) {
 
 const GLOBAL = {
   ...sheetActions,
+  ...calendarActions,
   ...organActions,
   theme(el) {
     const t = el.dataset.value;
@@ -12582,7 +13023,7 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(56);
+__req(59);
 })();</script>
 </body>
 </html>

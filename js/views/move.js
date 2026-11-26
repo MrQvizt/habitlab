@@ -110,6 +110,7 @@ function overview(state) {
   const prog = state.workouts.progress;
   return html`<header class="page-head"><div><div class="eyebrow">Week ${store.weeksSinceStart(state, date) + 1}</div><h1>Move</h1></div></header>
     <p class="muted" style="margin:-8px 0 14px">For health, mood and keeping weight off — not to earn food. Start low, go slow; the plan builds with you.</p>
+    <a class="card cal-link" href="#/calendar"><span class="cal-emoji big" aria-hidden="true">📅</span><span class="grow"><strong>Calendar</strong><small>Set when and where, add walks and batch cooking, invite friends</small></span>${icon('chevron')}</a>
     <div class="grid two">
       <div class="card"><h2>Today</h2>${today.items.map((it) => {
         if (it.kind === 'rest') return '<p class="muted">Rest day — gentle walking is still great.</p>';

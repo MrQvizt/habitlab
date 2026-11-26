@@ -18,6 +18,9 @@ import journeyView from './views/journey.js';
 import wrapView from './views/wrap.js';
 import wakeView from './views/wake.js';
 import bodyView from './views/body.js';
+import calendarView from './views/calendar.js';
+import { calendarActions } from './views/calendar.js';
+import joinView from './views/join.js';
 import { organActions } from './views/body.js';
 import { organById } from './engine/body.js';
 import * as alarmNative from './alarm-native.js';
@@ -31,9 +34,9 @@ import { closeSheet } from './ui/sheet.js';
 import { sheetActions } from './views/sheets.js';
 import { daySummary, readDay } from './views/day.js';
 
-const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 // Screens without their own tab light up the tab they belong to.
-const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today' };
+const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today', calendar: 'move' };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -236,7 +239,7 @@ function xpChip() {
 let lastRoute = '';
 function renderRoute() {
   let { name, params } = parseRoute();
-  if (!state.profile && name !== 'start' && name !== 'learn') name = 'start';
+  if (!state.profile && name !== 'start' && name !== 'learn' && name !== 'join') name = 'start';
   if (state.profile && name === 'start') name = 'today';
   const view = VIEWS[name] || todayView;
   // Make sure derived data (this week's plan, workout progress) exists before rendering.
@@ -248,7 +251,7 @@ function renderRoute() {
       store.save(state);
     }
   }
-  const hasShell = !!state.profile;
+  const hasShell = !!state.profile && name !== 'join';
   document.querySelector('.sidebar').innerHTML = hasShell ? navHtml(name, 'side') : '';
   document.querySelector('.bottomnav').innerHTML = hasShell ? navHtml(name, 'bottom') : '';
   document.querySelector('.bottomnav').style.display = hasShell ? '' : 'none';
@@ -274,7 +277,7 @@ function renderRoute() {
 
 function currentView() {
   const { name } = parseRoute();
-  return VIEWS[state.profile ? name : 'start'] || todayView;
+  return VIEWS[state.profile || name === 'join' ? name : 'start'] || todayView;
 }
 
 function dispatch(kind, el, ev) {
@@ -288,6 +291,7 @@ function dispatch(kind, el, ev) {
 
 const GLOBAL = {
   ...sheetActions,
+  ...calendarActions,
   ...organActions,
   theme(el) {
     const t = el.dataset.value;
