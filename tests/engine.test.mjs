@@ -773,9 +773,21 @@ test('snooze starts at 5 minutes; the old 9-minute default moves to 5 once, a ch
 
 test('lock-screen morning hand-off is validated', async () => {
   const { parseWake } = await import('../js/alarm-native.js');
-  assert.deepEqual(parseWake('{"date":"2026-11-26","at":"06:52","value":"family","fav":true,"message":"Hi"}'), { date: '2026-11-26', at: '06:52', value: 'family', fav: true, message: 'Hi' });
+  assert.deepEqual(parseWake('{"date":"2026-11-26","at":"06:52","value":"family","fav":true,"message":"Hi"}'), { date: '2026-11-26', at: '06:52', values: ['family'], other: '', fav: true, message: 'Hi' });
+  assert.deepEqual(parseWake('{"date":"2026-11-26","at":"06:52","values":["family","me",5],"other":" my kids "}').values, ['family', 'me']);
+  assert.equal(parseWake('{"date":"2026-11-26","at":"06:52","values":[],"other":" my kids "}').other, 'my kids');
   assert.equal(parseWake('{"date":"<b>","at":"06:52"}'), null);
   assert.equal(parseWake('{"date":"2026-11-26","at":"99:99"}'), null);
   assert.equal(parseWake('not json'), null);
   assert.equal(parseWake('{"date":"2026-11-26","at":"07:00","fav":"yes"}').fav, false);
+});
+
+test('morning reasons: several values, me, and your own words', async () => {
+  const { reasonLine } = await import('../js/data/affirmations.js');
+  assert.equal(reasonLine(['me']), 'Good. You are reason enough.');
+  assert.equal(reasonLine([]), '');
+  assert.equal(reasonLine(['family']), 'Holding on to the people you love today. Every good choice counts.');
+  assert.equal(reasonLine(['family', 'health'], 'my kids'), 'Holding on to the people you love, feeling healthy and strong and my kids today. Every good choice counts.');
+  assert.equal(reasonLine(['me', 'family']), 'For you, and for the people you love. Every good choice counts.');
+  assert.equal(reasonLine([], '  a walk  with Sam '), 'Holding on to a walk with Sam today. Every good choice counts.');
 });

@@ -158,3 +158,14 @@ export function messageForDay(list, date = new Date()) {
   const epochDay = Math.floor(date.getTime() / 86400000);
   return list[Math.abs(epochDay) % list.length];
 }
+
+/** "Holding on to A and B today…" for the reasons picked on the morning screen (values, "me", your own words). */
+export function reasonLine(picked = [], other = '') {
+  const me = picked.includes('me');
+  const parts = picked.filter((v) => v !== 'me').map((v) => valueInfo(v)?.phrase).filter(Boolean);
+  const own = String(other || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+  if (own) parts.push(own);
+  const list = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+  if (!parts.length) return me ? 'Good. You are reason enough.' : '';
+  return me ? `For you, and for ${list(parts)}. Every good choice counts.` : `Holding on to ${list(parts)} today. Every good choice counts.`;
+}

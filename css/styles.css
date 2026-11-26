@@ -934,6 +934,10 @@ body.wrap-open .bottomnav, body.wrap-open .topbar { visibility: hidden; }
 .wk-value.on { background: #3a2a5c; color: #fff; transform: scale(1.06); box-shadow: 0 0 0 3px #fff; }
 .wk-value.ghost { background: transparent; color: #fff; border: 1px dashed rgba(255,255,255,.7); }
 .wk-why { margin: 10px 0 0; font-weight: 650; }
+.wk-hint { text-transform: none; letter-spacing: 0; font-weight: 600; opacity: .8; margin-left: 4px; }
+.wk-other { width: 100%; margin-top: 10px; min-height: 46px; border-radius: 14px; border: 0; padding: 10px 14px; font: inherit; font-weight: 650; background: rgba(255,255,255,.95); color: #3a2a5c; }
+.wk-other::placeholder { color: #7a6a95; }
+.wk-link { display: inline-block; margin-top: 10px; color: #fff; font-weight: 650; }
 .wake-screen .w-btn[disabled] { opacity: .6; cursor: default; animation: none; }
 .wake-screen .w-close { position: fixed; }
 @media (prefers-reduced-motion: reduce) { .wake-screen, .wk-sun, .wk-msg { animation: none; } .wake-screen { background-position: 0 100%; } }

@@ -3,14 +3,40 @@
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 import { esc, icon, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
-import { valueInfo, morningMessages, messageForDay } from '../data/affirmations.js';
+import { valueInfo, morningMessages, messageForDay, reasonLine } from '../data/affirmations.js';
 import { takeMessage } from '../alarm-native.js';
 import { XP } from '../engine/game.js';
 import { confetti, chime, buzz, floatXp } from '../ui/celebrate.js';
 
 let message = null;
 let msgDate = null;
-let chosen = null;
+let chosen = new Set();
+let other = '';
+let otherOpen = false;
+
+// Typing your own reason updates the line and the Start button in place (a re-render would drop the keyboard).
+document.addEventListener('input', (ev) => {
+  if (!ev.target.matches?.('[data-wake-other]')) return;
+  other = ev.target.value;
+  refreshReason(document);
+});
+
+function ready() {
+  return chosen.size > 0 || other.trim().length > 0;
+}
+
+function refreshReason(root) {
+  const why = root.querySelector('.wk-why');
+  if (why) {
+    why.textContent = reasonLine([...chosen], other);
+    why.hidden = !why.textContent;
+  }
+  const btn = root.querySelector('.w-btn[data-fresh]');
+  if (btn) {
+    btn.disabled = !ready();
+    btn.textContent = ready() ? `Start my day · +${XP.wake} XP` : 'Tap one or more to start your day';
+  }
+}
 
 function greeting() {
   const h = new Date().getHours();
@@ -25,7 +51,9 @@ export default {
     if (!message || msgDate !== today) {
       message = handed || messageForDay(morningMessages(state.affirm || {}));
       msgDate = today;
-      chosen = null;
+      chosen = new Set();
+      other = '';
+      otherOpen = false;
     }
     const affirm = state.affirm || {};
     const values = (affirm.values || []).filter((v) => valueInfo(v));
@@ -40,21 +68,28 @@ export default {
         <p class="wk-msg">${esc(message)}</p>
         <button class="wk-heart ${fav ? 'on' : ''}" data-action="wakeFav" aria-pressed="${fav}">${fav ? '♥ Saved — you’ll see it more often' : '♡ This one boosted me'}</button>
         <div class="wk-reflect">
-          <div class="w-kicker">Today I’m doing this for…</div>
-          ${values.length
-            ? `<div class="wk-values">${values.map((v) => `<button class="wk-value ${chosen === v ? 'on' : ''}" data-action="wakeValue" data-value="${esc(v)}">${esc(valueInfo(v).label)}</button>`).join('')}<button class="wk-value ${chosen === 'me' ? 'on' : ''}" data-action="wakeValue" data-value="me">Me</button></div>`
-            : `<div class="wk-values"><button class="wk-value ${chosen === 'me' ? 'on' : ''}" data-action="wakeValue" data-value="me">Me</button><a class="wk-value ghost" href="#/settings/alarms">Choose what matters to you →</a></div>`}
-          ${chosen ? `<p class="wk-why">${esc(chosen === 'me' ? 'Good. You are reason enough.' : `Holding on to ${valueInfo(chosen)?.phrase || 'what matters'} today. Every good choice counts.`)}</p>` : ''}
+          <div class="w-kicker">Today I’m doing this for… <span class="wk-hint">pick any</span></div>
+          <div class="wk-values">${values.map((v) => `<button class="wk-value ${chosen.has(v) ? 'on' : ''}" data-action="wakeValue" data-value="${esc(v)}" aria-pressed="${chosen.has(v)}">${esc(valueInfo(v).label)}</button>`).join('')}<button class="wk-value ${chosen.has('me') ? 'on' : ''}" data-action="wakeValue" data-value="me" aria-pressed="${chosen.has('me')}">Me</button>${otherOpen ? '' : `<button class="wk-value ghost" data-action="wakeOther">＋ Something else</button>`}</div>
+          ${otherOpen ? `<input class="wk-other" data-wake-other maxlength="60" placeholder="Something else, in your words" aria-label="Something else I’m doing this for" value="${esc(other)}">` : ''}
+          ${values.length ? '' : `<a class="wk-link" href="#/settings/alarms">Choose what matters to you →</a>`}
+          <p class="wk-why" ${reasonLine([...chosen], other) ? '' : 'hidden'}>${esc(reasonLine([...chosen], other))}</p>
         </div>
-        ${done ? `<button class="w-btn" data-action="wakeStart">Start my day</button>` : `<button class="w-btn glow" data-action="wakeStart" ${chosen ? '' : 'disabled'}>${chosen ? `Start my day · +${XP.wake} XP` : 'Tap one to start your day'}</button>`}
+        ${done ? `<button class="w-btn" data-action="wakeStart">Start my day</button>` : `<button class="w-btn glow" data-action="wakeStart" data-fresh ${ready() ? '' : 'disabled'}>${ready() ? `Start my day · +${XP.wake} XP` : 'Tap one or more to start your day'}</button>`}
       </div>
     </div>`;
   },
   actions: {
     wakeValue(el, ev, ctx) {
-      chosen = el.dataset.value;
+      const v = el.dataset.value;
+      if (chosen.has(v)) chosen.delete(v);
+      else chosen.add(v);
       if (ctx.state.game?.haptics !== false) buzz(10);
       ctx.rerender();
+    },
+    wakeOther(el, ev, ctx) {
+      otherOpen = true;
+      ctx.rerender();
+      document.querySelector('[data-wake-other]')?.focus();
     },
     wakeFav(el, ev, ctx) {
       const m = message;
@@ -80,7 +115,9 @@ export default {
           return st;
         }, { render: false });
       }
-      chosen = null;
+      chosen = new Set();
+      other = '';
+      otherOpen = false;
       ctx.go('#/today');
     },
     wakeClose(el, ev, ctx) {

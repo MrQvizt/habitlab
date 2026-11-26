@@ -23,7 +23,7 @@ import { organById } from './engine/body.js';
 import * as alarmNative from './alarm-native.js';
 import { floatXp, confetti, chime, buzz, showCelebration, ringBanner } from './ui/celebrate.js';
 import { newlyClosed, allClosed } from './views/dayrings.js';
-import { valueInfo } from './data/affirmations.js';
+import { reasonLine } from './data/affirmations.js';
 import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
 import { closeSheet } from './ui/sheet.js';
@@ -391,8 +391,7 @@ alarmNative.listen((route) => ctx.go(route), (w) => {
     }
     return st;
   }, { render: false });
-  const v = w.value === 'me' ? null : valueInfo(w.value);
-  ctx.toast(v ? `Good morning. Today you’re doing this for ${v.label.toLowerCase()}.` : 'Good morning. You are reason enough.');
+  ctx.toast(`Good morning. ${reasonLine(w.values, w.other) || 'Have a good day.'}`);
 });
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
 

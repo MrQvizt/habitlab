@@ -945,6 +945,10 @@ body.wrap-open .bottomnav, body.wrap-open .topbar { visibility: hidden; }
 .wk-value.on { background: #3a2a5c; color: #fff; transform: scale(1.06); box-shadow: 0 0 0 3px #fff; }
 .wk-value.ghost { background: transparent; color: #fff; border: 1px dashed rgba(255,255,255,.7); }
 .wk-why { margin: 10px 0 0; font-weight: 650; }
+.wk-hint { text-transform: none; letter-spacing: 0; font-weight: 600; opacity: .8; margin-left: 4px; }
+.wk-other { width: 100%; margin-top: 10px; min-height: 46px; border-radius: 14px; border: 0; padding: 10px 14px; font: inherit; font-weight: 650; background: rgba(255,255,255,.95); color: #3a2a5c; }
+.wk-other::placeholder { color: #7a6a95; }
+.wk-link { display: inline-block; margin-top: 10px; color: #fff; font-weight: 650; }
 .wake-screen .w-btn[disabled] { opacity: .6; cursor: default; animation: none; }
 .wake-screen .w-close { position: fixed; }
 @media (prefers-reduced-motion: reduce) { .wake-screen, .wk-sun, .wk-msg { animation: none; } .wake-screen { background-position: 0 100%; } }
@@ -9389,7 +9393,18 @@ function messageForDay(list, date = new Date()) {
   return list[Math.abs(epochDay) % list.length];
 }
 
-Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, valueInfo, DEFAULT_SETS, morningMessages, messageForDay });
+/** "Holding on to A and B today…" for the reasons picked on the morning screen (values, "me", your own words). */
+function reasonLine(picked = [], other = '') {
+  const me = picked.includes('me');
+  const parts = picked.filter((v) => v !== 'me').map((v) => valueInfo(v)?.phrase).filter(Boolean);
+  const own = String(other || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+  if (own) parts.push(own);
+  const list = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+  if (!parts.length) return me ? 'Good. You are reason enough.' : '';
+  return me ? `For you, and for ${list(parts)}. Every good choice counts.` : `Holding on to ${list(parts)} today. Every good choice counts.`;
+}
+
+Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, valueInfo, DEFAULT_SETS, morningMessages, messageForDay, reasonLine });
 },
 /* js/alarm-native.js */ 43: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
@@ -9479,12 +9494,13 @@ function takeMessage() {
   return m;
 }
 
-/** The morning the lock-screen wake screen recorded ("Start my day"), checked: {date, at, value, fav, message} or null. */
+/** The morning the lock-screen wake screen recorded ("Start my day"), checked: {date, at, values, other, fav, message} or null. */
 function parseWake(raw) {
   try {
     const w = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (!w || !/^\d{4}-\d{2}-\d{2}$/.test(w.date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(w.at)) return null;
-    return { date: w.date, at: w.at, value: typeof w.value === 'string' ? w.value.slice(0, 30) : 'me', fav: w.fav === true, message: typeof w.message === 'string' ? w.message.slice(0, 200) : '' };
+    const picked = (Array.isArray(w.values) ? w.values : typeof w.value === 'string' && w.value ? [w.value] : []).filter((v) => typeof v === 'string' && v).map((v) => v.slice(0, 30)).slice(0, 6);
+    return { date: w.date, at: w.at, values: picked, other: typeof w.other === 'string' ? w.other.trim().slice(0, 60) : '', fav: w.fav === true, message: typeof w.message === 'string' ? w.message.slice(0, 200) : '' };
   } catch (e) {
     return null;
   }
@@ -10529,14 +10545,40 @@ Object.assign(__m, { questsHtml });
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { valueInfo, morningMessages, messageForDay } = __req(42);
+const { valueInfo, morningMessages, messageForDay, reasonLine } = __req(42);
 const { takeMessage } = __req(43);
 const { XP } = __req(13);
 const { confetti, chime, buzz, floatXp } = __req(30);
 
 let message = null;
 let msgDate = null;
-let chosen = null;
+let chosen = new Set();
+let other = '';
+let otherOpen = false;
+
+// Typing your own reason updates the line and the Start button in place (a re-render would drop the keyboard).
+document.addEventListener('input', (ev) => {
+  if (!ev.target.matches?.('[data-wake-other]')) return;
+  other = ev.target.value;
+  refreshReason(document);
+});
+
+function ready() {
+  return chosen.size > 0 || other.trim().length > 0;
+}
+
+function refreshReason(root) {
+  const why = root.querySelector('.wk-why');
+  if (why) {
+    why.textContent = reasonLine([...chosen], other);
+    why.hidden = !why.textContent;
+  }
+  const btn = root.querySelector('.w-btn[data-fresh]');
+  if (btn) {
+    btn.disabled = !ready();
+    btn.textContent = ready() ? `Start my day · +${XP.wake} XP` : 'Tap one or more to start your day';
+  }
+}
 
 function greeting() {
   const h = new Date().getHours();
@@ -10551,7 +10593,9 @@ __m.default = {
     if (!message || msgDate !== today) {
       message = handed || messageForDay(morningMessages(state.affirm || {}));
       msgDate = today;
-      chosen = null;
+      chosen = new Set();
+      other = '';
+      otherOpen = false;
     }
     const affirm = state.affirm || {};
     const values = (affirm.values || []).filter((v) => valueInfo(v));
@@ -10566,21 +10610,28 @@ __m.default = {
         <p class="wk-msg">${esc(message)}</p>
         <button class="wk-heart ${fav ? 'on' : ''}" data-action="wakeFav" aria-pressed="${fav}">${fav ? '♥ Saved — you’ll see it more often' : '♡ This one boosted me'}</button>
         <div class="wk-reflect">
-          <div class="w-kicker">Today I’m doing this for…</div>
-          ${values.length
-            ? `<div class="wk-values">${values.map((v) => `<button class="wk-value ${chosen === v ? 'on' : ''}" data-action="wakeValue" data-value="${esc(v)}">${esc(valueInfo(v).label)}</button>`).join('')}<button class="wk-value ${chosen === 'me' ? 'on' : ''}" data-action="wakeValue" data-value="me">Me</button></div>`
-            : `<div class="wk-values"><button class="wk-value ${chosen === 'me' ? 'on' : ''}" data-action="wakeValue" data-value="me">Me</button><a class="wk-value ghost" href="#/settings/alarms">Choose what matters to you →</a></div>`}
-          ${chosen ? `<p class="wk-why">${esc(chosen === 'me' ? 'Good. You are reason enough.' : `Holding on to ${valueInfo(chosen)?.phrase || 'what matters'} today. Every good choice counts.`)}</p>` : ''}
+          <div class="w-kicker">Today I’m doing this for… <span class="wk-hint">pick any</span></div>
+          <div class="wk-values">${values.map((v) => `<button class="wk-value ${chosen.has(v) ? 'on' : ''}" data-action="wakeValue" data-value="${esc(v)}" aria-pressed="${chosen.has(v)}">${esc(valueInfo(v).label)}</button>`).join('')}<button class="wk-value ${chosen.has('me') ? 'on' : ''}" data-action="wakeValue" data-value="me" aria-pressed="${chosen.has('me')}">Me</button>${otherOpen ? '' : `<button class="wk-value ghost" data-action="wakeOther">＋ Something else</button>`}</div>
+          ${otherOpen ? `<input class="wk-other" data-wake-other maxlength="60" placeholder="Something else, in your words" aria-label="Something else I’m doing this for" value="${esc(other)}">` : ''}
+          ${values.length ? '' : `<a class="wk-link" href="#/settings/alarms">Choose what matters to you →</a>`}
+          <p class="wk-why" ${reasonLine([...chosen], other) ? '' : 'hidden'}>${esc(reasonLine([...chosen], other))}</p>
         </div>
-        ${done ? `<button class="w-btn" data-action="wakeStart">Start my day</button>` : `<button class="w-btn glow" data-action="wakeStart" ${chosen ? '' : 'disabled'}>${chosen ? `Start my day · +${XP.wake} XP` : 'Tap one to start your day'}</button>`}
+        ${done ? `<button class="w-btn" data-action="wakeStart">Start my day</button>` : `<button class="w-btn glow" data-action="wakeStart" data-fresh ${ready() ? '' : 'disabled'}>${ready() ? `Start my day · +${XP.wake} XP` : 'Tap one or more to start your day'}</button>`}
       </div>
     </div>`;
   },
   actions: {
     wakeValue(el, ev, ctx) {
-      chosen = el.dataset.value;
+      const v = el.dataset.value;
+      if (chosen.has(v)) chosen.delete(v);
+      else chosen.add(v);
       if (ctx.state.game?.haptics !== false) buzz(10);
       ctx.rerender();
+    },
+    wakeOther(el, ev, ctx) {
+      otherOpen = true;
+      ctx.rerender();
+      document.querySelector('[data-wake-other]')?.focus();
     },
     wakeFav(el, ev, ctx) {
       const m = message;
@@ -10606,7 +10657,9 @@ __m.default = {
           return st;
         }, { render: false });
       }
-      chosen = null;
+      chosen = new Set();
+      other = '';
+      otherOpen = false;
       ctx.go('#/today');
     },
     wakeClose(el, ev, ctx) {
@@ -10731,7 +10784,7 @@ const { organById } = __req(12);
 const alarmNative = __req(43);
 const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(30);
 const { newlyClosed, allClosed } = __req(28);
-const { valueInfo } = __req(42);
+const { reasonLine } = __req(42);
 const { BADGES } = __req(13);
 const notify = __req(45);
 const { closeSheet } = __req(25);
@@ -11099,8 +11152,7 @@ alarmNative.listen((route) => ctx.go(route), (w) => {
     }
     return st;
   }, { render: false });
-  const v = w.value === 'me' ? null : valueInfo(w.value);
-  ctx.toast(v ? `Good morning. Today you’re doing this for ${v.label.toLowerCase()}.` : 'Good morning. You are reason enough.');
+  ctx.toast(`Good morning. ${reasonLine(w.values, w.other) || 'Have a good day.'}`);
 });
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
 

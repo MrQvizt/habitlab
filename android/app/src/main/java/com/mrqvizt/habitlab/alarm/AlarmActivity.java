@@ -18,6 +18,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -186,13 +187,16 @@ public class AlarmActivity extends Activity {
     }
 
     // ---------- Morning screen (after "I'm up"), shown over the lock screen ----------
-    private String chosen;
+    private final java.util.LinkedHashSet<String> chosen = new java.util.LinkedHashSet<>();
+    private String other = "";
+    private final java.util.Map<String, String> phrases = new java.util.HashMap<>();
     private boolean fav;
 
     private void showMorning(String msg) {
         if (dawn != null) dawn.cancel();
         final String message = msg == null ? "" : msg;
         fav = AlarmStore.isFav(this, message);
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         WindowManager.LayoutParams attrs = getWindow().getAttributes();
         attrs.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
         getWindow().setAttributes(attrs);
@@ -241,7 +245,7 @@ public class AlarmActivity extends Activity {
         cb.setCornerRadius(dp(24));
         cb.setColor(0x26000000);
         card.setBackground(cb);
-        TextView k = left(text("Today I\u2019m doing this for\u2026", 13, true));
+        TextView k = left(text("Today I\u2019m doing this for\u2026  (pick any)", 13, true));
         k.setAllCaps(true);
         k.setLetterSpacing(0.12f);
         k.setAlpha(0.9f);
@@ -257,7 +261,17 @@ public class AlarmActivity extends Activity {
             if (o != null && !o.optString("id").isEmpty()) vals.add(new String[] {o.optString("id"), o.optString("label", o.optString("id")), o.optString("phrase", "")});
         }
         vals.add(new String[] {"me", "Me", ""});
-        final java.util.List<Button> chips = new java.util.ArrayList<>();
+        vals.add(new String[] {"other", "\uFF0B Something else", ""});
+        final EditText otherField = new EditText(this);
+        final Runnable refresh = () -> {
+            String line = reasonLine();
+            why.setText(line);
+            why.setVisibility(line.isEmpty() ? View.GONE : View.VISIBLE);
+            boolean ready = !chosen.isEmpty() || !other.trim().isEmpty();
+            start.setEnabled(ready);
+            start.setAlpha(ready ? 1f : 0.6f);
+            start.setText(ready ? "Start my day" : "Tap one or more to start your day");
+        };
         LinearLayout rowL = null;
         for (int i = 0; i < vals.size(); i++) {
             if (i % 2 == 0) {
@@ -268,22 +282,60 @@ public class AlarmActivity extends Activity {
                 card.addView(rowL, rp);
             }
             final String[] val = vals.get(i);
+            phrases.put(val[0], val[2].isEmpty() ? val[1].toLowerCase(Locale.getDefault()) : val[2]);
             final Button chip = pill(val[1], false);
-            chips.add(chip);
-            chip.setOnClickListener(v -> {
-                chosen = val[0];
-                for (Button c : chips) styleChip(c, c == chip);
-                why.setText("me".equals(val[0]) ? "Good. You are reason enough." : "Holding on to " + (val[2].isEmpty() ? val[1].toLowerCase(Locale.getDefault()) : val[2]) + " today. Every good choice counts.");
-                why.setVisibility(View.VISIBLE);
-                start.setEnabled(true);
-                start.setAlpha(1f);
-                start.setText("Start my day");
-            });
-            styleChip(chip, false);
+            if ("other".equals(val[0])) {
+                chip.setOnClickListener(v -> {
+                    chip.setVisibility(View.GONE);
+                    otherField.setVisibility(View.VISIBLE);
+                    otherField.requestFocus();
+                    android.view.inputmethod.InputMethodManager im = (android.view.inputmethod.InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                    if (im != null) im.showSoftInput(otherField, 0);
+                });
+                GradientDrawable d = new GradientDrawable();
+                d.setCornerRadius(dp(26));
+                d.setStroke(dp(1), 0xCCFFFFFF);
+                chip.setBackground(d);
+                chip.setTextColor(Color.WHITE);
+            } else {
+                chip.setOnClickListener(v -> {
+                    // Tap to pick, tap again to unpick; pick as many as you like.
+                    boolean on = !chosen.contains(val[0]);
+                    if (on) chosen.add(val[0]);
+                    else chosen.remove(val[0]);
+                    styleChip(chip, on);
+                    refresh.run();
+                });
+                styleChip(chip, false);
+            }
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(52), 1f);
             if (i % 2 == 1) lp.leftMargin = dp(10);
             rowL.addView(chip, lp);
         }
+        if (vals.size() % 2 == 1) rowL.addView(new View(this), new LinearLayout.LayoutParams(0, dp(52), 1f));
+        otherField.setHint("Something else, in your words");
+        otherField.setSingleLine(true);
+        otherField.setFilters(new android.text.InputFilter[] {new android.text.InputFilter.LengthFilter(60)});
+        otherField.setTextColor(0xFF2D1B4E);
+        otherField.setHintTextColor(0xFF7A6A95);
+        otherField.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        otherField.setPadding(dp(16), 0, dp(16), 0);
+        GradientDrawable ob = new GradientDrawable();
+        ob.setCornerRadius(dp(16));
+        ob.setColor(0xFFFFF6EE);
+        otherField.setBackground(ob);
+        otherField.setVisibility(View.GONE);
+        otherField.addTextChangedListener(new android.text.TextWatcher() {
+            public void beforeTextChanged(CharSequence c, int a, int b, int d) {}
+            public void onTextChanged(CharSequence c, int a, int b, int d) {}
+            public void afterTextChanged(android.text.Editable e) {
+                other = e.toString();
+                refresh.run();
+            }
+        });
+        LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(50));
+        op.topMargin = dp(10);
+        card.addView(otherField, op);
         why.setVisibility(View.GONE);
         why.setPadding(0, dp(12), 0, 0);
         card.addView(why);
@@ -313,7 +365,11 @@ public class AlarmActivity extends Activity {
     private void unlockAndOpen(String message) {
         JSONObject w = new JSONObject();
         try {
-            w.put("value", chosen == null ? "me" : chosen);
+            JSONArray picked = new JSONArray();
+            for (String c : chosen) picked.put(c);
+            w.put("values", picked);
+            w.put("value", chosen.isEmpty() ? "" : chosen.iterator().next());
+            w.put("other", other.trim());
             w.put("fav", fav);
             w.put("message", message);
             w.put("date", new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date()));
@@ -337,6 +393,18 @@ public class AlarmActivity extends Activity {
             startActivity(open);
             finish();
         }
+    }
+
+    /** Same wording as the app (reasonLine in js/data/affirmations.js). */
+    private String reasonLine() {
+        boolean me = chosen.contains("me");
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        for (String c : chosen) if (!"me".equals(c) && phrases.get(c) != null) parts.add(phrases.get(c));
+        String own = other.trim().replaceAll("\\s+", " ");
+        if (!own.isEmpty()) parts.add(own);
+        if (parts.isEmpty()) return me ? "Good. You are reason enough." : "";
+        String list = parts.size() < 2 ? parts.get(0) : android.text.TextUtils.join(", ", parts.subList(0, parts.size() - 1)) + " and " + parts.get(parts.size() - 1);
+        return me ? "For you, and for " + list + ". Every good choice counts." : "Holding on to " + list + " today. Every good choice counts.";
     }
 
     private String greeting() {
