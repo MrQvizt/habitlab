@@ -1212,6 +1212,22 @@ button.pill { font: inherit; border: 0; cursor: pointer; }
 .plan-when input[type=text] { flex: 1; min-width: 120px; }
 .plan-set { color: var(--accent) !important; font-weight: 650; margin-top: 4px; }
 .cal-back .icon { transform: rotate(180deg); }
+
+/* ---------- Cheers + join page polish ---------- */
+.cheer-card { background: linear-gradient(135deg, color-mix(in srgb, var(--ring-eat) 12%, var(--surface)), var(--surface)); }
+.cheer-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; font-size: var(--text-sm); }
+.cheer-list li { background: var(--surface-2); border-radius: 12px; padding: 8px 10px; }
+.join-hero { text-align: left; margin-bottom: 18px; }
+.join-wave { font-size: 2.4rem; line-height: 1; }
+.join-hero h1 { margin: 8px 0 8px; font-size: clamp(1.6rem, 6vw, 2.1rem); line-height: 1.15; }
+.join-promises { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; font-size: var(--text-sm); color: var(--ink-2); }
+.join-promises li { display: flex; align-items: center; gap: 8px; }
+.join-promises .icon { width: 16px; height: 16px; color: var(--accent); }
+.join-h { font-size: var(--text-lg); margin: 6px 0 10px; }
+.join-cheer { margin-top: 18px; }
+.join-cheer h2 { font-size: var(--text-lg); margin: 0 0 6px; }
+.join-cheer input, .join-cheer textarea { width: 100%; }
+.join-foot { font-size: var(--text-xs); margin-top: 24px; }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -4911,7 +4927,7 @@ function sanitize(s) {
     place: typeof e.place === 'string' ? e.place.slice(0, 80) : '', kind: KINDS.includes(e.kind) ? e.kind : 'other', notes: typeof e.notes === 'string' ? e.notes.slice(0, 140) : '', public: e.public === true,
   }));
   const sh = s.share;
-  if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40) };
+  if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40), ...(num(sh.seen, 1, 1e15, 0) ? { seen: num(sh.seen, 1, 1e15, 0) } : {}) };
   else delete s.share;
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 120), kcal: num(x?.kcal, 0, 10000, 0), ...(num(x?.p, 0, 500, 0) ? { p: num(x?.p, 0, 500, 0) } : {}) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
@@ -7621,6 +7637,7 @@ const PUBLISHABLE_KEY = 'sb_publishable_wRKoEGC_8OtpR9SoT8tGkQ_Z9rhDWjl';
 const SHARE_BASE = 'https://habitlab-eight.vercel.app/';
 
 let signups = []; // [{event, name, at}] for your calendar
+let cheers = []; // [{id, name, message, at}] newest first
 let lastFetch = 0;
 
 async function rpc(fn, args) {
@@ -7645,6 +7662,18 @@ const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `${randomHex(4)}-$
 
 const shareLink = (state) => (state.share?.id ? `${SHARE_BASE}#/join/${state.share.id}` : '');
 const signupsFor = (eventId) => signups.filter((s) => s.event === eventId);
+const cheersList = () => cheers;
+/** Cheers you haven't seen yet (newer than the last one you dismissed). */
+const newCheers = (state) => cheers.filter((c) => c.id > (state.share?.seen || 0));
+const cheerHtml = (c) => `<li><strong>${esc(c.name)}</strong> <span class="muted">${esc(new Date(c.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))}</span><div>${esc(c.message)}</div></li>`;
+
+/** Today: a card with new cheers from friends. */
+function cheerCardHtml(state) {
+  const fresh = newCheers(state);
+  if (!fresh.length) return '';
+  return `<section class="card cheer-card" aria-label="Cheers from friends"><div class="row between nowrap"><h2 style="margin:0;font-size:var(--text-lg)">💌 ${fresh.length === 1 ? `${esc(fresh[0].name)} is cheering you on` : `${fresh.length} friends are cheering you on`}</h2><button class="btn small ghost" data-action="cheersSeen" data-id="${fresh[0].id}">Thanks!</button></div>
+    <ul class="cheer-list">${fresh.slice(0, 3).map(cheerHtml).join('')}</ul></section>`;
+}
 
 /** The events friends can see: open to friends, from yesterday on. */
 function publicEvents(state) {
@@ -7669,11 +7698,11 @@ async function refresh(ctx, force = false) {
   if (!s?.id || (!force && Date.now() - lastFetch < 20000)) return;
   lastFetch = Date.now();
   try {
-    const list = await rpc('hl_signups', { p_id: s.id, p_key: s.key });
-    if (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(signups)) {
-      signups = list;
-      ctx.rerender();
-    }
+    const [list, ch] = await Promise.all([rpc('hl_signups', { p_id: s.id, p_key: s.key }), rpc('hl_cheers', { p_id: s.id, p_key: s.key }).catch(() => cheers)]);
+    const changed = (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(signups)) || (Array.isArray(ch) && JSON.stringify(ch) !== JSON.stringify(cheers));
+    if (Array.isArray(list)) signups = list;
+    if (Array.isArray(ch)) cheers = ch;
+    if (changed) ctx.rerender();
   } catch (e) {
     /* offline: keep what we have */
   }
@@ -7691,10 +7720,18 @@ function shareCardHtml(state, pubCount) {
   return `<div class="card share-card"><div class="row between nowrap"><h2 style="margin:0;font-size:var(--text-lg)">${icon("star")} Your shared calendar</h2>${total ? `<span class="tag green">${total} joining</span>` : ''}</div>
     <p class="muted" style="font-size:var(--text-sm);margin:6px 0 8px">${pubCount ? `${pubCount} upcoming ${pubCount === 1 ? 'activity is' : 'activities are'} open to friends.` : 'Nothing open to friends yet — tap an activity and switch on “Open to friends”.'}</p>
     <div class="share-link"><input type="text" readonly value="${esc(link)}" aria-label="Your calendar link"><button class="btn small" data-action="shareCopy">Copy</button>${navigator.share ? '<button class="btn small primary" data-action="shareNative">Share</button>' : ''}</div>
+    ${cheers.length ? `<div class="over" style="margin-top:12px">💌 Cheers from friends</div><ul class="cheer-list">${cheers.slice(0, 5).map(cheerHtml).join('')}</ul>` : ''}
     <button class="btn ghost small" data-action="shareStop" style="margin-top:8px">Stop sharing</button></div>`;
 }
 
 const shareActions = {
+  cheersSeen(el, ev, ctx) {
+    const id = Number(el.dataset.id) || 0;
+    ctx.update((st) => {
+      if (st.share) st.share = { ...st.share, seen: Math.max(st.share.seen || 0, id) };
+      return st;
+    }, { quiet: true });
+  },
   async shareCreate(form, ev, ctx, data) {
     const name = String(data.name || '').trim().slice(0, 40);
     if (!name) return;
@@ -7734,6 +7771,7 @@ const shareActions = {
       return ctx.toast('Couldn’t reach the calendar service — try again when you’re online.');
     }
     signups = [];
+    cheers = [];
     ctx.update((st) => {
       delete st.share;
       return st;
@@ -7742,7 +7780,7 @@ const shareActions = {
   },
 };
 
-Object.assign(__m, { SUPABASE_URL, SHARE_BASE, rpc, shareLink, signupsFor, publicEvents, sync, refresh, shareCardHtml, shareActions });
+Object.assign(__m, { SUPABASE_URL, SHARE_BASE, rpc, shareLink, signupsFor, cheersList, newCheers, cheerCardHtml, publicEvents, sync, refresh, shareCardHtml, shareActions });
 },
 /* js/views/calendar.js */ 34: function (__m, __req) {
 // Activity calendar: your planned week plus your own events (walks, batch cooking, a gym class,
@@ -8656,6 +8694,7 @@ const { dayRings, ringsSvg, RING_META } = __req(32);
 const { eventsOn, EVENT_KINDS } = __req(34);
 const { itemKey } = __req(7);
 const { isPlanned } = __req(36);
+const share = __req(33);
 const { toMin } = __req(14);
 const { journey, nextStops, recentTimeStop } = __req(21);
 const { whenLabel } = __req(22);
@@ -8947,12 +8986,16 @@ __m.default = {
     return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${past ? 'Fill in the gaps' : greeting()}</h1></div>${dayNav}</header>
       ${past ? `<div class="notice info past-day" style="align-items:center">${icon('calendar')}<div class="grow"><strong>${esc(dayLabel(date, today))}</strong> — anything you tick here is saved to that day.</div><a class="btn small" href="#/today">Back to today</a></div>` : banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + planCard(state) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : nextUp(state, date)}${quickLog(state)}</div>
+        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + share.cheerCardHtml(state) + planCard(state) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : nextUp(state, date)}${quickLog(state)}</div>
         <div class="tg-day">${yourDay(state, date)}</div>
         <div class="tg-rest">${past ? '' : bodyRingsCard(state, date) + journeyCard(state, date) + firstWeek(state, date)}</div>
       </div>`;
   },
+  after(root, ctx) {
+    share.refresh(ctx); // cheers and sign-ups from your shared calendar (no-op if you haven't shared)
+  },
   actions: {
+    cheersSeen: share.shareActions.cheersSeen,
     habitCheck(el, ev, ctx) {
       toggleHabit(ctx, el.dataset.id);
     },
@@ -12637,8 +12680,10 @@ __m.default = {
 Object.assign(__m, { organSheetHtml, organActions });
 },
 /* js/views/join.js */ 59: function (__m, __req) {
-// The page friends see from your shared link (#/join/<id>): your upcoming open activities and an
-// "I'll join" button. Works without a Habit Lab account or any data on their device.
+// The page friends land on from your shared link (#/join/<id>). They don't need the app or an
+// account: it says who asked for their support, lets them join an activity with just a first name
+// (and add it to their own calendar), or send a short cheer. Nothing is stored on their phone except
+// the name they typed, so it's filled in next time.
 const { esc, icon, fmtDate } = __req(17);
 const { rpc } = __req(33);
 const { EVENT_KINDS } = __req(34);
@@ -12646,6 +12691,7 @@ const { EVENT_KINDS } = __req(34);
 let data = null; // { id, cal, error }
 const joined = new Set();
 let asking = null;
+let cheered = false;
 
 const myName = () => {
   try {
@@ -12654,8 +12700,34 @@ const myName = () => {
     return '';
   }
 };
+const rememberName = (n) => {
+  try {
+    localStorage.setItem('habitlab.joinName', n);
+  } catch (e) {
+    /* private mode */
+  }
+};
 
-function eventCard(e, id) {
+/** A calendar file for one activity, so a guest can add it to their own phone calendar. */
+function icsFor(e, host) {
+  const d = e.date.replace(/-/g, '');
+  const pad = (n) => String(n).padStart(2, '0');
+  let when;
+  if (e.time) {
+    const [h, m] = e.time.split(':').map(Number);
+    const end = h * 60 + m + 60;
+    when = `DTSTART:${d}T${pad(h)}${pad(m)}00\r\nDTEND:${d}T${pad(Math.floor(end / 60) % 24)}${pad(end % 60)}00`;
+  } else {
+    const next = new Date(e.date + 'T12:00');
+    next.setDate(next.getDate() + 1);
+    when = `DTSTART;VALUE=DATE:${d}\r\nDTEND;VALUE=DATE:${next.getFullYear()}${pad(next.getMonth() + 1)}${pad(next.getDate())}`;
+  }
+  const clean = (s) => String(s || '').replace(/[\\;,]/g, (c) => `\\${c}`).replace(/[\r\n]+/g, ' ');
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Habit Lab//Join//EN', 'BEGIN:VEVENT', `UID:${clean(e.id)}@habitlab`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`, when,
+    `SUMMARY:${clean(e.title)}${host ? ` with ${clean(host)}` : ''}`, e.place ? `LOCATION:${clean(e.place)}` : '', e.notes ? `DESCRIPTION:${clean(e.notes)}` : '', 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
+}
+
+function eventCard(e, id, host) {
   const k = EVENT_KINDS[e.kind] || EVENT_KINDS.other;
   const key = `${id}:${e.id}`;
   const done = joined.has(key);
@@ -12665,31 +12737,55 @@ function eventCard(e, id) {
         <div class="muted" style="font-size:var(--text-sm)">${esc(fmtDate(e.date, { weekday: 'long', day: 'numeric', month: 'long' }))}${e.time ? ` · ${esc(e.time)}` : ''}${e.place ? ` · ${esc(e.place)}` : ''}</div>
         ${e.notes ? `<div style="font-size:var(--text-sm);margin-top:4px">${esc(e.notes)}</div>` : ''}
         <div class="muted" style="font-size:var(--text-xs);margin-top:4px">${e.going ? `${e.going} joining` : 'Be the first to join'}</div></div></div>
-    ${done ? `<div class="notice ok" style="margin:10px 0 0">${icon('check')}<div>You’re in! See you there.</div></div>`
-      : asking === key ? `<form data-form="joinSave" data-event="${esc(e.id)}" class="row nowrap" style="gap:8px;margin-top:10px"><input type="text" name="name" maxlength="40" required value="${esc(myName())}" placeholder="Your name" aria-label="Your name" style="flex:1;min-width:0" autofocus><button class="btn primary">Join</button></form>`
+    ${done ? `<div class="notice ok" style="margin:10px 0 0">${icon('check')}<div class="grow">You’re in! ${esc(host)} will see you’re coming.</div></div>
+        <button class="btn block" data-action="joinIcs" data-event="${esc(e.id)}" style="margin-top:8px">${icon('calendar')} Add to my calendar</button>`
+      : asking === key ? `<form data-form="joinSave" data-event="${esc(e.id)}" class="row nowrap" style="gap:8px;margin-top:10px"><input type="text" name="name" maxlength="40" required value="${esc(myName())}" placeholder="Your first name" aria-label="Your first name" style="flex:1;min-width:0" autocomplete="given-name"><button class="btn primary">Join</button></form>`
       : `<button class="btn primary block" data-action="joinAsk" data-event="${esc(e.id)}" style="margin-top:10px">I’ll join</button>`}
   </li>`;
+}
+
+function cheerBlock(host) {
+  if (cheered) return `<div class="card join-cheer"><div class="notice ok" style="margin:0">${icon('check')}<div>Sent! ${esc(host)} will see your cheer in the app.</div></div></div>`;
+  return `<div class="card join-cheer"><h2>💌 Can’t make it? Send a cheer</h2>
+    <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">A few kind words go a long way on a hard day.</p>
+    <form data-form="joinCheer">
+      <input type="text" name="name" maxlength="40" required value="${esc(myName())}" placeholder="Your first name" aria-label="Your first name" autocomplete="given-name">
+      <textarea name="message" maxlength="200" rows="2" required placeholder="e.g. So proud of you — keep going!" aria-label="Your message" style="margin-top:8px"></textarea>
+      <div class="quick-chips" style="margin-top:6px">${['So proud of you!', 'You’ve got this 💪', 'One step at a time — I’m with you.'].map((t) => `<button type="button" data-action="joinCheerQuick" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+      <button class="btn block" style="margin-top:10px">Send cheer</button>
+    </form></div>`;
 }
 
 __m.default = {
   render(state, params) {
     const id = params[0] || '';
-    if (data?.id !== id) data = { id, cal: undefined };
+    if (data?.id !== id) {
+      data = { id, cal: undefined };
+      cheered = false;
+    }
     const cal = data.cal;
-    const body = !/^[0-9a-f-]{36}$/i.test(id) ? '<p>This link doesn’t look right — ask for it again.</p>'
-      : data.error ? `<div class="notice warn">${icon('alert')}<div>${esc(data.error)}</div></div><button class="btn" data-action="joinReload">Try again</button>`
-      : cal === undefined ? '<p class="muted">Loading…</p>'
-      : cal === null ? '<p>This calendar isn’t shared any more.</p>'
-      : cal.events.length ? `<ul class="join-list">${cal.events.map((e) => eventCard(e, id)).join('')}</ul>` : '<p class="muted">Nothing planned to join right now — check back soon.</p>';
+    const host = cal?.name || 'Your friend';
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return `<div class="join-page"><h1>Hmm, that link isn’t complete</h1><p>Ask for it again — it should end with a long code.</p></div>`;
+    if (data.error) return `<div class="join-page"><div class="notice warn">${icon('alert')}<div>${esc(data.error)}</div></div><button class="btn" data-action="joinReload">Try again</button></div>`;
+    if (cal === undefined) return '<div class="join-page"><p class="muted">Loading…</p></div>';
+    if (cal === null) return `<div class="join-page"><h1>This calendar isn’t shared any more</h1><p class="muted">Ask your friend for a new link.</p></div>`;
     return `<div class="join-page">
-      <div class="eyebrow">Habit Lab</div>
-      <h1>${cal?.name ? `Join ${esc(cal.name)}` : 'Join in'}</h1>
-      <p class="join-intro">${cal?.name ? esc(cal.name) : 'Your friend'} is making some healthy changes — and it’s easier together. Pick something to join.</p>
-      ${body}
-      <p class="muted" style="font-size:var(--text-xs);margin-top:24px">Joining shares only the name you type with ${cal?.name ? esc(cal.name) : 'them'}. <a href="#/start">Make your own plan with Habit Lab</a></p>
+      <div class="join-hero">
+        <div class="join-wave" aria-hidden="true">👋</div>
+        <h1>${esc(host)} has asked for your support</h1>
+        <p class="join-intro">${esc(host)} is making some healthy changes — and it’s so much easier with friends. Join a walk or an activity, or just send a few kind words.</p>
+        <ul class="join-promises">
+          <li>${icon('check')} No app, no account — just your first name</li>
+          <li>${icon('check')} Only ${esc(host)} sees who’s joining</li>
+        </ul>
+      </div>
+      <h2 class="join-h">Join ${esc(host)}</h2>
+      ${cal.events.length ? `<ul class="join-list">${cal.events.map((e) => eventCard(e, id, host)).join('')}</ul>` : `<p class="muted">Nothing to join right now — ${esc(host)} will add plans soon. Keep this link.</p>`}
+      ${cheerBlock(host)}
+      <p class="muted join-foot">Want a plan of your own? Habit Lab is free and private. <a href="#/start">Make your own</a></p>
     </div>`;
   },
-  async after(root, ctx, params) {
+  async after(root, ctx) {
     if (data.cal !== undefined || data.error || !/^[0-9a-f-]{36}$/i.test(data.id)) return;
     try {
       data.cal = await rpc('hl_calendar', { p_id: data.id });
@@ -12707,11 +12803,7 @@ __m.default = {
     async joinSave(form, ev, ctx, d) {
       const name = String(d.name || '').trim().slice(0, 40);
       if (!name) return;
-      try {
-        localStorage.setItem('habitlab.joinName', name);
-      } catch (e) {
-        /* private mode */
-      }
+      rememberName(name);
       try {
         const r = await rpc('hl_join', { p_id: data.id, p_event: form.dataset.event, p_name: name });
         joined.add(`${data.id}:${form.dataset.event}`);
@@ -12723,6 +12815,35 @@ __m.default = {
         ctx.toast(e.message || 'Couldn’t join — try again.');
       }
     },
+    joinIcs(el) {
+      const e = data?.cal?.events.find((x) => x.id === el.dataset.event);
+      if (!e) return;
+      const url = URL.createObjectURL(new Blob([icsFor(e, data.cal.name)], { type: 'text/calendar' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${e.title.replace(/[^\w-]+/g, '-').toLowerCase() || 'activity'}.ics`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    },
+    joinCheerQuick(el) {
+      const t = el.closest('form').querySelector('textarea');
+      if (t) t.value = el.dataset.v;
+    },
+    async joinCheer(form, ev, ctx, d) {
+      const name = String(d.name || '').trim().slice(0, 40);
+      const message = String(d.message || '').trim().slice(0, 200);
+      if (!name || !message) return;
+      rememberName(name);
+      try {
+        await rpc('hl_cheer', { p_id: data.id, p_name: name, p_message: message });
+        cheered = true;
+        ctx.rerender();
+      } catch (e) {
+        ctx.toast(e.message || 'Couldn’t send — try again.');
+      }
+    },
     joinReload(el, ev, ctx) {
       data = null;
       ctx.rerender();
@@ -12730,7 +12851,7 @@ __m.default = {
   },
 };
 
-Object.assign(__m, {  });
+Object.assign(__m, { icsFor });
 },
 /* js/app.js */ 60: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.

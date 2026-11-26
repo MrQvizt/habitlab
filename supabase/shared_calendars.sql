@@ -105,3 +105,39 @@ $$;
 
 revoke all on function public.hl_publish(uuid, text, text, jsonb), public.hl_calendar(uuid), public.hl_join(uuid, text, text), public.hl_signups(uuid, text), public.hl_unpublish(uuid, text) from public;
 grant execute on function public.hl_publish(uuid, text, text, jsonb), public.hl_calendar(uuid), public.hl_join(uuid, text, text), public.hl_signups(uuid, text), public.hl_unpublish(uuid, text) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------------------------
+-- Migration "cheers": friends can send a short note of support from the join page; owner-only read.
+create table hl.cheers (
+  id bigint generated always as identity primary key,
+  calendar_id uuid not null references hl.calendars(id) on delete cascade,
+  name text not null check (char_length(name) between 1 and 40),
+  message text not null check (char_length(message) between 1 and 200),
+  created_at timestamptz not null default now()
+);
+create index on hl.cheers (calendar_id, created_at);
+alter table hl.cheers enable row level security;
+
+create or replace function public.hl_cheer(p_id uuid, p_name text, p_message text)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  n text := btrim(regexp_replace(coalesce(p_name, ''), '\s+', ' ', 'g'));
+  m text := btrim(coalesce(p_message, ''));
+begin
+  if char_length(n) < 1 or char_length(n) > 40 then raise exception 'Please enter your name'; end if;
+  if char_length(m) < 1 or char_length(m) > 200 then raise exception 'Please write a short message (up to 200 characters)'; end if;
+  if not exists (select 1 from hl.calendars where id = p_id) then raise exception 'This calendar isn''t shared any more'; end if;
+  if (select count(*) from hl.cheers where calendar_id = p_id and created_at > now() - interval '1 day') >= 50 then raise exception 'Lots of cheers today already — try again tomorrow'; end if;
+  insert into hl.cheers (calendar_id, name, message) values (p_id, n, m);
+end $$;
+
+create or replace function public.hl_cheers(p_id uuid, p_key text)
+returns jsonb language sql security definer set search_path = '' stable as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'name', x.name, 'message', x.message, 'at', x.created_at) order by x.created_at desc), '[]'::jsonb)
+  from (select ch.* from hl.cheers ch join hl.calendars c on c.id = ch.calendar_id
+        where c.id = p_id and c.key_hash = encode(extensions.digest(coalesce(p_key, ''), 'sha256'), 'hex')
+        order by ch.created_at desc limit 50) x;
+$$;
+
+revoke all on function public.hl_cheer(uuid, text, text), public.hl_cheers(uuid, text) from public;
+grant execute on function public.hl_cheer(uuid, text, text), public.hl_cheers(uuid, text) to anon, authenticated;

@@ -17,6 +17,7 @@ import { dayRings, ringsSvg, RING_META } from './dayrings.js';
 import { eventsOn, EVENT_KINDS } from './calendar.js';
 import { itemKey } from '../engine/workouts.js';
 import { isPlanned } from './plan.js';
+import * as share from '../share.js';
 import { toMin } from '../engine/schedule.js';
 import { journey, nextStops, recentTimeStop } from '../engine/journey.js';
 import { whenLabel } from './journey.js';
@@ -308,12 +309,16 @@ export default {
     return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${past ? 'Fill in the gaps' : greeting()}</h1></div>${dayNav}</header>
       ${past ? `<div class="notice info past-day" style="align-items:center">${icon('calendar')}<div class="grow"><strong>${esc(dayLabel(date, today))}</strong> — anything you tick here is saved to that day.</div><a class="btn small" href="#/today">Back to today</a></div>` : banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + planCard(state) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : nextUp(state, date)}${quickLog(state)}</div>
+        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + share.cheerCardHtml(state) + planCard(state) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : nextUp(state, date)}${quickLog(state)}</div>
         <div class="tg-day">${yourDay(state, date)}</div>
         <div class="tg-rest">${past ? '' : bodyRingsCard(state, date) + journeyCard(state, date) + firstWeek(state, date)}</div>
       </div>`;
   },
+  after(root, ctx) {
+    share.refresh(ctx); // cheers and sign-ups from your shared calendar (no-op if you haven't shared)
+  },
   actions: {
+    cheersSeen: share.shareActions.cheersSeen,
     habitCheck(el, ev, ctx) {
       toggleHabit(ctx, el.dataset.id);
     },

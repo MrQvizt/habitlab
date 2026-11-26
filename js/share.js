@@ -12,6 +12,7 @@ const PUBLISHABLE_KEY = 'sb_publishable_wRKoEGC_8OtpR9SoT8tGkQ_Z9rhDWjl';
 export const SHARE_BASE = 'https://habitlab-eight.vercel.app/';
 
 let signups = []; // [{event, name, at}] for your calendar
+let cheers = []; // [{id, name, message, at}] newest first
 let lastFetch = 0;
 
 export async function rpc(fn, args) {
@@ -36,6 +37,18 @@ const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `${randomHex(4)}-$
 
 export const shareLink = (state) => (state.share?.id ? `${SHARE_BASE}#/join/${state.share.id}` : '');
 export const signupsFor = (eventId) => signups.filter((s) => s.event === eventId);
+export const cheersList = () => cheers;
+/** Cheers you haven't seen yet (newer than the last one you dismissed). */
+export const newCheers = (state) => cheers.filter((c) => c.id > (state.share?.seen || 0));
+const cheerHtml = (c) => `<li><strong>${esc(c.name)}</strong> <span class="muted">${esc(new Date(c.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))}</span><div>${esc(c.message)}</div></li>`;
+
+/** Today: a card with new cheers from friends. */
+export function cheerCardHtml(state) {
+  const fresh = newCheers(state);
+  if (!fresh.length) return '';
+  return `<section class="card cheer-card" aria-label="Cheers from friends"><div class="row between nowrap"><h2 style="margin:0;font-size:var(--text-lg)">💌 ${fresh.length === 1 ? `${esc(fresh[0].name)} is cheering you on` : `${fresh.length} friends are cheering you on`}</h2><button class="btn small ghost" data-action="cheersSeen" data-id="${fresh[0].id}">Thanks!</button></div>
+    <ul class="cheer-list">${fresh.slice(0, 3).map(cheerHtml).join('')}</ul></section>`;
+}
 
 /** The events friends can see: open to friends, from yesterday on. */
 export function publicEvents(state) {
@@ -60,11 +73,11 @@ export async function refresh(ctx, force = false) {
   if (!s?.id || (!force && Date.now() - lastFetch < 20000)) return;
   lastFetch = Date.now();
   try {
-    const list = await rpc('hl_signups', { p_id: s.id, p_key: s.key });
-    if (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(signups)) {
-      signups = list;
-      ctx.rerender();
-    }
+    const [list, ch] = await Promise.all([rpc('hl_signups', { p_id: s.id, p_key: s.key }), rpc('hl_cheers', { p_id: s.id, p_key: s.key }).catch(() => cheers)]);
+    const changed = (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(signups)) || (Array.isArray(ch) && JSON.stringify(ch) !== JSON.stringify(cheers));
+    if (Array.isArray(list)) signups = list;
+    if (Array.isArray(ch)) cheers = ch;
+    if (changed) ctx.rerender();
   } catch (e) {
     /* offline: keep what we have */
   }
@@ -82,10 +95,18 @@ export function shareCardHtml(state, pubCount) {
   return `<div class="card share-card"><div class="row between nowrap"><h2 style="margin:0;font-size:var(--text-lg)">${icon("star")} Your shared calendar</h2>${total ? `<span class="tag green">${total} joining</span>` : ''}</div>
     <p class="muted" style="font-size:var(--text-sm);margin:6px 0 8px">${pubCount ? `${pubCount} upcoming ${pubCount === 1 ? 'activity is' : 'activities are'} open to friends.` : 'Nothing open to friends yet — tap an activity and switch on “Open to friends”.'}</p>
     <div class="share-link"><input type="text" readonly value="${esc(link)}" aria-label="Your calendar link"><button class="btn small" data-action="shareCopy">Copy</button>${navigator.share ? '<button class="btn small primary" data-action="shareNative">Share</button>' : ''}</div>
+    ${cheers.length ? `<div class="over" style="margin-top:12px">💌 Cheers from friends</div><ul class="cheer-list">${cheers.slice(0, 5).map(cheerHtml).join('')}</ul>` : ''}
     <button class="btn ghost small" data-action="shareStop" style="margin-top:8px">Stop sharing</button></div>`;
 }
 
 export const shareActions = {
+  cheersSeen(el, ev, ctx) {
+    const id = Number(el.dataset.id) || 0;
+    ctx.update((st) => {
+      if (st.share) st.share = { ...st.share, seen: Math.max(st.share.seen || 0, id) };
+      return st;
+    }, { quiet: true });
+  },
   async shareCreate(form, ev, ctx, data) {
     const name = String(data.name || '').trim().slice(0, 40);
     if (!name) return;
@@ -125,6 +146,7 @@ export const shareActions = {
       return ctx.toast('Couldn’t reach the calendar service — try again when you’re online.');
     }
     signups = [];
+    cheers = [];
     ctx.update((st) => {
       delete st.share;
       return st;

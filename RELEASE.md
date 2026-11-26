@@ -112,7 +112,7 @@ battery management).
 - **Research content is general information,** not medical advice; sources are cited in-app and in `RESEARCH.md`.
 - **Shared calendars:** anyone with a link can read that calendar's open activities and join with any name;
   links are random UUIDs (unguessable), only the owner's secret key can publish, read names or delete, and
-  joining is limited to 100 per activity. There's no account system, so names aren't verified. The Supabase
+  joining is limited to 100 per activity. Friends can also send a short cheer (owner-only; 50 a day per calendar). There's no account system, so names aren't verified. The Supabase
   advisor flags the public functions and the no-policy tables — both intentional (see the SQL file).
 - **Join links point at the production web app** (`habitlab-eight.vercel.app`), so they work once this is
   merged and deployed. Other `*.vercel.app` aliases of the project are behind Vercel login.

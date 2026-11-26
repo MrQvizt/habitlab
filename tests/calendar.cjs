@@ -21,7 +21,7 @@ const base = process.argv[2] || 'http://localhost:8771/';
   // ---- You: add an event, share it ----
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   let eventId = null;
-  await mock(ctx, { hl_publish: null, hl_signups: () => (eventId ? [{ event: eventId, name: 'Sam', at: new Date().toISOString() }] : []) });
+  await mock(ctx, { hl_publish: null, hl_signups: () => (eventId ? [{ event: eventId, name: 'Sam', at: new Date().toISOString() }] : []), hl_cheers: () => (eventId ? [{ id: 7, name: 'Maria', message: 'So proud of you!', at: new Date().toISOString() }] : []) });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   await page.goto(base);
@@ -97,6 +97,14 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await page.click('.cal-ev:has-text("Walk with friends")');
   await page.waitForSelector('.sheet :text("Sam")').catch(() => errors.push('sign-up names not shown to the owner'));
   await page.keyboard.press('Escape');
+  // Cheers: shown on the calendar and as a card on Today until you say thanks
+  if (!/So proud of you!/.test(await page.textContent('.share-card'))) errors.push('cheer not on the calendar');
+  await page.goto(base + '#/today');
+  await page.waitForSelector('.cheer-card:has-text("Maria is cheering you on")', { timeout: 8000 }).catch(() => errors.push('cheer card not on Today'));
+  await page.click('.cheer-card button[data-action=cheersSeen]');
+  await page.waitForTimeout(300);
+  if (await page.locator('.cheer-card').count()) errors.push('cheer card did not go away');
+  if ((await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).share.seen)) !== 7) errors.push('seen cheer not remembered');
   await ctx.close();
 
   // ---- A friend opens the link (no Habit Lab data on their phone) ----
@@ -105,17 +113,29 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await mock(fctx, {
     hl_calendar: (b) => (b.p_id === calId ? { name: 'Alex', events: [{ id: 'ev1', title: 'Walk with friends', date: today, time: '23:58', place: 'Lake loop', kind: 'walk', notes: '', going: 0 }] } : null),
     hl_join: (b) => (b.p_name ? { going: 1 } : null),
+    hl_cheer: null,
   });
   const fp = await fctx.newPage();
   fp.on('pageerror', (e) => errors.push('friend pageerror: ' + e.message));
   await fp.goto(base + '#/join/' + calId);
   await fp.waitForSelector('.join-ev');
-  if (!/Join Alex/.test(await fp.textContent('h1'))) errors.push('join heading');
+  if (!/Alex has asked for your support/.test(await fp.textContent('h1'))) errors.push('join heading: ' + (await fp.textContent('h1')));
+  if (!/No app, no account/.test(await fp.textContent('main'))) errors.push('should say no app or account is needed');
+  if (await fp.locator('text=Get started').count()) errors.push('friend sent to the get-started page');
   if (await fp.locator('.bottomnav a').count()) errors.push('join page should not show the app navigation');
   await fp.click('button[data-action=joinAsk]');
   await fp.fill('form[data-form=joinSave] input[name=name]', 'Sam');
   await fp.click('form[data-form=joinSave] button');
   await fp.waitForSelector('text=You’re in!');
+  // Add to my calendar: an .ics file with the activity
+  const [dl] = await Promise.all([fp.waitForEvent('download'), fp.click('button[data-action=joinIcs]')]);
+  const ics = require('fs').readFileSync(await dl.path(), 'utf8');
+  if (!/BEGIN:VEVENT/.test(ics) || !/SUMMARY:Walk with friends with Alex/.test(ics) || !/LOCATION:Lake loop/.test(ics) || !new RegExp(`DTSTART:${today.replace(/-/g, '')}T235800`).test(ics)) errors.push('ics: ' + ics);
+  // Send a cheer
+  await fp.click('form[data-form=joinCheer] button[data-action=joinCheerQuick] >> nth=0');
+  await fp.click('form[data-form=joinCheer] button:has-text("Send cheer")');
+  await fp.waitForSelector('text=Sent!');
+  if (!calls.some((c) => c.fn === 'hl_cheer' && c.body.p_name === 'Sam' && c.body.p_message === 'So proud of you!')) errors.push('cheer call');
   if (!calls.some((c) => c.fn === 'hl_join' && c.body.p_name === 'Sam' && c.body.p_event === 'ev1')) errors.push('join call');
   // XSS: hostile event text from the server is shown as text
   await fp.unroute('https://jwjabhcebwnzhfphsuwg.supabase.co/rest/v1/rpc/*');

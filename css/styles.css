@@ -1206,3 +1206,19 @@ button.pill { font: inherit; border: 0; cursor: pointer; }
 .plan-when input[type=text] { flex: 1; min-width: 120px; }
 .plan-set { color: var(--accent) !important; font-weight: 650; margin-top: 4px; }
 .cal-back .icon { transform: rotate(180deg); }
+
+/* ---------- Cheers + join page polish ---------- */
+.cheer-card { background: linear-gradient(135deg, color-mix(in srgb, var(--ring-eat) 12%, var(--surface)), var(--surface)); }
+.cheer-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; font-size: var(--text-sm); }
+.cheer-list li { background: var(--surface-2); border-radius: 12px; padding: 8px 10px; }
+.join-hero { text-align: left; margin-bottom: 18px; }
+.join-wave { font-size: 2.4rem; line-height: 1; }
+.join-hero h1 { margin: 8px 0 8px; font-size: clamp(1.6rem, 6vw, 2.1rem); line-height: 1.15; }
+.join-promises { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; font-size: var(--text-sm); color: var(--ink-2); }
+.join-promises li { display: flex; align-items: center; gap: 8px; }
+.join-promises .icon { width: 16px; height: 16px; color: var(--accent); }
+.join-h { font-size: var(--text-lg); margin: 6px 0 10px; }
+.join-cheer { margin-top: 18px; }
+.join-cheer h2 { font-size: var(--text-lg); margin: 0 0 6px; }
+.join-cheer input, .join-cheer textarea { width: 100%; }
+.join-foot { font-size: var(--text-xs); margin-top: 24px; }
