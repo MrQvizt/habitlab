@@ -13,6 +13,10 @@
 // - Compliments ("You look beautiful") are included because people asked for them; they can be
 //   switched off, and you can add your own words.
 
+import { REASONS, REASON_YOUR, REASON_PROPER } from './reasons.js';
+
+const LIBRARY = new Set(REASONS.map((r) => r[1].toLowerCase()));
+
 export const VALUES = {
   family: { label: 'Family', phrase: 'the people you love' },
   health: { label: 'Health', phrase: 'feeling healthy and strong' },
@@ -117,6 +121,12 @@ export function valueInfo(v) {
   if (VALUES[v]) return { ...VALUES[v], kind: 'value' };
   const label = String(v || '').trim().replace(/\s+/g, ' ').slice(0, VALUE_LEN);
   if (!label) return null;
+  const k = label.toLowerCase();
+  // A word from the library: "Knees" → "your knees", "Paris" stays "Paris", "Hiking" → "hiking".
+  if (LIBRARY.has(k)) {
+    const cased = label.charAt(0).toUpperCase() + label.slice(1);
+    return { label: cased, phrase: REASON_YOUR.has(k) ? `your ${k}` : REASON_PROPER.has(k) ? cased : k, custom: true, kind: 'value' };
+  }
   const turned = label
     .replace(/\bmy\b/gi, 'your')
     .replace(/\bmine\b/gi, 'yours')

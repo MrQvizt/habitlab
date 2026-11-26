@@ -51,7 +51,7 @@ function reasonLibrary(affirm) {
   const tabs = Object.entries(REASON_CATS).map(([k, l]) => [k, l, REASONS.filter((r) => r[0] === k).length]);
   const mine = REASONS.filter((r) => picked.has(r[1].toLowerCase())).length;
   return `<details class="reason-lib" ${libOpen ? 'open' : ''}><summary><strong>Browse ${REASONS.length} reasons</strong>${mine ? ` <span class="muted">· ${mine} picked</span>` : ''}</summary>
-      <input type="search" class="reason-search" data-filter="reason" value="${esc(reasonQuery)}" placeholder="Search — e.g. kids, knees, holiday" aria-label="Search reasons">
+      <input type="search" class="reason-search" data-filter="reason" value="${esc(reasonQuery)}" placeholder="Search — e.g. kids, knees, Paris" aria-label="Search reasons">
       <div class="scroll-x" style="margin:8px 0 10px">${tabs.map(([k, l, n]) => `<button type="button" class="qchip ${reasonCat === k ? 'done' : ''}" style="padding-left:12px" data-action="reasonCat" data-value="${k}" aria-pressed="${reasonCat === k}">${esc(l)} <span class="muted">${n}</span></button>`).join('')}</div>
       <div class="reason-grid" data-filter-target="reason">${REASONS.map(([c, t]) => {
         const on = picked.has(t.toLowerCase());
@@ -133,7 +133,7 @@ export function alarmsPage(state) {
       <h3 style="margin-top:0">Your reasons</h3>
       <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Pick as many as you like, add your own, or browse ${REASONS.length} reasons people give. The ticked ones show on your morning screen. Reflecting on your own values is the form of self-affirmation shown in brain scans to engage reward and self-related areas — and to help people become more active.</p>
       <div class="chips">${Object.entries(VALUES).map(([k, v]) => `<label class="chip"><input type="checkbox" data-change="affirmValue" value="${k}" ${(affirm.values || []).includes(k) ? 'checked' : ''}><span>${esc(v.label)}</span></label>`).join('')}${ownValues(affirm).map((v) => `<span class="own-chip"><label class="chip own"><input type="checkbox" data-change="affirmValue" value="${esc(v)}" ${(affirm.values || []).includes(v) ? 'checked' : ''}><span>${esc(valueInfo(v).label)}</span></label><button type="button" class="own-x" data-action="affirmRemoveOwn" data-value="${esc(v)}" aria-label="Delete ${esc(valueInfo(v).label)}">${icon('x')}</button></span>`).join('')}</div>
-      <form class="own-value" data-form="affirmAddValue"><input type="text" name="value" maxlength="${VALUE_LEN}" placeholder="Add your own — e.g. Freedom, My kids, Run a 5K" aria-label="Add your own reason"><button class="btn small tonal">Add</button></form>
+      <form class="own-value" data-form="affirmAddValue"><input type="text" name="value" maxlength="${VALUE_LEN}" placeholder="Add your own word — e.g. Freedom" aria-label="Add your own reason"><button class="btn small tonal">Add</button></form>
       ${ownValues(affirm).length ? `<p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">Your own reasons stay on the list — tick the ones to use, tap × to delete one. ${(affirm.values || []).length} picked.</p>` : ''}
       ${reasonLibrary(affirm)}
       <label class="field" style="margin-top:14px"><span>Your “why” <span class="hint">Finish the sentence: I’m doing this…</span></span><input type="text" maxlength="120" data-change="affirmWhy" value="${esc(affirm.why || '')}" placeholder="to have energy to play with my kids"></label>

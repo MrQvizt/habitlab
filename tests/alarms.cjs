@@ -166,17 +166,19 @@ const shots = process.argv[3] || null;
   await page.fill('.reason-search', 'knee');
   const hits = await page.$$eval('.reason-btn:not([hidden])', (els) => els.map((e) => e.textContent));
   if (!hits.length || !hits.every((t) => /knee/i.test(t))) errors.push('reason search: ' + hits.join(' | '));
-  for (const t of ['Ease my knee pain', 'Freedom', 'Keep up with my kids', 'Lower my blood pressure']) {
+  const all = await page.$$eval('.reason-btn', (els) => els.map((e) => e.textContent.slice(2)));
+  if (all.some((t) => /\s/.test(t))) errors.push('library should be single words: ' + all.filter((t) => /\s/.test(t)).join(', '));
+  for (const t of ['Knees', 'Freedom', 'Kids', 'Hiking']) {
     await page.fill('.reason-search', t);
-    await page.click(`.reason-btn:not([hidden]):has-text("${t}")`);
+    await page.click(`.reason-btn:not([hidden]) >> text=/^. ${t}$/`);
   }
   let aff = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).affirm);
   const has = (list, t) => list.some((x) => x.toLowerCase() === t.toLowerCase()); // "Freedom" is also a built-in value ("freedom")
-  for (const t of ['Ease my knee pain', 'Freedom', 'Keep up with my kids', 'Lower my blood pressure']) if (!has(aff.values, t)) errors.push('library reason not picked: ' + t);
+  for (const t of ['Knees', 'Freedom', 'Kids', 'Hiking']) if (!has(aff.values, t)) errors.push('library reason not picked: ' + t);
   if (aff.values.length < 6) errors.push('should allow more than 3 reasons: ' + aff.values.length);
   if (!(await page.locator('.reason-lib[open]').count())) errors.push('library closed after picking');
   await page.fill('.reason-search', 'Freedom');
-  await page.click('.reason-btn.on:not([hidden]):has-text("Freedom")');
+  await page.click('.reason-btn.on:not([hidden]) >> text=/^. Freedom$/');
   aff = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).affirm);
   if (has(aff.values, 'Freedom')) errors.push('tapping a picked reason should remove it');
 

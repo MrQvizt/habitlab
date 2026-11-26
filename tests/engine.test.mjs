@@ -800,10 +800,16 @@ test('morning reasons: several values, me, and your own words', async () => {
   assert.ok(msgs.some((m) => /lower your blood pressure/i.test(m) && !/care about lower/i.test(m)));
 });
 
-test('reason library: 600 distinct reasons in every theme', async () => {
+test('reason library: 600 distinct single words in every theme, read naturally', async () => {
   const { REASONS, REASON_CATS } = await import('../js/data/reasons.js');
+  const { valueInfo } = await import('../js/data/affirmations.js');
   assert.ok(REASONS.length >= 600, String(REASONS.length));
   assert.equal(new Set(REASONS.map((r) => r[1].toLowerCase())).size, REASONS.length);
-  for (const c of Object.keys(REASON_CATS)) assert.ok(REASONS.filter((r) => r[0] === c).length >= 70, c);
-  assert.ok(REASONS.every((r) => r[1].length <= 40 && REASON_CATS[r[0]]));
+  for (const c of Object.keys(REASON_CATS)) assert.ok(REASONS.filter((r) => r[0] === c).length >= 30, c);
+  assert.ok(REASONS.every((r) => !/\s/.test(r[1]) && REASON_CATS[r[0]]), 'single words only');
+  assert.ok(!REASONS.some((r) => r[1].toLowerCase() === 'me'), '"Me" is its own chip');
+  assert.equal(valueInfo('Knees').phrase, 'your knees');
+  assert.equal(valueInfo('Kids').phrase, 'your kids');
+  assert.equal(valueInfo('Hiking').phrase, 'hiking');
+  assert.equal(valueInfo('Paris').phrase, 'Paris');
 });

@@ -70,7 +70,7 @@ export default {
         <div class="wk-reflect">
           <div class="w-kicker">Today I’m doing this for… <span class="wk-hint">pick any</span></div>
           <div class="wk-values">${values.map((v) => `<button class="wk-value ${chosen.has(v) ? 'on' : ''}" data-action="wakeValue" data-value="${esc(v)}" aria-pressed="${chosen.has(v)}">${esc(valueInfo(v).label)}</button>`).join('')}<button class="wk-value ${chosen.has('me') ? 'on' : ''}" data-action="wakeValue" data-value="me" aria-pressed="${chosen.has('me')}">Me</button>${otherOpen ? '' : `<button class="wk-value ghost" data-action="wakeOther">＋ Something else</button>`}</div>
-          ${otherOpen ? `<form class="wk-add" data-form="wakeAdd"><input class="wk-other" name="reason" data-wake-other maxlength="40" placeholder="Something else, in your words" aria-label="Something else I’m doing this for" value="${esc(other)}" enterkeyhint="done"><button class="wk-add-btn">Add</button></form><p class="wk-note">Saved to your reasons, so it’s here next time.</p>` : ''}
+          ${otherOpen ? `<form class="wk-add" data-form="wakeAdd"><input class="wk-other" name="reason" data-wake-other maxlength="40" placeholder="A word — e.g. Freedom" aria-label="Something else I’m doing this for" value="${esc(other)}" enterkeyhint="done"><button class="wk-add-btn">Add</button></form><p class="wk-note">Saved to your reasons, so it’s here next time.</p>` : ''}
           <a class="wk-link" href="#/settings/alarms">${values.length ? 'Browse more reasons →' : 'Choose what matters to you →'}</a>
           <p class="wk-why" ${reasonLine([...chosen], other) ? '' : 'hidden'}>${esc(reasonLine([...chosen], other))}</p>
         </div>

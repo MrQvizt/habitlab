@@ -319,7 +319,7 @@ public class AlarmActivity extends Activity {
             rowL.addView(chip, lp);
         }
         if (vals.size() % 2 == 1) rowL.addView(new View(this), new LinearLayout.LayoutParams(0, dp(52), 1f));
-        otherField.setHint("Something else, in your words");
+        otherField.setHint("A word \u2014 e.g. Freedom");
         otherField.setSingleLine(true);
         otherField.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE);
         otherField.setFilters(new android.text.InputFilter[] {new android.text.InputFilter.LengthFilter(40)});
