@@ -224,7 +224,7 @@ export function sanitize(s) {
     const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
     s.affirm = { values: strs(f.values, 60, 40), own: strs(f.own, 200, 40), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
   }
-  s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
+  s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 120), kcal: num(x?.kcal, 0, 10000, 0), ...(num(x?.p, 0, 500, 0) ? { p: num(x?.p, 0, 500, 0) } : {}) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
   const g = s.game && typeof s.game === 'object' ? s.game : {};
   s.game = {
@@ -249,7 +249,7 @@ export function sanitize(s) {
   s.habits.retired = (Array.isArray(s.habits.retired) ? s.habits.retired : []).filter((r) => r && habitIds.includes(r.id)).map((r) => ({ id: r.id, date: isoOr(r.date, isoDate()) }));
   // Habit log values: true (full habit) or a 1-based small-win level.
   s.habits.log = dateMap(s.habits.log, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, x]) => habitIds.includes(k) && x).map(([k, x]) => [k, x === true ? true : Number.isInteger(x) && x >= 1 && x <= 3 ? x : true])) : null));
-  s.mealLog = dateMap(s.mealLog, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([slot, e]) => /^(breakfast|lunch|dinner|snack\d?)$/.test(slot) && ['ate', 'skip', 'other'].includes(e?.status)).map(([slot, e]) => [slot, e.status === 'other' ? { status: 'other', kcal: num(e.kcal, 0, 10000, 0) } : { status: e.status }])) : null));
+  s.mealLog = dateMap(s.mealLog, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([slot, e]) => /^(breakfast|lunch|dinner|snack\d?)$/.test(slot) && ['ate', 'skip', 'other'].includes(e?.status)).map(([slot, e]) => [slot, e.status === 'other' ? { status: 'other', kcal: num(e.kcal, 0, 10000, 0), ...(num(e.p, 0, 500, 0) ? { p: num(e.p, 0, 500, 0) } : {}), ...(typeof e.label === 'string' && e.label.trim() ? { label: e.label.trim().slice(0, 120) } : {}) } : { status: e.status }])) : null));
   const wl = s.workouts.log;
   s.workouts.log = dateMap(wl, (v) => (Array.isArray(v) ? v.filter((x) => x && ['strength', 'cardio', 'activity'].includes(x.kind)).map((x) => ({
     kind: x.kind,

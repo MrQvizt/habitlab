@@ -82,6 +82,27 @@ const shots = process.argv[3] || null;
   await page.click('.sheet .quick-chips button:has-text("700")');
   await page.click('.sheet button:has-text("Save")');
   await page.waitForSelector('text=Something else · 700 kcal');
+  // Off-plan meal from the food database: sausages + a side salad, totals and protein tracked
+  await page.click('.tg-day button[data-action=openMeal] >> nth=1');
+  await page.waitForSelector('.sheet.open');
+  await page.click('.sheet button:has-text("Something else")');
+  await page.fill('.sheet [data-food-search]', 'sausages');
+  await page.click('.sheet .food-hit:has-text("Sausages (2)")');
+  await page.click('.sheet .side-chip:has-text("Side salad (no dressing)")');
+  await page.waitForSelector('.sheet .food-total');
+  if (!/385 kcal/.test(await page.textContent('.sheet .food-total'))) errors.push('picked total: ' + (await page.textContent('.sheet .food-total')));
+  if ((await page.inputValue('.sheet input[name=kcal]')) !== '385') errors.push('kcal not filled from picks');
+  await page.click('.sheet button:has-text("Save")');
+  await page.waitForSelector('text=Sausages (2) + Side salad (no dressing) · 385 kcal');
+  // Add an extra snack from the database
+  await page.click('button[data-action=openExtra] >> nth=0');
+  await page.fill('.sheet [data-food-search]', 'latte');
+  await page.click('.sheet .food-hit:has-text("Latte")');
+  await page.click('.sheet button:has-text("Add")');
+  await page.waitForSelector('.tg-day .k-extra:has-text("Latte")');
+  const fd = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')));
+  const tdy = Object.keys(fd.extras).sort().at(-1);
+  if (!(fd.extras[tdy].find((x) => x.label === 'Latte')?.p > 0)) errors.push('extra protein not stored');
   // Escape closes a sheet
   await page.click('.tg-day button[data-action=openMeal] >> nth=2');
   await page.waitForSelector('.sheet.open');

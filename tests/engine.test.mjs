@@ -813,3 +813,17 @@ test('reason library: 600 distinct single words in every theme, read naturally',
   assert.equal(valueInfo('Hiking').phrase, 'hiking');
   assert.equal(valueInfo('Paris').phrase, 'Paris');
 });
+
+test('food database: search, sides, totals and labels', async () => {
+  const { FOOD_DB, SIDES, searchFoods, totalOf, describe } = await import('../js/data/fooddb.js');
+  assert.ok(FOOD_DB.length >= 150 && SIDES.length >= 30);
+  assert.equal(new Set([...FOOD_DB, ...SIDES].map((x) => x.id)).size, FOOD_DB.length + SIDES.length, 'unique ids');
+  assert.ok([...FOOD_DB, ...SIDES].every((x) => x.kcal >= 0 && x.kcal < 2500 && x.p >= 0 && x.p * 4 <= x.kcal + 20), 'plausible values');
+  assert.ok(searchFoods('sausage').some((x) => /Sausage/.test(x.name)));
+  assert.ok(searchFoods('curry chicken').some((x) => x.id === 'chicken_curry'), 'words in any order');
+  assert.deepEqual(searchFoods(''), []);
+  const items = [{ id: 'sausages_2', n: 1 }, { id: 'side_salad', n: 1 }, { id: 'fries_small', n: 0.5 }];
+  const t = totalOf(items);
+  assert.equal(t.kcal, 360 + 25 + 115);
+  assert.equal(describe(items), 'Sausages (2) + Side salad (no dressing) + 0.5× Fries (small)');
+});

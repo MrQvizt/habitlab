@@ -1133,6 +1133,30 @@ h2.h3 { font-size: var(--text-lg); }
 .day-nav > .icon-btn:first-child .icon { transform: rotate(180deg); }
 .day-nav .icon-btn[aria-disabled="true"] { opacity: .3; pointer-events: none; }
 .day-nav-label { font-size: var(--text-sm); font-weight: 700; color: var(--ink-2); min-width: 64px; text-align: center; }
+
+/* ---------- Food picker ---------- */
+.food-results { list-style: none; margin: 6px 0 0; padding: 0; max-height: 260px; overflow-y: auto; }
+.food-results:empty { display: none; }
+.food-hit { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); padding: 10px 4px; font: inherit; color: var(--ink); cursor: pointer; min-height: 48px; }
+.food-hit small, .food-item small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
+.food-plus { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex: none; }
+.food-plus .icon { width: 16px; height: 16px; }
+.food-none { padding: 10px 4px; font-size: var(--text-sm); }
+.food-picked { margin-top: 10px; background: var(--surface-2); border-radius: 14px; padding: 10px 12px; }
+.food-picked ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.food-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.food-item .stepper { display: flex; align-items: center; gap: 6px; }
+.food-item .stepper button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--surface); font: inherit; font-weight: 800; color: var(--ink); cursor: pointer; }
+.food-item .stepper span { min-width: 26px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.food-total { margin-top: 6px; font-size: var(--text-sm); color: var(--ink-2); }
+.food-sides { margin-top: 10px; }
+.food-sides summary, .food-manual summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); }
+.side-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.side-chip { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 7px 12px; min-height: 38px; font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+.side-chip small { color: var(--ink-3); font-weight: 600; }
+.side-chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.side-chip.on small { color: inherit; opacity: .8; }
+.food-manual { margin-top: 8px; }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -4792,7 +4816,7 @@ function sanitize(s) {
     const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
     s.affirm = { values: strs(f.values, 60, 40), own: strs(f.own, 200, 40), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
   }
-  s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
+  s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 120), kcal: num(x?.kcal, 0, 10000, 0), ...(num(x?.p, 0, 500, 0) ? { p: num(x?.p, 0, 500, 0) } : {}) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
   const g = s.game && typeof s.game === 'object' ? s.game : {};
   s.game = {
@@ -4817,7 +4841,7 @@ function sanitize(s) {
   s.habits.retired = (Array.isArray(s.habits.retired) ? s.habits.retired : []).filter((r) => r && habitIds.includes(r.id)).map((r) => ({ id: r.id, date: isoOr(r.date, isoDate()) }));
   // Habit log values: true (full habit) or a 1-based small-win level.
   s.habits.log = dateMap(s.habits.log, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, x]) => habitIds.includes(k) && x).map(([k, x]) => [k, x === true ? true : Number.isInteger(x) && x >= 1 && x <= 3 ? x : true])) : null));
-  s.mealLog = dateMap(s.mealLog, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([slot, e]) => /^(breakfast|lunch|dinner|snack\d?)$/.test(slot) && ['ate', 'skip', 'other'].includes(e?.status)).map(([slot, e]) => [slot, e.status === 'other' ? { status: 'other', kcal: num(e.kcal, 0, 10000, 0) } : { status: e.status }])) : null));
+  s.mealLog = dateMap(s.mealLog, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([slot, e]) => /^(breakfast|lunch|dinner|snack\d?)$/.test(slot) && ['ate', 'skip', 'other'].includes(e?.status)).map(([slot, e]) => [slot, e.status === 'other' ? { status: 'other', kcal: num(e.kcal, 0, 10000, 0), ...(num(e.p, 0, 500, 0) ? { p: num(e.p, 0, 500, 0) } : {}), ...(typeof e.label === 'string' && e.label.trim() ? { label: e.label.trim().slice(0, 120) } : {}) } : { status: e.status }])) : null));
   const wl = s.workouts.log;
   s.workouts.log = dateMap(wl, (v) => (Array.isArray(v) ? v.filter((x) => x && ['strength', 'cardio', 'activity'].includes(x.kind)).map((x) => ({
     kind: x.kind,
@@ -5156,7 +5180,11 @@ function computeIntake(state, date) {
 function proteinEaten(state, date) {
   const log = state.mealLog[date] || {};
   let p = 0;
-  for (const m of mealsFor(state, date)) if (log[m.slot]?.status === 'ate') p += scaledNutrition(byId(m.recipeId), m.scale).p;
+  for (const m of mealsFor(state, date)) {
+    if (log[m.slot]?.status === 'ate') p += scaledNutrition(byId(m.recipeId), m.scale).p;
+    else if (log[m.slot]?.status === 'other') p += Number(log[m.slot].p) || 0;
+  }
+  for (const x of state.extras[date] || []) p += Number(x.p) || 0;
   return p;
 }
 
@@ -6431,13 +6459,385 @@ function updateSheet(html) {
 
 Object.assign(__m, { openSheet, closeSheet, updateSheet });
 },
-/* js/views/sheets.js */ 27: function (__m, __req) {
+/* js/data/fooddb.js */ 27: function (__m, __req) {
+// Common foods and dishes per typical portion, for logging what you ate off the plan.
+// Values are approximate, rounded averages from food composition tables (USDA FoodData Central,
+// UK McCance & Widdowson, Swedish Livsmedelsverket) for a standard portion; real portions vary.
+// [id, name, portion, kcal, protein g, carbs g, fat g, category]
+const R = [
+  // Meals & dishes
+  ['spaghetti_bolognese', 'Spaghetti bolognese', 'plate', 650, 32, 78, 20, 'meal'],
+  ['lasagne', 'Lasagne', 'portion', 600, 30, 45, 32, 'meal'],
+  ['mac_cheese', 'Macaroni cheese', 'portion', 620, 24, 65, 28, 'meal'],
+  ['carbonara', 'Pasta carbonara', 'plate', 750, 30, 80, 33, 'meal'],
+  ['pesto_pasta', 'Pasta with pesto', 'plate', 620, 18, 80, 25, 'meal'],
+  ['tomato_pasta', 'Pasta with tomato sauce', 'plate', 480, 15, 88, 8, 'meal'],
+  ['chicken_curry', 'Chicken curry', 'portion (no rice)', 400, 32, 14, 24, 'meal'],
+  ['tikka_masala', 'Chicken tikka masala', 'portion (no rice)', 480, 34, 16, 30, 'meal'],
+  ['butter_chicken', 'Butter chicken', 'portion (no rice)', 500, 32, 14, 34, 'meal'],
+  ['dal', 'Lentil dal', 'bowl', 300, 16, 42, 8, 'meal'],
+  ['chili_con_carne', 'Chili con carne', 'bowl', 450, 32, 30, 22, 'meal'],
+  ['beef_stew', 'Beef stew', 'bowl', 420, 34, 28, 18, 'meal'],
+  ['meatballs', 'Meatballs (8)', '8 balls', 440, 26, 12, 32, 'meal'],
+  ['meatballs_mash', 'Meatballs with mash and gravy', 'plate', 750, 34, 60, 40, 'meal'],
+  ['shepherds_pie', 'Shepherd’s / cottage pie', 'portion', 520, 28, 45, 24, 'meal'],
+  ['fish_pie', 'Fish pie', 'portion', 520, 32, 40, 25, 'meal'],
+  ['roast_dinner', 'Roast dinner (meat, potatoes, veg, gravy)', 'plate', 800, 45, 70, 35, 'meal'],
+  ['roast_chicken', 'Roast chicken (leg)', 'leg', 330, 30, 0, 23, 'meal'],
+  ['chicken_breast_cooked', 'Chicken breast, grilled', '150 g', 250, 46, 0, 6, 'meal'],
+  ['steak', 'Steak, sirloin', '200 g', 420, 52, 0, 23, 'meal'],
+  ['pork_chop', 'Pork chop', '1 chop', 300, 34, 0, 18, 'meal'],
+  ['salmon_fillet', 'Salmon fillet, baked', '140 g', 290, 30, 0, 18, 'meal'],
+  ['white_fish', 'White fish, baked', '150 g', 150, 32, 0, 2, 'meal'],
+  ['fish_fingers', 'Fish fingers (4)', '4 fingers', 220, 12, 20, 10, 'meal'],
+  ['fish_and_chips', 'Fish and chips', 'portion', 1000, 40, 100, 50, 'meal'],
+  ['sausages', 'Sausage (pork)', '1 sausage', 180, 8, 3, 15, 'meal'],
+  ['sausages_2', 'Sausages (2)', '2 sausages', 360, 16, 6, 30, 'meal'],
+  ['bratwurst', 'Bratwurst / grillkorv', '1 sausage', 280, 12, 2, 25, 'meal'],
+  ['hot_dog', 'Hot dog in a bun', '1', 300, 11, 26, 17, 'meal'],
+  ['sausage_and_mash', 'Sausage and mash', 'plate', 700, 24, 55, 42, 'meal'],
+  ['falukorv', 'Fried falukorv slices', '150 g', 400, 15, 9, 34, 'meal'],
+  ['pyttipanna', 'Pyttipanna (hash)', 'plate', 600, 22, 50, 34, 'meal'],
+  ['stir_fry', 'Chicken stir-fry with noodles', 'plate', 600, 34, 70, 18, 'meal'],
+  ['fried_rice', 'Egg fried rice', 'portion', 450, 12, 65, 15, 'meal'],
+  ['pad_thai', 'Pad thai', 'plate', 650, 25, 80, 25, 'meal'],
+  ['ramen', 'Ramen', 'bowl', 550, 25, 65, 20, 'meal'],
+  ['sushi_8', 'Sushi (8 pieces)', '8 pieces', 350, 14, 60, 5, 'meal'],
+  ['poke_bowl', 'Poke bowl', 'bowl', 600, 30, 70, 20, 'meal'],
+  ['burrito', 'Burrito', '1', 700, 32, 80, 26, 'meal'],
+  ['burrito_bowl', 'Burrito bowl', 'bowl', 650, 35, 70, 22, 'meal'],
+  ['tacos_3', 'Tacos (3)', '3 tacos', 550, 27, 45, 28, 'meal'],
+  ['quesadilla', 'Quesadilla', '1', 600, 28, 45, 34, 'meal'],
+  ['nachos', 'Nachos with cheese', 'plate', 800, 22, 75, 45, 'meal'],
+  ['omelette', 'Omelette (3 eggs, cheese)', '1', 380, 26, 2, 30, 'meal'],
+  ['quiche', 'Quiche', 'slice', 420, 14, 25, 30, 'meal'],
+  ['soup_veg', 'Vegetable soup', 'bowl', 150, 5, 22, 4, 'meal'],
+  ['soup_cream', 'Creamy soup', 'bowl', 280, 6, 22, 18, 'meal'],
+  ['pea_soup', 'Pea soup (ärtsoppa)', 'bowl', 300, 18, 35, 8, 'meal'],
+  ['salad_chicken', 'Chicken salad', 'bowl', 400, 35, 12, 22, 'meal'],
+  ['caesar_salad', 'Caesar salad', 'bowl', 480, 25, 18, 34, 'meal'],
+  ['greek_salad', 'Greek salad', 'bowl', 300, 9, 12, 24, 'meal'],
+  ['tuna_salad', 'Tuna salad', 'bowl', 350, 30, 12, 20, 'meal'],
+  ['jacket_potato', 'Jacket potato with beans and cheese', '1', 550, 22, 80, 15, 'meal'],
+  ['risotto', 'Risotto', 'plate', 600, 16, 80, 22, 'meal'],
+  ['paella', 'Paella', 'plate', 600, 32, 70, 20, 'meal'],
+  ['kebab_plate', 'Kebab plate with rice', 'plate', 900, 45, 80, 42, 'meal'],
+  ['gyros_pita', 'Gyros / kebab in pita', '1', 650, 30, 55, 34, 'meal'],
+  ['falafel_wrap', 'Falafel wrap', '1', 600, 18, 70, 28, 'meal'],
+  ['pancakes_swedish', 'Pancakes with jam (3)', '3 pancakes', 450, 14, 60, 16, 'meal'],
+  ['pizza_slice', 'Pizza (1 slice)', '1 slice', 280, 12, 33, 11, 'meal'],
+  ['pizza_whole', 'Pizza (whole, 12")', 'whole', 1600, 70, 190, 60, 'meal'],
+  ['kebab_pizza', 'Kebab pizza (whole)', 'whole', 1900, 85, 200, 85, 'meal'],
+  // Fast food
+  ['burger', 'Burger (single)', '1', 520, 28, 42, 26, 'fast'],
+  ['cheeseburger', 'Cheeseburger', '1', 300, 15, 32, 13, 'fast'],
+  ['double_burger', 'Double cheeseburger', '1', 450, 25, 34, 24, 'fast'],
+  ['big_burger', 'Big burger (restaurant)', '1', 850, 45, 50, 50, 'fast'],
+  ['chicken_burger', 'Chicken burger', '1', 500, 25, 50, 22, 'fast'],
+  ['veggie_burger', 'Veggie burger', '1', 450, 18, 50, 20, 'fast'],
+  ['nuggets_6', 'Chicken nuggets (6)', '6 pieces', 270, 15, 16, 16, 'fast'],
+  ['nuggets_9', 'Chicken nuggets (9)', '9 pieces', 400, 22, 24, 24, 'fast'],
+  ['fried_chicken', 'Fried chicken (2 pieces)', '2 pieces', 500, 36, 16, 32, 'fast'],
+  ['wings_6', 'Chicken wings (6)', '6 wings', 480, 40, 4, 34, 'fast'],
+  ['sub_6', 'Sub sandwich (6-inch)', '1', 400, 22, 46, 14, 'fast'],
+  ['wrap_chicken', 'Chicken wrap', '1', 500, 28, 45, 22, 'fast'],
+  ['club_sandwich', 'Club sandwich', '1', 600, 32, 45, 32, 'fast'],
+  ['toastie', 'Ham and cheese toastie', '1', 420, 22, 35, 21, 'fast'],
+  ['sandwich', 'Sandwich (shop-bought)', '1', 400, 20, 40, 17, 'fast'],
+  ['baguette', 'Filled baguette', '1', 550, 25, 65, 20, 'fast'],
+  ['sausage_roll', 'Sausage roll', '1', 330, 8, 25, 22, 'fast'],
+  ['pasty', 'Pasty', '1', 600, 15, 55, 36, 'fast'],
+  ['bagel_cream_cheese', 'Bagel with cream cheese', '1', 360, 12, 50, 12, 'fast'],
+  // Breakfast
+  ['porridge', 'Porridge with milk', 'bowl', 280, 11, 45, 7, 'breakfast'],
+  ['overnight_oats', 'Overnight oats', 'jar', 350, 15, 50, 10, 'breakfast'],
+  ['cereal_milk', 'Cereal with milk', 'bowl', 250, 8, 45, 4, 'breakfast'],
+  ['granola_yogurt', 'Granola with yogurt', 'bowl', 400, 14, 50, 16, 'breakfast'],
+  ['muesli', 'Muesli with milk', 'bowl', 330, 11, 52, 8, 'breakfast'],
+  ['eggs_boiled_2', 'Boiled eggs (2)', '2 eggs', 140, 12, 1, 10, 'breakfast'],
+  ['eggs_scrambled', 'Scrambled eggs (2) on toast', 'plate', 380, 18, 30, 20, 'breakfast'],
+  ['eggs_fried', 'Fried egg', '1 egg', 90, 6, 0, 7, 'breakfast'],
+  ['full_breakfast', 'Full cooked breakfast', 'plate', 900, 45, 50, 58, 'breakfast'],
+  ['bacon_2', 'Bacon (2 rashers)', '2 rashers', 180, 12, 0, 14, 'breakfast'],
+  ['pancakes_stack', 'Pancakes with syrup (stack)', '3 pancakes', 520, 12, 85, 15, 'breakfast'],
+  ['waffle', 'Waffle', '1', 300, 6, 35, 15, 'breakfast'],
+  ['avocado_toast', 'Avocado toast', '1 slice', 280, 7, 25, 17, 'breakfast'],
+  ['smoothie_bowl', 'Smoothie bowl', 'bowl', 400, 10, 70, 9, 'breakfast'],
+  ['croissant', 'Croissant', '1', 230, 5, 26, 12, 'breakfast'],
+  ['pain_au_chocolat', 'Pain au chocolat', '1', 300, 5, 32, 17, 'breakfast'],
+  // Bread & grains
+  ['bread_slice', 'Bread (1 slice)', '1 slice', 90, 3, 16, 1, 'bread'],
+  ['toast_butter', 'Toast with butter', '1 slice', 130, 3, 16, 6, 'bread'],
+  ['crispbread', 'Crispbread (knäckebröd)', '1 slice', 40, 1, 7, 0, 'bread'],
+  ['open_sandwich', 'Open sandwich (cheese / ham)', '1', 180, 9, 16, 8, 'bread'],
+  ['bagel', 'Bagel, plain', '1', 250, 10, 48, 2, 'bread'],
+  ['pita', 'Pita bread', '1', 170, 6, 34, 1, 'bread'],
+  ['tortilla', 'Tortilla wrap', '1', 180, 5, 30, 4, 'bread'],
+  ['naan', 'Naan bread', '1', 300, 9, 50, 7, 'bread'],
+  ['rice_cooked', 'Rice, cooked', '1 cup (180 g)', 230, 4, 50, 1, 'bread'],
+  ['pasta_cooked', 'Pasta, cooked', '1 cup (180 g)', 280, 10, 56, 2, 'bread'],
+  ['couscous', 'Couscous, cooked', '1 cup', 180, 6, 36, 1, 'bread'],
+  ['quinoa', 'Quinoa, cooked', '1 cup', 220, 8, 39, 4, 'bread'],
+  ['potatoes_boiled', 'Boiled potatoes', '200 g', 170, 4, 38, 0, 'bread'],
+  // Dairy & eggs
+  ['yogurt_greek', 'Greek yogurt (natural)', '150 g', 150, 14, 6, 8, 'dairy'],
+  ['yogurt_fruit', 'Fruit yogurt', '1 pot', 140, 5, 22, 3, 'dairy'],
+  ['skyr', 'Skyr / quark', '150 g', 95, 16, 6, 0, 'dairy'],
+  ['cottage_cheese', 'Cottage cheese', '150 g', 150, 18, 5, 6, 'dairy'],
+  ['cheese_slice', 'Cheese (1 slice)', '1 slice', 70, 5, 0, 6, 'dairy'],
+  ['cheese_chunk', 'Cheese (matchbox size)', '30 g', 120, 8, 0, 10, 'dairy'],
+  ['milk_glass', 'Milk (glass)', '250 ml', 120, 8, 12, 4, 'dairy'],
+  ['oat_milk', 'Oat drink (glass)', '250 ml', 120, 3, 17, 4, 'dairy'],
+  ['egg', 'Egg', '1 egg', 75, 6, 0, 5, 'dairy'],
+  // Fruit & veg
+  ['apple', 'Apple', '1', 80, 0, 21, 0, 'fruit'],
+  ['banana', 'Banana', '1', 105, 1, 27, 0, 'fruit'],
+  ['orange', 'Orange', '1', 65, 1, 16, 0, 'fruit'],
+  ['pear', 'Pear', '1', 100, 1, 27, 0, 'fruit'],
+  ['grapes', 'Grapes (handful)', '100 g', 70, 1, 18, 0, 'fruit'],
+  ['berries', 'Berries (bowl)', '150 g', 60, 1, 14, 0, 'fruit'],
+  ['melon', 'Melon (slice)', '1 slice', 50, 1, 12, 0, 'fruit'],
+  ['mango', 'Mango', '1', 200, 3, 50, 1, 'fruit'],
+  ['dried_fruit', 'Dried fruit (handful)', '30 g', 90, 1, 22, 0, 'fruit'],
+  ['avocado', 'Avocado (half)', '½', 160, 2, 9, 15, 'fruit'],
+  ['carrot_sticks', 'Carrot sticks', '100 g', 40, 1, 10, 0, 'fruit'],
+  ['raw_veg', 'Raw veggies (bowl)', 'bowl', 50, 2, 10, 0, 'fruit'],
+  // Snacks & sweets
+  ['crisps_small', 'Crisps (small bag)', '25 g', 130, 2, 13, 8, 'snack'],
+  ['crisps_share', 'Crisps (sharing bag)', '150 g', 800, 9, 80, 50, 'snack'],
+  ['popcorn', 'Popcorn (cinema, medium)', 'medium', 600, 8, 60, 35, 'snack'],
+  ['nuts', 'Nuts (handful)', '30 g', 180, 6, 5, 16, 'snack'],
+  ['peanut_butter', 'Peanut butter (1 tbsp)', '15 g', 95, 4, 3, 8, 'snack'],
+  ['chocolate_bar', 'Chocolate bar', '45 g', 240, 3, 26, 14, 'snack'],
+  ['chocolate_squares', 'Chocolate (2 squares)', '20 g', 110, 1, 12, 6, 'snack'],
+  ['sweets', 'Sweets / candy (bag)', '100 g', 350, 3, 85, 0, 'snack'],
+  ['lordagsgodis', 'Pick-and-mix (Saturday sweets)', '200 g', 750, 6, 170, 8, 'snack'],
+  ['biscuit', 'Biscuit / cookie', '1', 70, 1, 9, 3, 'snack'],
+  ['digestive_3', 'Biscuits (3)', '3', 210, 3, 28, 9, 'snack'],
+  ['cake_slice', 'Cake (slice)', '1 slice', 350, 4, 45, 17, 'snack'],
+  ['cinnamon_bun', 'Cinnamon bun (kanelbulle)', '1', 300, 5, 40, 13, 'snack'],
+  ['muffin', 'Muffin', '1', 420, 6, 55, 20, 'snack'],
+  ['donut', 'Doughnut', '1', 270, 4, 31, 15, 'snack'],
+  ['brownie', 'Brownie', '1', 260, 3, 33, 13, 'snack'],
+  ['ice_cream', 'Ice cream (2 scoops)', '2 scoops', 270, 5, 30, 14, 'snack'],
+  ['ice_lolly', 'Ice lolly', '1', 80, 0, 20, 0, 'snack'],
+  ['protein_bar', 'Protein bar', '1', 200, 20, 20, 7, 'snack'],
+  ['cereal_bar', 'Cereal bar', '1', 120, 2, 20, 4, 'snack'],
+  ['rice_cakes', 'Rice cakes (2)', '2', 70, 1, 15, 0, 'snack'],
+  ['hummus_pitta', 'Hummus with pitta', 'portion', 300, 9, 35, 14, 'snack'],
+  ['dip_chips', 'Chips and dip', 'bowl', 450, 5, 40, 30, 'snack'],
+  // Drinks
+  ['latte', 'Latte', 'medium', 190, 10, 17, 9, 'drink'],
+  ['cappuccino', 'Cappuccino', 'medium', 130, 7, 11, 6, 'drink'],
+  ['coffee_milk', 'Coffee with milk', 'mug', 30, 2, 3, 1, 'drink'],
+  ['black_coffee', 'Black coffee / tea', 'mug', 5, 0, 0, 0, 'drink'],
+  ['frappe', 'Iced blended coffee drink', 'large', 400, 6, 60, 15, 'drink'],
+  ['hot_chocolate', 'Hot chocolate', 'mug', 220, 8, 30, 8, 'drink'],
+  ['soda', 'Soft drink (can)', '330 ml', 140, 0, 35, 0, 'drink'],
+  ['soda_zero', 'Diet / zero soft drink', '330 ml', 1, 0, 0, 0, 'drink'],
+  ['juice', 'Orange juice (glass)', '250 ml', 110, 2, 26, 0, 'drink'],
+  ['smoothie', 'Smoothie (bottle)', '250 ml', 150, 2, 34, 0, 'drink'],
+  ['energy_drink', 'Energy drink (can)', '250 ml', 115, 0, 28, 0, 'drink'],
+  ['protein_shake', 'Protein shake (with water)', '1 scoop', 120, 24, 3, 2, 'drink'],
+  ['beer', 'Beer (pint / 500 ml)', '500 ml', 220, 2, 18, 0, 'drink'],
+  ['beer_light', 'Light beer', '330 ml', 100, 1, 6, 0, 'drink'],
+  ['wine_glass', 'Wine (glass)', '150 ml', 125, 0, 4, 0, 'drink'],
+  ['cider', 'Cider', '500 ml', 230, 0, 25, 0, 'drink'],
+  ['spirit_mixer', 'Spirit with mixer', '1', 160, 0, 15, 0, 'drink'],
+  ['cocktail', 'Cocktail', '1', 250, 0, 25, 0, 'drink'],
+];
+
+// Sides: added to a main ("sausage + side salad") so unplanned meals are tracked better.
+const S = [
+  ['side_salad', 'Side salad (no dressing)', 25, 1, 4, 0],
+  ['side_salad_dressing', 'Side salad with dressing', 120, 1, 5, 11],
+  ['coleslaw', 'Coleslaw', 150, 1, 8, 13],
+  ['veg_steamed', 'Steamed veggies', 50, 3, 8, 0],
+  ['veg_roasted', 'Roasted veggies', 120, 2, 12, 7],
+  ['peas', 'Peas', 70, 5, 10, 0],
+  ['corn', 'Corn on the cob', 90, 3, 19, 1],
+  ['beans_baked', 'Baked beans', 160, 9, 26, 1],
+  ['fries_small', 'Fries (small)', 230, 3, 30, 11],
+  ['fries_medium', 'Fries (medium)', 340, 4, 44, 16],
+  ['fries_large', 'Fries (large)', 490, 6, 63, 23],
+  ['sweet_potato_fries', 'Sweet potato fries', 300, 3, 40, 14],
+  ['wedges', 'Potato wedges', 280, 5, 40, 11],
+  ['mash', 'Mashed potato', 220, 4, 30, 9],
+  ['boiled_potatoes', 'Boiled potatoes', 170, 4, 38, 0],
+  ['roast_potatoes', 'Roast potatoes', 300, 5, 40, 13],
+  ['rice', 'Rice', 230, 4, 50, 1],
+  ['fried_rice_side', 'Fried rice', 300, 7, 45, 10],
+  ['pasta_side', 'Pasta', 280, 10, 56, 2],
+  ['noodles', 'Noodles', 300, 9, 50, 7],
+  ['bread_roll', 'Bread roll', 150, 5, 28, 2],
+  ['garlic_bread', 'Garlic bread (2 slices)', 220, 5, 26, 11],
+  ['naan_side', 'Naan', 300, 9, 50, 7],
+  ['onion_rings', 'Onion rings', 300, 4, 34, 17],
+  ['mozzarella_sticks', 'Mozzarella sticks', 350, 15, 30, 19],
+  ['gravy', 'Gravy', 50, 1, 5, 3],
+  ['ketchup', 'Ketchup / sauce', 30, 0, 7, 0],
+  ['mayo', 'Mayonnaise (1 tbsp)', 95, 0, 0, 10],
+  ['bearnaise', 'Béarnaise sauce', 200, 1, 1, 22],
+  ['cheese_sauce', 'Cheese sauce', 150, 6, 6, 11],
+  ['dip', 'Dip (sour cream / garlic)', 120, 1, 2, 12],
+  ['hummus', 'Hummus', 140, 4, 8, 10],
+  ['guacamole', 'Guacamole', 120, 2, 6, 10],
+  ['egg_side', 'Fried egg', 90, 6, 0, 7],
+  ['cheese_side', 'Extra cheese', 110, 7, 0, 9],
+  ['bacon_side', 'Bacon (2 rashers)', 180, 12, 0, 14],
+  ['avocado_side', 'Avocado (half)', 160, 2, 9, 15],
+  ['soup_side', 'Small soup', 120, 4, 15, 4],
+  ['fruit_side', 'Fruit', 80, 1, 20, 0],
+  ['soda_side', 'Soft drink', 140, 0, 35, 0],
+  ['diet_soda_side', 'Diet soft drink', 1, 0, 0, 0],
+  ['water_side', 'Water', 0, 0, 0, 0],
+  ['beer_side', 'Beer', 220, 2, 18, 0],
+  ['wine_side', 'Glass of wine', 125, 0, 4, 0],
+  ['dessert_side', 'Dessert', 350, 5, 45, 16],
+  ['ice_cream_side', 'Ice cream', 140, 2, 16, 7],
+];
+
+const FOOD_CATS = { meal: 'Meals', fast: 'Fast food', breakfast: 'Breakfast', bread: 'Bread & grains', dairy: 'Dairy & eggs', fruit: 'Fruit & veg', snack: 'Snacks & sweets', drink: 'Drinks' };
+
+const FOOD_DB = R.map(([id, name, portion, kcal, p, c, f, cat]) => ({ id, name, portion, kcal, p, c, f, cat }));
+const SIDES = S.map(([id, name, kcal, p, c, f]) => ({ id, name, portion: 'side', kcal, p, c, f, cat: 'side', side: true }));
+
+const BY_ID = new Map([...FOOD_DB, ...SIDES].map((x) => [x.id, x]));
+const foodById = (id) => BY_ID.get(id);
+
+/** Search by words in any order ("chicken curry", "curry chick"); best matches first. */
+function searchFoods(q, limit = 30) {
+  const words = String(q || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const scored = [];
+  for (const x of FOOD_DB) {
+    const name = x.name.toLowerCase();
+    if (!words.every((w) => name.includes(w))) continue;
+    scored.push([name.startsWith(words[0]) ? 0 : name.split(/\W+/).some((t) => t.startsWith(words[0])) ? 1 : 2, x]);
+  }
+  return scored.sort((a, b) => a[0] - b[0] || a[1].name.length - b[1].name.length).slice(0, limit).map((s) => s[1]);
+}
+
+/** Total of picked items [{id, n}] (n = portions). */
+function totalOf(items = []) {
+  const t = { kcal: 0, p: 0, c: 0, f: 0 };
+  for (const it of items) {
+    const x = foodById(it.id);
+    if (!x) continue;
+    const n = Number(it.n) || 1;
+    t.kcal += x.kcal * n;
+    t.p += x.p * n;
+    t.c += x.c * n;
+    t.f += x.f * n;
+  }
+  return { kcal: Math.round(t.kcal), p: Math.round(t.p), c: Math.round(t.c), f: Math.round(t.f) };
+}
+
+/** "Sausages (2) + Side salad" */
+function describe(items = []) {
+  return items.map((it) => {
+    const x = foodById(it.id);
+    if (!x) return '';
+    const n = Number(it.n) || 1;
+    return n === 1 ? x.name : `${n}× ${x.name}`;
+  }).filter(Boolean).join(' + ');
+}
+
+Object.assign(__m, { FOOD_CATS, FOOD_DB, SIDES, foodById, searchFoods, totalOf, describe });
+},
+/* js/views/foodpick.js */ 28: function (__m, __req) {
+// Food picker: search common foods, add sides ("sausage + side salad"), adjust portions.
+// Used by "Something else" on a planned meal and by "Add something else you ate".
+const { esc, icon, fmtNum } = __req(17);
+const { FOOD_DB, SIDES, FOOD_CATS, searchFoods, totalOf, describe, foodById } = __req(27);
+const { updateSheet } = __req(26);
+
+let items = [];
+let rerender = null;
+
+/** Start a fresh pick; `redraw` re-renders the sheet that hosts the picker. */
+function startPick(redraw) {
+  items = [];
+  rerender = redraw;
+}
+
+const picked = () => items.slice();
+
+const row = (x, show) => `<li><button type="button" class="food-hit" data-action="foodAdd" data-id="${x.id}"><span class="grow"><strong>${esc(x.name)}</strong><small>${esc(x.portion)}${show ? ` · ${fmtNum(x.kcal)} kcal · ${x.p} g protein` : ''}</small></span><span class="food-plus">${icon('plus')}</span></button></li>`;
+
+function resultsHtml(q, show) {
+  const hits = searchFoods(q);
+  if (!q.trim()) return '';
+  if (!hits.length) return `<li class="muted food-none">Nothing found — type it below instead.</li>`;
+  return hits.map((x) => row(x, show)).join('');
+}
+
+// Live search without re-rendering the sheet (keeps the keyboard open).
+document.addEventListener('input', (ev) => {
+  if (!ev.target.matches?.('[data-food-search]')) return;
+  const list = ev.target.closest('.food-picker')?.querySelector('.food-results');
+  if (list) list.innerHTML = resultsHtml(ev.target.value, ev.target.dataset.show === '1');
+});
+
+/** The picker block (inside a form). `show` = show calories. */
+function pickerHtml(show) {
+  const t = totalOf(items);
+  const sides = SIDES.map((x) => `<button type="button" class="side-chip ${items.some((i) => i.id === x.id) ? 'on' : ''}" data-action="foodAdd" data-id="${x.id}">${esc(x.name)}${show && x.kcal ? ` <small>${fmtNum(x.kcal)}</small>` : ''}</button>`).join('');
+  const list = items.map((it) => {
+    const x = foodById(it.id);
+    return `<li class="food-item"><span class="grow"><strong>${esc(x.name)}</strong><small>${it.n === 1 ? esc(x.portion) : `${it.n} × ${esc(x.portion)}`}${show ? ` · ${fmtNum(x.kcal * it.n)} kcal` : ''}</small></span>
+      <span class="stepper"><button type="button" data-action="foodStep" data-id="${x.id}" data-d="-0.5" aria-label="Less ${esc(x.name)}">−</button><span>${it.n}</span><button type="button" data-action="foodStep" data-id="${x.id}" data-d="0.5" aria-label="More ${esc(x.name)}">+</button></span></li>`;
+  }).join('');
+  return `<div class="food-picker">
+      <label class="field" style="margin:0"><span>Search foods</span><input type="search" data-food-search data-show="${show ? 1 : 0}" placeholder="e.g. sausage, pizza, latte" autocomplete="off" aria-label="Search foods"></label>
+      <ul class="food-results"></ul>
+      ${items.length ? `<div class="food-picked"><div class="over">Your meal</div><ul>${list}</ul>${show ? `<div class="food-total"><strong>${fmtNum(t.kcal)} kcal</strong> · ${t.p} g protein · ${t.c} g carbs · ${t.f} g fat</div>` : ''}</div>` : ''}
+      <details class="food-sides" ${items.length ? 'open' : ''}><summary><strong>Add sides</strong> <span class="muted">salad, fries, veggies, sauce…</span></summary><div class="side-chips">${sides}</div></details>
+      <p class="muted" style="font-size:var(--text-xs);margin:8px 0 0">${FOOD_DB.length} common foods and ${SIDES.length} sides. Values are typical portions — close enough to learn from.</p>
+    </div>`;
+}
+
+const foodActions = {
+  foodAdd(el) {
+    const id = el.dataset.id;
+    const cur = items.find((i) => i.id === id);
+    if (cur && foodById(id)?.side) items = items.filter((i) => i.id !== id); // a side chip toggles
+    else if (cur) cur.n += 1;
+    else items.push({ id, n: 1 });
+    rerender?.();
+  },
+  foodStep(el) {
+    const cur = items.find((i) => i.id === el.dataset.id);
+    if (!cur) return;
+    cur.n = Math.round((cur.n + Number(el.dataset.d)) * 2) / 2;
+    if (cur.n <= 0) items = items.filter((i) => i !== cur);
+    rerender?.();
+  },
+};
+
+/** What to save: {kcal, p, label} from the picks, or from the typed fallback. */
+function pickResult(data) {
+  if (items.length) {
+    const t = totalOf(items);
+    const typed = Number(data.kcal);
+    return { kcal: Number.isFinite(typed) && data.kcal !== '' && typed !== t.kcal ? Math.max(0, typed) : t.kcal, p: t.p, label: describe(items).slice(0, 120) };
+  }
+  return { kcal: Math.max(0, Number(data.kcal) || 0), p: 0, label: String(data.label || '').trim().slice(0, 120) };
+}
+
+
+
+Object.assign(__m, { startPick, picked, pickerHtml, foodActions, pickResult, FOOD_CATS, updateSheet });
+},
+/* js/views/sheets.js */ 29: function (__m, __req) {
 // Bottom-sheet flows shared by Today and Meals: a meal's detail + logging, weigh-in stepper,
 // steps, extra food and habit detail. Every reversible change offers Undo instead of asking first.
 const { esc, icon, fmtNum, toKg, weightNum } = __req(17);
 const { openSheet, closeSheet, updateSheet } = __req(26);
 const store = __req(16);
 const { logDate, validLogDate } = __req(24);
+const { pickerHtml, startPick, pickResult, picked, foodActions } = __req(28);
+const { totalOf } = __req(27);
 const { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } = __req(18);
 const { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } = __req(5);
 const { habitById, streak, habitLevels, levelIndex, levelValue } = __req(10);
@@ -6469,12 +6869,17 @@ function mealSheetHtml(state, date, slot, mode = '') {
     ...(r.nocook ? ['no-cook'] : []),
   ];
   const fav = (state.prefs.favorites || []).includes(r.id);
-  const statusLine = status === 'ate' ? 'Logged as eaten' : status === 'skip' ? 'Logged as skipped' : status === 'other' ? `Logged: something else${show ? ` (${fmtNum(state.mealLog[date][slot].kcal)} kcal)` : ''}` : '';
+  const statusLine = status === 'ate' ? 'Logged as eaten' : status === 'skip' ? 'Logged as skipped' : status === 'other' ? `Logged: ${state.mealLog[date][slot].label || 'something else'}${show ? ` (${fmtNum(state.mealLog[date][slot].kcal)} kcal)` : ''}` : '';
   const other = mode === 'other'
     ? `<form data-form="sheetMealOtherSave" data-date="${date}" data-slot="${slot}" class="card flat" style="margin:12px 0">
-        <label class="field" style="margin:0"><span>${show ? 'Roughly how many calories? A guess is fine.' : 'What did you have instead? (optional)'}</span>
-        ${show ? `<div class="quick-chips">${[300, 500, 700, 900].map((k) => `<button type="button" data-action="sheetQuickKcal" data-v="${k}">${k}</button>`).join('')}</div>
-        <div class="inline-inputs"><input type="number" name="kcal" inputmode="numeric" min="0" max="5000" value="500" autofocus><span class="unit">kcal</span></div>` : '<input type="text" name="note" maxlength="60">'}</label>
+        <div class="over" style="margin-bottom:8px">What did you have instead?</div>
+        ${pickerHtml(show)}
+        <details class="food-manual" ${picked().length ? '' : ''}><summary>Not in the list? Type it</summary>
+          <label class="field" style="margin:8px 0 0"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. leftovers at work"></label>
+        </details>
+        ${show ? `<label class="field" style="margin:10px 0 0"><span>Calories ${picked().length ? '<span class="hint">from your picks — change it if you like</span>' : '<span class="hint">a guess is fine</span>'}</span>
+          ${picked().length ? '' : `<div class="quick-chips">${[300, 500, 700, 900].map((k) => `<button type="button" data-action="sheetQuickKcal" data-v="${k}">${k}</button>`).join('')}</div>`}
+          <div class="inline-inputs"><input type="number" name="kcal" inputmode="numeric" min="0" max="5000" value="${picked().length ? totalOf(picked()).kcal : 500}"><span class="unit">kcal</span></div></label>` : ''}
         <div class="row" style="margin-top:12px"><button class="btn primary">Save</button><button type="button" class="btn ghost" data-action="sheetMealBack" data-date="${date}" data-slot="${slot}">Cancel</button></div>
       </form>`
     : '';
@@ -6516,7 +6921,7 @@ function mealRowList(state, date) {
     const r = byId(m.recipeId);
     const n = scaledNutrition(r, m.scale);
     const st = log[m.slot]?.status;
-    const sub = st === 'skip' ? 'Skipped' : st === 'other' ? `Something else${show ? ` · ${fmtNum(log[m.slot].kcal)} kcal` : ''}` : `${m.leftover ? 'Leftovers' : `${r.minutes} min`}${show ? ` · ${Math.round(n.p)} g protein` : ''}${r.batch && !m.leftover ? ' · batch' : ''}`;
+    const sub = st === 'skip' ? 'Skipped' : st === 'other' ? `${esc(log[m.slot].label || 'Something else')}${show ? ` · ${fmtNum(log[m.slot].kcal)} kcal` : ''}` : `${m.leftover ? 'Leftovers' : `${r.minutes} min`}${show ? ` · ${Math.round(n.p)} g protein` : ''}${r.batch && !m.leftover ? ' · batch' : ''}`;
     const lead = canLog
       ? `<button class="check ${st === 'ate' || st === 'other' ? 'on' : st === 'skip' ? 'skip' : ''}" data-action="mealCheck" data-date="${date}" data-slot="${m.slot}" aria-pressed="${!!st}" aria-label="${st ? 'Clear log for' : 'Mark eaten:'} ${esc(r.name)}">${st === 'skip' ? icon('x') : icon('check')}</button>`
       : `<span class="slot-ico">${icon(slotIcon(m.slot))}</span>`;
@@ -6577,10 +6982,14 @@ function stepsSheetHtml(state) {
 // ---------- Extra food ----------
 function extraSheetHtml(state) {
   const show = !store.habitsOnly(state);
+  const n = picked().length;
   return `<div class="sheet-head"><div><div class="over">Not on the plan</div><h2>Add something you ate</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
     <form data-form="sheetExtra">
-      <label class="field"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. latte, biscuit, glass of wine" autofocus></label>
-      ${show ? `<label class="field"><span>Roughly how many calories?</span><div class="quick-chips">${[50, 100, 150, 250, 400].map((k) => `<button type="button" data-action="sheetQuickKcal" data-v="${k}">${k}</button>`).join('')}</div><div class="inline-inputs"><input type="number" name="kcal" inputmode="numeric" min="0" max="3000" placeholder="kcal"><span class="unit">kcal</span></div></label>` : ''}
+      ${pickerHtml(show)}
+      <details class="food-manual" ${n ? '' : ''}><summary>Not in the list? Type it</summary>
+        <label class="field" style="margin:8px 0 0"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. latte, biscuit, glass of wine"></label>
+      </details>
+      ${show ? `<label class="field" style="margin-top:10px"><span>Calories ${n ? '<span class="hint">from your picks — change it if you like</span>' : '<span class="hint">roughly</span>'}</span>${n ? '' : `<div class="quick-chips">${[50, 100, 150, 250, 400].map((k) => `<button type="button" data-action="sheetQuickKcal" data-v="${k}">${k}</button>`).join('')}</div>`}<div class="inline-inputs"><input type="number" name="kcal" inputmode="numeric" min="0" max="5000" placeholder="kcal" value="${n ? totalOf(picked()).kcal : ''}"><span class="unit">kcal</span></div></label>` : ''}
       <button class="btn primary large block">Add</button>
       <p class="muted" style="font-size:var(--text-sm);margin-top:10px">Logging honestly is what matters — it earns the same as eating to plan.</p>
     </form>`;
@@ -6615,6 +7024,7 @@ function habitSheetHtml(state, id) {
 
 /** Actions to spread into a view's `actions`. */
 const sheetActions = {
+  ...foodActions,
   mealCheck(el, ev, ctx) {
     const date = el.dataset.date || logDate();
     const slot = el.dataset.slot;
@@ -6665,8 +7075,10 @@ const sheetActions = {
     ctx.undoable('Log cleared', (st) => setMealStatus(st, date, slot, () => null));
   },
   sheetMealOther(el, ev, ctx) {
-    updateSheet(mealSheetHtml(ctx.state, el.dataset.date, el.dataset.slot, 'other'));
-    setTimeout(() => document.querySelector('.sheet input[name=kcal], .sheet input[name=note]')?.focus(), 30);
+    const { date, slot } = el.dataset;
+    startPick(() => updateSheet(mealSheetHtml(ctx.state, date, slot, 'other')));
+    updateSheet(mealSheetHtml(ctx.state, date, slot, 'other'));
+    setTimeout(() => document.querySelector('.sheet [data-food-search]')?.focus(), 30);
   },
   sheetMealBack(el, ev, ctx) {
     updateSheet(mealSheetHtml(ctx.state, el.dataset.date, el.dataset.slot));
@@ -6678,7 +7090,8 @@ const sheetActions = {
   sheetMealOtherSave(form, ev, ctx, data) {
     const { date, slot } = form.dataset;
     closeSheet();
-    ctx.undoable('Logged', (st) => setMealStatus(st, date, slot, () => ({ status: 'other', kcal: Math.max(0, Number(data.kcal) || 0) })));
+    const r = pickResult({ ...data, kcal: data.kcal ?? '' });
+    ctx.undoable('Logged', (st) => setMealStatus(st, date, slot, () => ({ status: 'other', kcal: r.kcal, p: r.p, ...(r.label ? { label: r.label } : {}) })));
   },
   sheetMealSwap(el, ev, ctx) {
     const { date, slot } = el.dataset;
@@ -6761,14 +7174,16 @@ const sheetActions = {
     });
   },
   openExtra(el, ev, ctx) {
+    startPick(() => updateSheet(extraSheetHtml(ctx.state)));
     openSheet(extraSheetHtml(ctx.state), { label: 'Add food' });
   },
   sheetExtra(form, ev, ctx, data) {
-    if (!data.label && !data.kcal) return;
+    const r = pickResult(data);
+    if (!r.label && !r.kcal) return;
     const date = logDate();
     closeSheet();
     ctx.undoable('Added', (st) => {
-      st.extras[date] = [...(st.extras[date] || []), { label: data.label || 'Extra', kcal: Number(data.kcal) || 0 }];
+      st.extras[date] = [...(st.extras[date] || []), { label: r.label || 'Extra', kcal: r.kcal, p: r.p }];
       st.intake[date] = computeIntake(st, date);
       return st;
     });
@@ -6833,7 +7248,7 @@ function setHabitLevel(ctx, id, index) {
 
 Object.assign(__m, { slotIcon, mealRows, mealRowList, openMeal, habitLevelsHtml, sheetActions, toggleHabit, setHabitLevel, isoDate });
 },
-/* js/engine/dayplan.js */ 28: function (__m, __req) {
+/* js/engine/dayplan.js */ 30: function (__m, __req) {
 // "Your day": put meals, habits and the weigh-in on one clock so Today reads top to bottom
 // like the day itself. Habits are placed by their cue ("After I finish lunch" → after lunch),
 // which is the implementation intention the person wrote — the cue is the time.
@@ -6895,7 +7310,7 @@ function planDay(profile, { meals = [], habits = [], weigh = false }) {
 
 Object.assign(__m, { cueTime, PARTS, partOf, planDay });
 },
-/* js/views/dayrings.js */ 29: function (__m, __req) {
+/* js/views/dayrings.js */ 31: function (__m, __req) {
 // Today's three rings: Eat (meals logged), Move (planned movement + steps), Habits (today's habits).
 // Closing a ring is the small, visible daily win; closing all three is a perfect day.
 const store = __req(16);
@@ -6976,7 +7391,7 @@ function allClosed(state) {
 
 Object.assign(__m, { RING_META, dayRings, ringsSvg, newlyClosed, allClosed });
 },
-/* js/data/learn.js */ 30: function (__m, __req) {
+/* js/data/learn.js */ 32: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -7279,7 +7694,7 @@ const LEARN = [
 
 Object.assign(__m, { S, LEARN_SECTIONS, LEARN });
 },
-/* js/ui/celebrate.js */ 31: function (__m, __req) {
+/* js/ui/celebrate.js */ 33: function (__m, __req) {
 // Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
 // Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
 // after the user has interacted with the page.
@@ -7422,18 +7837,18 @@ function showCelebration({ kicker, title, body, iconName = 'star', ok = 'Nice!' 
 
 Object.assign(__m, { floatXp, ringBanner, confetti, chime, buzz, showCelebration });
 },
-/* js/views/wrap.js */ 32: function (__m, __req) {
+/* js/views/wrap.js */ 34: function (__m, __req) {
 // Body Wrap: a short, story-style weekly recap. Each card is one body part thanking you for
 // what you did, with one research fact. Tap right/left (or use the arrow keys) to move through it.
 // Opening last week's wrap to the end earns XP once (derived from state.wraps in game.js).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(30);
+const { S: SOURCES } = __req(32);
 const { weekStart, addDays, getWeekStart } = __req(0);
 
 const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const { confetti, chime, buzz, floatXp } = __req(31);
+const { confetti, chime, buzz, floatXp } = __req(33);
 const { XP } = __req(13);
 
 let idx = 0;
@@ -7592,7 +8007,7 @@ function bodyRingsCard(state, today) {
 
 Object.assign(__m, { ring, wrapReadyCard, bodyRingsCard });
 },
-/* js/views/today.js */ 33: function (__m, __req) {
+/* js/views/today.js */ 35: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 const { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(17);
@@ -7606,12 +8021,12 @@ const { CARDIO } = __req(6);
 const { daysBetween, addDays } = __req(0);
 const { toHHMM } = __req(14);
 const { itemDone, logPlannedActivity } = __req(25);
-const { toggleHabit, mealRowList } = __req(27);
-const { planDay, partOf, PARTS } = __req(28);
-const { dayRings, ringsSvg, RING_META } = __req(29);
+const { toggleHabit, mealRowList } = __req(29);
+const { planDay, partOf, PARTS } = __req(30);
+const { dayRings, ringsSvg, RING_META } = __req(31);
 const { journey, nextStops, recentTimeStop } = __req(21);
 const { whenLabel } = __req(22);
-const { wrapReadyCard, bodyRingsCard } = __req(32);
+const { wrapReadyCard, bodyRingsCard } = __req(34);
 
 // ---------- Journey: the next stop on the long road (or a time stop just reached) ----------
 function journeyCard(state, date) {
@@ -7937,10 +8352,10 @@ __m.default = {
 
 Object.assign(__m, { habitRow, lastActive });
 },
-/* js/views/meals.js */ 34: function (__m, __req) {
+/* js/views/meals.js */ 36: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 const { html, esc, icon, chips, fmtDate, fmtNum } = __req(17);
-const { mealRows } = __req(27);
+const { mealRows } = __req(29);
 const store = __req(16);
 const { recipeDetails, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(18);
 const { markChosen } = __req(18);
@@ -8126,7 +8541,7 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 35: function (__m, __req) {
+/* js/ui/charts.js */ 37: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
 const { esc } = __req(17);
 const { daysBetween, addDays } = __req(0);
@@ -8238,16 +8653,16 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/habits.js */ 36: function (__m, __req) {
+/* js/views/habits.js */ 38: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
 const { esc, icon } = __req(17);
-const { habitGrid } = __req(35);
+const { habitGrid } = __req(37);
 const store = __req(16);
 const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(10);
 const { daysBetween } = __req(0);
 const { openSheet, closeSheet, updateSheet } = __req(26);
-const { toggleHabit, habitLevelsHtml } = __req(27);
+const { toggleHabit, habitLevelsHtml } = __req(29);
 const { habitLevels, levelIndex } = __req(10);
 
 let filter = 'all';
@@ -8394,11 +8809,11 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/progress.js */ 37: function (__m, __req) {
+/* js/views/progress.js */ 39: function (__m, __req) {
 // Progress: the home for everything long-term. A hub (journey, body levels, rewards, weekly
 // check-in), past Body Wraps, then the weight trend, activity, weigh-ins, waist and check-in history.
 const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(17);
-const { weightChart, barChart } = __req(35);
+const { weightChart, barChart } = __req(37);
 const store = __req(16);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
@@ -8406,7 +8821,7 @@ const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
 const { journey, nextStops } = __req(21);
 const { weekBody } = __req(12);
 const { checkinDue } = __req(18);
-const { ring } = __req(32);
+const { ring } = __req(34);
 
 /** The long-term hub at the top of Progress. */
 function hub(state, date, hide) {
@@ -8581,7 +8996,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, {  });
 },
-/* js/engine/adjust.js */ 38: function (__m, __req) {
+/* js/engine/adjust.js */ 40: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -8857,11 +9272,11 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 39: function (__m, __req) {
+/* js/views/checkin.js */ 41: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
 const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(17);
 const store = __req(16);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(38);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(40);
 const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
@@ -9006,10 +9421,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/learn.js */ 40: function (__m, __req) {
+/* js/views/learn.js */ 42: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
 const { html, esc, icon } = __req(17);
-const { LEARN, LEARN_SECTIONS } = __req(30);
+const { LEARN, LEARN_SECTIONS } = __req(32);
 
 let section = 'all';
 let openAll = false;
@@ -9054,7 +9469,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/data/melodies.js */ 41: function (__m, __req) {
+/* js/data/melodies.js */ 43: function (__m, __req) {
 // Alarm sounds. Each melody is data: the same spec is played by the in-app preview (Web Audio) and by
 // the native alarm (AlarmService.java synthesises it on the alarm stream), so what you hear when you
 // choose is exactly what wakes you.
@@ -9199,7 +9614,7 @@ function previewMelody(id, { passes = 2 } = {}) {
 
 Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, stopPreview, previewMelody });
 },
-/* js/engine/alarms.js */ 42: function (__m, __req) {
+/* js/engine/alarms.js */ 44: function (__m, __req) {
 // Alarm clock settings → the specs the native alarm scheduler uses (js/alarm-native.js).
 // Defaults follow sleep research:
 // - The same wake time every day, weekends included: irregular sleep/wake timing is linked to a
@@ -9209,7 +9624,7 @@ Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSou
 //   compared with a printed book (Chang 2015).
 // - Meals at regular times from your day schedule.
 const { daySchedule, mealTimes, toHHMM, toMin } = __req(14);
-const { DEFAULT_SOUND, nativeSound } = __req(41);
+const { DEFAULT_SOUND, nativeSound } = __req(43);
 
 const DEFAULT_ALARMS = {
   wake: { on: false, time: null, days: [0, 1, 2, 3, 4, 5, 6], style: 'ring' },
@@ -9290,7 +9705,7 @@ function fmtTime(min) {
 
 Object.assign(__m, { DEFAULT_ALARMS, STYLES, alarmsOf, alarmTimes, mealSlots, alarmSpecs, fmtTime });
 },
-/* js/data/reasons.js */ 43: function (__m, __req) {
+/* js/data/reasons.js */ 45: function (__m, __req) {
 // One-word reasons people give for wanting to lose weight, to pick on the morning screen and in Settings.
 // Grouped by the themes found in research: health first, then appearance and mood (O’Brien 2007),
 // function and mobility, stigma (hospital programme, open-ended answers), family and milestones
@@ -9915,7 +10330,7 @@ const REASONS = [
 
 Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 },
-/* js/data/affirmations.js */ 44: function (__m, __req) {
+/* js/data/affirmations.js */ 46: function (__m, __req) {
 // Morning messages shown when the wake-up alarm rings and on the Good-morning screen.
 // What the research says, and how it shapes these messages:
 // - Values-based self-affirmation: reflecting on what matters to you activates the brain's
@@ -9931,7 +10346,7 @@ Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 // - Compliments ("You look beautiful") are included because people asked for them; they can be
 //   switched off, and you can add your own words.
 
-const { REASONS, REASON_YOUR, REASON_PROPER } = __req(43);
+const { REASONS, REASON_YOUR, REASON_PROPER } = __req(45);
 
 const LIBRARY = new Set(REASONS.map((r) => r[1].toLowerCase()));
 
@@ -10145,11 +10560,11 @@ function removeReason(affirm = {}, text) {
 
 Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, DEFAULT_SETS, morningMessages, messageForDay, reasonLine, addReason, removeReason });
 },
-/* js/alarm-native.js */ 45: function (__m, __req) {
+/* js/alarm-native.js */ 47: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
-const { alarmSpecs, alarmsOf } = __req(42);
-const { morningMessages, valueInfo } = __req(44);
+const { alarmSpecs, alarmsOf } = __req(44);
+const { morningMessages, valueInfo } = __req(46);
 
 let lastMessage = null;
 
@@ -10267,13 +10682,13 @@ async function listen(go, onWake) {
 
 Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, parseWake, listen });
 },
-/* js/views/alarms.js */ 46: function (__m, __req) {
+/* js/views/alarms.js */ 48: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 const { esc, icon } = __req(17);
-const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(42);
+const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(44);
 const { daySchedule, mealTimes } = __req(14);
-const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(44);
-const { REASONS, REASON_CATS } = __req(43);
+const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(46);
+const { REASONS, REASON_CATS } = __req(45);
 
 // Reason library state (kept across re-renders while you browse).
 let reasonCat = 'health';
@@ -10285,8 +10700,8 @@ document.addEventListener('input', (ev) => {
 document.addEventListener('toggle', (ev) => {
   if (ev.target.classList?.contains('reason-lib')) libOpen = ev.target.open;
 }, true);
-const alarmNative = __req(45);
-const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(41);
+const alarmNative = __req(47);
+const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(43);
 const { openSheet, updateSheet } = __req(26);
 
 const KIND_NAME = { wake: 'Wake-up', wind: 'Wind-down', bed: 'Bedtime', meals: 'Meal' };
@@ -10598,7 +11013,7 @@ const alarmActions = {
 
 Object.assign(__m, { ownValues, alarmsSummary, alarmsPage, alarmsAfter, alarmActions });
 },
-/* js/notify.js */ 47: function (__m, __req) {
+/* js/notify.js */ 49: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -10735,10 +11150,10 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 48: function (__m, __req) {
+/* js/views/settings.js */ 50: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { goalHint } = __req(23);
-const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(46);
+const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(48);
 const { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(17);
 const store = __req(16);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
@@ -10746,7 +11161,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn, weekOrder } = __req(0);
-const notify = __req(47);
+const notify = __req(49);
 const { DEFAULT_REMINDERS } = __req(15);
 const { dayFields, daySummary, readDay } = __req(20);
 const { daySchedule, toHHMM } = __req(14);
@@ -11142,7 +11557,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 49: function (__m, __req) {
+/* js/views/shopping.js */ 51: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(17);
 const store = __req(16);
@@ -11190,15 +11605,15 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 50: function (__m, __req) {
+/* js/views/rewards.js */ 52: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(17);
-const { ring, barChart } = __req(35);
+const { ring, barChart } = __req(37);
 const store = __req(16);
 const { BADGES, XP, levelTitle } = __req(13);
 const { addDays, weekStart } = __req(0);
 const { ORGANS, lastWeekStart } = __req(12);
-const { ring: bodyRing } = __req(32);
+const { ring: bodyRing } = __req(34);
 
 function bodyMedals(state, g, date) {
   const lv = g.stats.body.levels;
@@ -11322,17 +11737,17 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/views/wake.js */ 51: function (__m, __req) {
+/* js/views/wake.js */ 53: function (__m, __req) {
 // Good morning: the screen after "I'm up". The alarm's message, then a ten-second values
 // reflection ("Today I'm doing this for…") — the kind of self-affirmation shown to engage the brain's
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(44);
-const { REASONS } = __req(43);
-const { takeMessage } = __req(45);
+const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(46);
+const { REASONS } = __req(45);
+const { takeMessage } = __req(47);
 const { XP } = __req(13);
-const { confetti, chime, buzz, floatXp } = __req(31);
+const { confetti, chime, buzz, floatXp } = __req(33);
 
 let message = null;
 let msgDate = null;
@@ -11475,18 +11890,18 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/body.js */ 52: function (__m, __req) {
+/* js/views/body.js */ 54: function (__m, __req) {
 // Your body: one card per body part — this week's ring, its long-term level and what it needs.
 // Tap any ring (here, on Today or in the Body Wrap) to open the body-part sheet.
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { openSheet } = __req(26);
 const { ORGAN_GUIDE, organById, weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(30);
+const { S: SOURCES } = __req(32);
 const { weekStart } = __req(0);
 
 const fmtDateShort = (iso) => fmtDate(iso, { day: 'numeric', month: 'short' });
-const { ring } = __req(32);
+const { ring } = __req(34);
 
 function data(state) {
   const today = store.today();
@@ -11563,38 +11978,38 @@ __m.default = {
 
 Object.assign(__m, { organSheetHtml, organActions });
 },
-/* js/app.js */ 53: function (__m, __req) {
+/* js/app.js */ 55: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(16);
 const { icon, formData } = __req(17);
 const { setWeekStart } = __req(0);
 const onboarding = __req(23).default;
 const { goalHint } = __req(23);
-const todayView = __req(33).default;
-const meals = __req(34).default;
+const todayView = __req(35).default;
+const meals = __req(36).default;
 const move = __req(25).default;
-const habits = __req(36).default;
-const progress = __req(37).default;
-const checkin = __req(39).default;
-const learn = __req(40).default;
-const settings = __req(48).default;
-const shopping = __req(49).default;
-const rewards = __req(50).default;
+const habits = __req(38).default;
+const progress = __req(39).default;
+const checkin = __req(41).default;
+const learn = __req(42).default;
+const settings = __req(50).default;
+const shopping = __req(51).default;
+const rewards = __req(52).default;
 const journeyView = __req(22).default;
-const wrapView = __req(32).default;
-const wakeView = __req(51).default;
-const bodyView = __req(52).default;
-const { organActions } = __req(52);
+const wrapView = __req(34).default;
+const wakeView = __req(53).default;
+const bodyView = __req(54).default;
+const { organActions } = __req(54);
 const { organById } = __req(12);
-const alarmNative = __req(45);
-const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(31);
-const { newlyClosed, allClosed } = __req(29);
+const alarmNative = __req(47);
+const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(33);
+const { newlyClosed, allClosed } = __req(31);
 const { setViewDate } = __req(24);
-const { reasonLine, addReason } = __req(44);
+const { reasonLine, addReason } = __req(46);
 const { BADGES } = __req(13);
-const notify = __req(47);
+const notify = __req(49);
 const { closeSheet } = __req(26);
-const { sheetActions } = __req(27);
+const { sheetActions } = __req(29);
 const { daySummary, readDay } = __req(20);
 
 const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
@@ -12013,5 +12428,5 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(53);
+__req(55);
 })();</script>

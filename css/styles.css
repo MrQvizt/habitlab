@@ -1127,3 +1127,27 @@ h2.h3 { font-size: var(--text-lg); }
 .day-nav > .icon-btn:first-child .icon { transform: rotate(180deg); }
 .day-nav .icon-btn[aria-disabled="true"] { opacity: .3; pointer-events: none; }
 .day-nav-label { font-size: var(--text-sm); font-weight: 700; color: var(--ink-2); min-width: 64px; text-align: center; }
+
+/* ---------- Food picker ---------- */
+.food-results { list-style: none; margin: 6px 0 0; padding: 0; max-height: 260px; overflow-y: auto; }
+.food-results:empty { display: none; }
+.food-hit { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); padding: 10px 4px; font: inherit; color: var(--ink); cursor: pointer; min-height: 48px; }
+.food-hit small, .food-item small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
+.food-plus { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex: none; }
+.food-plus .icon { width: 16px; height: 16px; }
+.food-none { padding: 10px 4px; font-size: var(--text-sm); }
+.food-picked { margin-top: 10px; background: var(--surface-2); border-radius: 14px; padding: 10px 12px; }
+.food-picked ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.food-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.food-item .stepper { display: flex; align-items: center; gap: 6px; }
+.food-item .stepper button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--surface); font: inherit; font-weight: 800; color: var(--ink); cursor: pointer; }
+.food-item .stepper span { min-width: 26px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.food-total { margin-top: 6px; font-size: var(--text-sm); color: var(--ink-2); }
+.food-sides { margin-top: 10px; }
+.food-sides summary, .food-manual summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); }
+.side-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.side-chip { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 7px 12px; min-height: 38px; font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+.side-chip small { color: var(--ink-3); font-weight: 600; }
+.side-chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.side-chip.on small { color: inherit; opacity: .8; }
+.food-manual { margin-top: 8px; }

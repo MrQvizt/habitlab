@@ -4,6 +4,8 @@ import { esc, icon, fmtNum, toKg, weightNum } from '../ui/dom.js';
 import { openSheet, closeSheet, updateSheet } from '../ui/sheet.js';
 import * as store from '../store.js';
 import { logDate, validLogDate } from '../viewdate.js';
+import { pickerHtml, startPick, pickResult, picked, foodActions } from './foodpick.js';
+import { totalOf } from '../data/fooddb.js';
 import { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } from './shared.js';
 import { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } from '../engine/meals.js';
 import { habitById, streak, habitLevels, levelIndex, levelValue } from '../engine/habits.js';
@@ -35,12 +37,17 @@ function mealSheetHtml(state, date, slot, mode = '') {
     ...(r.nocook ? ['no-cook'] : []),
   ];
   const fav = (state.prefs.favorites || []).includes(r.id);
-  const statusLine = status === 'ate' ? 'Logged as eaten' : status === 'skip' ? 'Logged as skipped' : status === 'other' ? `Logged: something else${show ? ` (${fmtNum(state.mealLog[date][slot].kcal)} kcal)` : ''}` : '';
+  const statusLine = status === 'ate' ? 'Logged as eaten' : status === 'skip' ? 'Logged as skipped' : status === 'other' ? `Logged: ${state.mealLog[date][slot].label || 'something else'}${show ? ` (${fmtNum(state.mealLog[date][slot].kcal)} kcal)` : ''}` : '';
   const other = mode === 'other'
     ? `<form data-form="sheetMealOtherSave" data-date="${date}" data-slot="${slot}" class="card flat" style="margin:12px 0">
-        <label class="field" style="margin:0"><span>${show ? 'Roughly how many calories? A guess is fine.' : 'What did you have instead? (optional)'}</span>
-        ${show ? `<div class="quick-chips">${[300, 500, 700, 900].map((k) => `<button type="button" data-action="sheetQuickKcal" data-v="${k}">${k}</button>`).join('')}</div>
-        <div class="inline-inputs"><input type="number" name="kcal" inputmode="numeric" min="0" max="5000" value="500" autofocus><span class="unit">kcal</span></div>` : '<input type="text" name="note" maxlength="60">'}</label>
+        <div class="over" style="margin-bottom:8px">What did you have instead?</div>
+        ${pickerHtml(show)}
+        <details class="food-manual" ${picked().length ? '' : ''}><summary>Not in the list? Type it</summary>
+          <label class="field" style="margin:8px 0 0"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. leftovers at work"></label>
+        </details>
+        ${show ? `<label class="field" style="margin:10px 0 0"><span>Calories ${picked().length ? '<span class="hint">from your picks — change it if you like</span>' : '<span class="hint">a guess is fine</span>'}</span>
+          ${picked().length ? '' : `<div class="quick-chips">${[300, 500, 700, 900].map((k) => `<button type="button" data-action="sheetQuickKcal" data-v="${k}">${k}</button>`).join('')}</div>`}
+          <div class="inline-inputs"><input type="number" name="kcal" inputmode="numeric" min="0" max="5000" value="${picked().length ? totalOf(picked()).kcal : 500}"><span class="unit">kcal</span></div></label>` : ''}
         <div class="row" style="margin-top:12px"><button class="btn primary">Save</button><button type="button" class="btn ghost" data-action="sheetMealBack" data-date="${date}" data-slot="${slot}">Cancel</button></div>
       </form>`
     : '';
@@ -82,7 +89,7 @@ export function mealRowList(state, date) {
     const r = byId(m.recipeId);
     const n = scaledNutrition(r, m.scale);
     const st = log[m.slot]?.status;
-    const sub = st === 'skip' ? 'Skipped' : st === 'other' ? `Something else${show ? ` · ${fmtNum(log[m.slot].kcal)} kcal` : ''}` : `${m.leftover ? 'Leftovers' : `${r.minutes} min`}${show ? ` · ${Math.round(n.p)} g protein` : ''}${r.batch && !m.leftover ? ' · batch' : ''}`;
+    const sub = st === 'skip' ? 'Skipped' : st === 'other' ? `${esc(log[m.slot].label || 'Something else')}${show ? ` · ${fmtNum(log[m.slot].kcal)} kcal` : ''}` : `${m.leftover ? 'Leftovers' : `${r.minutes} min`}${show ? ` · ${Math.round(n.p)} g protein` : ''}${r.batch && !m.leftover ? ' · batch' : ''}`;
     const lead = canLog
       ? `<button class="check ${st === 'ate' || st === 'other' ? 'on' : st === 'skip' ? 'skip' : ''}" data-action="mealCheck" data-date="${date}" data-slot="${m.slot}" aria-pressed="${!!st}" aria-label="${st ? 'Clear log for' : 'Mark eaten:'} ${esc(r.name)}">${st === 'skip' ? icon('x') : icon('check')}</button>`
       : `<span class="slot-ico">${icon(slotIcon(m.slot))}</span>`;
@@ -143,10 +150,14 @@ function stepsSheetHtml(state) {
 // ---------- Extra food ----------
 function extraSheetHtml(state) {
   const show = !store.habitsOnly(state);
+  const n = picked().length;
   return `<div class="sheet-head"><div><div class="over">Not on the plan</div><h2>Add something you ate</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
     <form data-form="sheetExtra">
-      <label class="field"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. latte, biscuit, glass of wine" autofocus></label>
-      ${show ? `<label class="field"><span>Roughly how many calories?</span><div class="quick-chips">${[50, 100, 150, 250, 400].map((k) => `<button type="button" data-action="sheetQuickKcal" data-v="${k}">${k}</button>`).join('')}</div><div class="inline-inputs"><input type="number" name="kcal" inputmode="numeric" min="0" max="3000" placeholder="kcal"><span class="unit">kcal</span></div></label>` : ''}
+      ${pickerHtml(show)}
+      <details class="food-manual" ${n ? '' : ''}><summary>Not in the list? Type it</summary>
+        <label class="field" style="margin:8px 0 0"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. latte, biscuit, glass of wine"></label>
+      </details>
+      ${show ? `<label class="field" style="margin-top:10px"><span>Calories ${n ? '<span class="hint">from your picks — change it if you like</span>' : '<span class="hint">roughly</span>'}</span>${n ? '' : `<div class="quick-chips">${[50, 100, 150, 250, 400].map((k) => `<button type="button" data-action="sheetQuickKcal" data-v="${k}">${k}</button>`).join('')}</div>`}<div class="inline-inputs"><input type="number" name="kcal" inputmode="numeric" min="0" max="5000" placeholder="kcal" value="${n ? totalOf(picked()).kcal : ''}"><span class="unit">kcal</span></div></label>` : ''}
       <button class="btn primary large block">Add</button>
       <p class="muted" style="font-size:var(--text-sm);margin-top:10px">Logging honestly is what matters — it earns the same as eating to plan.</p>
     </form>`;
@@ -181,6 +192,7 @@ function habitSheetHtml(state, id) {
 
 /** Actions to spread into a view's `actions`. */
 export const sheetActions = {
+  ...foodActions,
   mealCheck(el, ev, ctx) {
     const date = el.dataset.date || logDate();
     const slot = el.dataset.slot;
@@ -231,8 +243,10 @@ export const sheetActions = {
     ctx.undoable('Log cleared', (st) => setMealStatus(st, date, slot, () => null));
   },
   sheetMealOther(el, ev, ctx) {
-    updateSheet(mealSheetHtml(ctx.state, el.dataset.date, el.dataset.slot, 'other'));
-    setTimeout(() => document.querySelector('.sheet input[name=kcal], .sheet input[name=note]')?.focus(), 30);
+    const { date, slot } = el.dataset;
+    startPick(() => updateSheet(mealSheetHtml(ctx.state, date, slot, 'other')));
+    updateSheet(mealSheetHtml(ctx.state, date, slot, 'other'));
+    setTimeout(() => document.querySelector('.sheet [data-food-search]')?.focus(), 30);
   },
   sheetMealBack(el, ev, ctx) {
     updateSheet(mealSheetHtml(ctx.state, el.dataset.date, el.dataset.slot));
@@ -244,7 +258,8 @@ export const sheetActions = {
   sheetMealOtherSave(form, ev, ctx, data) {
     const { date, slot } = form.dataset;
     closeSheet();
-    ctx.undoable('Logged', (st) => setMealStatus(st, date, slot, () => ({ status: 'other', kcal: Math.max(0, Number(data.kcal) || 0) })));
+    const r = pickResult({ ...data, kcal: data.kcal ?? '' });
+    ctx.undoable('Logged', (st) => setMealStatus(st, date, slot, () => ({ status: 'other', kcal: r.kcal, p: r.p, ...(r.label ? { label: r.label } : {}) })));
   },
   sheetMealSwap(el, ev, ctx) {
     const { date, slot } = el.dataset;
@@ -327,14 +342,16 @@ export const sheetActions = {
     });
   },
   openExtra(el, ev, ctx) {
+    startPick(() => updateSheet(extraSheetHtml(ctx.state)));
     openSheet(extraSheetHtml(ctx.state), { label: 'Add food' });
   },
   sheetExtra(form, ev, ctx, data) {
-    if (!data.label && !data.kcal) return;
+    const r = pickResult(data);
+    if (!r.label && !r.kcal) return;
     const date = logDate();
     closeSheet();
     ctx.undoable('Added', (st) => {
-      st.extras[date] = [...(st.extras[date] || []), { label: data.label || 'Extra', kcal: Number(data.kcal) || 0 }];
+      st.extras[date] = [...(st.extras[date] || []), { label: r.label || 'Extra', kcal: r.kcal, p: r.p }];
       st.intake[date] = computeIntake(st, date);
       return st;
     });
