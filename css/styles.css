@@ -1124,6 +1124,6 @@ h2.h3 { font-size: var(--text-lg); }
 
 .page-head:has(.day-nav) { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
 .day-nav { display: flex; align-items: center; gap: 2px; flex: none; }
-.day-nav .icon-btn:first-child .icon { transform: rotate(180deg); }
+.day-nav > .icon-btn:first-child .icon { transform: rotate(180deg); }
 .day-nav .icon-btn[aria-disabled="true"] { opacity: .3; pointer-events: none; }
 .day-nav-label { font-size: var(--text-sm); font-weight: 700; color: var(--ink-2); min-width: 64px; text-align: center; }

@@ -90,7 +90,7 @@ const shots = process.argv[3] || null;
   // Up to 7 days back; not into the future
   await page.goto(base + '#/today/' + ymd(new Date(Date.now() - 7 * 864e5)));
   await page.waitForSelector('.past-day');
-  if (!(await page.locator('.day-nav a[aria-label="Previous day"][aria-disabled=true]').count())) errors.push('should stop at 7 days back');
+  if (!(await page.locator('.day-nav [aria-label="Previous day"][aria-disabled=true]').count())) errors.push('should stop at 7 days back');
   await page.goto(base + '#/today/' + ymd(new Date(Date.now() + 864e5)));
   await page.waitForSelector('.tg-hero');
   if (await page.locator('.past-day').count()) errors.push('future date should show today');

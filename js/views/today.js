@@ -273,9 +273,9 @@ export default {
     const past = date !== today;
     const canBack = date > addDays(today, -MAX_BACK);
     const dayNav = `<nav class="day-nav" aria-label="Choose a day">
-        <a class="icon-btn" ${canBack ? `href="#/today/${addDays(date, -1)}"` : 'aria-disabled="true"'} aria-label="Previous day">${icon('chevron')}</a>
+        ${canBack ? `<a class="icon-btn" href="#/today/${addDays(date, -1)}" aria-label="Previous day">${icon('chevron')}</a>` : `<button class="icon-btn" disabled aria-disabled="true" aria-label="Previous day">${icon('chevron')}</button>`}
         <span class="day-nav-label">${past ? esc(dayLabel(date, today)) : 'Today'}</span>
-        <a class="icon-btn" ${past ? `href="${addDays(date, 1) === today ? '#/today' : `#/today/${addDays(date, 1)}`}"` : 'aria-disabled="true"'} aria-label="Next day">${icon('chevron')}</a>
+        ${past ? `<a class="icon-btn" href="${addDays(date, 1) === today ? '#/today' : `#/today/${addDays(date, 1)}`}" aria-label="Next day">${icon('chevron')}</a>` : `<button class="icon-btn" disabled aria-disabled="true" aria-label="Next day">${icon('chevron')}</button>`}
       </nav>`;
     return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${past ? 'Fill in the gaps' : greeting()}</h1></div>${dayNav}</header>
       ${past ? `<div class="notice info past-day" style="align-items:center">${icon('calendar')}<div class="grow"><strong>${esc(dayLabel(date, today))}</strong> — anything you tick here is saved to that day.</div><a class="btn small" href="#/today">Back to today</a></div>` : banners(state, date)}
