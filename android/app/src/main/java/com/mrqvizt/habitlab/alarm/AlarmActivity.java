@@ -19,6 +19,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.core.content.ContextCompat;
@@ -63,35 +64,50 @@ public class AlarmActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
-        int pad = dp(28);
-        root.setPadding(pad, dp(72), pad, dp(40));
+        final int pad = dp(24);
+        root.setPadding(pad, dp(40), pad, dp(20));
+        // Android 15 draws behind the status and navigation bars: keep the buttons clear of them.
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top = insets.getSystemWindowInsetTop();
+            int bottom = insets.getSystemWindowInsetBottom();
+            v.setPadding(pad + insets.getSystemWindowInsetLeft(), dp(32) + top, pad + insets.getSystemWindowInsetRight(), dp(20) + bottom);
+            return insets;
+        });
         final GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] {0xFF141A33, 0xFF2B2050});
         root.setBackground(bg);
 
-        TextView time = text(DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date()), 64, true);
+        TextView time = text(DateFormat.getTimeInstance(DateFormat.SHORT).format(new Date()), 56, true);
         TextView label = text(AlarmService.ringingLabel == null ? "Alarm" : AlarmService.ringingLabel, 20, true);
         label.setAlpha(0.9f);
         root.addView(time);
         root.addView(label);
 
-        View spacer = new View(this);
-        root.addView(spacer, new LinearLayout.LayoutParams(1, 0, 1f));
-
+        // The message sits in the free space and scrolls if it's long, so the buttons always fit.
+        LinearLayout middle = new LinearLayout(this);
+        middle.setOrientation(LinearLayout.VERTICAL);
+        middle.setGravity(Gravity.CENTER);
         String msg = AlarmService.ringingMessage;
         if (msg != null && !msg.isEmpty()) {
-            TextView kicker = text(wake ? "A thought for this morning" : "", 13, true);
-            kicker.setAllCaps(true);
-            kicker.setLetterSpacing(0.12f);
-            kicker.setAlpha(0.85f);
-            if (wake) root.addView(kicker);
-            TextView m = text(msg, wake ? 28 : 22, true);
+            if (wake) {
+                TextView kicker = text("A thought for this morning", 13, true);
+                kicker.setAllCaps(true);
+                kicker.setLetterSpacing(0.12f);
+                kicker.setAlpha(0.85f);
+                middle.addView(kicker);
+            }
+            TextView m = text(msg, wake ? 26 : 21, true);
             m.setLineSpacing(0, 1.15f);
             m.setPadding(0, dp(10), 0, 0);
-            root.addView(m);
+            middle.addView(m);
         }
-
-        View spacer2 = new View(this);
-        root.addView(spacer2, new LinearLayout.LayoutParams(1, 0, 1f));
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.addView(middle, new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.MATCH_PARENT));
+        LinearLayout.LayoutParams mid = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        mid.topMargin = dp(12);
+        mid.bottomMargin = dp(12);
+        root.addView(scroll, mid);
 
         Button up = button(wake ? "I'm up" : "Done", true);
         up.setOnClickListener(v -> {
@@ -103,10 +119,11 @@ public class AlarmActivity extends Activity {
             startService(new Intent(this, AlarmService.class).setAction(AlarmService.ACTION_SNOOZE));
             finish();
         });
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(60));
-        lp.topMargin = dp(12);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56));
         root.addView(up, lp);
-        root.addView(snooze, new LinearLayout.LayoutParams(lp));
+        LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56));
+        lp2.topMargin = dp(10);
+        root.addView(snooze, lp2);
         setContentView(root);
 
         ContextCompat.registerReceiver(this, finisher, new IntentFilter(ACTION_FINISH), ContextCompat.RECEIVER_NOT_EXPORTED);
@@ -144,6 +161,10 @@ public class AlarmActivity extends Activity {
         b.setText(s);
         b.setAllCaps(false);
         b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+        b.setMinHeight(0);
+        b.setMinimumHeight(0);
+        b.setPadding(dp(12), 0, dp(12), 0);
+        if (Build.VERSION.SDK_INT >= 21) b.setStateListAnimator(null);
         b.setTypeface(Typeface.DEFAULT_BOLD);
         GradientDrawable d = new GradientDrawable();
         d.setCornerRadius(dp(30));

@@ -82,7 +82,7 @@ widened to that one endpoint.
 | Performance | Two-year dataset, 4× CPU throttle: meal tap 188 ms, habit tap 126 ms (`perf.test.mjs` budgets) | ✅ |
 | Error handling and recovery | Storage-full banner, import validation, fuzzed corrupt data, offline mode | ✅ |
 | Data integrity | Sanitiser on every load and import; history kept across plan rebuilds and week-start changes | ✅ |
-| Native alarm on real devices | Logic unit-tested; **not yet verified on a physical phone** | ⚠️ |
+| Native alarm on real devices | Verified by the owner on one phone: rings through silent mode; wake screen opens from the notification. Full-screen takeover while unlocked needs “Display over other apps” (added, not yet re-verified) | ⚠️ |
 | Play Store release | Needs release key, privacy policy and declarations (above) | ❌ not started |
 
 **Verdict:** the web app and the sideloaded Android app are ready for use. Before a wider Android rollout, verify the
@@ -95,6 +95,9 @@ battery management).
   tested with a mock, but ringing over the lock screen, full-screen intents and boot rescheduling were not run on
   real hardware. On Android 14+, "full-screen alarms" may need allowing in system settings (the app detects this and
   shows a button).
+- **Unlocked phone:** Android shows a ringing alarm as a notification while the phone is in use; the wake screen
+  only takes over directly if the user allows “Display over other apps” (prompted in Settings → Alarms). Locked
+  phones use the full-screen intent.
 - **Battery optimisation** on some phones (Samsung, Xiaomi, Huawei) can delay alarms; the app links to the setting.
 - **Shared debug signing key** is committed so every build can update the last. Anyone with the repo can sign an APK
   that installs over the app; acceptable for sideloading among trusted users, not for public distribution.

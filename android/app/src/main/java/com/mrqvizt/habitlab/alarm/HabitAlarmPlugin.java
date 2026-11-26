@@ -99,6 +99,8 @@ public class HabitAlarmPlugin extends Plugin {
             full = nm != null && nm.canUseFullScreenIntent();
         }
         o.put("fullScreen", full);
+        // Without "Display over other apps", Android shows a ringing alarm as a notification while the phone is in use.
+        o.put("overlay", Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(c));
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         AlarmManager.AlarmClockInfo next = am == null ? null : am.getNextAlarmClock();
         o.put("next", next == null ? 0 : next.getTriggerTime());
@@ -116,6 +118,8 @@ public class HabitAlarmPlugin extends Plugin {
             i = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, pkg);
         } else if ("fullScreen".equals(which) && Build.VERSION.SDK_INT >= 34) {
             i = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, pkg);
+        } else if ("overlay".equals(which) && Build.VERSION.SDK_INT >= 23) {
+            i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, pkg);
         } else if ("notifications".equals(which) && Build.VERSION.SDK_INT >= 26) {
             i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, c.getPackageName());
         } else if ("battery".equals(which)) {

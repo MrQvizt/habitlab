@@ -31,8 +31,8 @@ const shots = process.argv[3] || null;
       addListener: () => ({ remove() {} }),
     };
     const habitAlarm = {
-      setAlarms: async (o) => (a.set.push(JSON.parse(JSON.stringify(o))), { exact: true, notifications: true, fullScreen: false, next: Date.now() + 3600e3, count: o.alarms.length }),
-      getStatus: async () => ({ exact: true, notifications: true, fullScreen: false, next: Date.now() + 3600e3, count: a.set.at(-1)?.alarms.length || 0 }),
+      setAlarms: async (o) => (a.set.push(JSON.parse(JSON.stringify(o))), { exact: true, notifications: true, fullScreen: false, overlay: false, next: Date.now() + 3600e3, count: o.alarms.length }),
+      getStatus: async () => ({ exact: true, notifications: true, fullScreen: false, overlay: false, next: Date.now() + 3600e3, count: a.set.at(-1)?.alarms.length || 0 }),
       openSettings: async (o) => void a.opened.push(o.which),
       test: async (o) => void a.tests.push(o),
       pickSound: async () => ({ uri: 'content://media/internal/audio/media/42', title: 'Cesium' }),
@@ -63,6 +63,9 @@ const shots = process.argv[3] || null;
   // Wake alarm on, weekdays only, then values and why
   await page.click('label.switch:has(input[data-path="wake.on"])');
   await page.waitForSelector('.alarm-card.on');
+  // With an alarm on: offer "Display over other apps" so the wake screen can take over an unlocked phone
+  await page.waitForSelector('[data-action=alarmPerm][data-which=overlay]');
+  await page.click('[data-action=alarmPerm][data-which=overlay]');
   await page.click('.al-day[data-day="6"]');
   await page.click('.al-day[data-day="5"]');
   await page.fill('input.al-time', '06:45');
@@ -152,6 +155,7 @@ const shots = process.argv[3] || null;
     if (last.snooze !== 9) errors.push('snooze');
   }
   if (!a.opened.includes('fullScreen')) errors.push('permission button did not open settings');
+  if (!a.opened.includes('overlay')) errors.push('overlay button did not open settings');
   if (!a.tests.some((t) => t.id === 'wake')) errors.push('test alarm not requested');
   if (!/Next alarm/.test(await page.textContent('#alarm-status'))) errors.push('next alarm not shown');
 
