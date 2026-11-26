@@ -1265,6 +1265,61 @@ button.pill { font: inherit; border: 0; cursor: pointer; }
 .sos-tile.t4, .sos-tile.t8 { background: color-mix(in srgb, var(--accent) 80%, #000); }
 .sos-after { display: grid; gap: 10px; margin-top: 14px; }
 @media (prefers-reduced-motion: reduce) { .sos-breath span { transition: none; } }
+
+/* ---------- Calendar views (Day / 3 days / Week / Month / Schedule) ---------- */
+.cal-views { display: flex; width: 100%; margin: 4px 0 8px; }
+.cal-views button { flex: 1; font-size: var(--text-sm); padding-left: 4px; padding-right: 4px; }
+.cal-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.cal-nav strong { font-size: var(--text-base); }
+.cal-nav .cal-back .icon { transform: rotate(180deg); }
+.cal-chip { display: block; width: 100%; text-align: left; border: 0; border-radius: 8px; padding: 3px 6px; margin: 0 0 3px; font: inherit; font-size: 11px; line-height: 1.3; font-weight: 650; color: #fff; background: var(--accent); cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-height: 22px; }
+.cal-chip.plan { background: transparent; color: var(--ink-2); border: 1px dashed var(--line-strong); }
+.k-walk { --k: #2f9e6e; } .k-workout { --k: #d0573f; } .k-sport { --k: #2f7fd0; } .k-outdoors { --k: #7a8a2a; }
+.k-cooking { --k: #c47a12; } .k-shopping { --k: #8a5ac8; } .k-habit { --k: #2f8f9e; } .k-other { --k: #5f6b66; }
+.cal-chip[class*="k-"], .cg-ev { background: var(--k, var(--accent)); }
+[data-drag] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.cg { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+.cg-head, .cg-allday { display: grid; grid-template-columns: 44px repeat(var(--cols), minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.cg-gutter { font-size: 10px; color: var(--ink-3); padding: 4px 2px; text-align: right; }
+.cg-dayhead { background: none; border: 0; border-left: 1px solid var(--line); padding: 6px 2px; font: inherit; color: var(--ink-2); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.cg-dayhead span { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.cg-dayhead b { font-size: 1.15rem; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; }
+.cg-dayhead.today b { background: var(--accent); color: var(--accent-ink); }
+.cg-adcell { border-left: 1px solid var(--line); padding: 3px; min-height: 30px; }
+.cg-scroll { max-height: 62vh; overflow-y: auto; position: relative; }
+.cg-body { display: grid; grid-template-columns: 44px repeat(var(--cols), minmax(0, 1fr)); position: relative; }
+.cg-hours { position: relative; }
+.cg-hours span { position: absolute; right: 4px; font-size: 10px; color: var(--ink-3); transform: translateY(-6px); }
+.cg-hours span:first-child { transform: none; }
+.cg-col { position: relative; border-left: 1px solid var(--line); background-image: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px 48px); cursor: cell; }
+.cg-col.today { background-color: color-mix(in srgb, var(--accent) 5%, transparent); }
+.cg-ev { position: absolute; border: 0; border-radius: 8px; padding: 3px 5px; text-align: left; color: #fff; font: inherit; font-size: 11px; line-height: 1.25; overflow: hidden; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+.cg-ev b { display: block; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cg-ev small { display: block; opacity: .9; }
+.cg-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--ring-eat); z-index: 2; pointer-events: none; }
+.cg-now::before { content: ''; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--ring-eat); }
+.cm { border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; background: var(--surface); }
+.cm-head { display: grid; grid-template-columns: repeat(7, 1fr); font-size: 11px; color: var(--ink-3); text-align: center; padding: 6px 0; border-bottom: 1px solid var(--line); text-transform: uppercase; }
+.cm-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cm-cell { min-height: 84px; border-left: 1px solid var(--line); border-top: 1px solid var(--line); padding: 2px; overflow: hidden; }
+.cm-cell:nth-child(7n + 1) { border-left: 0; }
+.cm-cell.other { background: var(--surface-2); }
+.cm-cell.other .cm-date { color: var(--ink-3); }
+.cm-date { background: none; border: 0; font: inherit; font-size: 12px; font-weight: 700; color: var(--ink); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; margin: 1px auto 2px; }
+.cm-cell.today .cm-date { background: var(--accent); color: var(--accent-ink); }
+.cm-cell .cal-chip { font-size: 10px; padding: 2px 4px; min-height: 18px; }
+.cm-more { background: none; border: 0; font: inherit; font-size: 10px; font-weight: 700; color: var(--ink-3); cursor: pointer; padding: 0 4px; }
+.cal-ghost { opacity: .92; box-shadow: 0 10px 28px rgba(0,0,0,.3); transform: scale(1.04) rotate(-1deg); }
+.cal-ghost[data-time]:not([data-time=""])::after { content: attr(data-time); position: absolute; right: 6px; top: -22px; background: var(--ink); color: var(--surface); border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+.cal-dragging-src { opacity: .35; }
+.cal-drop-over { outline: 2px solid var(--accent); outline-offset: -2px; background-color: color-mix(in srgb, var(--accent) 10%, transparent) !important; }
+body.cal-dragging { cursor: grabbing; }
+body.cal-dragging .cg-scroll, body.cal-dragging .cal-view { touch-action: none; }
+.cal-rdays { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cal-rdays[hidden], .cal-until[hidden] { display: none; }
+.cal-chip.mini { font-size: 10px; padding: 1px 3px; min-height: 18px; letter-spacing: -.01em; }
+.cm-plans { display: flex; flex-wrap: wrap; gap: 2px; }
+.cm-plans .cal-chip.mini { width: auto; display: inline-block; padding: 0 3px; margin: 0; }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -4967,6 +5022,8 @@ function sanitize(s) {
   s.events = (Array.isArray(s.events) ? s.events : []).filter((e) => e && typeof e.id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(e.id) && ISO.test(e.date) && typeof e.title === 'string' && e.title.trim()).slice(-500).map((e) => ({
     id: e.id, ...(typeof e.planKey === 'string' && /^(strength|activity|cardio):[\w-]{1,60}$/.test(e.planKey) ? { planKey: e.planKey } : {}), title: e.title.trim().slice(0, 60), date: e.date, time: typeof e.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(e.time) ? e.time : '',
     place: typeof e.place === 'string' ? e.place.slice(0, 80) : '', kind: KINDS.includes(e.kind) ? e.kind : 'other', notes: typeof e.notes === 'string' ? e.notes.slice(0, 140) : '', public: e.public === true,
+    ...(Number.isInteger(e.dur) && e.dur >= 5 && e.dur <= 720 ? { dur: e.dur } : {}),
+    ...(e.repeat && typeof e.repeat === 'object' && ['daily', 'weekly', 'biweekly', 'monthly'].includes(e.repeat.freq) ? { repeat: { freq: e.repeat.freq, ...(Array.isArray(e.repeat.days) ? { days: [...new Set(e.repeat.days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort() } : {}), ...(ISO.test(e.repeat.until || '') ? { until: e.repeat.until } : {}) }, ...(Array.isArray(e.skip) ? { skip: e.skip.filter((d) => ISO.test(d)).slice(-200) } : {}) } : {}),
   }));
   const sh = s.share;
   if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40), ...(num(sh.seen, 1, 1e15, 0) ? { seen: num(sh.seen, 1, 1e15, 0) } : {}) };
@@ -7681,328 +7738,66 @@ function allClosed(state) {
 
 Object.assign(__m, { RING_META, dayRings, ringsSvg, newlyClosed, allClosed });
 },
-/* js/share.js */ 33: function (__m, __req) {
-// Sharing your calendar: the activities you open to friends are published to a small Supabase
-// database (project "habitlab"); friends open your link and tap "I'll join". Only what, when and
-// where is shared, plus the names people type when they join. Nothing else leaves the device.
-// Server side: four functions (hl_publish / hl_calendar / hl_join / hl_signups) over locked tables.
-const { esc, icon } = __req(17);
-const store = __req(16);
-const { addDays } = __req(0);
+/* js/engine/recur.js */ 33: function (__m, __req) {
+// Repeating calendar events: an event with `repeat` happens on more days than its own `date`.
+// repeat = { freq: 'daily' | 'weekly' | 'biweekly' | 'monthly', days?: [0..6] (Monday = 0), until?: ISO }
+// `skip` lists dates where one occurrence was moved or deleted.
+const { addDays, daysBetween } = __req(0);
 
-const SUPABASE_URL = 'https://jwjabhcebwnzhfphsuwg.supabase.co';
-// Publishable key: safe to ship in an app (it only reaches the four functions above).
-const PUBLISHABLE_KEY = 'sb_publishable_wRKoEGC_8OtpR9SoT8tGkQ_Z9rhDWjl';
-const SHARE_BASE = 'https://habitlab-eight.vercel.app/';
+const FREQS = { daily: 'Every day', weekly: 'Every week', biweekly: 'Every 2 weeks', monthly: 'Every month' };
 
-let signups = []; // [{event, name, at}] for your calendar
-let cheers = []; // [{id, name, message, at}] newest first
-let lastFetch = 0;
+const weekday = (iso) => (new Date(iso + 'T12:00').getDay() + 6) % 7;
+const monday = (iso) => addDays(iso, -weekday(iso));
 
-async function rpc(fn, args) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
-    method: 'POST',
-    headers: { apikey: PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify(args),
-  });
-  const text = await res.text();
-  let body = null;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch (e) {
-    body = null;
-  }
-  if (!res.ok) throw new Error(body?.message || 'The calendar service didn’t answer. Try again in a moment.');
-  return body;
-}
-
-const randomHex = (n) => [...crypto.getRandomValues(new Uint8Array(n))].map((b) => b.toString(16).padStart(2, '0')).join('');
-const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `${randomHex(4)}-${randomHex(2)}-4${randomHex(2).slice(1)}-a${randomHex(2).slice(1)}-${randomHex(6)}`);
-
-const shareLink = (state) => (state.share?.id ? `${SHARE_BASE}#/join/${state.share.id}` : '');
-const signupsFor = (eventId) => signups.filter((s) => s.event === eventId);
-const cheersList = () => cheers;
-/** Cheers you haven't seen yet (newer than the last one you dismissed). */
-const newCheers = (state) => cheers.filter((c) => c.id > (state.share?.seen || 0));
-const cheerHtml = (c) => `<li><strong>${esc(c.name)}</strong> <span class="muted">${esc(new Date(c.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))}</span><div>${esc(c.message)}</div></li>`;
-
-/** Today: a card with new cheers from friends. */
-function cheerCardHtml(state) {
-  const fresh = newCheers(state);
-  if (!fresh.length) return '';
-  return `<section class="card cheer-card" aria-label="Cheers from friends"><div class="row between nowrap"><h2 style="margin:0;font-size:var(--text-lg)">💌 ${fresh.length === 1 ? `${esc(fresh[0].name)} is cheering you on` : `${fresh.length} friends are cheering you on`}</h2><button class="btn small ghost" data-action="cheersSeen" data-id="${fresh[0].id}">Thanks!</button></div>
-    <ul class="cheer-list">${fresh.slice(0, 3).map(cheerHtml).join('')}</ul></section>`;
-}
-
-/** The events friends can see: open to friends, from yesterday on. */
-function publicEvents(state) {
-  const from = addDays(store.today(), -1);
-  return (state.events || []).filter((e) => e.public && e.date >= from).map(({ id, title, date, time, place, kind, notes }) => ({ id, title, date, time, place, kind, notes }));
-}
-
-/** Publish after a change (only once you've created a link). */
-async function sync(ctx) {
-  const s = ctx.state.share;
-  if (!s?.id) return;
-  try {
-    await rpc('hl_publish', { p_id: s.id, p_key: s.key, p_name: s.name || '', p_events: publicEvents(ctx.state) });
-  } catch (e) {
-    ctx.toast('Couldn’t update your shared calendar — you may be offline. It updates next time.');
+/** Does event `e` happen on `date`? */
+function occursOn(e, date) {
+  if (!e || !date) return false;
+  if (!e.repeat) return e.date === date;
+  if (date < e.date) return false;
+  if (e.repeat.until && date > e.repeat.until) return false;
+  if ((e.skip || []).includes(date)) return false;
+  const days = e.repeat.days?.length ? e.repeat.days : [weekday(e.date)];
+  switch (e.repeat.freq) {
+    case 'daily':
+      return true;
+    case 'weekly':
+      return days.includes(weekday(date));
+    case 'biweekly':
+      return days.includes(weekday(date)) && (daysBetween(monday(e.date), monday(date)) / 7) % 2 === 0;
+    case 'monthly': {
+      const want = Number(e.date.slice(8));
+      const last = new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0).getDate();
+      return Number(date.slice(8)) === Math.min(want, last); // the 31st → last day of shorter months
+    }
+    default:
+      return e.date === date;
   }
 }
 
-/** Fetch who's joining (at most every 20 s). */
-async function refresh(ctx, force = false) {
-  const s = ctx.state.share;
-  if (!s?.id || (!force && Date.now() - lastFetch < 20000)) return;
-  lastFetch = Date.now();
-  try {
-    const [list, ch] = await Promise.all([rpc('hl_signups', { p_id: s.id, p_key: s.key }), rpc('hl_cheers', { p_id: s.id, p_key: s.key }).catch(() => cheers)]);
-    const changed = (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(signups)) || (Array.isArray(ch) && JSON.stringify(ch) !== JSON.stringify(cheers));
-    if (Array.isArray(list)) signups = list;
-    if (Array.isArray(ch)) cheers = ch;
-    if (changed) ctx.rerender();
-  } catch (e) {
-    /* offline: keep what we have */
-  }
-}
-
-function shareCardHtml(state, pubCount) {
-  const s = state.share;
-  if (!s?.id) {
-    return `<div class="card share-card"><h2 style="margin-top:0;font-size:var(--text-lg)">${icon("star")} Make changes together</h2>
-      <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Share a link to your calendar. Friends see the activities you mark <strong>Open to friends</strong> and can tap “I’ll join”. Only what, when and where is shared.</p>
-      <form data-form="shareCreate" class="row nowrap" style="gap:8px"><input type="text" name="name" maxlength="40" required placeholder="Your first name" aria-label="Your first name" style="flex:1;min-width:0"><button class="btn primary small">Create my link</button></form></div>`;
-  }
-  const link = shareLink(state);
-  const total = signups.length;
-  return `<div class="card share-card"><div class="row between nowrap"><h2 style="margin:0;font-size:var(--text-lg)">${icon("star")} Your shared calendar</h2>${total ? `<span class="tag green">${total} joining</span>` : ''}</div>
-    <p class="muted" style="font-size:var(--text-sm);margin:6px 0 8px">${pubCount ? `${pubCount} upcoming ${pubCount === 1 ? 'activity is' : 'activities are'} open to friends.` : 'Nothing open to friends yet — tap an activity and switch on “Open to friends”.'}</p>
-    <div class="share-link"><input type="text" readonly value="${esc(link)}" aria-label="Your calendar link"><button class="btn small" data-action="shareCopy">Copy</button>${navigator.share ? '<button class="btn small primary" data-action="shareNative">Share</button>' : ''}</div>
-    ${cheers.length ? `<div class="over" style="margin-top:12px">💌 Cheers from friends</div><ul class="cheer-list">${cheers.slice(0, 5).map(cheerHtml).join('')}</ul>` : ''}
-    <button class="btn ghost small" data-action="shareStop" style="margin-top:8px">Stop sharing</button></div>`;
-}
-
-const shareActions = {
-  cheersSeen(el, ev, ctx) {
-    const id = Number(el.dataset.id) || 0;
-    ctx.update((st) => {
-      if (st.share) st.share = { ...st.share, seen: Math.max(st.share.seen || 0, id) };
-      return st;
-    }, { quiet: true });
-  },
-  async shareCreate(form, ev, ctx, data) {
-    const name = String(data.name || '').trim().slice(0, 40);
-    if (!name) return;
-    const share = { id: uuid(), key: randomHex(24), name };
-    try {
-      await rpc('hl_publish', { p_id: share.id, p_key: share.key, p_name: name, p_events: publicEvents(ctx.state) });
-    } catch (e) {
-      return ctx.toast('Couldn’t create your link — check your connection and try again.');
-    }
-    ctx.update((st) => {
-      st.share = share;
-      return st;
-    }, { quiet: true });
-    ctx.toast('Your link is ready — share it with friends.');
-  },
-  async shareCopy(el, ev, ctx) {
-    try {
-      await navigator.clipboard.writeText(shareLink(ctx.state));
-      ctx.toast('Link copied');
-    } catch (e) {
-      document.querySelector('.share-link input')?.select();
-    }
-  },
-  async shareNative(el, ev, ctx) {
-    try {
-      await navigator.share({ title: 'Join me', text: `I’m making some healthy changes — join me for a walk or two? ${ctx.state.share?.name ? `— ${ctx.state.share.name}` : ''}`, url: shareLink(ctx.state) });
-    } catch (e) {
-      /* cancelled */
-    }
-  },
-  async shareStop(el, ev, ctx) {
-    if (!(await ctx.confirm('Stop sharing? Your link stops working and the list of who’s joining is deleted.', { ok: 'Stop sharing' }))) return;
-    const s = ctx.state.share;
-    try {
-      await rpc('hl_unpublish', { p_id: s.id, p_key: s.key });
-    } catch (e) {
-      return ctx.toast('Couldn’t reach the calendar service — try again when you’re online.');
-    }
-    signups = [];
-    cheers = [];
-    ctx.update((st) => {
-      delete st.share;
-      return st;
-    }, { quiet: true });
-    ctx.toast('Sharing stopped');
-  },
-};
-
-Object.assign(__m, { SUPABASE_URL, SHARE_BASE, rpc, shareLink, signupsFor, cheersList, newCheers, cheerCardHtml, publicEvents, sync, refresh, shareCardHtml, shareActions });
-},
-/* js/views/calendar.js */ 34: function (__m, __req) {
-// Activity calendar: your planned week plus your own events (walks, batch cooking, a gym class,
-// a habit you want to do at a set time). Events can be opened to friends, who can sign up from
-// your shared link (js/share.js).
-const { esc, icon, fmtDate } = __req(17);
-const store = __req(16);
-const { addDays, weekStart } = __req(0);
-const { openSheet, closeSheet } = __req(25);
-const { itemName } = __req(26);
-const { itemKey } = __req(7);
-const share = __req(33);
-
-const EVENT_KINDS = {
-  walk: { label: 'Walk', emoji: '🚶' },
-  workout: { label: 'Workout', emoji: '💪' },
-  sport: { label: 'Sport / class', emoji: '🏸' },
-  outdoors: { label: 'Outdoors', emoji: '🥾' },
-  cooking: { label: 'Batch cooking', emoji: '🍲' },
-  shopping: { label: 'Food shopping', emoji: '🛒' },
-  habit: { label: 'Habit', emoji: '✅' },
-  other: { label: 'Other', emoji: '📌' },
-};
-const QUICK = [['walk', 'Walk'], ['cooking', 'Batch cooking'], ['workout', 'Gym'], ['outdoors', 'Hike'], ['sport', 'Swim'], ['shopping', 'Food shopping'], ['cooking', 'Meal prep'], ['walk', 'Walk with friends']];
-
-let anchor = null; // first day shown (agenda of 14 days)
-
-/** Your events on a date, by time. */
-function eventsOn(state, date) {
-  return (state.events || []).filter((e) => e.date === date).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
-}
-
-const plannedOn = (state, date) => store.schedule(state, date).schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items.filter((i) => i.kind !== 'rest');
-
-function eventRow(state, e) {
-  const k = EVENT_KINDS[e.kind] || EVENT_KINDS.other;
-  const joins = share.signupsFor(e.id);
-  return `<li><button class="cal-ev" data-action="calEdit" data-id="${esc(e.id)}"><span class="cal-emoji" aria-hidden="true">${k.emoji}</span><span class="grow"><strong>${esc(e.title)}</strong><small>${e.time ? esc(e.time) : 'Any time'}${e.place ? ` · ${esc(e.place)}` : ''}</small></span>${e.public ? `<span class="tag ${joins.length ? 'green' : ''}">${joins.length ? `${joins.length} joining` : 'Open to friends'}</span>` : ''}</button></li>`;
-}
-
-function agenda(state, from, days = 14) {
-  const today = store.today();
+/** All occurrences between `from` and `to` (inclusive), each as {...event, date, series}. */
+function expand(events, from, to) {
   const out = [];
-  for (let i = 0; i < days; i++) {
-    const d = addDays(from, i);
-    const evs = eventsOn(state, d);
-    const linkedKeys = new Set(evs.map((e) => e.planKey).filter(Boolean));
-    const plan = plannedOn(state, d).filter((it) => !linkedKeys.has(itemKey(it)));
-    out.push(`<section class="cal-day ${d === today ? 'today' : ''}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}">
-      <div class="cal-date"><b>${esc(fmtDate(d, { weekday: 'short' }))}</b><span>${new Date(d + 'T12:00').getDate()}</span></div>
-      <ul class="cal-items">
-        ${plan.map((it) => `<li><button class="cal-plan" data-action="calFromPlan" data-date="${d}" data-key="${esc(itemKey(it))}" data-title="${esc(itemName(it))}" data-kind="${it.kind === 'activity' ? 'sport' : it.kind === 'cardio' ? 'walk' : 'workout'}"><span class="cal-emoji" aria-hidden="true">${it.kind === 'strength' ? '💪' : it.kind === 'cardio' ? '🚶' : '🏸'}</span><span class="grow">${esc(itemName(it))}<small>From your plan · tap to set a time and place</small></span></button></li>`).join('')}
-        ${evs.map((e) => eventRow(state, e)).join('')}
-        <li><button class="cal-add" data-action="calAdd" data-date="${d}">${icon('plus')} Add</button></li>
-      </ul></section>`);
+  for (const e of events || []) {
+    if (!e.repeat) {
+      if (e.date >= from && e.date <= to) out.push(e);
+      continue;
+    }
+    for (let d = e.date > from ? e.date : from; d <= to; d = addDays(d, 1)) if (occursOn(e, d)) out.push({ ...e, date: d, series: e.id });
   }
-  return out.join('');
+  return out.sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
 }
 
-function editorHtml(state, ev) {
-  const e = ev || { id: '', title: '', date: store.today(), time: '', place: '', kind: 'walk', notes: '', public: false };
-  const isNew = !ev?.id;
-  const joins = e.id ? share.signupsFor(e.id) : [];
-  return `<div class="sheet-head"><div><div class="over">${isNew ? 'New in your calendar' : 'Your calendar'}</div><h2>${isNew ? 'Plan something' : esc(e.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
-    <form data-form="calSave" data-id="${esc(e.id)}" data-plan="${esc(e.planKey || '')}">
-      ${isNew ? `<div class="quick-chips" style="margin-bottom:8px">${QUICK.map(([k, t]) => `<button type="button" data-action="calQuick" data-kind="${k}" data-title="${esc(t)}">${EVENT_KINDS[k].emoji} ${esc(t)}</button>`).join('')}</div>` : ''}
-      <label class="field"><span>What</span><input type="text" name="title" maxlength="60" required value="${esc(e.title)}" placeholder="e.g. Walk round the lake"></label>
-      <div class="grid two" style="gap:0 12px;margin:0">
-        <label class="field"><span>Day</span><input type="date" name="date" required value="${esc(e.date)}" min="${addDays(store.today(), -7)}"></label>
-        <label class="field"><span>Time</span><input type="time" name="time" value="${esc(e.time || '')}"></label>
-      </div>
-      <label class="field"><span>Where <span class="hint">optional</span></span><input type="text" name="place" maxlength="80" value="${esc(e.place || '')}" placeholder="e.g. the park by the library"></label>
-      <label class="field"><span>Type</span><select name="kind">${Object.entries(EVENT_KINDS).map(([k, v]) => `<option value="${k}" ${k === e.kind ? 'selected' : ''}>${v.emoji} ${v.label}</option>`).join('')}</select></label>
-      <label class="field"><span>Note <span class="hint">optional</span></span><input type="text" name="notes" maxlength="140" value="${esc(e.notes || '')}" placeholder="e.g. bring water, 5 km loop"></label>
-      <label class="row nowrap cal-public"><input type="checkbox" name="public" value="1" ${e.public ? 'checked' : ''}><span><strong>Open to friends</strong><small>Shows on your shared calendar so people can say “I’ll join”. Only what, when and where is shared.</small></span></label>
-      ${joins.length ? `<div class="notice ok" style="margin-top:10px">${icon('check')}<div><strong>${joins.length} joining:</strong> ${joins.map((j) => esc(j.name)).join(', ')}</div></div>` : ''}
-      <div class="row" style="margin-top:14px"><button class="btn primary">${isNew ? 'Add to calendar' : 'Save'}</button>${isNew ? '' : `<button type="button" class="btn ghost danger" data-action="calDelete" data-id="${esc(e.id)}">Delete</button>`}</div>
-    </form>`;
+/** "Every week on Mon, Wed" */
+function repeatLabel(r) {
+  if (!r) return '';
+  const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const on = r.days?.length && (r.freq === 'weekly' || r.freq === 'biweekly') ? ` on ${r.days.map((d) => names[d]).join(', ')}` : '';
+  return `${FREQS[r.freq] || 'Repeats'}${on}${r.until ? ` until ${r.until}` : ''}`;
 }
 
-let draft = null;
-
-__m.default = {
-  render(state) {
-    const today = store.today();
-    if (!anchor || anchor < addDays(today, -28)) anchor = today;
-    const pub = (state.events || []).filter((e) => e.public && e.date >= today).length;
-    return `<header class="page-head"><div><div class="eyebrow">Move</div><h1>Calendar</h1></div></header>
-      <p class="muted" style="margin:-8px 0 12px">Your plan, plus your own walks, batch cooking and plans with friends. Deciding <em>when and where</em> makes it far more likely to happen.</p>
-      ${share.shareCardHtml(state, pub)}
-      <div class="row between nowrap" style="margin:6px 0 10px">
-        <button class="btn small ghost cal-back" data-action="calShift" data-d="-7">${icon("chevron")} Earlier</button>
-        ${anchor !== today ? '<button class="btn small" data-action="calShift" data-d="0">Today</button>' : ''}
-        <button class="btn small ghost" data-action="calShift" data-d="7">Later ${icon('chevron')}</button>
-      </div>
-      <div class="cal">${agenda(state, anchor)}</div>
-      <button class="btn primary block" data-action="calAdd" data-date="${today}" style="margin-top:12px">${icon('plus')} Add to calendar</button>`;
-  },
-  after(root, ctx) {
-    share.refresh(ctx);
-  },
-  actions: {
-    calShift(el, ev, ctx) {
-      const d = Number(el.dataset.d);
-      anchor = d === 0 ? store.today() : addDays(anchor, d);
-      ctx.rerender();
-    },
-    ...share.shareActions,
-  },
-};
-
-/** Global actions (also used from Today and evening planning). */
-const calendarActions = {
-  calAdd(el, ev, ctx) {
-    draft = null;
-    openSheet(editorHtml(ctx.state, { id: '', title: '', date: el.dataset.date || store.today(), time: el.dataset.time || '', place: '', kind: el.dataset.kind || 'walk', notes: '', public: false }), { label: 'Add to calendar' });
-  },
-  calFromPlan(el, ev, ctx) {
-    const existing = (ctx.state.events || []).find((x) => x.date === el.dataset.date && x.planKey === el.dataset.key);
-    if (existing) return openSheet(editorHtml(ctx.state, existing), { label: 'Edit' });
-    openSheet(editorHtml(ctx.state, { id: '', title: el.dataset.title, date: el.dataset.date, time: '', place: '', kind: el.dataset.kind, notes: '', public: false, planKey: el.dataset.key }), { label: 'Set a time' });
-  },
-  calQuick(el) {
-    const f = el.closest('form');
-    f.querySelector('[name=title]').value = el.dataset.title;
-    f.querySelector('[name=kind]').value = el.dataset.kind;
-    f.querySelector('[name=time]').focus();
-  },
-  calEdit(el, ev, ctx) {
-    const e = (ctx.state.events || []).find((x) => x.id === el.dataset.id);
-    if (e) openSheet(editorHtml(ctx.state, e), { label: 'Edit' });
-  },
-  calSave(form, ev, ctx, data) {
-    const title = String(data.title || '').trim().slice(0, 60);
-    if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(data.date || '')) return;
-    const id = form.dataset.id || `ev_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    const planKey = /^(strength|activity|cardio):[\w-]{1,60}$/.test(form.dataset.plan || '') ? form.dataset.plan : undefined;
-    const e = { id, ...(planKey ? { planKey } : {}), title, date: data.date, time: /^\d{2}:\d{2}$/.test(data.time || '') ? data.time : '', place: String(data.place || '').trim().slice(0, 80), kind: EVENT_KINDS[data.kind] ? data.kind : 'other', notes: String(data.notes || '').trim().slice(0, 140), public: data.public === '1' };
-    closeSheet();
-    ctx.update((st) => {
-      const list = (st.events || []).filter((x) => x.id !== id);
-      st.events = [...list, e].sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
-      return st;
-    }, { quiet: true });
-    ctx.toast(form.dataset.id ? 'Saved' : `Added — ${fmtDate(e.date, { weekday: 'long' })}${e.time ? ` at ${e.time}` : ''}`);
-    share.sync(ctx);
-  },
-  async calDelete(el, ev, ctx) {
-    if (!(await ctx.confirm('Delete this from your calendar?', { ok: 'Delete' }))) return;
-    closeSheet();
-    ctx.update((st) => {
-      st.events = (st.events || []).filter((x) => x.id !== el.dataset.id);
-      return st;
-    }, { quiet: true });
-    share.sync(ctx);
-  },
-};
-
-void weekStart;
-
-Object.assign(__m, { EVENT_KINDS, eventsOn, calendarActions });
+Object.assign(__m, { FREQS, occursOn, expand, repeatLabel });
 },
-/* js/ui/celebrate.js */ 35: function (__m, __req) {
+/* js/ui/celebrate.js */ 34: function (__m, __req) {
 // Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
 // Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
 // after the user has interacted with the page.
@@ -8145,7 +7940,697 @@ function showCelebration({ kicker, title, body, iconName = 'star', ok = 'Nice!' 
 
 Object.assign(__m, { floatXp, ringBanner, confetti, chime, buzz, showCelebration });
 },
-/* js/views/plan.js */ 36: function (__m, __req) {
+/* js/share.js */ 35: function (__m, __req) {
+// Sharing your calendar: the activities you open to friends are published to a small Supabase
+// database (project "habitlab"); friends open your link and tap "I'll join". Only what, when and
+// where is shared, plus the names people type when they join. Nothing else leaves the device.
+// Server side: four functions (hl_publish / hl_calendar / hl_join / hl_signups) over locked tables.
+const { esc, icon } = __req(17);
+const store = __req(16);
+const { addDays } = __req(0);
+const { expand } = __req(33);
+
+const SUPABASE_URL = 'https://jwjabhcebwnzhfphsuwg.supabase.co';
+// Publishable key: safe to ship in an app (it only reaches the four functions above).
+const PUBLISHABLE_KEY = 'sb_publishable_wRKoEGC_8OtpR9SoT8tGkQ_Z9rhDWjl';
+const SHARE_BASE = 'https://habitlab-eight.vercel.app/';
+
+let signups = []; // [{event, name, at}] for your calendar
+let cheers = []; // [{id, name, message, at}] newest first
+let lastFetch = 0;
+
+async function rpc(fn, args) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: { apikey: PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  });
+  const text = await res.text();
+  let body = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch (e) {
+    body = null;
+  }
+  if (!res.ok) throw new Error(body?.message || 'The calendar service didn’t answer. Try again in a moment.');
+  return body;
+}
+
+const randomHex = (n) => [...crypto.getRandomValues(new Uint8Array(n))].map((b) => b.toString(16).padStart(2, '0')).join('');
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `${randomHex(4)}-${randomHex(2)}-4${randomHex(2).slice(1)}-a${randomHex(2).slice(1)}-${randomHex(6)}`);
+
+const shareLink = (state) => (state.share?.id ? `${SHARE_BASE}#/join/${state.share.id}` : '');
+const signupsFor = (eventId) => signups.filter((s) => s.event === eventId);
+const cheersList = () => cheers;
+/** Cheers you haven't seen yet (newer than the last one you dismissed). */
+const newCheers = (state) => cheers.filter((c) => c.id > (state.share?.seen || 0));
+const cheerHtml = (c) => `<li><strong>${esc(c.name)}</strong> <span class="muted">${esc(new Date(c.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))}</span><div>${esc(c.message)}</div></li>`;
+
+/** Today: a card with new cheers from friends. */
+function cheerCardHtml(state) {
+  const fresh = newCheers(state);
+  if (!fresh.length) return '';
+  return `<section class="card cheer-card" aria-label="Cheers from friends"><div class="row between nowrap"><h2 style="margin:0;font-size:var(--text-lg)">💌 ${fresh.length === 1 ? `${esc(fresh[0].name)} is cheering you on` : `${fresh.length} friends are cheering you on`}</h2><button class="btn small ghost" data-action="cheersSeen" data-id="${fresh[0].id}">Thanks!</button></div>
+    <ul class="cheer-list">${fresh.slice(0, 3).map(cheerHtml).join('')}</ul></section>`;
+}
+
+/** The events friends can see: open to friends, from yesterday on. */
+function publicEvents(state) {
+  const from = addDays(store.today(), -1);
+  // Repeating events are shared as their next 8 weeks of dates, each joinable on its own.
+  return expand((state.events || []).filter((e) => e.public), from, addDays(from, 56)).slice(0, 200)
+    .map((e) => ({ id: e.series ? `${e.series}_${e.date.replace(/-/g, '')}` : e.id, title: e.title, date: e.date, time: e.time, place: e.place, kind: e.kind, notes: e.notes }));
+}
+
+/** Publish after a change (only once you've created a link). */
+async function sync(ctx) {
+  const s = ctx.state.share;
+  if (!s?.id) return;
+  try {
+    await rpc('hl_publish', { p_id: s.id, p_key: s.key, p_name: s.name || '', p_events: publicEvents(ctx.state) });
+  } catch (e) {
+    ctx.toast('Couldn’t update your shared calendar — you may be offline. It updates next time.');
+  }
+}
+
+/** Fetch who's joining (at most every 20 s). */
+async function refresh(ctx, force = false) {
+  const s = ctx.state.share;
+  if (!s?.id || (!force && Date.now() - lastFetch < 20000)) return;
+  lastFetch = Date.now();
+  try {
+    const [list, ch] = await Promise.all([rpc('hl_signups', { p_id: s.id, p_key: s.key }), rpc('hl_cheers', { p_id: s.id, p_key: s.key }).catch(() => cheers)]);
+    const changed = (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(signups)) || (Array.isArray(ch) && JSON.stringify(ch) !== JSON.stringify(cheers));
+    if (Array.isArray(list)) signups = list;
+    if (Array.isArray(ch)) cheers = ch;
+    if (changed) ctx.rerender();
+  } catch (e) {
+    /* offline: keep what we have */
+  }
+}
+
+function shareCardHtml(state, pubCount) {
+  const s = state.share;
+  if (!s?.id) {
+    return `<div class="card share-card"><h2 style="margin-top:0;font-size:var(--text-lg)">${icon("star")} Make changes together</h2>
+      <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Share a link to your calendar. Friends see the activities you mark <strong>Open to friends</strong> and can tap “I’ll join”. Only what, when and where is shared.</p>
+      <form data-form="shareCreate" class="row nowrap" style="gap:8px"><input type="text" name="name" maxlength="40" required placeholder="Your first name" aria-label="Your first name" style="flex:1;min-width:0"><button class="btn primary small">Create my link</button></form></div>`;
+  }
+  const link = shareLink(state);
+  const total = signups.length;
+  return `<div class="card share-card"><div class="row between nowrap"><h2 style="margin:0;font-size:var(--text-lg)">${icon("star")} Your shared calendar</h2>${total ? `<span class="tag green">${total} joining</span>` : ''}</div>
+    <p class="muted" style="font-size:var(--text-sm);margin:6px 0 8px">${pubCount ? `${pubCount} upcoming ${pubCount === 1 ? 'activity is' : 'activities are'} open to friends.` : 'Nothing open to friends yet — tap an activity and switch on “Open to friends”.'}</p>
+    <div class="share-link"><input type="text" readonly value="${esc(link)}" aria-label="Your calendar link"><button class="btn small" data-action="shareCopy">Copy</button>${navigator.share ? '<button class="btn small primary" data-action="shareNative">Share</button>' : ''}</div>
+    ${cheers.length ? `<div class="over" style="margin-top:12px">💌 Cheers from friends</div><ul class="cheer-list">${cheers.slice(0, 5).map(cheerHtml).join('')}</ul>` : ''}
+    <button class="btn ghost small" data-action="shareStop" style="margin-top:8px">Stop sharing</button></div>`;
+}
+
+const shareActions = {
+  cheersSeen(el, ev, ctx) {
+    const id = Number(el.dataset.id) || 0;
+    ctx.update((st) => {
+      if (st.share) st.share = { ...st.share, seen: Math.max(st.share.seen || 0, id) };
+      return st;
+    }, { quiet: true });
+  },
+  async shareCreate(form, ev, ctx, data) {
+    const name = String(data.name || '').trim().slice(0, 40);
+    if (!name) return;
+    const share = { id: uuid(), key: randomHex(24), name };
+    try {
+      await rpc('hl_publish', { p_id: share.id, p_key: share.key, p_name: name, p_events: publicEvents(ctx.state) });
+    } catch (e) {
+      return ctx.toast('Couldn’t create your link — check your connection and try again.');
+    }
+    ctx.update((st) => {
+      st.share = share;
+      return st;
+    }, { quiet: true });
+    ctx.toast('Your link is ready — share it with friends.');
+  },
+  async shareCopy(el, ev, ctx) {
+    try {
+      await navigator.clipboard.writeText(shareLink(ctx.state));
+      ctx.toast('Link copied');
+    } catch (e) {
+      document.querySelector('.share-link input')?.select();
+    }
+  },
+  async shareNative(el, ev, ctx) {
+    try {
+      await navigator.share({ title: 'Join me', text: `I’m making some healthy changes — join me for a walk or two? ${ctx.state.share?.name ? `— ${ctx.state.share.name}` : ''}`, url: shareLink(ctx.state) });
+    } catch (e) {
+      /* cancelled */
+    }
+  },
+  async shareStop(el, ev, ctx) {
+    if (!(await ctx.confirm('Stop sharing? Your link stops working and the list of who’s joining is deleted.', { ok: 'Stop sharing' }))) return;
+    const s = ctx.state.share;
+    try {
+      await rpc('hl_unpublish', { p_id: s.id, p_key: s.key });
+    } catch (e) {
+      return ctx.toast('Couldn’t reach the calendar service — try again when you’re online.');
+    }
+    signups = [];
+    cheers = [];
+    ctx.update((st) => {
+      delete st.share;
+      return st;
+    }, { quiet: true });
+    ctx.toast('Sharing stopped');
+  },
+};
+
+Object.assign(__m, { SUPABASE_URL, SHARE_BASE, rpc, shareLink, signupsFor, cheersList, newCheers, cheerCardHtml, publicEvents, sync, refresh, shareCardHtml, shareActions });
+},
+/* js/views/calendar.js */ 36: function (__m, __req) {
+// Activity calendar, Google/Outlook style: Day, 3 days, Week, Month and Schedule views of your
+// planned sessions and your own events (walks, batch cooking, a gym class…). Events can repeat,
+// can be opened to friends (js/share.js), and can be moved by long-pressing and dragging them to
+// another day (and, in the time-grid views, another time).
+const { esc, icon, fmtDate } = __req(17);
+const store = __req(16);
+const { addDays, weekStart, weekOrder } = __req(0);
+const { openSheet, closeSheet } = __req(25);
+const { itemName } = __req(26);
+const { itemKey } = __req(7);
+const { expand, FREQS, repeatLabel } = __req(33);
+const { buzz } = __req(34);
+const share = __req(35);
+
+const EVENT_KINDS = {
+  walk: { label: 'Walk', emoji: '🚶' },
+  workout: { label: 'Workout', emoji: '💪' },
+  sport: { label: 'Sport / class', emoji: '🏸' },
+  outdoors: { label: 'Outdoors', emoji: '🥾' },
+  cooking: { label: 'Batch cooking', emoji: '🍲' },
+  shopping: { label: 'Food shopping', emoji: '🛒' },
+  habit: { label: 'Habit', emoji: '✅' },
+  other: { label: 'Other', emoji: '📌' },
+};
+const QUICK = [['walk', 'Walk'], ['cooking', 'Batch cooking'], ['workout', 'Gym'], ['outdoors', 'Hike'], ['sport', 'Swim'], ['shopping', 'Food shopping'], ['cooking', 'Meal prep'], ['walk', 'Walk with friends']];
+const VIEWS = [['day', 'Day'], ['3day', '3 days'], ['week', 'Week'], ['month', 'Month'], ['list', 'Schedule']];
+const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const H0 = 6; // first hour shown in the time grid
+const H1 = 24;
+const PX = 48; // pixels per hour
+
+const loadView = () => {
+  try {
+    const v = localStorage.getItem('habitlab.calView');
+    return VIEWS.some(([k]) => k === v) ? v : '3day';
+  } catch (e) {
+    return '3day';
+  }
+};
+let view = null;
+let anchor = null;
+let scrolled = '';
+let gridScroll = 0;
+let ctxRef = null;
+
+const weekdayOf = (iso) => (new Date(iso + 'T12:00').getDay() + 6) % 7;
+const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const newId = () => `ev_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+/** The id friends join for one occurrence (repeating events: one per date). */
+const occId = (e) => (e.series ? `${e.series}_${e.date.replace(/-/g, '')}` : e.id);
+
+/** Your events on a date (repeats included), by time. */
+function eventsOn(state, date) {
+  return expand(state.events, date, date);
+}
+
+const plannedOn = (state, date) => store.schedule(state, date).schedule[weekdayOf(date)].items.filter((i) => i.kind !== 'rest');
+const planKind = (it) => (it.kind === 'activity' ? 'sport' : it.kind === 'cardio' ? 'walk' : 'workout');
+const planEmoji = (it) => (it.kind === 'strength' ? '💪' : it.kind === 'cardio' ? '🚶' : '🏸');
+
+/** Planned sessions not yet given a time on that day. */
+function looseplan(state, date, evs) {
+  const linked = new Set(evs.map((e) => e.planKey).filter(Boolean));
+  return plannedOn(state, date).filter((it) => !linked.has(itemKey(it)));
+}
+
+// ---------- pieces ----------
+const dragAttrs = (e) => `data-drag="event" data-id="${esc(e.series || e.id)}" data-date="${e.date}"`;
+const planAttrs = (it, date) => `data-drag="plan" data-key="${esc(itemKey(it))}" data-from="${weekdayOf(date)}" data-date="${date}" data-title="${esc(itemName(it))}" data-kind="${planKind(it)}"`;
+
+function chip(e) {
+  const k = EVENT_KINDS[e.kind] || EVENT_KINDS.other;
+  return `<button class="cal-chip k-${e.kind}" data-action="calEdit" ${dragAttrs(e)} title="${esc(e.title)}">${k.emoji} ${e.time ? `<b>${esc(e.time)}</b> ` : ''}${esc(e.title)}${e.series ? ' ↻' : ''}</button>`;
+}
+const planChip = (it, date) => `<button class="cal-chip plan" data-action="calFromPlan" ${planAttrs(it, date)}>${planEmoji(it)} ${esc(itemName(it))}</button>`;
+
+function eventRow(state, e) {
+  const k = EVENT_KINDS[e.kind] || EVENT_KINDS.other;
+  const joins = share.signupsFor(occId(e));
+  return `<li><button class="cal-ev" data-action="calEdit" ${dragAttrs(e)}><span class="cal-emoji" aria-hidden="true">${k.emoji}</span><span class="grow"><strong>${esc(e.title)}${e.series ? ' <span class="muted" aria-label="repeats">↻</span>' : ''}</strong><small>${e.time ? esc(e.time) : 'Any time'}${e.place ? ` · ${esc(e.place)}` : ''}</small></span>${e.public ? `<span class="tag ${joins.length ? 'green' : ''}">${joins.length ? `${joins.length} joining` : 'Open to friends'}</span>` : ''}</button></li>`;
+}
+
+// ---------- Schedule (list) ----------
+function listView(state, from, days = 14) {
+  const today = store.today();
+  const all = expand(state.events, from, addDays(from, days - 1));
+  const out = [];
+  for (let i = 0; i < days; i++) {
+    const d = addDays(from, i);
+    const evs = all.filter((e) => e.date === d);
+    const plan = looseplan(state, d, evs);
+    out.push(`<section class="cal-day ${d === today ? 'today' : ''}" data-drop-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}">
+      <div class="cal-date"><b>${esc(fmtDate(d, { weekday: 'short' }))}</b><span>${new Date(d + 'T12:00').getDate()}</span></div>
+      <ul class="cal-items">
+        ${plan.map((it) => `<li><button class="cal-plan" data-action="calFromPlan" ${planAttrs(it, d)}><span class="cal-emoji" aria-hidden="true">${planEmoji(it)}</span><span class="grow">${esc(itemName(it))}<small>From your plan · tap to set a time and place</small></span></button></li>`).join('')}
+        ${evs.map((e) => eventRow(state, e)).join('')}
+        <li><button class="cal-add" data-action="calAdd" data-date="${d}">${icon('plus')} Add</button></li>
+      </ul></section>`);
+  }
+  return `<div class="cal">${out.join('')}</div>`;
+}
+
+// ---------- Day / 3 days / Week (time grid) ----------
+/** Side-by-side lanes for overlapping events in one day. */
+function lanes(evs) {
+  const items = evs.map((e) => ({ e, s: toMin(e.time), f: toMin(e.time) + (e.dur || 60) })).sort((a, b) => a.s - b.s || b.f - a.f);
+  const out = [];
+  let cluster = [];
+  let clusterEnd = -1;
+  const flush = () => {
+    const lanesEnd = [];
+    for (const it of cluster) {
+      let l = lanesEnd.findIndex((end) => end <= it.s);
+      if (l < 0) l = lanesEnd.push(0) - 1;
+      lanesEnd[l] = it.f;
+      it.lane = l;
+    }
+    for (const it of cluster) out.push({ ...it, n: lanesEnd.length });
+    cluster = [];
+  };
+  for (const it of items) {
+    if (it.s >= clusterEnd && cluster.length) flush();
+    cluster.push(it);
+    clusterEnd = Math.max(clusterEnd, it.f);
+  }
+  if (cluster.length) flush();
+  return out;
+}
+
+function gridView(state, days) {
+  const today = store.today();
+  const all = expand(state.events, days[0], days.at(-1));
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const hours = [];
+  for (let h = H0; h < H1; h++) hours.push(`<span style="top:${(h - H0) * PX}px">${String(h).padStart(2, '0')}:00</span>`);
+  const head = days.map((d) => `<button class="cg-dayhead ${d === today ? 'today' : ''}" data-action="calGoDay" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}"><span>${DAY_SHORT[weekdayOf(d)]}</span><b>${new Date(d + 'T12:00').getDate()}</b></button>`).join('');
+  const allday = days.map((d) => {
+    const evs = all.filter((e) => e.date === d);
+    return `<div class="cg-adcell" data-drop-date="${d}">${looseplan(state, d, evs).map((it) => planChip(it, d)).join('')}${evs.filter((e) => !e.time).map(chip).join('')}</div>`;
+  }).join('');
+  const cols = days.map((d) => {
+    const timed = all.filter((e) => e.date === d && e.time);
+    const blocks = lanes(timed).map(({ e, s, f, lane, n }) => {
+      const top = Math.max(0, (s - H0 * 60) / 60 * PX);
+      const height = Math.max(24, (Math.min(f, H1 * 60) - Math.max(s, H0 * 60)) / 60 * PX - 2);
+      const k = EVENT_KINDS[e.kind] || EVENT_KINDS.other;
+      return `<button class="cg-ev k-${e.kind}" data-action="calEdit" ${dragAttrs(e)} style="top:${top}px;height:${height}px;left:calc(${(lane / n) * 100}% + 1px);width:calc(${100 / n}% - 3px)"><b>${k.emoji} ${esc(e.title)}${e.series ? ' ↻' : ''}</b><small>${esc(e.time)}${e.place ? ` · ${esc(e.place)}` : ''}</small></button>`;
+    }).join('');
+    const nowLine = d === today && nowMin >= H0 * 60 ? `<span class="cg-now" style="top:${(nowMin - H0 * 60) / 60 * PX}px" aria-hidden="true"></span>` : '';
+    return `<div class="cg-col ${d === today ? 'today' : ''}" role="group" data-drop-date="${d}" data-grid="1" data-action="calSlot" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}: tap a time to add">${nowLine}${blocks}</div>`;
+  }).join('');
+  return `<div class="cg" style="--cols:${days.length}">
+    <div class="cg-head"><span class="cg-gutter"></span>${head}</div>
+    <div class="cg-allday"><span class="cg-gutter">All day</span>${allday}</div>
+    <div class="cg-scroll" role="region" aria-label="Times of day" tabindex="0"><div class="cg-body" style="height:${(H1 - H0) * PX}px"><div class="cg-hours" aria-hidden="true">${hours.join('')}</div>${cols}</div></div>
+  </div>`;
+}
+
+// ---------- Month ----------
+function monthView(state, monthAnchor) {
+  const today = store.today();
+  const first = monthAnchor.slice(0, 8) + '01';
+  const start = weekStart(first);
+  const month = first.slice(0, 7);
+  const days = [];
+  for (let i = 0; i < 42; i++) days.push(addDays(start, i));
+  while (days.length > 35 && days.at(-7).slice(0, 7) !== month) days.splice(-7);
+  const all = expand(state.events, days[0], days.at(-1));
+  const head = weekOrder().map((d) => `<span>${DAY_SHORT[d].slice(0, 2)}</span>`).join('');
+  const cells = days.map((d) => {
+    const evs = all.filter((e) => e.date === d);
+    const plan = looseplan(state, d, evs);
+    // Compact on a phone: emoji + time (or the first word); the full title is in the label.
+    const mini = (e) => `<button class="cal-chip mini k-${e.kind}" data-action="calEdit" ${dragAttrs(e)} aria-label="${esc(`${e.title}${e.time ? ` at ${e.time}` : ''}`)}">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}${esc(e.time || e.title.split(' ')[0])}</button>`;
+    const miniPlan = (it) => `<button class="cal-chip mini plan" data-action="calFromPlan" ${planAttrs(it, d)} aria-label="${esc(itemName(it))} (planned)">${planEmoji(it)}</button>`;
+    const items = [...evs.map(mini), ...(plan.length ? [`<span class="cm-plans">${plan.map(miniPlan).join('')}</span>`] : [])];
+    return `<div class="cm-cell ${d.slice(0, 7) !== month ? 'other' : ''} ${d === today ? 'today' : ''}" data-drop-date="${d}">
+      <button class="cm-date" data-action="calGoDay" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}">${new Date(d + 'T12:00').getDate()}</button>
+      ${items.slice(0, 3).join('')}${items.length > 3 ? `<button class="cm-more" data-action="calGoDay" data-date="${d}">+${items.length - 3}</button>` : ''}</div>`;
+  }).join('');
+  return `<div class="cm"><div class="cm-head">${head}</div><div class="cm-grid">${cells}</div></div>`;
+}
+
+// ---------- range + title ----------
+function rangeOf(v, a) {
+  if (v === 'day') return [a];
+  if (v === '3day') return [a, addDays(a, 1), addDays(a, 2)];
+  if (v === 'week') {
+    const s = weekStart(a);
+    return [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(s, i));
+  }
+  return [a];
+}
+
+function titleOf(v, a) {
+  const days = rangeOf(v, a);
+  if (v === 'month' || v === 'list') return new Date(a + 'T12:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  if (days.length === 1) return fmtDate(a, { weekday: 'long', day: 'numeric', month: 'long' });
+  return `${fmtDate(days[0], { day: 'numeric', month: 'short' })} – ${fmtDate(days.at(-1), { day: 'numeric', month: 'short' })}`;
+}
+
+function shift(v, a, dir) {
+  if (v === 'month') {
+    const d = new Date(a.slice(0, 7) + '-15T12:00');
+    d.setMonth(d.getMonth() + dir);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  }
+  return addDays(a, dir * ({ day: 1, '3day': 3, week: 7, list: 14 }[v] || 1));
+}
+
+// ---------- editor ----------
+function editorHtml(state, ev, occDate) {
+  const e = ev || { id: '', title: '', date: store.today(), time: '', place: '', kind: 'walk', notes: '', public: false };
+  const isNew = !ev?.id;
+  const r = e.repeat || null;
+  const joins = e.id ? share.signupsFor(e.repeat && occDate ? occId({ ...e, series: e.id, date: occDate }) : e.id) : [];
+  const days = r?.days?.length ? r.days : [weekdayOf(e.date)];
+  return `<div class="sheet-head"><div><div class="over">${isNew ? 'New in your calendar' : 'Your calendar'}</div><h2>${isNew ? 'Plan something' : esc(e.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+    <form data-form="calSave" data-id="${esc(e.id)}" data-plan="${esc(e.planKey || '')}">
+      ${isNew ? `<div class="quick-chips" style="margin-bottom:8px">${QUICK.map(([k, t]) => `<button type="button" data-action="calQuick" data-kind="${k}" data-title="${esc(t)}">${EVENT_KINDS[k].emoji} ${esc(t)}</button>`).join('')}</div>` : ''}
+      ${r && occDate ? `<div class="notice info" style="margin:0 0 10px">${icon('info')}<div>${esc(repeatLabel(r))}. Changes here apply to every repeat — to move just one, long-press it in the calendar and drag it.</div></div>` : ''}
+      <label class="field"><span>What</span><input type="text" name="title" maxlength="60" required value="${esc(e.title)}" placeholder="e.g. Walk round the lake"></label>
+      <div class="grid two" style="gap:0 12px;margin:0">
+        <label class="field"><span>${r ? 'Starts' : 'Day'}</span><input type="date" name="date" required value="${esc(e.date)}" min="${addDays(store.today(), -7)}"></label>
+        <label class="field"><span>Time</span><input type="time" name="time" value="${esc(e.time || '')}"></label>
+      </div>
+      <label class="field"><span>How long</span><select name="dur">${[15, 30, 45, 60, 90, 120, 180].map((m) => `<option value="${m}" ${(e.dur || 60) === m ? 'selected' : ''}>${m < 60 ? `${m} min` : `${m / 60} h`}</option>`).join('')}</select></label>
+      <fieldset class="field cal-repeat" style="border:0;padding:0;margin:0 0 12px"><legend style="font-weight:600;margin-bottom:6px">Repeat</legend>
+        <select name="repeat" data-change="calRepeatKind" aria-label="Repeat">${[['', 'Doesn’t repeat'], ...Object.entries(FREQS)].map(([k, l]) => `<option value="${k}" ${(r?.freq || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <div class="cal-rdays" ${r && (r.freq === 'weekly' || r.freq === 'biweekly') ? '' : 'hidden'}>${weekOrder().map((d) => `<label class="chip small"><input type="checkbox" name="rday" value="${d}" ${days.includes(d) ? 'checked' : ''}><span>${DAY_SHORT[d]}</span></label>`).join('')}</div>
+        <label class="field cal-until" style="margin:8px 0 0" ${r ? '' : 'hidden'}><span>Until <span class="hint">optional</span></span><input type="date" name="until" value="${esc(r?.until || '')}"></label>
+      </fieldset>
+      <label class="field"><span>Where <span class="hint">optional</span></span><input type="text" name="place" maxlength="80" value="${esc(e.place || '')}" placeholder="e.g. the park by the library"></label>
+      <label class="field"><span>Type</span><select name="kind">${Object.entries(EVENT_KINDS).map(([k, v]) => `<option value="${k}" ${k === e.kind ? 'selected' : ''}>${v.emoji} ${v.label}</option>`).join('')}</select></label>
+      <label class="field"><span>Note <span class="hint">optional</span></span><input type="text" name="notes" maxlength="140" value="${esc(e.notes || '')}" placeholder="e.g. bring water, 5 km loop"></label>
+      <label class="row nowrap cal-public"><input type="checkbox" name="public" value="1" ${e.public ? 'checked' : ''}><span><strong>Open to friends</strong><small>Shows on your shared calendar so people can say “I’ll join”. Only what, when and where is shared.</small></span></label>
+      ${joins.length ? `<div class="notice ok" style="margin-top:10px">${icon('check')}<div><strong>${joins.length} joining:</strong> ${joins.map((j) => esc(j.name)).join(', ')}</div></div>` : ''}
+      <div class="row" style="margin-top:14px;flex-wrap:wrap"><button class="btn primary">${isNew ? 'Add to calendar' : 'Save'}</button>
+        ${isNew ? '' : r && occDate ? `<button type="button" class="btn ghost danger" data-action="calDeleteOne" data-id="${esc(e.id)}" data-date="${occDate}">Delete this one</button><button type="button" class="btn ghost danger" data-action="calDelete" data-id="${esc(e.id)}">Delete all</button>` : `<button type="button" class="btn ghost danger" data-action="calDelete" data-id="${esc(e.id)}">Delete</button>`}</div>
+      <p class="muted" style="font-size:var(--text-xs);margin:10px 0 0">Tip: long-press anything in the calendar and drag it to another day.</p>
+    </form>`;
+}
+
+// ---------- moving things (drag and drop) ----------
+const saveEvents = (ctx, fn) => ctx.update((st) => {
+  st.events = fn([...(st.events || [])]).sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
+  return st;
+}, { quiet: true });
+
+function movePlan(st, key, fromDay, date, toDate) {
+  const wk = weekStart(date);
+  const to = weekdayOf(toDate);
+  const list = [...(st.workouts.moves?.[wk] || [])];
+  const prev = list.find((m) => m.key === key && m.to === fromDay);
+  if (prev) prev.to = to;
+  else list.push({ key, from: fromDay, to });
+  st.workouts.moves = { ...(st.workouts.moves || {}), [wk]: list.filter((m) => m.from !== m.to) };
+}
+
+/** Drop handler: an event (or one repeat of it) or a planned session onto a day, maybe a time. */
+function dropOn(ctx, d, toDate, time) {
+  if (!toDate) return;
+  if (d.kind === 'event') {
+    const e = (ctx.state.events || []).find((x) => x.id === d.id);
+    if (!e || (d.date === toDate && (!time || time === e.time))) return;
+    if (e.repeat) {
+      saveEvents(ctx, (list) => {
+        const rest = list.filter((x) => x.id !== e.id);
+        const { repeat, skip, ...one } = e;
+        void repeat;
+        return [...rest, { ...e, skip: [...(skip || []), d.date].slice(-200) }, { ...one, id: newId(), date: toDate, time: time || e.time }];
+      });
+      ctx.toast(`Moved just this one to ${fmtDate(toDate, { weekday: 'long' })}${time ? ` ${time}` : ''} — the rest still repeat`);
+    } else {
+      ctx.update((st) => {
+        const sameWeek = weekStart(e.date) === weekStart(toDate);
+        if (e.planKey && sameWeek && e.date !== toDate) movePlan(st, e.planKey, weekdayOf(e.date), e.date, toDate);
+        st.events = (st.events || []).map((x) => (x.id === e.id ? { ...x, date: toDate, ...(time ? { time } : {}) } : x));
+        return st;
+      }, { quiet: true });
+      ctx.toast(`Moved to ${fmtDate(toDate, { weekday: 'long' })}${time ? ` ${time}` : ''}`);
+    }
+  } else if (d.kind === 'plan') {
+    if (weekStart(d.date) !== weekStart(toDate)) return ctx.toast('Planned sessions move within their own week. Add a walk or a session to another week with ＋.');
+    ctx.update((st) => {
+      if (d.date !== toDate) movePlan(st, d.key, Number(d.from), d.date, toDate);
+      if (time) st.events = [...(st.events || []).filter((x) => !(x.planKey === d.key && x.date === toDate)), { id: newId(), planKey: d.key, title: d.title, date: toDate, time, place: '', kind: d.kindOf || 'workout', notes: '', public: false }];
+      return st;
+    }, { quiet: true });
+    ctx.toast(`${d.title}: ${fmtDate(toDate, { weekday: 'long' })}${time ? ` at ${time}` : ''}`);
+  }
+  share.sync(ctx);
+}
+
+// Long-press (≈0.4 s) picks an item up; drag it over a day (or a time in the grid) and let go.
+// A quick swipe still scrolls; a tap still opens it.
+let pending = null;
+let drag = null;
+let swallowClick = false;
+const LONG = 400;
+
+function targetAt(x, y) {
+  // Look through everything under the finger (a toast or the ghost may be on top of the day).
+  const cell = document.elementsFromPoint(x, y).map((n) => n.closest?.('[data-drop-date]')).find(Boolean);
+  if (!cell) return null;
+  let time = null;
+  if (cell.dataset.grid) {
+    const r = cell.getBoundingClientRect();
+    const m = Math.round(((y - r.top) / PX * 60 + H0 * 60) / 15) * 15;
+    time = hhmm(Math.max(H0 * 60, Math.min(23 * 60 + 45, m)));
+  }
+  return { cell, date: cell.dataset.dropDate, time };
+}
+
+function begin(el, x, y) {
+  const r = el.getBoundingClientRect();
+  const ghost = el.cloneNode(true);
+  ghost.className = `${el.className} cal-ghost`;
+  ghost.removeAttribute('data-action');
+  ghost.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${Math.min(r.width, 220)}px;height:auto;pointer-events:none;z-index:200`;
+  document.body.append(ghost);
+  drag = { el, ghost, dx: x - r.left, dy: y - r.top, data: { kind: el.dataset.drag, id: el.dataset.id, date: el.dataset.date, key: el.dataset.key, from: el.dataset.from, title: el.dataset.title, kindOf: el.dataset.kind }, over: null };
+  el.classList.add('cal-dragging-src');
+  document.body.classList.add('cal-dragging');
+  buzz(15);
+}
+
+function finish(drop, x, y) {
+  if (!drag) return;
+  const t = drop ? targetAt(x, y) : null;
+  drag.ghost.remove();
+  drag.el.classList.remove('cal-dragging-src');
+  document.querySelectorAll('.cal-drop-over').forEach((c) => c.classList.remove('cal-drop-over'));
+  document.body.classList.remove('cal-dragging');
+  const data = drag.data;
+  drag = null;
+  swallowClick = true;
+  setTimeout(() => (swallowClick = false), 350);
+  if (t && ctxRef) dropOn(ctxRef, data, t.date, t.time);
+}
+
+document.addEventListener('pointerdown', (ev) => {
+  const el = ev.target.closest?.('[data-drag]');
+  if (!el || ev.button > 0 || !el.closest('.cal-view')) return;
+  const x = ev.clientX;
+  const y = ev.clientY;
+  pending = { el, x, y, timer: setTimeout(() => {
+    if (pending) begin(el, pending.x, pending.y);
+    pending = null;
+  }, LONG) };
+});
+document.addEventListener('pointermove', (ev) => {
+  if (pending && Math.hypot(ev.clientX - pending.x, ev.clientY - pending.y) > 8) {
+    clearTimeout(pending.timer);
+    pending = null;
+  }
+  if (pending) {
+    pending.x = ev.clientX;
+    pending.y = ev.clientY;
+  }
+  if (!drag) return;
+  drag.ghost.style.left = `${ev.clientX - drag.dx}px`;
+  drag.ghost.style.top = `${ev.clientY - drag.dy}px`;
+  const t = targetAt(ev.clientX, ev.clientY);
+  if (t?.cell !== drag.over) {
+    drag.over?.classList.remove('cal-drop-over');
+    t?.cell.classList.add('cal-drop-over');
+    drag.over = t?.cell || null;
+  }
+  drag.ghost.dataset.time = t?.time || '';
+});
+const end = (drop) => (ev) => {
+  if (pending) {
+    clearTimeout(pending.timer);
+    pending = null;
+  }
+  if (drag) finish(drop, ev.clientX, ev.clientY);
+};
+document.addEventListener('pointerup', end(true));
+document.addEventListener('pointercancel', end(false));
+// While dragging on a touch screen, don't scroll the page.
+document.addEventListener('touchmove', (ev) => drag && ev.preventDefault(), { passive: false });
+document.addEventListener('contextmenu', (ev) => (pending || drag) && ev.target.closest?.('[data-drag]') && ev.preventDefault());
+// The tap that ends a drag shouldn't also open the item.
+document.addEventListener('click', (ev) => {
+  if (swallowClick) {
+    ev.stopPropagation();
+    ev.preventDefault();
+    swallowClick = false;
+  }
+}, true);
+
+// ---------- the screen ----------
+__m.default = {
+  render(state) {
+    const today = store.today();
+    view ||= loadView();
+    if (!anchor) anchor = today;
+    const pub = (state.events || []).filter((e) => e.public && (e.repeat || e.date >= today)).length;
+    const body = view === 'list' ? listView(state, anchor) : view === 'month' ? monthView(state, anchor) : gridView(state, rangeOf(view, anchor));
+    const showsToday = view === 'month' ? anchor.slice(0, 7) === today.slice(0, 7) : view === 'week' ? weekStart(anchor) === weekStart(today) : anchor === today;
+    return `<header class="page-head"><div><div class="eyebrow">Move</div><h1>Calendar</h1></div><button class="btn small primary" data-action="calAdd" data-date="${view === 'month' || view === 'week' ? today : anchor}" aria-label="Add to calendar">${icon('plus')} Add</button></header>
+      ${share.shareCardHtml(state, pub)}
+      <div class="segmented cal-views" role="tablist" aria-label="Calendar view">${VIEWS.map(([k, l]) => `<button role="tab" class="${view === k ? 'on' : ''}" aria-selected="${view === k}" data-action="calView" data-v="${k}">${l}</button>`).join('')}</div>
+      <div class="cal-nav">
+        <button class="icon-btn cal-back" data-action="calShift" data-d="-1" aria-label="Earlier">${icon('chevron')}</button>
+        <strong class="grow">${esc(titleOf(view, anchor))}</strong>
+        ${showsToday ? '' : '<button class="btn small" data-action="calShift" data-d="0">Today</button>'}
+        <button class="icon-btn" data-action="calShift" data-d="1" aria-label="Later">${icon('chevron')}</button>
+      </div>
+      <div class="cal-view">${body}</div>
+      <p class="muted" style="font-size:var(--text-xs);margin-top:8px">Long-press anything and drag it to another day${view === 'month' || view === 'list' ? '' : ' or time'}. ${view === 'month' || view === 'list' ? '' : 'Tap an empty time to add something there.'}</p>`;
+  },
+  after(root, ctx) {
+    ctxRef = ctx;
+    share.refresh(ctx);
+    // Open the time grid at the morning (or just before now on today), once per view/date.
+    const sc = root.querySelector('.cg-scroll');
+    if (!sc) return;
+    const key = `${view}|${anchor}`;
+    if (scrolled !== key) {
+      const d = new Date();
+      const startH = rangeOf(view, anchor).includes(store.today()) ? Math.max(H0, d.getHours() - 1) : 7;
+      gridScroll = (startH - H0) * PX;
+      scrolled = key;
+    }
+    sc.scrollTop = gridScroll; // re-renders replace the grid; keep where you were
+    sc.addEventListener('scroll', () => (gridScroll = sc.scrollTop), { passive: true });
+  },
+  actions: {
+    calView(el, ev, ctx) {
+      view = el.dataset.v;
+      try {
+        localStorage.setItem('habitlab.calView', view);
+      } catch (e) {
+        /* private mode */
+      }
+      if (view === 'week' || view === 'month' || view === 'list') anchor = view === 'month' ? anchor.slice(0, 8) + '01' : anchor;
+      ctx.rerender();
+    },
+    calShift(el, ev, ctx) {
+      const d = Number(el.dataset.d);
+      anchor = d === 0 ? store.today() : shift(view, anchor, d);
+      ctx.rerender();
+    },
+    calGoDay(el, ev, ctx) {
+      anchor = el.dataset.date;
+      view = 'day';
+      ctx.rerender();
+    },
+    calSlot(el, ev, ctx) {
+      if (ev.target !== el) return; // a tap on an event opens it instead
+      const r = el.getBoundingClientRect();
+      const m = Math.floor(((ev.clientY - r.top) / PX * 60 + H0 * 60) / 30) * 30;
+      calendarActions.calAdd({ dataset: { date: el.dataset.date, time: hhmm(Math.min(23 * 60 + 30, m)) } }, ev, ctx);
+    },
+    ...share.shareActions,
+  },
+};
+
+/** Global actions (also used from Today and evening planning). */
+const calendarActions = {
+  calAdd(el, ev, ctx) {
+    openSheet(editorHtml(ctx.state, { id: '', title: '', date: el.dataset.date || store.today(), time: el.dataset.time || '', place: '', kind: el.dataset.kind || 'walk', notes: '', public: false }), { label: 'Add to calendar' });
+  },
+  calFromPlan(el, ev, ctx) {
+    const existing = (ctx.state.events || []).find((x) => x.date === el.dataset.date && x.planKey === el.dataset.key);
+    if (existing) return openSheet(editorHtml(ctx.state, existing), { label: 'Edit' });
+    openSheet(editorHtml(ctx.state, { id: '', title: el.dataset.title, date: el.dataset.date, time: '', place: '', kind: el.dataset.kind, notes: '', public: false, planKey: el.dataset.key }), { label: 'Set a time' });
+  },
+  calQuick(el) {
+    const f = el.closest('form');
+    f.querySelector('[name=title]').value = el.dataset.title;
+    f.querySelector('[name=kind]').value = el.dataset.kind;
+    f.querySelector('[name=time]').focus();
+  },
+  calRepeatKind(el) {
+    const f = el.closest('form');
+    const v = el.value;
+    f.querySelector('.cal-rdays').hidden = !(v === 'weekly' || v === 'biweekly');
+    f.querySelector('.cal-until').hidden = !v;
+  },
+  calEdit(el, ev, ctx) {
+    const e = (ctx.state.events || []).find((x) => x.id === el.dataset.id);
+    if (e) openSheet(editorHtml(ctx.state, e, e.repeat ? el.dataset.date : null), { label: 'Edit' });
+  },
+  calSave(form, ev, ctx, data) {
+    const title = String(data.title || '').trim().slice(0, 60);
+    if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(data.date || '')) return;
+    const id = form.dataset.id || newId();
+    const prev = (ctx.state.events || []).find((x) => x.id === id);
+    const planKey = /^(strength|activity|cardio):[\w-]{1,60}$/.test(form.dataset.plan || '') ? form.dataset.plan : undefined;
+    const freq = FREQS[data.repeat] ? data.repeat : '';
+    const rdays = [...form.querySelectorAll('input[name=rday]:checked')].map((i) => Number(i.value));
+    const until = /^\d{4}-\d{2}-\d{2}$/.test(data.until || '') && data.until >= data.date ? data.until : '';
+    const repeat = freq ? { freq, ...(freq === 'weekly' || freq === 'biweekly' ? { days: rdays.length ? rdays.sort() : [weekdayOf(data.date)] } : {}), ...(until ? { until } : {}) } : undefined;
+    const e = {
+      id, ...(planKey ? { planKey } : {}), title, date: data.date, time: /^\d{2}:\d{2}$/.test(data.time || '') ? data.time : '',
+      dur: [15, 30, 45, 60, 90, 120, 180].includes(Number(data.dur)) ? Number(data.dur) : 60,
+      place: String(data.place || '').trim().slice(0, 80), kind: EVENT_KINDS[data.kind] ? data.kind : 'other', notes: String(data.notes || '').trim().slice(0, 140), public: data.public === '1',
+      ...(repeat ? { repeat, ...(prev?.skip?.length ? { skip: prev.skip } : {}) } : {}),
+    };
+    closeSheet();
+    saveEvents(ctx, (list) => [...list.filter((x) => x.id !== id), e]);
+    ctx.toast(form.dataset.id ? 'Saved' : `Added — ${repeat ? repeatLabel(repeat).toLowerCase() : fmtDate(e.date, { weekday: 'long' })}${e.time ? ` at ${e.time}` : ''}`);
+    share.sync(ctx);
+  },
+  async calDelete(el, ev, ctx) {
+    const e = (ctx.state.events || []).find((x) => x.id === el.dataset.id);
+    if (!(await ctx.confirm(e?.repeat ? 'Delete every repeat of this from your calendar?' : 'Delete this from your calendar?', { ok: 'Delete' }))) return;
+    closeSheet();
+    saveEvents(ctx, (list) => list.filter((x) => x.id !== el.dataset.id));
+    share.sync(ctx);
+  },
+  calDeleteOne(el, ev, ctx) {
+    closeSheet();
+    saveEvents(ctx, (list) => list.map((x) => (x.id === el.dataset.id ? { ...x, skip: [...(x.skip || []), el.dataset.date].slice(-200) } : x)));
+    ctx.toast('Deleted just this one');
+    share.sync(ctx);
+  },
+};
+
+Object.assign(__m, { EVENT_KINDS, occId, eventsOn, dropOn, calendarActions });
+},
+/* js/views/plan.js */ 37: function (__m, __req) {
 // Plan tomorrow (evening, ~2 minutes): when and where you'll move, a look at tomorrow's meals,
 // and your habits. Deciding "when, where, how" in advance — implementation intentions — made people
 // markedly more likely to follow through (meta-analysis of 94 studies, d ≈ 0.65: Gollwitzer &
@@ -8157,11 +8642,11 @@ const { itemKey } = __req(7);
 const { byId } = __req(5);
 const { habitById } = __req(10);
 const { itemName } = __req(26);
-const { eventsOn, EVENT_KINDS } = __req(34);
+const { eventsOn, EVENT_KINDS } = __req(36);
 const { mealsFor, slotLabel } = __req(18);
 const { toHHMM } = __req(14);
-const { confetti } = __req(35);
-const share = __req(33);
+const { confetti } = __req(34);
+const share = __req(35);
 
 const ICON = { strength: '💪', cardio: '🚶', activity: '🏸' };
 
@@ -8191,7 +8676,7 @@ function moveBlock(state, date) {
       </div>
       <button class="btn small ghost" data-action="openMoveItem" data-key="${esc(key)}" data-from="${di}" data-date="${date}" aria-label="Move ${esc(itemName(it))} to another day">Move</button></li>`;
   }).join('');
-  const own = evs.filter((e) => !e.planKey).map((e) => `<li class="plan-row"><span class="cal-emoji" aria-hidden="true">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}</span><div class="grow"><strong>${esc(e.title)}</strong><small>${e.time ? esc(e.time) : 'Any time'}${e.place ? ` · ${esc(e.place)}` : ''}${e.public ? ' · open to friends' : ''}</small></div><button class="btn small ghost" data-action="calEdit" data-id="${esc(e.id)}">Edit</button></li>`).join('');
+  const own = evs.filter((e) => !e.planKey).map((e) => `<li class="plan-row"><span class="cal-emoji" aria-hidden="true">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}</span><div class="grow"><strong>${esc(e.title)}</strong><small>${e.time ? esc(e.time) : 'Any time'}${e.place ? ` · ${esc(e.place)}` : ''}${e.public ? ' · open to friends' : ''}</small></div><button class="btn small ghost" data-action="calEdit" data-id="${esc(e.series || e.id)}" data-date="${e.date}">Edit</button></li>`).join('');
   return `<ul class="plan-list">${rows}${own}${!items.length && !evs.length ? '<li class="muted" style="padding:6px 0">Rest day on the plan — a walk still counts. Add one?</li>' : ''}</ul>
     <div class="quick-chips" style="margin-top:8px"><button type="button" data-action="calAdd" data-date="${date}" data-kind="walk">🚶 Add a walk</button><button type="button" data-action="calAdd" data-date="${date}" data-kind="cooking">🍲 Batch cooking</button><button type="button" data-action="calAdd" data-date="${date}" data-kind="other">＋ Something else</button></div>`;
 }
@@ -8253,7 +8738,7 @@ __m.default = {
 
 Object.assign(__m, { tomorrow, isPlanned });
 },
-/* js/data/learn.js */ 37: function (__m, __req) {
+/* js/data/learn.js */ 38: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -8575,18 +9060,18 @@ const LEARN = [
 
 Object.assign(__m, { S, LEARN_SECTIONS, LEARN });
 },
-/* js/views/wrap.js */ 38: function (__m, __req) {
+/* js/views/wrap.js */ 39: function (__m, __req) {
 // Body Wrap: a short, story-style weekly recap. Each card is one body part thanking you for
 // what you did, with one research fact. Tap right/left (or use the arrow keys) to move through it.
 // Opening last week's wrap to the end earns XP once (derived from state.wraps in game.js).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(37);
+const { S: SOURCES } = __req(38);
 const { weekStart, addDays, getWeekStart } = __req(0);
 
 const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const { confetti, chime, buzz, floatXp } = __req(35);
+const { confetti, chime, buzz, floatXp } = __req(34);
 const { XP } = __req(13);
 
 let idx = 0;
@@ -8745,7 +9230,7 @@ function bodyRingsCard(state, today) {
 
 Object.assign(__m, { ring, wrapReadyCard, bodyRingsCard });
 },
-/* js/views/today.js */ 39: function (__m, __req) {
+/* js/views/today.js */ 40: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 const { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(17);
@@ -8761,14 +9246,14 @@ const { itemDone, logPlannedActivity } = __req(27);
 const { toggleHabit, mealRowList } = __req(30);
 const { planDay, partOf, PARTS } = __req(31);
 const { dayRings, ringsSvg, RING_META } = __req(32);
-const { eventsOn, EVENT_KINDS } = __req(34);
+const { eventsOn, EVENT_KINDS } = __req(36);
 const { itemKey } = __req(7);
-const { isPlanned } = __req(36);
-const share = __req(33);
+const { isPlanned } = __req(37);
+const share = __req(35);
 const { toMin } = __req(14);
 const { journey, nextStops, recentTimeStop } = __req(21);
 const { whenLabel } = __req(22);
-const { wrapReadyCard, bodyRingsCard } = __req(38);
+const { wrapReadyCard, bodyRingsCard } = __req(39);
 
 // ---------- Journey: the next stop on the long road (or a time stop just reached) ----------
 function journeyCard(state, date) {
@@ -8941,7 +9426,7 @@ function yourDay(state, date) {
   const evs = allEvs.filter((e) => !e.planKey || !dayKeys.has(e.planKey)); // linked ones show as the session itself
   const moves = moveRows(state, date, linked);
   for (const m of moves.timed) plan.timed.push({ kind: 'movehtml', time: m.time, html: m.html, order: 1.6 });
-  const evRow = (e) => `<li class="k-event"><button class="lrow" data-action="calEdit" data-id="${esc(e.id)}"><span class="slot-ico" style="font-size:1.15rem">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}</span><span class="body"><span class="over">${e.time ? esc(e.time) : 'Any time'} · Calendar${e.public ? ' · open to friends' : ''}</span><span class="title">${esc(e.title)}</span>${e.place ? `<span class="sub">${esc(e.place)}</span>` : ''}</span><span class="trail">${icon('chevron')}</span></button></li>`;
+  const evRow = (e) => `<li class="k-event"><button class="lrow" data-action="calEdit" data-id="${esc(e.series || e.id)}" data-date="${e.date}"><span class="slot-ico" style="font-size:1.15rem">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}</span><span class="body"><span class="over">${e.time ? esc(e.time) : 'Any time'} · Calendar${e.public ? ' · open to friends' : ''}</span><span class="title">${esc(e.title)}</span>${e.place ? `<span class="sub">${esc(e.place)}</span>` : ''}</span><span class="trail">${icon('chevron')}</span></button></li>`;
   for (const e of evs) if (e.time) plan.timed.push({ kind: 'event', time: toMin(e.time), ev: e, order: 1.5 });
   // Food you added off the plan sits where you ate it (older entries without a time: under "Any time").
   const extras = state.extras[date] || [];
@@ -9118,7 +9603,7 @@ __m.default = {
 
 Object.assign(__m, { habitRow, lastActive });
 },
-/* js/views/meals.js */ 40: function (__m, __req) {
+/* js/views/meals.js */ 41: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 const { html, esc, icon, chips, fmtDate, fmtNum } = __req(17);
 const { mealRows } = __req(30);
@@ -9307,7 +9792,7 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 41: function (__m, __req) {
+/* js/ui/charts.js */ 42: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
 const { esc } = __req(17);
 const { daysBetween, addDays } = __req(0);
@@ -9419,10 +9904,10 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/habits.js */ 42: function (__m, __req) {
+/* js/views/habits.js */ 43: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
 const { esc, icon } = __req(17);
-const { habitGrid } = __req(41);
+const { habitGrid } = __req(42);
 const store = __req(16);
 const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(10);
@@ -9575,11 +10060,11 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/progress.js */ 43: function (__m, __req) {
+/* js/views/progress.js */ 44: function (__m, __req) {
 // Progress: the home for everything long-term. A hub (journey, body levels, rewards, weekly
 // check-in), past Body Wraps, then the weight trend, activity, weigh-ins, waist and check-in history.
 const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(17);
-const { weightChart, barChart } = __req(41);
+const { weightChart, barChart } = __req(42);
 const store = __req(16);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
@@ -9587,7 +10072,7 @@ const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
 const { journey, nextStops } = __req(21);
 const { weekBody } = __req(12);
 const { checkinDue } = __req(18);
-const { ring } = __req(38);
+const { ring } = __req(39);
 
 /** The long-term hub at the top of Progress. */
 function hub(state, date, hide) {
@@ -9762,7 +10247,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, {  });
 },
-/* js/engine/adjust.js */ 44: function (__m, __req) {
+/* js/engine/adjust.js */ 45: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -10031,11 +10516,11 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 45: function (__m, __req) {
+/* js/views/checkin.js */ 46: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
 const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(17);
 const store = __req(16);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(44);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(45);
 const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
@@ -10180,10 +10665,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/learn.js */ 46: function (__m, __req) {
+/* js/views/learn.js */ 47: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
 const { html, esc, icon } = __req(17);
-const { LEARN, LEARN_SECTIONS } = __req(37);
+const { LEARN, LEARN_SECTIONS } = __req(38);
 
 let section = 'all';
 let openAll = false;
@@ -10228,7 +10713,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/data/melodies.js */ 47: function (__m, __req) {
+/* js/data/melodies.js */ 48: function (__m, __req) {
 // Alarm sounds. Each melody is data: the same spec is played by the in-app preview (Web Audio) and by
 // the native alarm (AlarmService.java synthesises it on the alarm stream), so what you hear when you
 // choose is exactly what wakes you.
@@ -10373,7 +10858,7 @@ function previewMelody(id, { passes = 2 } = {}) {
 
 Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, stopPreview, previewMelody });
 },
-/* js/engine/alarms.js */ 48: function (__m, __req) {
+/* js/engine/alarms.js */ 49: function (__m, __req) {
 // Alarm clock settings → the specs the native alarm scheduler uses (js/alarm-native.js).
 // Defaults follow sleep research:
 // - The same wake time every day, weekends included: irregular sleep/wake timing is linked to a
@@ -10383,7 +10868,7 @@ Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSou
 //   compared with a printed book (Chang 2015).
 // - Meals at regular times from your day schedule.
 const { daySchedule, mealTimes, toHHMM, toMin } = __req(14);
-const { DEFAULT_SOUND, nativeSound } = __req(47);
+const { DEFAULT_SOUND, nativeSound } = __req(48);
 
 const DEFAULT_ALARMS = {
   wake: { on: false, time: null, days: [0, 1, 2, 3, 4, 5, 6], style: 'ring' },
@@ -10464,7 +10949,7 @@ function fmtTime(min) {
 
 Object.assign(__m, { DEFAULT_ALARMS, STYLES, alarmsOf, alarmTimes, mealSlots, alarmSpecs, fmtTime });
 },
-/* js/data/reasons.js */ 49: function (__m, __req) {
+/* js/data/reasons.js */ 50: function (__m, __req) {
 // One-word reasons people give for wanting to lose weight, to pick on the morning screen and in Settings.
 // Grouped by the themes found in research: health first, then appearance and mood (O’Brien 2007),
 // function and mobility, stigma (hospital programme, open-ended answers), family and milestones
@@ -11089,7 +11574,7 @@ const REASONS = [
 
 Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 },
-/* js/data/affirmations.js */ 50: function (__m, __req) {
+/* js/data/affirmations.js */ 51: function (__m, __req) {
 // Morning messages shown when the wake-up alarm rings and on the Good-morning screen.
 // What the research says, and how it shapes these messages:
 // - Values-based self-affirmation: reflecting on what matters to you activates the brain's
@@ -11105,7 +11590,7 @@ Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 // - Compliments ("You look beautiful") are included because people asked for them; they can be
 //   switched off, and you can add your own words.
 
-const { REASONS, REASON_YOUR, REASON_PROPER } = __req(49);
+const { REASONS, REASON_YOUR, REASON_PROPER } = __req(50);
 
 const LIBRARY = new Set(REASONS.map((r) => r[1].toLowerCase()));
 
@@ -11319,11 +11804,11 @@ function removeReason(affirm = {}, text) {
 
 Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, DEFAULT_SETS, morningMessages, messageForDay, reasonLine, addReason, removeReason });
 },
-/* js/alarm-native.js */ 51: function (__m, __req) {
+/* js/alarm-native.js */ 52: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
-const { alarmSpecs, alarmsOf } = __req(48);
-const { morningMessages, valueInfo } = __req(50);
+const { alarmSpecs, alarmsOf } = __req(49);
+const { morningMessages, valueInfo } = __req(51);
 
 let lastMessage = null;
 
@@ -11441,13 +11926,13 @@ async function listen(go, onWake) {
 
 Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, parseWake, listen });
 },
-/* js/views/alarms.js */ 52: function (__m, __req) {
+/* js/views/alarms.js */ 53: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 const { esc, icon } = __req(17);
-const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(48);
+const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(49);
 const { daySchedule, mealTimes } = __req(14);
-const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(50);
-const { REASONS, REASON_CATS } = __req(49);
+const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(51);
+const { REASONS, REASON_CATS } = __req(50);
 
 // Reason library state (kept across re-renders while you browse).
 let reasonCat = 'health';
@@ -11459,8 +11944,8 @@ document.addEventListener('input', (ev) => {
 document.addEventListener('toggle', (ev) => {
   if (ev.target.classList?.contains('reason-lib')) libOpen = ev.target.open;
 }, true);
-const alarmNative = __req(51);
-const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(47);
+const alarmNative = __req(52);
+const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(48);
 const { openSheet, updateSheet } = __req(25);
 
 const KIND_NAME = { wake: 'Wake-up', wind: 'Wind-down', bed: 'Bedtime', meals: 'Meal' };
@@ -11772,7 +12257,7 @@ const alarmActions = {
 
 Object.assign(__m, { ownValues, alarmsSummary, alarmsPage, alarmsAfter, alarmActions });
 },
-/* js/notify.js */ 53: function (__m, __req) {
+/* js/notify.js */ 54: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -11909,10 +12394,10 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 54: function (__m, __req) {
+/* js/views/settings.js */ 55: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { goalHint } = __req(23);
-const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(52);
+const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(53);
 const { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(17);
 const store = __req(16);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
@@ -11920,7 +12405,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn, weekOrder } = __req(0);
-const notify = __req(53);
+const notify = __req(54);
 const { DEFAULT_REMINDERS } = __req(15);
 const { dayFields, daySummary, readDay } = __req(20);
 const { daySchedule, toHHMM } = __req(14);
@@ -12315,7 +12800,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 55: function (__m, __req) {
+/* js/views/shopping.js */ 56: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(17);
 const store = __req(16);
@@ -12363,15 +12848,15 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 56: function (__m, __req) {
+/* js/views/rewards.js */ 57: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(17);
-const { ring, barChart } = __req(41);
+const { ring, barChart } = __req(42);
 const store = __req(16);
 const { BADGES, XP, levelTitle } = __req(13);
 const { addDays, weekStart } = __req(0);
 const { ORGANS, lastWeekStart } = __req(12);
-const { ring: bodyRing } = __req(38);
+const { ring: bodyRing } = __req(39);
 
 function bodyMedals(state, g, date) {
   const lv = g.stats.body.levels;
@@ -12494,17 +12979,17 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/views/wake.js */ 57: function (__m, __req) {
+/* js/views/wake.js */ 58: function (__m, __req) {
 // Good morning: the screen after "I'm up". The alarm's message, then a ten-second values
 // reflection ("Today I'm doing this for…") — the kind of self-affirmation shown to engage the brain's
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(50);
-const { REASONS } = __req(49);
-const { takeMessage } = __req(51);
+const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(51);
+const { REASONS } = __req(50);
+const { takeMessage } = __req(52);
 const { XP } = __req(13);
-const { confetti, chime, buzz, floatXp } = __req(35);
+const { confetti, chime, buzz, floatXp } = __req(34);
 
 let message = null;
 let msgDate = null;
@@ -12648,18 +13133,18 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/body.js */ 58: function (__m, __req) {
+/* js/views/body.js */ 59: function (__m, __req) {
 // Your body: one card per body part — this week's ring, its long-term level and what it needs.
 // Tap any ring (here, on Today or in the Body Wrap) to open the body-part sheet.
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { openSheet } = __req(25);
 const { ORGAN_GUIDE, organById, weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(37);
+const { S: SOURCES } = __req(38);
 const { weekStart } = __req(0);
 
 const fmtDateShort = (iso) => fmtDate(iso, { day: 'numeric', month: 'short' });
-const { ring } = __req(38);
+const { ring } = __req(39);
 
 function data(state) {
   const today = store.today();
@@ -12736,14 +13221,14 @@ __m.default = {
 
 Object.assign(__m, { organSheetHtml, organActions });
 },
-/* js/views/join.js */ 59: function (__m, __req) {
+/* js/views/join.js */ 60: function (__m, __req) {
 // The page friends land on from your shared link (#/join/<id>). They don't need the app or an
 // account: it says who asked for their support, lets them join an activity with just a first name
 // (and add it to their own calendar), or send a short cheer. Nothing is stored on their phone except
 // the name they typed, so it's filled in next time.
 const { esc, icon, fmtDate } = __req(17);
-const { rpc } = __req(33);
-const { EVENT_KINDS } = __req(34);
+const { rpc } = __req(35);
+const { EVENT_KINDS } = __req(36);
 
 let data = null; // { id, cal, error }
 const joined = new Set();
@@ -12910,7 +13395,7 @@ __m.default = {
 
 Object.assign(__m, { icsFor });
 },
-/* js/views/sos.js */ 60: function (__m, __req) {
+/* js/views/sos.js */ 61: function (__m, __req) {
 // Craving SOS (#/sos): first a reminder of why you're doing this (this morning's reasons), then
 // a 1–4 minute exercise to ride the craving out, then "how is it now?". No food is ever named
 // or shown, and eating anyway is met without blame.
@@ -12927,8 +13412,8 @@ Object.assign(__m, { icsFor });
 // - Slow breathing and a minute with eyes closed are gentle ways to pause before deciding.
 const { esc, icon } = __req(17);
 const store = __req(16);
-const { valueInfo, reasonLine } = __req(50);
-const { chime, confetti, buzz } = __req(35);
+const { valueInfo, reasonLine } = __req(51);
+const { chime, confetti, buzz } = __req(34);
 
 const TOOLS = {
   puzzle: { emoji: '🧩', title: 'Tile puzzle', min: 3, why: 'A visual puzzle crowds out the picture in your head that keeps the craving going.' },
@@ -13131,42 +13616,42 @@ function resetSos() {
 
 Object.assign(__m, { TOOLS, resetSos });
 },
-/* js/app.js */ 61: function (__m, __req) {
+/* js/app.js */ 62: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(16);
 const { icon, formData } = __req(17);
 const { setWeekStart } = __req(0);
 const onboarding = __req(23).default;
 const { goalHint } = __req(23);
-const todayView = __req(39).default;
-const meals = __req(40).default;
+const todayView = __req(40).default;
+const meals = __req(41).default;
 const move = __req(27).default;
-const habits = __req(42).default;
-const progress = __req(43).default;
-const checkin = __req(45).default;
-const learn = __req(46).default;
-const settings = __req(54).default;
-const shopping = __req(55).default;
-const rewards = __req(56).default;
+const habits = __req(43).default;
+const progress = __req(44).default;
+const checkin = __req(46).default;
+const learn = __req(47).default;
+const settings = __req(55).default;
+const shopping = __req(56).default;
+const rewards = __req(57).default;
 const journeyView = __req(22).default;
-const wrapView = __req(38).default;
-const wakeView = __req(57).default;
-const bodyView = __req(58).default;
-const calendarView = __req(34).default;
-const { calendarActions } = __req(34);
-const joinView = __req(59).default;
-const planView = __req(36).default;
-const sosView = __req(60).default;
-const { resetSos } = __req(60);
-const { organActions } = __req(58);
+const wrapView = __req(39).default;
+const wakeView = __req(58).default;
+const bodyView = __req(59).default;
+const calendarView = __req(36).default;
+const { calendarActions } = __req(36);
+const joinView = __req(60).default;
+const planView = __req(37).default;
+const sosView = __req(61).default;
+const { resetSos } = __req(61);
+const { organActions } = __req(59);
 const { organById } = __req(12);
-const alarmNative = __req(51);
-const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(35);
+const alarmNative = __req(52);
+const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(34);
 const { newlyClosed, allClosed } = __req(32);
 const { setViewDate } = __req(24);
-const { reasonLine, addReason } = __req(50);
+const { reasonLine, addReason } = __req(51);
 const { BADGES } = __req(13);
-const notify = __req(53);
+const notify = __req(54);
 const { closeSheet } = __req(25);
 const { sheetActions } = __req(30);
 const { daySummary, readDay } = __req(20);
@@ -13591,5 +14076,5 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(61);
+__req(62);
 })();</script>

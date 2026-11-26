@@ -235,6 +235,8 @@ export function sanitize(s) {
   s.events = (Array.isArray(s.events) ? s.events : []).filter((e) => e && typeof e.id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(e.id) && ISO.test(e.date) && typeof e.title === 'string' && e.title.trim()).slice(-500).map((e) => ({
     id: e.id, ...(typeof e.planKey === 'string' && /^(strength|activity|cardio):[\w-]{1,60}$/.test(e.planKey) ? { planKey: e.planKey } : {}), title: e.title.trim().slice(0, 60), date: e.date, time: typeof e.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(e.time) ? e.time : '',
     place: typeof e.place === 'string' ? e.place.slice(0, 80) : '', kind: KINDS.includes(e.kind) ? e.kind : 'other', notes: typeof e.notes === 'string' ? e.notes.slice(0, 140) : '', public: e.public === true,
+    ...(Number.isInteger(e.dur) && e.dur >= 5 && e.dur <= 720 ? { dur: e.dur } : {}),
+    ...(e.repeat && typeof e.repeat === 'object' && ['daily', 'weekly', 'biweekly', 'monthly'].includes(e.repeat.freq) ? { repeat: { freq: e.repeat.freq, ...(Array.isArray(e.repeat.days) ? { days: [...new Set(e.repeat.days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort() } : {}), ...(ISO.test(e.repeat.until || '') ? { until: e.repeat.until } : {}) }, ...(Array.isArray(e.skip) ? { skip: e.skip.filter((d) => ISO.test(d)).slice(-200) } : {}) } : {}),
   }));
   const sh = s.share;
   if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40), ...(num(sh.seen, 1, 1e15, 0) ? { seen: num(sh.seen, 1, 1e15, 0) } : {}) };

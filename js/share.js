@@ -5,6 +5,7 @@
 import { esc, icon } from './ui/dom.js';
 import * as store from './store.js';
 import { addDays } from './engine/util.js';
+import { expand } from './engine/recur.js';
 
 export const SUPABASE_URL = 'https://jwjabhcebwnzhfphsuwg.supabase.co';
 // Publishable key: safe to ship in an app (it only reaches the four functions above).
@@ -53,7 +54,9 @@ export function cheerCardHtml(state) {
 /** The events friends can see: open to friends, from yesterday on. */
 export function publicEvents(state) {
   const from = addDays(store.today(), -1);
-  return (state.events || []).filter((e) => e.public && e.date >= from).map(({ id, title, date, time, place, kind, notes }) => ({ id, title, date, time, place, kind, notes }));
+  // Repeating events are shared as their next 8 weeks of dates, each joinable on its own.
+  return expand((state.events || []).filter((e) => e.public), from, addDays(from, 56)).slice(0, 200)
+    .map((e) => ({ id: e.series ? `${e.series}_${e.date.replace(/-/g, '')}` : e.id, title: e.title, date: e.date, time: e.time, place: e.place, kind: e.kind, notes: e.notes }));
 }
 
 /** Publish after a change (only once you've created a link). */

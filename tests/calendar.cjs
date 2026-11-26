@@ -32,10 +32,14 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await page.addLocatorHandler(page.locator('.modal-wrap'), async () => page.click('.modal-wrap button >> nth=-1'));
   await page.goto(base + '#/move');
   await page.click('a.cal-link');
+  // Opens in the 3-day time grid; switch to Schedule (list) for the steps below
+  await page.waitForSelector('.cg');
+  if ((await page.locator('.cg-col').count()) !== 3) errors.push('3-day view should show 3 columns');
+  await page.click('.cal-views [data-v="list"]');
   await page.waitForSelector('.cal-day');
   if (!(await page.locator('.cal-plan').count())) errors.push('planned sessions not shown on the calendar');
   // Add: walk today at 23:58 in the park, open to friends
-  await page.click('button[data-action=calAdd] >> nth=-1');
+  await page.click('.page-head button[data-action=calAdd]');
   await page.click('.sheet button[data-action=calQuick]:has-text("Walk with friends")');
   await page.fill('.sheet input[name=time]', '23:58');
   await page.fill('.sheet input[name=place]', 'Lake loop');
@@ -105,6 +109,92 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await page.waitForTimeout(300);
   if (await page.locator('.cheer-card').count()) errors.push('cheer card did not go away');
   if ((await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).share.seen)) !== 7) errors.push('seen cheer not remembered');
+
+  // ---- Views: Day / 3 days / Week / Month / Schedule ----
+  await page.goto(base + '#/calendar');
+  for (const [v, sel, n] of [['day', '.cg-col', 1], ['3day', '.cg-col', 3], ['week', '.cg-col', 7], ['month', '.cm-cell', 35]]) {
+    await page.click(`.cal-views [data-v="${v}"]`);
+    await page.waitForSelector(sel);
+    const c = await page.locator(sel).count();
+    if (v === 'month' ? c < n : c !== n) errors.push(`${v} view: ${c} ${sel}`);
+  }
+  // Month → tap a date → that day
+  await page.click(`.cm-cell[data-drop-date="${today}"] .cm-date`);
+  await page.waitForSelector('.cg-col');
+  if ((await page.locator('.cg-col').count()) !== 1) errors.push('tapping a month date should open the day');
+
+  // ---- Repeating: a yoga session every week on today's weekday ----
+  await page.click('.cal-views [data-v="list"]');
+  await page.waitForSelector('.cal-day');
+  await page.click(`.cal-day[data-drop-date="${today}"] button[data-action=calAdd]`);
+  await page.fill('.sheet input[name=title]', 'Yoga');
+  await page.fill('.sheet input[name=time]', '07:00');
+  await page.selectOption('.sheet select[name=repeat]', 'weekly');
+  await page.waitForSelector('.sheet .cal-rdays:not([hidden])');
+  await page.click('.sheet button:has-text("Add to calendar")');
+  await page.waitForSelector('.cal-ev:has-text("Yoga")');
+  const yogaRows = await page.locator('.cal-ev:has-text("Yoga")').count();
+  if (yogaRows !== 2) errors.push(`weekly event should show on 2 days in 14: ${yogaRows}`);
+  const yoga = (await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).events)).find((e) => e.title === 'Yoga');
+  if (yoga?.repeat?.freq !== 'weekly') errors.push('repeat not saved: ' + JSON.stringify(yoga));
+
+  // ---- Long-press and drag: next week's yoga → the day after (just that one moves) ----
+  const wk = ymd(new Date(Date.now() + 7 * 864e5));
+  const wk1 = ymd(new Date(Date.now() + 8 * 864e5));
+  const noSheet = () => page.waitForFunction(() => !document.querySelector('.sheet, .sheet-scrim'), null, { timeout: 5000 }).catch(() => {});
+  const dragTo = async (src, dst, dy = 0) => {
+    await noSheet();
+    const a = await page.locator(src).boundingBox();
+    const b2 = await page.locator(dst).boundingBox();
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(600);
+    for (let i = 1; i <= 8; i++) await page.mouse.move(a.x + a.width / 2 + ((b2.x + b2.width / 2) - (a.x + a.width / 2)) * i / 8, a.y + a.height / 2 + ((b2.y + (dy || b2.height / 2)) - (a.y + a.height / 2)) * i / 8);
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+  };
+  await page.locator(`.cal-day[data-drop-date="${wk1}"]`).scrollIntoViewIfNeeded();
+  await dragTo(`.cal-day[data-drop-date="${wk}"] .cal-ev:has-text("Yoga")`, `.cal-day[data-drop-date="${wk1}"]`);
+  let evs = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).events);
+  const series = evs.find((e) => e.id === yoga.id);
+  const moved = evs.find((e) => e.title === 'Yoga' && !e.repeat);
+  if (!series?.skip?.includes(wk) || moved?.date !== wk1 || moved?.time !== '07:00') errors.push('dragging one repeat should move just that one: ' + JSON.stringify(evs.filter((e) => e.title === 'Yoga')));
+  if (await page.locator('.sheet.open').count()) errors.push('the tap ending a drag opened the item');
+  // Delete just today's yoga
+  await page.click(`.cal-day[data-drop-date="${today}"] .cal-ev:has-text("Yoga")`);
+  await page.click('.sheet button[data-action=calDeleteOne]');
+  await page.waitForTimeout(300);
+  evs = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).events);
+  if (!evs.find((e) => e.id === yoga.id)?.skip?.includes(today)) errors.push('delete this one');
+
+  // ---- Drag in the time grid: the walk (moved to 09:00 today) → tomorrow at 10:00 ----
+  await page.evaluate((id) => {
+    const st = JSON.parse(localStorage.getItem('habitlab.v1'));
+    st.events = st.events.map((e) => (e.id === id ? { ...e, time: '09:00' } : e));
+    localStorage.setItem('habitlab.v1', JSON.stringify(st));
+  }, eventId);
+  await page.reload();
+  await page.click('.cal-views [data-v="3day"]');
+  await page.waitForSelector('.cg-col');
+  await page.evaluate(() => (document.querySelector('.cg-scroll').scrollTop = (8 - 6) * 48));
+  await page.locator('.cg-scroll').scrollIntoViewIfNeeded();
+  await noSheet();
+  const tmrISO = ymd(new Date(Date.now() + 864e5));
+  const a = await page.locator('.cg-ev:has-text("Walk with friends")').boundingBox();
+  const tmrCol = await page.locator(`.cg-col[data-drop-date="${tmrISO}"]`).boundingBox();
+  const y10 = tmrCol.y + (10 - 6) * 48 + 2;
+  await page.mouse.move(a.x + a.width / 2, a.y + 4);
+  await page.mouse.down();
+  await page.waitForTimeout(600);
+  for (let i = 1; i <= 8; i++) await page.mouse.move(a.x + a.width / 2 + (tmrCol.x + tmrCol.width / 2 - a.x - a.width / 2) * i / 8, a.y + 4 + (y10 - a.y - 4) * i / 8);
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const walk = (await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).events)).find((e) => e.id === eventId);
+  if (walk?.date !== ymd(new Date(Date.now() + 864e5)) || walk?.time !== '10:00') errors.push('drag in the grid should set day and time: ' + JSON.stringify(walk));
+  // A short tap still opens it (no drag)
+  await page.click('.cg-ev:has-text("Walk with friends")');
+  await page.waitForSelector('.sheet.open');
+  await page.keyboard.press('Escape');
   await ctx.close();
 
   // ---- A friend opens the link (no Habit Lab data on their phone) ----
