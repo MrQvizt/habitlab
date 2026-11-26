@@ -87,7 +87,7 @@ export default {
       <p class="muted" style="margin:-8px 0 12px">Your plan, plus your own walks, batch cooking and plans with friends. Deciding <em>when and where</em> makes it far more likely to happen.</p>
       ${share.shareCardHtml(state, pub)}
       <div class="row between nowrap" style="margin:6px 0 10px">
-        <button class="btn small ghost" data-action="calShift" data-d="-7">${icon('chevron')} Earlier</button>
+        <button class="btn small ghost cal-back" data-action="calShift" data-d="-7">${icon("chevron")} Earlier</button>
         ${anchor !== today ? '<button class="btn small" data-action="calShift" data-d="0">Today</button>' : ''}
         <button class="btn small ghost" data-action="calShift" data-d="7">Later ${icon('chevron')}</button>
       </div>

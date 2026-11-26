@@ -1211,6 +1211,7 @@ button.pill { font: inherit; border: 0; cursor: pointer; }
 .plan-when input[type=time] { width: auto; min-width: 104px; }
 .plan-when input[type=text] { flex: 1; min-width: 120px; }
 .plan-set { color: var(--accent) !important; font-weight: 650; margin-top: 4px; }
+.cal-back .icon { transform: rotate(180deg); }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -7826,7 +7827,7 @@ __m.default = {
       <p class="muted" style="margin:-8px 0 12px">Your plan, plus your own walks, batch cooking and plans with friends. Deciding <em>when and where</em> makes it far more likely to happen.</p>
       ${share.shareCardHtml(state, pub)}
       <div class="row between nowrap" style="margin:6px 0 10px">
-        <button class="btn small ghost" data-action="calShift" data-d="-7">${icon('chevron')} Earlier</button>
+        <button class="btn small ghost cal-back" data-action="calShift" data-d="-7">${icon("chevron")} Earlier</button>
         ${anchor !== today ? '<button class="btn small" data-action="calShift" data-d="0">Today</button>' : ''}
         <button class="btn small ghost" data-action="calShift" data-d="7">Later ${icon('chevron')}</button>
       </div>
