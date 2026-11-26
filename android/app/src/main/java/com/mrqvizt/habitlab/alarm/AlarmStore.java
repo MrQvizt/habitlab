@@ -184,6 +184,23 @@ public final class AlarmStore {
         return prefs(c).getLong("snooze_at", 0);
     }
 
+    // ---------- auto-snooze chain: an unanswered alarm snoozes itself until an hour after it first rang ----------
+    public static long chainStart(Context c) {
+        return prefs(c).getLong("chain_start", 0);
+    }
+
+    /** A ring starts: an automatic re-ring continues the chain, anything else starts a new one. */
+    public static long beginRing(Context c, long now) {
+        boolean auto = prefs(c).getBoolean("auto_pending", false);
+        long start = auto && chainStart(c) > 0 ? chainStart(c) : now;
+        prefs(c).edit().putLong("chain_start", start).putBoolean("auto_pending", false).apply();
+        return start;
+    }
+
+    public static void setAutoPending(Context c, boolean auto) {
+        prefs(c).edit().putBoolean("auto_pending", auto).apply();
+    }
+
     public static void clearSnooze(Context c) {
         prefs(c).edit().remove("snooze_alarm").remove("snooze_at").apply();
     }

@@ -124,4 +124,22 @@ public class AlarmSchedulerTest {
         assertEquals(10, AlarmActivity.step(9, 1)); // an old 9-minute setting snaps to the steps
         assertEquals(5, AlarmActivity.step(9, -1));
     }
+
+    @Test
+    public void unansweredAlarmSnoozesEvery5MinutesForAnHour() {
+        long t0 = 1_000_000_000L;
+        long ring = AlarmScheduler.AUTO_RING_MS;
+        long now = t0 + ring; // first ring ends unanswered
+        int rings = 1;
+        long next;
+        while ((next = AlarmScheduler.nextAutoRing(t0, now)) > 0) {
+            assertEquals(now + 5 * 60_000L, next);
+            assertTrue(next - t0 < 60 * 60_000L);
+            rings++;
+            now = next + ring;
+        }
+        // 3-minute rings with 5-minute gaps: rings at 0, 8, 16 … 56 minutes, then silence
+        assertEquals(8, rings);
+        assertEquals(-1, AlarmScheduler.nextAutoRing(t0, t0 + 56 * 60_000L));
+    }
 }

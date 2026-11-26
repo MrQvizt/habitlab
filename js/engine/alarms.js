@@ -18,7 +18,7 @@ export const DEFAULT_ALARMS = {
 };
 
 export const STYLES = {
-  ring: { label: 'Alarm', hint: 'Rings with a gentle melody until you tap “I’m up”' },
+  ring: { label: 'Alarm', hint: 'Rings with a gentle melody until you tap “I’m up”. Not answered? It snoozes itself every 5 min for up to an hour.' },
   gentle: { label: 'Chime', hint: 'One chime and a notification' },
 };
 

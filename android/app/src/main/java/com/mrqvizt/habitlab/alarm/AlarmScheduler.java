@@ -104,12 +104,33 @@ public final class AlarmScheduler {
         AlarmStore.setScheduledCodes(ctx, codes.toString());
     }
 
+    /** Each unanswered ring lasts this long, then the alarm snoozes itself. */
+    public static final long AUTO_RING_MS = 3 * 60_000L;
+    public static final long AUTO_SNOOZE_MS = 5 * 60_000L;
+    /** No more rings once an hour has passed since the first one. */
+    public static final long AUTO_WINDOW_MS = 60 * 60_000L;
+
+    /** When an unanswered alarm should ring again, or -1 if the hour is up. */
+    public static long nextAutoRing(long chainStart, long now) {
+        long next = now + AUTO_SNOOZE_MS;
+        return next - chainStart < AUTO_WINDOW_MS ? next : -1;
+    }
+
+    /** Snooze on its own (nobody answered): the chain to the first ring is kept. */
+    public static void autoSnooze(Context ctx, AlarmStore.Alarm a, long at) {
+        AlarmStore.Alarm s = AlarmStore.snoozeCopy(a.id.endsWith("_snooze") ? base(ctx, a) : a);
+        AlarmStore.putSnooze(ctx, s, at);
+        AlarmStore.setAutoPending(ctx, true);
+        scheduleAll(ctx);
+    }
+
     public static void snooze(Context ctx, AlarmStore.Alarm a) {
         snooze(ctx, a, AlarmStore.snoozeMinutes(ctx));
     }
 
     /** Snooze for a chosen number of minutes (1–60), as picked with − / + on the wake screen. */
     public static void snooze(Context ctx, AlarmStore.Alarm a, int minutes) {
+        AlarmStore.setAutoPending(ctx, false); // you pressed snooze: the next ring starts a fresh hour
         AlarmStore.Alarm s = AlarmStore.snoozeCopy(a.id.endsWith("_snooze") ? base(ctx, a) : a);
         long at = System.currentTimeMillis() + Math.max(1, Math.min(60, minutes)) * 60_000L;
         AlarmStore.putSnooze(ctx, s, at);
