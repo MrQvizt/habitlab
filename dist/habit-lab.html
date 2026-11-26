@@ -1126,7 +1126,7 @@ h2.h3 { font-size: var(--text-lg); }
 .welcome-back h2 { margin: 6px 0 4px; font-size: var(--text-xl); }
 .welcome-back p { margin: 0 0 12px; color: var(--ink-2); font-size: var(--text-sm); line-height: 1.5; }
 
-.reason-lib { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.reason-lib { scroll-margin-top: 84px; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
 .reason-lib summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; gap: 6px; }
 .reason-search { width: 100%; margin-top: 8px; }
 .reason-grid { display: flex; flex-wrap: wrap; gap: 8px; max-height: 420px; overflow-y: auto; padding: 2px; }
@@ -10272,7 +10272,8 @@ function reasonLibrary(affirm) {
   const q = reasonQuery.trim().toLowerCase();
   const tabs = Object.entries(REASON_CATS).map(([k, l]) => [k, l, REASONS.filter((r) => r[0] === k).length]);
   const mine = REASONS.filter((r) => picked.has(r[1].toLowerCase())).length;
-  return `<details class="reason-lib" ${libOpen ? 'open' : ''}><summary><strong>Browse ${REASONS.length} reasons</strong>${mine ? ` <span class="muted">· ${mine} picked</span>` : ''}</summary>
+  return `<details class="reason-lib" ${libOpen ? 'open' : ''}><summary id="reasons"><strong>Browse ${REASONS.length} reasons or add your own</strong>${mine ? ` <span class="muted">· ${mine} picked</span>` : ''}</summary>
+      <form class="own-value" data-form="affirmAddValue" style="margin-top:8px"><input type="text" name="value" maxlength="${VALUE_LEN}" placeholder="Your own word — e.g. Freedom" aria-label="Add your own reason"><button class="btn small tonal">Add</button></form>
       <input type="search" class="reason-search" data-filter="reason" value="${esc(reasonQuery)}" placeholder="Search — e.g. kids, knees, Paris" aria-label="Search reasons">
       <div class="scroll-x" style="margin:8px 0 10px">${tabs.map(([k, l, n]) => `<button type="button" class="qchip ${reasonCat === k ? 'done' : ''}" style="padding-left:12px" data-action="reasonCat" data-value="${k}" aria-pressed="${reasonCat === k}">${esc(l)} <span class="muted">${n}</span></button>`).join('')}</div>
       <div class="reason-grid" data-filter-target="reason">${REASONS.map(([c, t]) => {
@@ -10310,7 +10311,8 @@ function alarmsSummary(state) {
   return on.length ? on.join(' · ') : 'Off';
 }
 
-function alarmsPage(state) {
+function alarmsPage(state, params = []) {
+  if (params[1] === 'reasons') libOpen = true;
   const a = alarmsOf(state);
   const t = alarmTimes(state);
   const d = daySchedule(state.profile);
@@ -10355,7 +10357,6 @@ function alarmsPage(state) {
       <h3 style="margin-top:0">Your reasons</h3>
       <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Pick as many as you like, add your own, or browse ${REASONS.length} reasons people give. The ticked ones show on your morning screen. Reflecting on your own values is the form of self-affirmation shown in brain scans to engage reward and self-related areas — and to help people become more active.</p>
       <div class="chips">${Object.entries(VALUES).map(([k, v]) => `<label class="chip"><input type="checkbox" data-change="affirmValue" value="${k}" ${(affirm.values || []).includes(k) ? 'checked' : ''}><span>${esc(v.label)}</span></label>`).join('')}${ownValues(affirm).map((v) => `<span class="own-chip"><label class="chip own"><input type="checkbox" data-change="affirmValue" value="${esc(v)}" ${(affirm.values || []).includes(v) ? 'checked' : ''}><span>${esc(valueInfo(v).label)}</span></label><button type="button" class="own-x" data-action="affirmRemoveOwn" data-value="${esc(v)}" aria-label="Delete ${esc(valueInfo(v).label)}">${icon('x')}</button></span>`).join('')}</div>
-      <form class="own-value" data-form="affirmAddValue"><input type="text" name="value" maxlength="${VALUE_LEN}" placeholder="Add your own word — e.g. Freedom" aria-label="Add your own reason"><button class="btn small tonal">Add</button></form>
       ${ownValues(affirm).length ? `<p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">Your own reasons stay on the list — tick the ones to use, tap × to delete one. ${(affirm.values || []).length} picked.</p>` : ''}
       ${reasonLibrary(affirm)}
       <label class="field" style="margin-top:14px"><span>Your “why” <span class="hint">Finish the sentence: I’m doing this…</span></span><input type="text" maxlength="120" data-change="affirmWhy" value="${esc(affirm.why || '')}" placeholder="to have energy to play with my kids"></label>
@@ -10368,7 +10369,9 @@ function alarmsPage(state) {
     </div>`;
 }
 
-async function alarmsAfter(root) {
+async function alarmsAfter(root, ctx, params = []) {
+  // Opened from the morning screen's link: jump to the library (once, after the router's scroll-to-top).
+  if (params[1] === 'reasons') setTimeout(() => window.scrollY < 50 && root.querySelector('.reason-lib')?.scrollIntoView({ block: 'start' }), 0);
   const el = root.querySelector('#alarm-status');
   if (!el) return;
   const s = await alarmNative.status();
@@ -10832,7 +10835,7 @@ __m.default = {
         <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
       </form>
 `;
-    if (section === 'alarms') return head('Alarms & wake-up') + alarmsPage(state);
+    if (section === 'alarms') return head('Alarms & wake-up') + alarmsPage(state, params);
     if (section === 'reminders') return head('Reminders') + `
       <p class="muted" style="font-size:var(--text-sm);margin-top:-6px">Quiet notifications to log meals, move and keep your streak. Want something that rings, like a wake-up or bedtime alarm? <a href="#/settings/alarms">Alarms & wake-up</a></p>
       <form data-form="reminders" id="reminders">
@@ -10865,7 +10868,7 @@ __m.default = {
       <p class="footer-note">Habit Lab${window.HABITLAB_VERSION ? ` ${esc(window.HABITLAB_VERSION)}` : ''} · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
   after(root, ctx, params) {
-    if (params[0] === 'alarms') alarmsAfter(root, ctx);
+    if (params[0] === 'alarms') alarmsAfter(root, ctx, params);
   },
   actions: {
     ...alarmActions,
@@ -11278,6 +11281,7 @@ Object.assign(__m, { questsHtml });
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(43);
+const { REASONS } = __req(42);
 const { takeMessage } = __req(44);
 const { XP } = __req(13);
 const { confetti, chime, buzz, floatXp } = __req(30);
@@ -11345,7 +11349,7 @@ __m.default = {
           <div class="w-kicker">Today I’m doing this for… <span class="wk-hint">pick any</span></div>
           <div class="wk-values">${values.map((v) => `<button class="wk-value ${chosen.has(v) ? 'on' : ''}" data-action="wakeValue" data-value="${esc(v)}" aria-pressed="${chosen.has(v)}">${esc(valueInfo(v).label)}</button>`).join('')}<button class="wk-value ${chosen.has('me') ? 'on' : ''}" data-action="wakeValue" data-value="me" aria-pressed="${chosen.has('me')}">Me</button>${otherOpen ? '' : `<button class="wk-value ghost" data-action="wakeOther">＋ Something else</button>`}</div>
           ${otherOpen ? `<form class="wk-add" data-form="wakeAdd"><input class="wk-other" name="reason" data-wake-other maxlength="40" placeholder="A word — e.g. Freedom" aria-label="Something else I’m doing this for" value="${esc(other)}" enterkeyhint="done"><button class="wk-add-btn">Add</button></form><p class="wk-note">Saved to your reasons, so it’s here next time.</p>` : ''}
-          <a class="wk-link" href="#/settings/alarms">${values.length ? 'Browse more reasons →' : 'Choose what matters to you →'}</a>
+          <a class="wk-link" href="#/settings/alarms/reasons">Browse ${REASONS.length} reasons or add your own →</a>
           <p class="wk-why" ${reasonLine([...chosen], other) ? '' : 'hidden'}>${esc(reasonLine([...chosen], other))}</p>
         </div>
         ${done ? `<button class="w-btn" data-action="wakeStart">Start my day</button>` : `<button class="w-btn glow" data-action="wakeStart" data-fresh ${ready() ? '' : 'disabled'}>${ready() ? `Start my day · +${XP.wake} XP` : 'Tap one or more to start your day'}</button>`}

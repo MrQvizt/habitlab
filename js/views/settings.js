@@ -145,7 +145,7 @@ export default {
         <div class="action-bar"><span></span><button class="btn primary">Save</button></div>
       </form>
 `;
-    if (section === 'alarms') return head('Alarms & wake-up') + alarmsPage(state);
+    if (section === 'alarms') return head('Alarms & wake-up') + alarmsPage(state, params);
     if (section === 'reminders') return head('Reminders') + `
       <p class="muted" style="font-size:var(--text-sm);margin-top:-6px">Quiet notifications to log meals, move and keep your streak. Want something that rings, like a wake-up or bedtime alarm? <a href="#/settings/alarms">Alarms & wake-up</a></p>
       <form data-form="reminders" id="reminders">
@@ -178,7 +178,7 @@ export default {
       <p class="footer-note">Habit Lab${window.HABITLAB_VERSION ? ` ${esc(window.HABITLAB_VERSION)}` : ''} · general information based on published guidelines, not medical advice. <a href="#/learn">See the evidence</a>.</p>`;
   },
   after(root, ctx, params) {
-    if (params[0] === 'alarms') alarmsAfter(root, ctx);
+    if (params[0] === 'alarms') alarmsAfter(root, ctx, params);
   },
   actions: {
     ...alarmActions,

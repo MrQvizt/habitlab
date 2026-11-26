@@ -73,7 +73,9 @@ const shots = process.argv[3] || null;
   await page.click('label.switch:has(input[data-path="wind.on"])');
   await page.click('label.chip:has-text("Family")');
   await page.click('label.chip:has-text("Energy")');
-  // Add your own value
+  // Add your own: inside "Browse 610 reasons or add your own"
+  if (!/Browse \d+ reasons or add your own/.test(await page.textContent('.reason-lib summary'))) errors.push('library heading wording');
+  await page.click('.reason-lib summary');
   await page.fill('.own-value input', 'My kids');
   await page.click('.own-value button');
   await page.waitForSelector('label.chip.own:has-text("My kids")');
@@ -160,8 +162,8 @@ const shots = process.argv[3] || null;
   if (!/Next alarm/.test(await page.textContent('#alarm-status'))) errors.push('next alarm not shown');
 
   // Reason library: 600 reasons, search, tap to add (as many as you like), tap again to remove
-  await page.goto(url + '#/settings/alarms');
-  await page.click('.reason-lib summary');
+  await page.goto(url + '#/settings/alarms/reasons'); // the morning screen's link opens the library directly
+  await page.waitForSelector('.reason-lib[open]');
   if ((await page.locator('.reason-btn').count()) < 600) errors.push('fewer than 600 reasons in the library');
   await page.fill('.reason-search', 'knee');
   const hits = await page.$$eval('.reason-btn:not([hidden])', (els) => els.map((e) => e.textContent));
@@ -188,6 +190,7 @@ const shots = process.argv[3] || null;
   await page.evaluate(() => window.__alarm.listeners.route({ route: '#/wake', message: 'You deserve a healthy life.' }));
   await page.waitForSelector('.wake-screen');
   if ((await page.textContent('.wk-msg')) !== 'You deserve a healthy life.') errors.push('wake message not handed over');
+  if (!/Browse \d+ reasons or add your own/.test(await page.textContent('.wk-link')) || (await page.getAttribute('.wk-link', 'href')) !== '#/settings/alarms/reasons') errors.push('morning screen link to the reasons library');
   if (!(await page.locator('.wk-value:has-text("Family")').count())) errors.push('values not offered for reflection');
   if (!(await page.locator('.wk-value:has-text("My kids")').count())) errors.push('own value not offered for reflection');
   if (!(await page.locator('.w-btn[disabled]').count())) errors.push('start should wait for a reflection');
