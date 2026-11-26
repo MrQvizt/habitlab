@@ -129,25 +129,33 @@ export function milestones(startKg) {
 }
 
 /**
- * Rough projection of weeks to goal. Uses the fixed deficit but lets energy needs fall
- * ~24 kcal/day per kg lost (Hall 2011), with recalculation every 2 kg (rule 7) — so it slows down.
+ * Week-by-week weight projection towards a goal: weights[0] = today, weights[n] = after n weeks.
+ * Uses the plan's deficit but lets energy needs fall as weight drops (Hall 2011), with targets
+ * recalculated every 2 kg (rule 7) — so the curve slows down, as real weight loss does.
+ * `reached` is false if the plan would plateau first or it would take longer than 15 years.
  */
-export function projectWeeks(profile, goalKg) {
+export function projectCurve(profile, goalKg, maxWeeks = 780) {
   let w = profile.weightKg;
-  if (!(goalKg < w)) return 0;
-  let weeks = 0;
+  const weights = [w];
+  if (!(goalKg < w)) return { weights, reached: true };
   let t = dailyTargets(profile, { weightKg: w });
   let lastCalc = w;
-  while (w > goalKg && weeks < 520) {
+  while (w > goalKg && weights.length <= maxWeeks) {
     if (lastCalc - w >= 2) {
       t = dailyTargets(profile, { weightKg: w });
       lastCalc = w;
     }
     const { tdee } = estimateTdee(profile, w);
     const deficit = Math.max(0, tdee - t.kcal);
-    if (deficit < 50) return null; // the plan alone would plateau before the goal
-    w -= (deficit * 7) / KCAL_PER_KG;
-    weeks++;
+    if (deficit < 50) return { weights, reached: false }; // the plan alone would plateau before the goal
+    w = Math.max(goalKg, w - (deficit * 7) / KCAL_PER_KG);
+    weights.push(w);
   }
-  return weeks;
+  return { weights, reached: w <= goalKg };
+}
+
+/** Weeks to goal (0 if already there, null if the plan would plateau or take over 15 years). */
+export function projectWeeks(profile, goalKg) {
+  const c = projectCurve(profile, goalKg);
+  return c.reached ? c.weights.length - 1 : null;
 }

@@ -1,17 +1,18 @@
 // Pieces shared by several views.
-import { esc, icon, fmtNum } from '../ui/dom.js';
-import { byId, scaledNutrition, formatQty, SLOT_LABEL, dayTotals } from '../engine/meals.js';
-import { FOODS } from '../data/foods.js';
+import { esc, icon } from '../ui/dom.js';
+import { byId, scaledNutrition, SLOT_LABEL, ingredientText } from '../engine/meals.js';
 import * as store from '../store.js';
-import { daysBetween, weekStart, parseDate } from '../engine/util.js';
+import { orderMeals } from '../engine/schedule.js';
+import { daysBetween, weekdayOf, planDayFor } from '../engine/util.js';
 
 export function dayIndex(date) {
-  return (parseDate(date).getDay() + 6) % 7;
+  return weekdayOf(date);
 }
 
+/** The day's meals in the order you eat them (by your day timeline), each with `time` in minutes. */
 export function mealsFor(state, date) {
-  const plan = state.plans[weekStart(date)];
-  return plan?.days?.[dayIndex(date)] || [];
+  const day = planDayFor(state, date);
+  return orderMeals(state.profile || {}, day);
 }
 
 /** Calories logged so far today (meal ticks + extras). */
@@ -52,31 +53,16 @@ export function proteinEaten(state, date) {
 export function recipeDetails(m, units = 'metric', open = false) {
   const r = byId(m.recipeId);
   return `<details class="recipe" ${open ? 'open' : ''}><summary>Recipe & ingredients</summary>
-    <ul class="ingredients">${r.ingredients.map(([fid, g]) => `<li>${esc(formatQty(fid, g * m.scale, units))} ${esc(FOODS[fid].name.toLowerCase())}</li>`).join('')}</ul>
+    <ul class="ingredients">${r.ingredients.map(([fid, g]) => `<li>${esc(ingredientText(fid, g * m.scale, units))}</li>`).join('')}</ul>
     <ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
     <small class="muted">Season freely with herbs, spices, garlic, lemon, vinegar, mustard and salt to taste.</small></details>`;
 }
 
-export function mealMeta(m, showNumbers = true) {
-  const r = byId(m.recipeId);
-  const n = scaledNutrition(r, m.scale);
-  const tags = [
-    m.leftover ? '<span class="tag warm">leftovers</span>' : '',
-    r.batch && !m.leftover ? '<span class="tag">batch-friendly</span>' : '',
-    r.nocook ? '<span class="tag">no-cook</span>' : '',
-  ].join('');
-  return `<div class="meta">${icon('clock', 'tiny')} ${m.leftover ? 'ready' : `${r.minutes} min`}${showNumbers ? ` · ${fmtNum(n.kcal, 10)} kcal · ${Math.round(n.p)} g protein · ${Math.round(n.fib)} g fibre` : ''} ${tags}</div>`;
-}
 
 export function slotLabel(slot) {
   return SLOT_LABEL[slot] || slot;
 }
 
-export function totalsLine(meals, showNumbers) {
-  if (!showNumbers) return '';
-  const t = dayTotals(meals);
-  return `${fmtNum(t.kcal, 10)} kcal · ${Math.round(t.p)} g protein · ${Math.round(t.c)} g carbs · ${Math.round(t.f)} g fat · ${Math.round(t.fib)} g fibre`;
-}
 
 export function safetyNotices(state, levels = ['block', 'warn']) {
   const s = store.safety(state);

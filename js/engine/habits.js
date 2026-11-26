@@ -1,8 +1,33 @@
 // Habit tracking: completion, forgiving streaks ("never miss twice"), and readiness to add a new habit.
 import { addDays, isoDate } from './util.js';
-import { HABITS } from '../data/habits.js';
+import { HABITS, HABIT_STEPS } from '../data/habits.js';
 
 export const MAX_ACTIVE = 3;
+
+/**
+ * Levels a habit can be logged at, smallest first; the last one is the full habit.
+ * XP: two levels → 7 / 15; three levels → 6 / 10 / 15.
+ */
+export function habitLevels(id) {
+  const h = habitById(id);
+  if (!h) return [{ label: 'Done', xp: 15, full: true }];
+  const labels = HABIT_STEPS[id] || [h.tiny, h.title];
+  const xp = labels.length === 3 ? [6, 10, 15] : labels.length === 2 ? [7, 15] : [15];
+  return labels.map((label, i) => ({ label, xp: xp[i], full: i === labels.length - 1, small: i < labels.length - 1 }));
+}
+
+/** Stored log value → level index. `true` (older data) means the full habit; numbers are 1-based. */
+export function levelIndex(id, value) {
+  const n = habitLevels(id).length;
+  if (value === true) return n - 1;
+  const k = Number(value);
+  return Number.isInteger(k) && k >= 1 ? Math.min(n, k) - 1 : -1;
+}
+
+/** Value to store for a level index (1-based so every logged value is truthy). */
+export function levelValue(id, index) {
+  return index >= habitLevels(id).length - 1 ? true : index + 1;
+}
 
 export function habitById(id) {
   return HABITS.find((h) => h.id === id);

@@ -124,31 +124,74 @@ export function stepGoal(baseline, level = 0, age = 40) {
   return round(clamp((baseline || 4000) + 500 * (1 + (level || 0)), 2500, Math.max(cap, (baseline || 0))), 250);
 }
 
+export const INTENSITY = {
+  easy: { label: 'Easy', hint: 'Chatty pace, e.g. a stroll or gentle gardening', factor: 0.5 },
+  moderate: { label: 'Moderate', hint: 'A bit out of breath, can still talk', factor: 1 },
+  vigorous: { label: 'Vigorous', hint: 'Hard to say more than a few words', factor: 2 },
+};
+
 /**
- * Build the week: strength sessions on non-consecutive available days, cardio on the rest.
- * @param profile {daysAvailable:[0..6], sessionMinutes, cardioPrefs:[...], ...}
+ * Minutes an activity contributes to the weekly cardio target. Guidelines count moderate minutes
+ * once and vigorous minutes twice (WHO); easy movement still helps, so it counts half here.
+ */
+export function creditedMinutes(entry) {
+  if (!entry) return 0;
+  if (entry.kind === 'strength') return 0;
+  if (entry.kind === 'activity') return (entry.minutes || 0) * (INTENSITY[entry.intensity]?.factor ?? 1);
+  return entry.minutes || 0; // planned cardio
+}
+
+/**
+ * Build the week. One main thing per day:
+ * - the person's own regular activities (hobbies, walks with friends …) go on their days and count
+ *   toward the targets — strength-type ones replace app strength sessions;
+ * - app strength sessions go on available days without an activity, never on consecutive days;
+ * - app cardio fills only the minutes still missing, on days that have nothing else.
+ * @param profile {daysAvailable:[0..6], sessionMinutes, cardioPrefs:[...], activities:[...], ...}
  */
 export function weekSchedule(profile, progress, weeksIn = 0) {
   const avail = (profile.daysAvailable?.length ? profile.daysAvailable : [0, 2, 4]).slice().sort((a, b) => a - b);
+  const activities = (profile.activities || []).filter((a) => a && a.days?.length && a.minutes > 0);
+  const actByDay = {};
+  for (const a of activities) for (const d of a.days) (actByDay[d] ||= []).push(a);
+  const strengthActDays = [...new Set(activities.filter((a) => a.strength).flatMap((a) => a.days))].sort((a, b) => a - b);
+
   // Rule 14: 2–3 whole-body sessions on non-consecutive days; week 1 is a single easy session.
-  let nStrength = weeksIn === 0 ? 1 : avail.length >= 4 ? 3 : 2;
-  let strengthDays = pickSpread(avail, Math.min(nStrength, avail.length));
-  while (strengthDays.length > 1 && minGap(strengthDays) < 2) strengthDays = pickSpread(avail, strengthDays.length - 1);
+  // Strength-type hobbies (climbing, a gym class …) count toward that number.
+  const wanted = weeksIn === 0 ? 1 : avail.length >= 4 ? 3 : 2;
+  const nStrength = Math.max(0, wanted - strengthActDays.length);
+  // Prefer available days with no activity and not next to a strength-type activity.
+  const near = (d) => strengthActDays.some((x) => Math.min(Math.abs(x - d), 7 - Math.abs(x - d)) < 2);
+  let pool = avail.filter((d) => !actByDay[d] && !near(d));
+  if (pool.length < nStrength) pool = avail.filter((d) => !actByDay[d]);
+  if (pool.length < nStrength) pool = avail;
+  let strengthDays = nStrength ? pickSpread(pool, Math.min(nStrength, pool.length)) : [];
+  while (strengthDays.length > 1 && minGap(strengthDays) < 2) strengthDays = pickSpread(pool, strengthDays.length - 1);
+
   const cardioMin = cardioTarget(profile.baselineCardioMin, weeksIn, profile.phase) + (profile.cardioBonus || 0);
-  const cardioDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => !strengthDays.includes(d) || avail.length <= 2);
-  // Strength sessions also include ~10 minutes of cardio-style warm-up/walk where time allows.
-  const perCardioDay = Math.max(10, round(cardioMin / Math.max(1, Math.min(cardioDays.length, 5)), 5));
+  const activityMin = activities.reduce((sum, a) => sum + creditedMinutes({ kind: 'activity', minutes: a.minutes, intensity: a.intensity }) * a.days.length, 0);
+  const needed = Math.max(0, cardioMin - activityMin);
   const modes = (profile.cardioPrefs?.length ? profile.cardioPrefs : ['walk']).filter((m) => CARDIO[m]);
+  // Free days: no strength, no activity; available days first, then (for walking) any day.
+  const free = [0, 1, 2, 3, 4, 5, 6].filter((d) => !strengthDays.includes(d) && !actByDay[d]);
+  const cardioDays = free.filter((d) => avail.includes(d) || modes.includes('walk'));
+  const nCardio = Math.min(cardioDays.length, 5);
+  const perCardioDay = needed > 0 && nCardio ? Math.max(10, round(needed / nCardio, 5)) : 0;
+  // Spread cardio across the chosen free days, preferring available ones.
+  const chosen = [...cardioDays].sort((a, b) => Number(avail.includes(b)) - Number(avail.includes(a)) || a - b).slice(0, nCardio);
+
   const schedule = [];
   let ci = 0;
-  let cardioLeft = cardioMin;
+  let cardioLeft = needed;
   for (let d = 0; d < 7; d++) {
     const day = { day: d, name: DAY_NAMES[d], items: [] };
+    for (const a of actByDay[d] || []) {
+      day.items.push({ kind: 'activity', id: a.id, name: a.name, minutes: a.minutes, intensity: a.intensity, strength: !!a.strength });
+    }
     if (strengthDays.includes(d)) {
       const variant = strengthDays.indexOf(d) % 2 === 0 ? 'A' : 'B';
       day.items.push({ kind: 'strength', variant, minutes: Math.min(profile.sessionMinutes || 30, 45), exercises: sessionExercises(progress, variant, profile) });
-    }
-    if (cardioDays.includes(d) && cardioLeft > 0 && (avail.includes(d) || modes.includes('walk'))) {
+    } else if (chosen.includes(d) && cardioLeft > 0) {
       const mins = Math.min(perCardioDay, cardioLeft);
       cardioLeft -= mins;
       const mode = modes[ci++ % modes.length];
@@ -157,7 +200,7 @@ export function weekSchedule(profile, progress, weeksIn = 0) {
     if (!day.items.length) day.items.push({ kind: 'rest', minutes: 0 });
     schedule.push(day);
   }
-  return { schedule, cardioMin, strengthDays };
+  return { schedule, cardioMin, strengthDays, activityMin: Math.round(activityMin), strengthFromActivities: strengthActDays.length };
 }
 
 function minGap(days) {

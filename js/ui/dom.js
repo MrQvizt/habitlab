@@ -17,6 +17,11 @@ export function fmtWeight(kg, u, digits = 1) {
   return u === 'imperial' ? `${round(kgToLb(kg), 10 ** -digits).toFixed(digits)} lb` : `${round(kg, 10 ** -digits).toFixed(digits)} kg`;
 }
 
+/** Like fmtWeight, but drops a trailing ".0" (82 kg, 61.5 kg). */
+export function fmtKg(kg, u) {
+  return fmtWeight(kg, u).replace(/\.0 /, ' ');
+}
+
 export function weightNum(kg, u) {
   return u === 'imperial' ? kgToLb(kg) : kg;
 }
@@ -46,9 +51,14 @@ export function fmtNum(n, step = 1) {
   return Number.isFinite(n) ? round(n, step).toLocaleString() : '–';
 }
 
+// Date formatters are expensive to create (toLocaleDateString builds one per call), so they're cached
+// per option set: lists of hundreds of dates render in a few milliseconds.
+const dateFormats = new Map();
 export function fmtDate(iso, opts = { weekday: 'short', day: 'numeric', month: 'short' }) {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, opts);
+  const key = JSON.stringify(opts);
+  let f = dateFormats.get(key);
+  if (!f) dateFormats.set(key, (f = new Intl.DateTimeFormat(undefined, opts)));
+  return f.format(new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)));
 }
 
 export function icon(name, cls = '') {
@@ -61,6 +71,7 @@ export function icon(name, cls = '') {
     learn: '<path d="M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
     swap: '<path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>',
+    flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
     star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
     check: '<path d="M5 12l5 5L20 7"/>',
     x: '<path d="M6 6l12 12M18 6L6 18"/>',
@@ -91,11 +102,18 @@ export function progressBar(value, max, { label = '', tone = '' } = {}) {
   return `<div class="bar ${tone}" role="progressbar" aria-valuenow="${Math.round(value)}" aria-valuemin="0" aria-valuemax="${Math.round(max)}" aria-label="${esc(label)}"><span style="width:${pct.toFixed(1)}%"></span></div>`;
 }
 
-/** Read a form into a plain object; checkboxes with the same name become arrays. */
+/**
+ * Read a form into a plain object.
+ * - A group of checkboxes sharing a name (chips) becomes an array of the checked values ([] if none).
+ * - A single checkbox becomes its value when checked and is absent when not, so `!!data.x` is a
+ *   correct "is it ticked?" test. (An empty array would be truthy — that was a bug.)
+ */
 export function formData(form) {
   const out = {};
   const fd = new FormData(form);
-  const multi = new Set([...form.querySelectorAll('input[type=checkbox]')].map((i) => i.name));
+  const counts = {};
+  for (const i of form.querySelectorAll('input[type=checkbox]')) counts[i.name] = (counts[i.name] || 0) + 1;
+  const multi = new Set(Object.keys(counts).filter((n) => counts[n] > 1 || form.querySelector(`input[type=checkbox][name="${CSS.escape(n)}"]`)?.closest('.chips')));
   for (const name of multi) out[name] = [];
   for (const [k, v] of fd.entries()) {
     if (multi.has(k)) out[k].push(v);

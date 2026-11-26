@@ -1,0 +1,19 @@
+{
+  "appId": "com.mrqvizt.habitlab",
+  "appName": "Habit Lab",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#f6f4ef",
+    "adjustMarginsForEdgeToEdge": "auto"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_notify",
+      "iconColor": "#1b6e52"
+    }
+  },
+  "server": {
+    "androidScheme": "https",
+    "hostname": "localhost"
+  }
+}

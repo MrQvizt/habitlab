@@ -1,0 +1,78 @@
+name: Test & build Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  browser-tests:
+    # Every user journey in a real browser, against the production build with production headers
+    # (CSP etc.): onboarding, logging, journey, Body Wrap, navigation, script-injection attacks,
+    # offline/installability, the native alarm and notification bridges.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.63.0 axe-core@4.10.2
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Browser suites
+        run: npm run test:browser
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history: the commit count is the Android versionCode
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+        with:
+          # The default list includes the legacy 'tools' package, which current sdkmanager no longer has.
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+      - run: npm ci
+      - name: Unit tests
+        run: npm test
+      - name: Build web bundle and sync Android project
+        run: npm run android:sync
+      - name: Native unit tests (alarm scheduling)
+        working-directory: android
+        run: ./gradlew testDebugUnitTest --no-daemon
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk habit-lab.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: habit-lab-apk
+          path: habit-lab.apk
+      - name: Publish "latest" release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Habit Lab (latest build)
+          prerelease: false
+          make_latest: true
+          body: |
+            Latest Android build of Habit Lab from `main` (${{ github.sha }}).
+            Download `habit-lab.apk` on your phone and open it to install (allow installs from your browser when asked).
+            Updates install over the previous version and keep your data.
+          files: habit-lab.apk

@@ -7,10 +7,15 @@ import { daysBetween, round } from '../engine/util.js';
 
 let review = null; // {answers, result}
 
-function scale(name, label, lo, hi, value = 3) {
-  return `<fieldset><legend>${esc(label)}</legend><div class="row" style="gap:6px;align-items:center"><span class="muted" style="font-size:.8rem;width:70px">${esc(lo)}</span>
-    <div class="segmented">${[1, 2, 3, 4, 5].map((v) => `<label style="padding:5px 10px;cursor:pointer;border-radius:999px"><input type="radio" name="${name}" value="${v}" ${v === value ? 'checked' : ''}> ${v}</label>`).join('')}</div>
-    <span class="muted" style="font-size:.8rem">${esc(hi)}</span></div></fieldset>`;
+function scale(name, label, lo, hi) {
+  return `<fieldset class="scale"><legend>${esc(label)}</legend>
+    <div class="scale-opts">${[1, 2, 3, 4, 5].map((v) => `<label><input type="radio" name="${name}" value="${v}" required><span>${v}</span></label>`).join('')}</div>
+    <div class="scale-ends"><span>${esc(lo)}</span><span>${esc(hi)}</span></div></fieldset>`;
+}
+
+function yesNo(name, label) {
+  return `<fieldset class="scale yn"><legend>${esc(label)}</legend><div class="scale-opts" style="grid-template-columns:1fr 1fr">
+    <label><input type="radio" name="${name}" value="no" required><span>No</span></label><label><input type="radio" name="${name}" value="yes" required><span>Yes</span></label></div></fieldset>`;
 }
 
 function edScreenDue(state, date) {
@@ -23,21 +28,24 @@ function form(state) {
   const u = state.profile.units === 'imperial' ? 'imperial' : 'metric';
   const hide = store.habitsOnly(state);
   const weighedToday = state.weights.some((w) => w.date === date);
-  return html`<h1>Weekly check-in</h1>
-    <p class="muted">Two minutes. Be honest — there are no wrong answers, and the plan only changes in small steps.</p>
+  return html`<header class="page-head"><div><div class="eyebrow">Weekly</div><h1>Check-in</h1></div></header>
+    <p class="muted" style="margin:-8px 0 14px">Be honest — there are no wrong answers, and the plan only changes in small steps.</p>
     <form data-form="review" class="card">
       ${!hide && !weighedToday ? `<label class="field"><span>Today’s weight (optional)</span><div class="inline-inputs"><input type="number" name="w" step="0.1" inputmode="decimal"><span class="unit">${u === 'imperial' ? 'lb' : 'kg'}</span></div></label>` : ''}
-      ${scale('adherence', 'How closely did you follow the plan this week?', 'not at all', 'nearly always', 3)}
-      ${scale('hunger', 'How hungry have you felt?', 'rarely', 'very often', 3)}
-      ${scale('energy', 'Energy levels', 'exhausted', 'great', 3)}
-      ${scale('stress', 'Stress', 'calm', 'very stressed', 3)}
+      ${scale('adherence', 'How closely did you follow the plan this week?', 'Not at all', 'Nearly always')}
+      ${scale('hunger', 'How hungry have you felt?', 'Rarely', 'Very often')}
+      ${scale('energy', 'How has your energy been?', 'Exhausted', 'Great')}
+      ${scale('stress', 'How stressed have you felt?', 'Calm', 'Very stressed')}
       <div class="grid two">
         <label class="field"><span>Average sleep per night</span><div class="inline-inputs"><input type="number" name="sleepHours" min="2" max="14" step="0.5" value="7" inputmode="decimal"><span class="unit">hours</span></div></label>
         <label class="field"><span>Alcoholic drinks per day (average)</span><div class="inline-inputs"><input type="number" name="drinksPerDay" min="0" max="20" step="0.5" value="0" inputmode="decimal"><span class="unit">drinks</span></div></label>
       </div>
       <fieldset><legend>What got in the way? <span class="hint">Pick any — you’ll get a specific plan for each.</span></legend>${chips('barriers', Object.fromEntries(Object.entries(BARRIER_OPTIONS).map(([k, b]) => [k, b.label])), [])}</fieldset>
-      ${edScreenDue(state, date) ? `<fieldset><legend>Over the past few weeks, have you… <span class="hint">A routine monthly wellbeing check.</span></legend>${chips('edFlags', { binge: 'felt out of control while eating?', compensate: 'tried to make up for eating (vomiting, laxatives, over-exercising)?', worth: 'felt your weight decides your worth?' }, [])}</fieldset><input type="hidden" name="edScreened" value="1">` : ''}
-      <button class="btn primary">See my adjustments ${icon('chevron')}</button>
+      ${edScreenDue(state, date) ? `<div class="card flat" style="margin:6px 0 18px"><div class="eyebrow" style="margin-bottom:8px">Monthly wellbeing check · over the past few weeks, have you…</div>
+        ${yesNo('ed_binge', 'Felt out of control while eating?')}
+        ${yesNo('ed_compensate', 'Tried to make up for eating (vomiting, laxatives, over-exercising)?')}
+        ${yesNo('ed_worth', 'Felt your weight decides your worth?')}</div><input type="hidden" name="edScreened" value="1">` : ''}
+      <div class="action-bar"><span class="muted need-all" style="font-size:var(--text-sm)">Answer each question to continue</span><span class="muted all-done" style="font-size:var(--text-sm)">+50 XP</span><button class="btn primary">See my adjustments ${icon('chevron')}</button></div>
     </form>`;
 }
 
@@ -58,7 +66,7 @@ function results(state) {
     if (!actionable) return `<div class="rec"><strong>${esc(r.title)}</strong><p>${esc(hide ? stripNumbers(r.body) : r.body)}</p>${habitBtn}</div>`;
     return `<div class="rec"><label><input type="checkbox" name="accept" value="${r.id}" ${r.preselect || r.type === 'kcal' ? 'checked' : ''}><div><strong>${esc(hide ? stripNumbers(r.title) : r.title)}</strong><p>${esc(hide ? stripNumbers(r.body) : r.body)}</p></div></label></div>`;
   }).join('');
-  return html`<h1>This week’s review</h1>
+  return html`<header class="page-head"><div><div class="eyebrow">Check-in</div><h1>This week’s review</h1></div></header>
     ${hide ? '' : `<div class="stats card">
       <div class="stat"><span class="v">${fmtWeight(result.trendKg, u)}</span><span class="l">trend weight</span></div>
       <div class="stat"><span class="v">${result.rate == null ? '–' : fmtDelta(result.rate, u, 2)}</span><span class="l">per week</span></div>
@@ -66,7 +74,7 @@ function results(state) {
       <div class="stat"><span class="v">${Math.floor(result.weeksIn) + 1}</span><span class="l">week</span></div></div>`}
     <form data-form="apply">
       ${recHtml}
-      <div class="row" style="margin-top:14px"><button class="btn primary">${icon('check')}Apply selected</button><button type="button" class="btn ghost" data-action="redo">Change my answers</button></div>
+      <div class="action-bar"><button type="button" class="btn ghost" data-action="redo">Change answers</button><button class="btn primary">${icon('check')}Apply selected</button></div>
       <p class="muted" style="font-size:.85rem;margin-top:10px">Changes are small on purpose. Your meal plan rebuilds automatically for the rest of the week.</p>
     </form>`;
 }
@@ -100,7 +108,7 @@ export default {
         sleepHours: Number(data.sleepHours),
         drinksPerDay: Number(data.drinksPerDay),
         barriers: data.barriers || [],
-        edFlags: data.edFlags || [],
+        edFlags: ['binge', 'compensate', 'worth'].filter((k) => data['ed_' + k] === 'yes'),
         edScreened: !!data.edScreened,
       };
       review = { answers, result: weeklyReview(s, answers, date, { habitsOnly: store.habitsOnly(s) }) };

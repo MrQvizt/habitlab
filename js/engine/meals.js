@@ -288,3 +288,12 @@ export function formatQty(fid, grams, units = 'metric') {
   if (grams >= 1000) return `${round(grams / 1000, 0.05)} kg`;
   return `${round(grams, grams < 30 ? 1 : 5)} g`;
 }
+
+/** Ingredient line for recipes: "2 slices wholegrain bread", "1.5 × eggs", "150 g greek yogurt". */
+export function ingredientText(fid, grams, units = 'metric') {
+  const food = FOODS[fid];
+  const q = formatQty(fid, grams, units);
+  const name = food.name.toLowerCase();
+  if (food.each && name.includes(food.each.unit)) return `${q.split(' ')[0]} × ${name}`;
+  return `${q} ${name}`;
+}

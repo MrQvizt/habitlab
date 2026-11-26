@@ -1,5 +1,17 @@
 // Demo-data walkthrough with screenshots of the long-run screens (progress chart, plateau check-in).
 const { chromium } = require('playwright');
+/** Answer every check-in question (scales default to 3, yes/no to "no"); overrides by field name. */
+async function answerCheckin(page, overrides = {}) {
+  await page.waitForSelector('fieldset.scale');
+  await page.evaluate((o) => {
+    for (const fs of document.querySelectorAll('fieldset.scale')) {
+      const name = fs.querySelector('input').name;
+      const v = o[name] || (fs.classList.contains('yn') ? 'no' : '3');
+      fs.querySelector(`input[value="${v}"]`).click();
+    }
+  }, overrides);
+}
+
 const base = process.argv[2] || 'http://localhost:8765/';
 const shots = process.argv[3] || null;
 (async () => {
@@ -9,6 +21,11 @@ const shots = process.argv[3] || null;
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   page.on('pageerror', (e) => errors.push(e.message));
 
+  let celebrations = 0;
+  await page.addLocatorHandler(page.locator('.celebrate-modal'), async () => {
+    celebrations++;
+    await page.click('.celebrate-modal button');
+  });
   const snap = async (n) => shots && page.screenshot({ path: `${shots}/${n}.png`, fullPage: true });
   await page.goto(base);
   await page.click('text=Explore with demo data');
@@ -22,7 +39,7 @@ const shots = process.argv[3] || null;
   await page.click('button:has-text("Use") >> nth=0');
   await page.waitForSelector('text=Plan settings');
   await page.goto(base + '#/checkin');
-  await page.click('label:has-text("5") >> nth=0'); // adherence 5
+  await answerCheckin(page, { adherence: '5' });
   await page.click('button:has-text("See my adjustments")');
   await page.waitForSelector('text=Apply selected');
   await snap('d2-checkin');

@@ -1,10 +1,12 @@
 // App state: one JSON object in localStorage. Everything stays on this device.
-import { isoDate, weekStart, addDays, hashString } from './engine/util.js';
+import { isoDate, weekStart, hashString, weekdayOf, dateInWeek, planDayFor, setWeekStart } from './engine/util.js';
 import { dailyTargets, estimateTdee } from './engine/calc.js';
 import { latestTrend } from './engine/trend.js';
 import { planWeek } from './engine/meals.js';
 import { initialProgress, weekSchedule } from './engine/workouts.js';
 import { screen } from './engine/safety.js';
+import { summary as gameSummaryRaw } from './engine/game.js';
+import { DEFAULT_REMINDERS } from './engine/reminders.js';
 import { HABITS } from './data/habits.js';
 import { RECIPES } from './data/recipes.js';
 import { FOODS, DIETS, ALLERGENS } from './data/foods.js';
@@ -18,7 +20,7 @@ export function emptyState() {
   return {
     version: VERSION,
     profile: null,
-    prefs: { diet: 'omnivore', allergies: [], dislikes: [], variety: 'medium', budget: 'normal', maxMinutesWeekday: 30, maxMinutesWeekend: 45, favorites: [], blockedRecipes: [], seed: 0, leftovers: true },
+    prefs: { weekStart: 0, diet: 'omnivore', allergies: [], dislikes: [], variety: 'medium', budget: 'normal', maxMinutesWeekday: 30, maxMinutesWeekend: 45, favorites: [], blockedRecipes: [], seed: 0, leftovers: true },
     weights: [],
     waist: [],
     intake: {},
@@ -30,9 +32,15 @@ export function emptyState() {
     workouts: { progress: {}, log: {} },
     habits: { active: [], log: {}, retired: [] },
     checkins: [],
+    wraps: {},
+    wakes: {},
+    alarms: {},
+    affirm: { values: [], own: [], why: '', sets: null, custom: [], favs: [] },
     kcalAdjust: 0,
     tdeeOffset: 0,
     flags: {},
+    game: { badges: {}, sound: true, haptics: true, lastLevel: 1 },
+    reminders: { ...DEFAULT_REMINDERS },
   };
 }
 
@@ -48,13 +56,55 @@ export function load() {
 }
 
 export function save(state) {
+  state.savedAt = Date.now();
   memory = structuredClone(state);
+  mirrorToNative(state);
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
     return true;
   } catch (e) {
     return false;
   }
+}
+
+// ---------- Native mirror (Android app) ----------
+// In the Android app, every save is also copied to the app's native preferences. WebView storage
+// survives app updates, but this second copy protects against it ever being cleared, and native
+// preferences are included in Android's automatic backup (so data can follow you to a new phone).
+const NATIVE_KEY = 'habitlab.state';
+function nativePrefs() {
+  const cap = typeof window !== 'undefined' ? window.Capacitor : null;
+  return cap?.isNativePlatform?.() ? cap.Plugins?.Preferences || null : null;
+}
+let mirrorTimer = null;
+function mirrorToNative(state) {
+  const prefs = nativePrefs();
+  if (!prefs) return;
+  clearTimeout(mirrorTimer);
+  const json = JSON.stringify(state);
+  mirrorTimer = setTimeout(() => prefs.set({ key: NATIVE_KEY, value: json }).catch(() => {}), 400);
+}
+
+/**
+ * If the native copy is newer than what the WebView has (or the WebView is empty), return it.
+ * Resolves null otherwise, or when not running in the Android app.
+ */
+export async function nativeRestoreCandidate(current) {
+  const prefs = nativePrefs();
+  if (!prefs) return null;
+  try {
+    const { value } = await prefs.get({ key: NATIVE_KEY });
+    if (!value) {
+      if (current?.profile) mirrorToNative(current); // first run of a version with the mirror: seed it
+      return null;
+    }
+    const stored = migrate(JSON.parse(value));
+    if (!stored.profile) return null;
+    if (!current?.profile || (stored.savedAt || 0) > (current.savedAt || 0)) return stored;
+  } catch (e) {
+    /* unreadable copy: ignore */
+  }
+  return null;
 }
 
 export function clearAll() {
@@ -71,6 +121,8 @@ export function migrate(s) {
   const out = { ...base, ...s, prefs: { ...base.prefs, ...(s.prefs || {}) } };
   out.workouts = { ...base.workouts, ...(s.workouts || {}) };
   out.habits = { ...base.habits, ...(s.habits || {}) };
+  out.game = { ...base.game, ...(s.game || {}) };
+  out.reminders = { ...base.reminders, ...(s.reminders || {}) };
   return sanitize(out);
 }
 
@@ -113,6 +165,15 @@ export function sanitize(s) {
       struggles: subset(p.struggles, ['evening', 'emotional', 'portions', 'drinks', 'time', 'sleep', 'motivation']),
       stepLevel: num(p.stepLevel, 0, 40, 0),
       cardioBonus: num(p.cardioBonus, 0, 300, 0),
+      activities: (Array.isArray(p.activities) ? p.activities : []).filter((a) => a && typeof a.name === 'string' && a.name.trim()).slice(0, 12).map((a, i) => ({
+        id: typeof a.id === 'string' && /^[a-z0-9_-]{1,24}$/i.test(a.id) ? a.id : `act${i}`,
+        name: a.name.trim().slice(0, 80),
+        days: subset((a.days || []).map(Number), [0, 1, 2, 3, 4, 5, 6]),
+        minutes: num(a.minutes, 5, 600, 30),
+        intensity: oneOf(a.intensity, ['easy', 'moderate', 'vigorous'], 'moderate'),
+        strength: !!a.strength,
+      })),
+      schedule: Object.fromEntries(Object.entries(p.schedule && typeof p.schedule === 'object' ? p.schedule : {}).filter(([k, v]) => ['wake', 'bed', 'firstMeal', 'lastMeal'].includes(k) && typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v))),
       habitsOnly: !!p.habitsOnly,
       demo: !!p.demo,
     };
@@ -121,6 +182,7 @@ export function sanitize(s) {
   const pr = s.prefs;
   s.prefs = {
     ...pr,
+    weekStart: num(pr.weekStart, 0, 6, 0),
     diet: oneOf(pr.diet, Object.keys(DIETS), 'omnivore'),
     allergies: subset(pr.allergies, Object.keys(ALLERGENS)),
     dislikes: subset(pr.dislikes, Object.keys(FOODS)),
@@ -137,8 +199,39 @@ export function sanitize(s) {
   s.waist = (Array.isArray(s.waist) ? s.waist : []).filter((w) => w && ISO.test(w.date) && num(w.cm, 30, 300) != null).map((w) => ({ date: w.date, cm: Number(w.cm) }));
   s.intake = dateMap(s.intake, (v) => num(v, 0, 20000));
   s.steps = dateMap(s.steps, (v) => num(v, 0, 200000));
+  s.wraps = dateMap(s.wraps, (v) => (typeof v === 'string' && ISO.test(v) ? v : null));
+  s.wakes = dateMap(s.wakes, (v) => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null));
+  {
+    const a = s.alarms && typeof s.alarms === 'object' ? s.alarms : {};
+    const time = (v) => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null);
+    const style = (v) => (v === 'ring' || v === 'gentle' ? v : undefined);
+    // A melody id, the phone's alarm sound, or a sound picked on the phone ('uri:<content uri>|<title>').
+    const sound = (v) => (typeof v === 'string' && (/^[a-z]{2,20}$/.test(v) || /^uri:content:\/\/[^\s]{1,300}(\|.{0,80})?$/.test(v)) ? { sound: v } : {});
+    const days = Array.isArray(a.wake?.days) ? [...new Set(a.wake.days.map(Number).filter((d) => d >= 0 && d <= 6))].sort() : undefined;
+    s.alarms = {
+      wake: { on: !!a.wake?.on, time: time(a.wake?.time), ...(days ? { days } : {}), ...(style(a.wake?.style) ? { style: a.wake.style } : {}), ...sound(a.wake?.sound) },
+      wind: { on: !!a.wind?.on, before: num(a.wind?.before, 15, 120, 45), ...(style(a.wind?.style) ? { style: a.wind.style } : {}), ...sound(a.wind?.sound) },
+      bed: { on: !!a.bed?.on, ...(style(a.bed?.style) ? { style: a.bed.style } : {}), ...sound(a.bed?.sound) },
+      meals: { on: !!a.meals?.on, snacks: !!a.meals?.snacks, ...(style(a.meals?.style) ? { style: a.meals.style } : {}), ...sound(a.meals?.sound) },
+      snooze: num(a.snooze, 1, 30, 9),
+    };
+    const f = s.affirm && typeof s.affirm === 'object' ? s.affirm : {};
+    const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
+    s.affirm = { values: strs(f.values, 3, 30), own: strs(f.own, 12, 30), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
+  }
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
+  const g = s.game && typeof s.game === 'object' ? s.game : {};
+  s.game = {
+    badges: Object.fromEntries(Object.entries(g.badges || {}).filter(([k, v]) => /^[a-z0-9_]+$/.test(k) && ISO.test(v))),
+    sound: g.sound !== false,
+    haptics: g.haptics !== false,
+    lastLevel: num(g.lastLevel, 1, 1000, 1),
+  };
+  const rm = s.reminders && typeof s.reminders === 'object' ? s.reminders : {};
+  const hhmm = (v, d) => (typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : d);
+  s.reminders = Object.fromEntries(Object.entries(DEFAULT_REMINDERS).map(([k, d]) => [k, typeof d === 'boolean' ? (k in rm ? !!rm[k] : d) : typeof d === 'number' ? num(rm[k], 0, 6, d) : hhmm(rm[k], d)]));
+  s.savedAt = num(s.savedAt, 0, 1e13, 0);
   s.kcalAdjust = num(s.kcalAdjust, -500, 500, 0);
   s.tdeeOffset = num(s.tdeeOffset, -1500, 1500, 0);
   s.calcWeightKg = num(s.calcWeightKg, 30, 400, null) ?? undefined;
@@ -149,14 +242,26 @@ export function sanitize(s) {
     .slice(0, 3)
     .map((a) => ({ id: a.id, cue: String(a.cue ?? '').slice(0, 160), started: isoOr(a.started, isoDate()), automaticity: num(a.automaticity, 1, 5, null) }));
   s.habits.retired = (Array.isArray(s.habits.retired) ? s.habits.retired : []).filter((r) => r && habitIds.includes(r.id)).map((r) => ({ id: r.id, date: isoOr(r.date, isoDate()) }));
-  s.habits.log = dateMap(s.habits.log, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).filter((k) => habitIds.includes(k)).map((k) => [k, true])) : null));
+  // Habit log values: true (full habit) or a 1-based small-win level.
+  s.habits.log = dateMap(s.habits.log, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, x]) => habitIds.includes(k) && x).map(([k, x]) => [k, x === true ? true : Number.isInteger(x) && x >= 1 && x <= 3 ? x : true])) : null));
   s.mealLog = dateMap(s.mealLog, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([slot, e]) => /^(breakfast|lunch|dinner|snack\d?)$/.test(slot) && ['ate', 'skip', 'other'].includes(e?.status)).map(([slot, e]) => [slot, e.status === 'other' ? { status: 'other', kcal: num(e.kcal, 0, 10000, 0) } : { status: e.status }])) : null));
   const wl = s.workouts.log;
-  s.workouts.log = dateMap(wl, (v) => (Array.isArray(v) ? v.filter((x) => x && ['strength', 'cardio'].includes(x.kind)).map((x) => ({ kind: x.kind, mode: x.kind === 'cardio' ? oneOf(x.mode, Object.keys(CARDIO), 'walk') : undefined, variant: x.kind === 'strength' ? oneOf(x.variant, ['A', 'B'], 'A') : undefined, minutes: num(x.minutes, 0, 600, 0), ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined })) : null));
+  s.workouts.log = dateMap(wl, (v) => (Array.isArray(v) ? v.filter((x) => x && ['strength', 'cardio', 'activity'].includes(x.kind)).map((x) => ({
+    kind: x.kind,
+    mode: x.kind === 'cardio' ? oneOf(x.mode, Object.keys(CARDIO), 'walk') : undefined,
+    variant: x.kind === 'strength' ? oneOf(x.variant, ['A', 'B'], 'A') : undefined,
+    name: x.kind === 'activity' ? String(x.name ?? 'Activity').slice(0, 40) : undefined,
+    actId: x.kind === 'activity' && typeof x.actId === 'string' ? x.actId.slice(0, 24) : undefined,
+    intensity: x.kind === 'activity' ? oneOf(x.intensity, ['easy', 'moderate', 'vigorous'], 'moderate') : undefined,
+    minutes: num(x.minutes, 0, 600, 0),
+    ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined,
+  })) : null));
   const prog = s.workouts.progress && typeof s.workouts.progress === 'object' ? s.workouts.progress : {};
   s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.slice(-30) : [] }]));
   // Plans reference recipes by id; drop any plan containing an unknown recipe (it will be rebuilt).
   s.plans = Object.fromEntries(Object.entries(s.plans || {}).filter(([k, v]) => ISO.test(k) && Array.isArray(v?.days) && v.days.every((d) => Array.isArray(d) && d.every((m) => recipeIds.includes(m?.recipeId) && Number.isFinite(m.scale)))));
+  s.prefs.weekStart = Math.round(s.prefs.weekStart);
+  setWeekStart(s.prefs.weekStart);
   return s;
 }
 
@@ -226,18 +331,26 @@ export function ensurePlan(state, date = today()) {
   if (existing && existing.sig === sig) return { state, plan: existing };
   // Keep today's meals that were already eaten/logged or chosen by hand, so ticks and swaps survive.
   const overrides = {};
-  const ti = (new Date(date + 'T12:00').getDay() + 6) % 7;
-  if (existing?.days[ti] && addDays(wk, ti) === date) {
+  const ti = weekdayOf(date);
+  const prevToday = existing?.days[ti] || planDayFor(state, date);
+  if (prevToday.length) {
     const log = state.mealLog?.[date] || {};
     const keep = {};
-    for (const m of existing.days[ti]) if (log[m.slot] || m.chosen) keep[m.slot] = m.recipeId;
+    for (const m of prevToday) if (log[m.slot] || m.chosen) keep[m.slot] = m.recipeId;
     if (Object.keys(keep).length) overrides[ti] = keep;
   }
   const days = planWeek(t, state.prefs, wk, { overrides });
-  for (const m of days[ti] || []) if (overrides[ti]?.[m.slot]) m.chosen = existing.days[ti].find((x) => x.slot === m.slot)?.chosen;
-  // Keep days that are already in the past so history isn't rewritten.
-  if (existing) {
-    for (let d = 0; d < 7; d++) if (addDays(wk, d) < date && existing.days[d]) days[d] = existing.days[d];
+  for (const m of days[ti] || []) if (overrides[ti]?.[m.slot]) m.chosen = prevToday.find((x) => x.slot === m.slot)?.chosen;
+  // Keep days that are already in the past so history isn't rewritten — also from the plan of an
+  // older week layout if the week start was changed.
+  for (let d = 0; d < 7; d++) {
+    const dd = dateInWeek(wk, d);
+    if (dd >= date) continue;
+    if (existing?.days[d]) days[d] = existing.days[d];
+    else {
+      const old = planDayFor(state, dd);
+      if (old.length) days[d] = old;
+    }
   }
   const plan = { sig, kcal: t.kcal, days, created: date };
   const plans = { ...state.plans, [wk]: plan };
@@ -260,11 +373,34 @@ export function exportJson(state) {
   return JSON.stringify({ app: 'habit-lab', exported: new Date().toISOString(), state }, null, 2);
 }
 
+export const MAX_IMPORT_BYTES = 10 * 1024 * 1024; // a two-year backup is ~200 KB
 export function importJson(text) {
-  const obj = JSON.parse(text);
+  if (typeof text !== 'string' || !text.trim()) throw new Error('This file is empty.');
+  if (text.length > MAX_IMPORT_BYTES) throw new Error('This file is too large to be a Habit Lab backup.');
+  let obj;
+  try {
+    obj = JSON.parse(text);
+  } catch (e) {
+    throw new Error('This file isn’t a Habit Lab backup (it isn’t valid JSON).');
+  }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('This file doesn’t look like a Habit Lab export.');
   const s = obj.state || obj;
   if (!s || typeof s !== 'object' || !('profile' in s)) throw new Error('This file doesn’t look like a Habit Lab export.');
   return migrate(s);
+}
+
+/** Rewards summary (XP, level, streak, quests, badges) for a date. */
+// The rewards summary walks every logged day, and many screens ask for it during one render.
+// State objects are never mutated in place (updates clone, then replace), so it is cached per
+// state object and date: computed once per change instead of once per caller.
+const gameCache = new WeakMap();
+export function game(state, date = today()) {
+  if (!state.profile) return null;
+  const hit = gameCache.get(state);
+  if (hit && hit.date === date) return hit.value;
+  const value = gameSummaryRaw(state, date, { habitsOnly: habitsOnly(state), trendKg: trendWeight(state) });
+  gameCache.set(state, { date, value });
+  return value;
 }
 
 export { estimateTdee };

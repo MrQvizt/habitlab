@@ -309,3 +309,423 @@ test('meal plan never dips below the calorie floor', () => {
   assert.equal(t.kcal, 1200);
   for (const diet of ['omnivore', 'vegan']) for (const day of planWeek(t, { diet }, '2026-11-23')) assert.ok(dayTotals(day).kcal >= 1200, `${diet} ${dayTotals(day).kcal}`);
 });
+
+test('reminders: specific, future-only, skip what is done, none when disabled', async () => {
+  const { buildReminders } = await import('../js/engine/reminders.js');
+  const { planWeek: pw } = await import('../js/engine/meals.js');
+  const t = dailyTargets(woman);
+  const now = new Date('2026-11-23T08:00:00');
+  const wk = '2026-11-23';
+  const state = { profile: { ...woman, startDate: wk }, plans: { [wk]: { days: pw(t, { diet: 'omnivore' }, wk) } }, mealLog: {}, weights: [], habits: { active: [], log: {} }, workouts: { log: {} }, steps: {}, checkins: [], reminders: { enabled: false } };
+  assert.equal(buildReminders(state, now).length, 0);
+  state.reminders = { enabled: true };
+  const sched = () => [{ kind: 'strength', variant: 'A', minutes: 30 }];
+  const list = buildReminders(state, now, { schedule: sched, days: 2 });
+  assert.ok(list.every((n) => n.at > now));
+  assert.ok(!list.some((n) => n.at.getDate() === 23 && n.at.getHours() === 7), 'morning already past');
+  const lunch = list.find((n) => n.title.startsWith('Lunch') && n.at.getDate() === 23);
+  assert.ok(lunch && /Planned: /.test(lunch.body));
+  state.mealLog = { [wk]: { lunch: { status: 'ate' } } };
+  state.workouts.log = { [wk]: [{ kind: 'strength', minutes: 30 }] };
+  const after = buildReminders(state, now, { schedule: sched, days: 1 });
+  assert.ok(!after.some((n) => n.title.startsWith('Lunch')), 'logged lunch skipped');
+  assert.ok(!after.some((n) => n.title === 'Strength time'), 'done session skipped');
+  assert.equal(new Set(list.map((n) => n.id)).size, list.length, 'ids unique');
+});
+
+test('schedule: never strength and app cardio on the same day; activities reduce planned work', async () => {
+  const days = [0, 1, 2, 3, 4, 5, 6];
+  const subsets = [];
+  for (let mask = 1; mask < 128; mask++) subsets.push(days.filter((d) => mask & (1 << d)));
+  for (const avail of subsets) for (const w of [0, 3]) {
+    const p = { equipment: [], limitations: [], daysAvailable: avail, sessionMinutes: 30, baselineCardioMin: 90, cardioPrefs: ['walk', 'cycle'], phase: 'lose' };
+    const { schedule } = weekSchedule(p, initialProgress(p), w);
+    for (const d of schedule) {
+      const kinds = d.items.map((i) => i.kind);
+      assert.ok(!(kinds.includes('strength') && kinds.includes('cardio')), `${avail} week ${w}: ${d.name} has ${kinds}`);
+    }
+  }
+  const base = { equipment: [], limitations: [], daysAvailable: [0, 2, 4, 5], sessionMinutes: 30, baselineCardioMin: 120, cardioPrefs: ['walk'], phase: 'lose' };
+  const without = weekSchedule(base, initialProgress(base), 3);
+  const acts = [{ id: 'w', name: 'Walk with friends', days: [5], minutes: 60, intensity: 'moderate' }, { id: 'c', name: 'Climbing', days: [2], minutes: 60, intensity: 'vigorous', strength: true }];
+  const withActs = weekSchedule({ ...base, activities: acts }, initialProgress(base), 3);
+  const sum = (s, k) => s.schedule.flatMap((d) => d.items).filter((i) => i.kind === k).reduce((a, i) => a + (k === 'strength' ? 1 : i.minutes), 0);
+  assert.equal(withActs.activityMin, 180);
+  assert.ok(sum(withActs, 'cardio') < sum(without, 'cardio'));
+  assert.equal(sum(withActs, 'strength'), sum(without, 'strength') - 1);
+  for (const d of withActs.schedule) if (d.items.some((i) => i.kind === 'activity')) assert.ok(!d.items.some((i) => i.kind === 'strength' || i.kind === 'cardio'), `${d.name} doubled up`);
+});
+
+test('rewards: a skipped meal earns less than eating and never unlocks First Bite', async () => {
+  const { summary, XP } = await import('../js/engine/game.js');
+  const { planWeek: pw } = await import('../js/engine/meals.js');
+  const wk = '2026-11-23';
+  const base = { profile: { ...woman, startDate: wk, startWeightKg: 105 }, plans: { [wk]: { days: pw(dailyTargets(woman), { diet: 'omnivore' }, wk) } }, weights: [], habits: { active: [], log: {}, retired: [] }, workouts: { log: {}, progress: {} }, steps: {}, checkins: [], game: { badges: {} } };
+  const skipped = summary({ ...base, mealLog: { [wk]: { breakfast: { status: 'skip' } } }, game: { badges: { first_log: wk } } }, wk);
+  assert.ok(!skipped.badges.includes('first_log'), 'skip must not keep First Bite');
+  assert.equal(skipped.byDay[wk].awards.find((a) => a.kind === 'mealSkip').xp, XP.mealSkip);
+  assert.ok(!skipped.byDay[wk].awards.some((a) => a.lucky));
+  const ate = summary({ ...base, mealLog: { [wk]: { breakfast: { status: 'ate' } } } }, wk);
+  assert.ok(ate.badges.includes('first_log'));
+  assert.ok(XP.mealSkip < XP.meal);
+});
+
+test('small wins: every level earns XP and keeps the streak; full earns most', async () => {
+  const { summary } = await import('../js/engine/game.js');
+  const { habitLevels, levelIndex, levelValue } = await import('../js/engine/habits.js');
+  const levels = habitLevels('water_meals');
+  assert.equal(levels.length, 3);
+  assert.ok(levels[0].xp < levels[1].xp && levels[1].xp < levels[2].xp);
+  assert.equal(levelIndex('water_meals', true), 2);
+  assert.equal(levelIndex('water_meals', levelValue('water_meals', 0)), 0);
+  assert.equal(habitLevels('kitchen_closed').length, 2);
+  const wk = '2026-11-23';
+  const st = (val) => ({ profile: { ...woman, startDate: '2026-11-16', startWeightKg: 105 }, plans: {}, weights: [], mealLog: {}, workouts: { log: {}, progress: {} }, steps: {}, checkins: [], game: { badges: {} },
+    habits: { active: [{ id: 'water_meals', cue: 'x', started: '2026-11-16' }], retired: [], log: Object.fromEntries(['2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22', wk].map((d) => [d, { water_meals: val }])) } });
+  const small = summary(st(1), wk);
+  const full = summary(st(true), wk);
+  const award = (g) => g.byDay[wk].awards.find((a) => a.kind === 'habitSmall' || a.kind === 'habit');
+  assert.equal(award(small).kind, 'habitSmall');
+  assert.equal(award(small).xp, 6);
+  assert.equal(award(full).xp, 15);
+  assert.ok(small.badges.includes('small_wins_5'), 'five small wins → Small Steps badge');
+  assert.ok(small.quests.find((q) => q.id === 'habits').done, 'a small win completes the habit quest');
+  const { streak } = await import('../js/engine/habits.js');
+  assert.equal(streak(st(1).habits.log, 'water_meals', wk), 5);
+});
+
+test('day timeline: snacks sit between meals, last meal ≥2 h before bed, late bedtimes work', async () => {
+  const { mealTimes, orderMeals, daySchedule, toHHMM } = await import('../js/engine/schedule.js');
+  const p = { schedule: { wake: '06:30', bed: '22:30', firstMeal: '07:00', lastMeal: '19:30' } };
+  const slots = ['breakfast', 'lunch', 'dinner', 'snack', 'snack2', 'snack3'];
+  const order = orderMeals(p, slots.map((slot) => ({ slot }))).map((m) => m.slot);
+  assert.deepEqual(order, ['breakfast', 'snack', 'lunch', 'snack2', 'snack3', 'dinner']);
+  const four = orderMeals(p, ['breakfast', 'lunch', 'dinner', 'snack'].map((slot) => ({ slot }))).map((m) => m.slot);
+  assert.deepEqual(four, ['breakfast', 'lunch', 'snack', 'dinner']);
+  const t = mealTimes(p, slots);
+  assert.equal(toHHMM(t.breakfast), '07:00');
+  assert.equal(toHHMM(t.dinner), '19:30');
+  // Asking for a last meal 1 h before bed is pulled back to 2 h.
+  const late = daySchedule({ schedule: { wake: '08:00', bed: '23:00', lastMeal: '22:00' } });
+  assert.equal(late.bed - late.last, 120);
+  // Bedtime after midnight.
+  const owl = daySchedule({ schedule: { wake: '09:00', bed: '01:00' } });
+  assert.equal(toHHMM(owl.last), '22:00');
+  assert.equal(owl.sleepMinutes, 480);
+});
+
+test('hobby catalogue: Compendium bands, unique names, estimates labelled, scheduling credit', async () => {
+  const { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } = await import('../js/data/hobbies.js');
+  assert.ok(HOBBIES.length >= 800, `only ${HOBBIES.length} activities`);
+  const names = HOBBIES.map((h) => h.name.toLowerCase());
+  assert.equal(new Set(names).size, names.length);
+  for (const h of HOBBIES) {
+    assert.ok(h.met >= 1.6 && h.met <= 25, h.name);
+    assert.ok(h.est ? typeof h.note === 'string' : /^\d{5}$/.test(h.code), `${h.name}: needs a Compendium code or an estimate note`);
+    assert.ok(h.minutes >= 10 && h.minutes <= 180, h.name);
+    assert.ok(HOBBY_CATEGORIES[h.cat], `${h.name}: unknown category ${h.cat}`);
+  }
+  for (const cat of Object.keys(HOBBY_CATEGORIES)) assert.ok(HOBBIES.filter((h) => h.cat === cat).length >= 10, cat);
+  const pop = HOBBIES.filter((h) => h.pop).length;
+  assert.ok(pop >= 12 && pop <= 40, `${pop} popular`);
+  assert.ok(HOBBIES.filter((h) => h.est).length <= 6, 'estimates should stay rare');
+  assert.equal(intensityFromMet(hobbyByName('Gardening').met), 'moderate');
+  assert.equal(intensityFromMet(hobbyByName('Scuba diving').met), 'vigorous');
+  assert.equal(intensityFromMet(hobbyByName('Squash').met), 'vigorous');
+  assert.equal(intensityFromMet(hobbyByName('Yoga').met), 'easy');
+  // A weekly squash game (vigorous, 45 min) counts as 90 cardio minutes.
+  const p = { equipment: [], limitations: [], daysAvailable: [0, 2, 4], sessionMinutes: 30, baselineCardioMin: 60, cardioPrefs: ['walk'], phase: 'lose',
+    activities: [{ id: 's', name: 'Squash', days: [3], minutes: 45, intensity: intensityFromMet(hobbyByName('Squash').met) }] };
+  assert.equal(weekSchedule(p, initialProgress(p), 2).activityMin, 90);
+});
+
+test('journey: healthy goal, multi-year timeline and stops along the way (182 cm, 185 kg)', async () => {
+  const { suggestedGoalKg, healthyRange, journey, timeline, fmtDuration, nextStops, recentTimeStop } = await import('../js/engine/journey.js');
+  assert.equal(suggestedGoalKg(182, 185), 82); // BMI 24.9 at 182 cm = 82.5 → rounded down to 82
+  assert.deepEqual(healthyRange(182), { lo: 61.5, hi: 82 });
+  assert.equal(suggestedGoalKg(182, 80), null); // already healthy
+  const profile = { sex: 'male', age: 35, heightCm: 182, weightKg: 185, activity: 'sedentary', pace: 'steady', phase: 'lose', startWeightKg: 185, startDate: '2026-01-05', goalWeightKg: null };
+  const tl = timeline(profile, 82);
+  assert.ok(tl.reached && tl.weeks > 150 && tl.weeks < 300, `steady: ${tl.weeks} weeks`);
+  assert.match(tl.text, /years/);
+  const brisk = timeline({ ...profile, pace: 'brisk' }, 82);
+  assert.ok(brisk.weeks < tl.weeks);
+  assert.equal(fmtDuration(1), '1 week');
+  assert.equal(fmtDuration(26), '6 months');
+  assert.equal(fmtDuration(233), '4 years 6 months');
+
+  const j = journey({ profile }, { today: '2026-01-05', trendKg: 185 });
+  assert.equal(j.goalKg, 82); // falls back to the suggested goal
+  const titles = j.stops.map((s) => s.title);
+  for (const t of ['One week in', 'One month', 'Six months', 'One year', '5% lighter', '10% lighter', 'BMI under 40', 'BMI under 35', 'BMI under 30', 'Healthy weight — your goal']) assert.ok(titles.includes(t), t);
+  assert.ok(titles.some((t) => /^Year \d/.test(t)), 'yearly stops on a multi-year road');
+  const dates = j.stops.map((s) => s.date);
+  assert.deepEqual(dates, [...dates].sort(), 'stops in date order');
+  assert.equal(j.stops.filter((s) => s.next).length, 1);
+  assert.equal(j.stops[0].title, 'One week in');
+  assert.equal(j.stops.at(-1).kind, 'goal');
+  assert.ok(j.stops.every((s) => s.text && s.text.length > 20));
+
+  // Five months later, 15 kg down: early stops reached, dates re-projected from today.
+  const later = journey({ profile }, { today: '2026-06-05', trendKg: 170 });
+  assert.ok(later.stops.find((s) => s.title === '5% lighter').reached);
+  assert.ok(later.stops.find((s) => s.title === 'One month').reached);
+  assert.ok(!later.stops.find((s) => s.title === '10% lighter').reached);
+  assert.equal(nextStops(later).weight.title, '10% lighter');
+  assert.equal(nextStops(later).time.title, 'Six months');
+  assert.equal(recentTimeStop(journey({ profile }, { today: '2026-01-13', trendKg: 183 }), '2026-01-13').title, 'One week in');
+  assert.equal(recentTimeStop(later, '2026-06-05'), null);
+});
+
+test('body wrap: organ rings from logged behaviour, knee maths, XP and medals', async () => {
+  const { weekBody, ORGANS, KNEE_FACTOR, bodyCollection, lastWeekStart } = await import('../js/engine/body.js');
+  const { addDays, weekStart, isoDate } = await import('../js/engine/util.js');
+  const { demoState } = await import('../js/demo.js');
+  const { summary, dayAwards, XP } = await import('../js/engine/game.js');
+  const { buildReminders } = await import('../js/engine/reminders.js');
+  const s = demoState();
+  const today = isoDate();
+  const ws = lastWeekStart(s, today);
+  assert.ok(ws);
+  const w = weekBody(s, ws);
+  assert.equal(w.organs.length, ORGANS.length);
+  for (const o of w.organs) {
+    assert.ok(o.pct >= 0 && Number.isFinite(o.pct), o.id);
+    assert.ok(o.head && o.big && o.sub && o.fact && o.src, o.id);
+  }
+  assert.ok(w.earned.length >= 3, `demo week earns thanks: ${w.earned.map((o) => o.id)}`);
+  // Knee maths: kg lost × 4 × steps
+  const st = w.stats;
+  if (st.lostKg > 0 && st.steps) assert.ok(Math.abs(st.kneeTonnes - (st.lostKg * KNEE_FACTOR * st.steps) / 1000) < 1e-9);
+
+  // A blank week: no thanks, nudge present, nothing NaN.
+  const blank = { ...s, workouts: { ...s.workouts, log: {} }, steps: {}, mealLog: {}, habits: { ...s.habits, log: {} }, weights: [] };
+  const b = weekBody(blank, ws);
+  assert.equal(b.earned.length, 0);
+  assert.ok(b.nudge);
+  // Heart ring is exactly active minutes / 150
+  const one = structuredClone(blank);
+  one.workouts.log[ws] = [{ kind: 'cardio', minutes: 75 }];
+  one.workouts.log[addDays(ws, 2)] = [{ kind: 'activity', name: 'Squash', intensity: 'vigorous', minutes: 45 }];
+  const h = weekBody(one, ws).organs.find((o) => o.id === 'heart');
+  assert.equal(h.pct, (75 + 90) / 150);
+  assert.ok(h.closed && h.earned);
+  assert.equal(weekBody(one, ws).stats.strength, 0); // squash is cardio, not strength
+  one.workouts.log[addDays(ws, 4)] = [{ kind: 'activity', name: 'Climbing / bouldering', intensity: 'vigorous', minutes: 60 }];
+  assert.equal(weekBody(one, ws).stats.strength, 1); // bouldering counts as strength-type from the catalogue
+
+  // Habits-only: no weight numbers in the knees card
+  const ho = weekBody(s, ws, { habitsOnly: true });
+  assert.equal(ho.stats.lostKg, 0);
+
+  // XP and badges: opening the wrap is worth XP once, on the day it was opened
+  const opened = { ...s, wraps: { [ws]: today } };
+  assert.ok(dayAwards(opened, today).some((a) => a.kind === 'wrap' && a.xp === XP.wrap));
+  const g = summary(opened, today);
+  assert.ok(g.badges.includes('wrap_1'));
+  assert.ok(g.stats.body.weeks >= 9);
+  assert.ok(Object.values(bodyCollection(s, today).counts).some((n) => n > 0));
+
+  // Monday reminder when last week's wrap is waiting; none once opened
+  const monday = weekStart(addDays(today, 7));
+  const sR = { ...s, reminders: { ...s.reminders, enabled: true, checkin: true } };
+  const rs = buildReminders(sR, new Date(addDays(monday, -1) + 'T12:00'));
+  const wrapR = rs.find((r) => r.route === `#/wrap/${addDays(monday, -7)}`);
+  assert.ok(wrapR, 'Monday wrap reminder');
+  assert.match(wrapR.title, /Body Wrap/);
+});
+
+test('alarms: specs from settings and day schedule; morning messages from values', async () => {
+  const { alarmSpecs, alarmTimes, alarmsOf } = await import('../js/engine/alarms.js');
+  const { morningMessages, messageForDay, MESSAGE_SETS } = await import('../js/data/affirmations.js');
+  const { sanitize, emptyState } = await import('../js/store.js');
+  const { dayAwards, XP } = await import('../js/engine/game.js');
+  const base = { profile: { schedule: { wake: '06:30', bed: '22:30' } }, prefs: { mealsPerDay: 4 } };
+  assert.deepEqual(alarmSpecs(base), []); // all off by default
+  const s = { ...base, alarms: { wake: { on: true, time: '06:45', days: [0, 1, 2, 3, 4] }, wind: { on: true, before: 60 }, bed: { on: true }, meals: { on: true } } };
+  const specs = alarmSpecs(s);
+  const by = Object.fromEntries(specs.map((x) => [x.id, x]));
+  assert.equal(by.wake.hour, 6);
+  assert.equal(by.wake.minute, 45);
+  assert.deepEqual(by.wake.days, [0, 1, 2, 3, 4]);
+  assert.equal(by.wake.style, 'ring');
+  assert.equal(by.wake.route, '#/wake');
+  assert.equal(`${by.wind.hour}:${by.wind.minute}`, '21:30'); // 60 min before 22:30
+  assert.equal(`${by.bed.hour}:${by.bed.minute}`, '22:30');
+  assert.equal(by.wind.style, 'gentle');
+  assert.ok(by.meal_breakfast && by.meal_lunch && by.meal_dinner && !by.meal_snack2);
+  assert.ok(by.meal_breakfast.hour * 60 + by.meal_breakfast.minute < by.meal_dinner.hour * 60 + by.meal_dinner.minute);
+  assert.match(by.wind.body, /22:30/);
+  // Wake time falls back to the day schedule
+  assert.equal(alarmTimes({ ...base, alarms: { wake: { on: true } } }).wake, 6 * 60 + 30);
+  assert.equal(alarmsOf({}).snooze, 9);
+
+  // Messages: values and why are woven in; no unreplaced placeholders; custom + favourites included
+  const msgs = morningMessages({ values: ['family', 'energy'], why: 'To have energy to play with my kids.', custom: ['You’ve got this.'], favs: ['You deserve a healthy life.'] });
+  assert.ok(msgs.length >= 20);
+  assert.ok(msgs.every((m) => !/[{}]/.test(m)), 'no placeholders left');
+  assert.ok(msgs.some((m) => /You care about the people you love/.test(m)));
+  // Your own values: turned round to speak to you, mixed with presets, no placeholders left
+  const { valueInfo } = await import('../js/data/affirmations.js');
+  assert.deepEqual(valueInfo('My kids'), { label: 'My kids', phrase: 'your kids', custom: true });
+  assert.equal(valueInfo('being there for my mum').phrase, 'being there for your mum');
+  assert.equal(valueInfo('NYC marathon').phrase, 'NYC marathon');
+  assert.equal(valueInfo('family').label, 'Family');
+  assert.equal(valueInfo('  '), null);
+  const own = morningMessages({ values: ['My kids', 'painting', 'family'], sets: ['values'] });
+  assert.ok(own.some((m) => m.startsWith('You care about your kids.')));
+  assert.ok(own.some((m) => /for painting\./.test(m)));
+  assert.ok(own.some((m) => /the people you love/i.test(m)));
+  assert.ok(own.every((m) => !/[{}]/.test(m)));
+  assert.ok(msgs.some((m) => /to have energy to play with my kids/.test(m)));
+  assert.ok(msgs.includes('You look beautiful today.'));
+  assert.ok(msgs.filter((m) => m === 'You’ve got this.').length >= 3, 'own words come up more often');
+  // Without a why, future lines that need it are skipped; without compliments, none appear
+  const plain = morningMessages({ sets: ['future', 'worth'] });
+  assert.ok(plain.every((m) => !/\{|undefined/.test(m)));
+  assert.ok(!morningMessages({ sets: ['worth', 'compassion'] }).some((m) => MESSAGE_SETS.compliments.lines.includes(m)));
+  // Same message all day, a different one tomorrow (matches the native epoch-day rotation)
+  const d1 = new Date('2026-11-25T06:00:00Z');
+  assert.equal(messageForDay(msgs, d1), msgs[Math.floor(d1.getTime() / 86400000) % msgs.length]);
+  assert.notEqual(messageForDay(msgs, d1), messageForDay(msgs, new Date(d1.getTime() + 86400000)));
+
+  // Store sanitising
+  const dirty = { ...emptyState(), alarms: { wake: { on: 1, time: '7am', days: [9, 1, 1, 0] }, wind: { before: 999 }, snooze: 99 }, affirm: { values: ['a', 'b', 'c', 'd'], why: 5, custom: ['x', 3, ''] }, wakes: { '2026-11-25': '06:31', bad: '1' } };
+  const clean = sanitize(dirty);
+  assert.equal(clean.alarms.wake.on, true);
+  assert.equal(clean.alarms.wake.time, null);
+  assert.deepEqual(clean.alarms.wake.days, [0, 1]);
+  assert.equal(clean.alarms.wind.before, 120);
+  assert.equal(clean.alarms.snooze, 30);
+  assert.equal(clean.affirm.values.length, 3);
+  assert.equal(clean.affirm.why, '');
+  assert.deepEqual(clean.affirm.custom, ['x']);
+  assert.deepEqual(Object.keys(clean.wakes), ['2026-11-25']);
+
+  // Morning intention earns XP once that day
+  const w = { ...emptyState(), profile: { startDate: '2026-11-01' }, wakes: { '2026-11-25': '06:31' } };
+  assert.ok(dayAwards(w, '2026-11-25').some((a) => a.kind === 'wake' && a.xp === XP.wake));
+});
+
+test('body levels: consistency over weeks, capped weekly points, streak bonus', async () => {
+  const { weekPoints, bodyLevelOf, bodyLevelStart, bodyLevelTitle, bodyCollection, ORGAN_GUIDE, ORGANS, weekBody } = await import('../js/engine/body.js');
+  const { demoState } = await import('../js/demo.js');
+  const { isoDate, weekStart } = await import('../js/engine/util.js');
+  assert.deepEqual(weekPoints(2.5, 0), { base: 100, bonus: 0, total: 100 }); // capped: one huge week ≠ many steady ones
+  assert.deepEqual(weekPoints(0.6, 3), { base: 60, bonus: 30, total: 90 });
+  assert.equal(weekPoints(0.4, 9).bonus, 0); // below half-full: no streak bonus
+  assert.equal(weekPoints(1, 12).bonus, 50); // bonus capped
+  assert.equal(bodyLevelOf(0), 1);
+  assert.equal(bodyLevelOf(99), 1);
+  assert.equal(bodyLevelOf(100), 2);
+  assert.equal(bodyLevelOf(1000), 5);
+  assert.equal(bodyLevelStart(4), 600);
+  assert.equal(bodyLevelTitle(5), 'Strong');
+  assert.match(bodyLevelTitle(12), /Legendary/);
+  const s = demoState();
+  const today = isoDate();
+  const c = bodyCollection(s, today);
+  for (const o of ORGANS) {
+    const lv = c.levels[o.id];
+    assert.ok(lv.level >= 2, `${o.id} levelled up over 10 demo weeks`);
+    assert.ok(lv.into >= 0 && lv.into < lv.need);
+    assert.ok(lv.history.length >= 2 && lv.history.length <= 12);
+    assert.equal(lv.history.at(-1).ws, weekStart(today)); // this week included, so the meter moves daily
+    // Every body part explains what it needs, with rows that read this week's stats
+    const g = ORGAN_GUIDE[o.id];
+    assert.ok(g.needs && g.tips.length && g.actions.length);
+    for (const [label, value, target] of g.rows(weekBody(s, weekStart(today), { asOf: today }).stats)) assert.ok(label && Number.isFinite(value) && target > 0, `${o.id} ${label}`);
+  }
+  // No activity → no points; the same steady weeks beat one big week
+  const empty = { profile: { startDate: today } };
+  assert.equal(bodyCollection(empty, today).levels.heart.points, 0);
+});
+
+test('week start: user-chosen reset day; plans, history, wraps and reminders follow it', async () => {
+  const u = await import('../js/engine/util.js');
+  const { demoState } = await import('../js/demo.js');
+  const store = await import('../js/store.js');
+  const { mealsFor } = await import('../js/views/shared.js');
+  const { weekBody, lastWeekStart } = await import('../js/engine/body.js');
+  const { buildReminders } = await import('../js/engine/reminders.js');
+  try {
+    // 2026-11-25 is a Wednesday
+    assert.equal(u.weekStart('2026-11-25', 0), '2026-11-23'); // Monday start
+    assert.equal(u.weekStart('2026-11-25', 6), '2026-11-22'); // Sunday start
+    assert.equal(u.weekStart('2026-11-22', 6), '2026-11-22');
+    assert.equal(u.weekStart('2026-11-25', 2), '2026-11-25'); // Wednesday start
+    assert.equal(u.weekStart('2026-11-24', 2), '2026-11-18');
+    assert.deepEqual(u.weekOrder(6), [6, 0, 1, 2, 3, 4, 5]);
+    assert.equal(u.dateInWeek('2026-11-22', 6), '2026-11-22');
+    assert.equal(u.dateInWeek('2026-11-22', 0), '2026-11-23');
+    // Sanitising applies the setting; bad values fall back to Monday
+    store.sanitize({ ...store.emptyState(), prefs: { ...store.emptyState().prefs, weekStart: 9 } });
+    assert.equal(u.getWeekStart(), 6); // clamped to Sunday (0–6)
+    store.sanitize({ ...store.emptyState(), prefs: { ...store.emptyState().prefs, weekStart: 'x' } });
+    assert.equal(u.getWeekStart(), 0);
+
+    // Switching mid-week keeps what you already ate and the past days of the plan
+    u.setWeekStart(0);
+    let s = demoState();
+    const today = u.isoDate();
+    const before = Object.fromEntries(Array.from({ length: 7 }, (_, i) => u.addDays(today, -i)).map((d) => [d, mealsFor(s, d).map((m) => m.recipeId).join()]));
+    s.prefs.weekStart = 6;
+    u.setWeekStart(6);
+    s = store.ensurePlan(s, today).state;
+    assert.ok(s.plans[u.weekStart(today)], 'plan exists under the new week key');
+    for (let i = 1; i < 7; i++) {
+      const d = u.addDays(today, -i);
+      if (d < u.weekStart(today)) continue;
+      assert.equal(mealsFor(s, d).map((m) => m.recipeId).join(), before[d], `past day ${d} unchanged`);
+    }
+    for (const slot of Object.keys(s.mealLog[today] || {})) assert.ok(mealsFor(s, today).some((m) => m.slot === slot), 'today’s logged meals kept');
+
+    // Body week and the wrap follow the new boundary
+    const ws = u.weekStart(today);
+    assert.equal(u.weekdayOf(ws), 6);
+    assert.equal(weekBody(s, ws, { asOf: today }).ws, ws);
+    assert.equal(u.weekdayOf(lastWeekStart(s, today)), 6);
+    // The "Body Wrap is ready" notification fires on the first day of the user's week
+    const sR = { ...s, reminders: { ...s.reminders, enabled: true, checkin: true } };
+    const wraps = buildReminders(sR, new Date(today + 'T00:05')).filter((r) => r.route.startsWith('#/wrap/'));
+    assert.ok(wraps.length >= 1, 'a wrap reminder is scheduled');
+    for (const r of wraps) assert.equal(r.at.getDay(), 0, 'wrap reminder on Sunday');
+  } finally {
+    u.setWeekStart(0);
+  }
+});
+
+test('alarm sounds: melody specs are valid, reach the native spec, and survive sanitising', async () => {
+  const { MELODIES, DEFAULT_SOUND, nativeSound, soundLabel, melodiesFor } = await import('../js/data/melodies.js');
+  const { alarmSpecs } = await import('../js/engine/alarms.js');
+  const { sanitize, emptyState } = await import('../js/store.js');
+  assert.ok(Object.keys(MELODIES).length >= 6);
+  for (const [id, m] of Object.entries(MELODIES)) {
+    assert.ok(m.name && m.hint, id);
+    assert.ok(m.beat > 0.03 && m.beat < 2 && m.decay >= 0 && m.attack > 0 && m.rest >= 0, id);
+    assert.ok(m.partials.every(([mult, amp]) => mult > 0 && amp > 0), id);
+    assert.ok(m.notes.some(([f]) => f > 0), id);
+    for (const [f, beats, to] of m.notes) assert.ok(f >= 0 && f < 6000 && beats > 0 && (to == null || (to > 0 && to < 6000)), `${id} note`);
+    const pattern = m.notes.reduce((t, [, b]) => t + b * m.beat, 0) + m.rest;
+    assert.ok(pattern > 0.8 && pattern < 8, `${id} pattern length ${pattern.toFixed(2)} s`);
+  }
+  for (const k of Object.keys(DEFAULT_SOUND)) assert.ok(MELODIES[DEFAULT_SOUND[k]], k);
+  assert.equal(melodiesFor('bed')[0][1].moods.includes('bed'), true); // night sounds listed first at night
+  assert.deepEqual(nativeSound('device'), { sound: 'device' });
+  assert.deepEqual(nativeSound('uri:content://media/internal/audio/media/12|Cesium'), { sound: 'uri', uri: 'content://media/internal/audio/media/12' });
+  assert.equal(soundLabel('uri:content://media/internal/audio/media/12|Cesium'), 'Cesium');
+  assert.equal(nativeSound('nope').melody.notes.length, MELODIES.sunrise.notes.length); // unknown → Sunrise
+  // Each alarm carries its sound; defaults per kind
+  const specs = alarmSpecs({ profile: { schedule: {} }, prefs: {}, alarms: { wake: { on: true, sound: 'birdsong' }, wind: { on: true }, meals: { on: true, sound: 'device' } } });
+  const by = Object.fromEntries(specs.map((s) => [s.id, s]));
+  assert.equal(by.wake.sound, 'melody');
+  assert.deepEqual(by.wake.melody.notes, MELODIES.birdsong.notes);
+  assert.deepEqual(by.wind.melody.notes, MELODIES.ocean.notes);
+  assert.equal(by.meal_lunch.sound, 'device');
+  // Sanitising keeps valid sounds and drops junk
+  const clean = sanitize({ ...emptyState(), alarms: { wake: { sound: 'birdsong' }, wind: { sound: 'uri:content://media/x/1|My song' }, bed: { sound: 'javascript:alert(1)' }, meals: { sound: 42 } } });
+  assert.equal(clean.alarms.wake.sound, 'birdsong');
+  assert.equal(clean.alarms.wind.sound, 'uri:content://media/x/1|My song');
+  assert.equal(clean.alarms.bed.sound, undefined);
+  assert.equal(clean.alarms.meals.sound, undefined);
+});

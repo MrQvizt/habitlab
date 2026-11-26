@@ -91,3 +91,20 @@ test('rebuilding the plan keeps today’s logged and hand-picked meals', () => {
   assert.equal(after.find((m) => m.slot === 'breakfast').recipeId, breakfast);
   assert.equal(after.find((m) => m.slot === 'lunch').recipeId, lunch.recipeId);
 });
+
+test('import rejects empty, invalid, oversized and wrong-shaped files with friendly errors', async () => {
+  const { importJson, MAX_IMPORT_BYTES, exportJson, emptyState } = await import('../js/store.js');
+  assert.throws(() => importJson(''), /empty/);
+  assert.throws(() => importJson('not json {'), /valid JSON/);
+  assert.throws(() => importJson('[1,2,3]'), /doesn’t look like/);
+  assert.throws(() => importJson('null'), /doesn’t look like/);
+  assert.throws(() => importJson('{"hello":1}'), /doesn’t look like/);
+  assert.throws(() => importJson(' '.repeat(MAX_IMPORT_BYTES + 1) + '{}'), /too large/);
+  // Prototype keys in a backup don't pollute objects
+  const s = importJson(JSON.stringify({ state: { ...emptyState(), profile: null } }).replace('"profile"', '"__proto__":{"polluted":1},"profile"'));
+  assert.equal(({}).polluted, undefined);
+  assert.equal(s.profile, null);
+  // A real export round-trips
+  const back = importJson(exportJson(emptyState()));
+  assert.equal(back.version, emptyState().version);
+});
