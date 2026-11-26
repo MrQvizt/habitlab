@@ -21,7 +21,8 @@ const base = process.argv[2] || 'http://localhost:8771/';
   // ---- You: add an event, share it ----
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   let eventId = null;
-  await mock(ctx, { hl_publish: null, hl_signups: () => (eventId ? [{ event: eventId, name: 'Sam', at: new Date().toISOString() }] : []), hl_cheers: () => (eventId ? [{ id: 7, name: 'Maria', message: 'So proud of you!', at: new Date().toISOString() }] : []) });
+  let extraJoin = false;
+  await mock(ctx, { hl_publish: null, hl_signups: () => (eventId ? [{ event: eventId, name: 'Sam', at: new Date().toISOString() }, ...(extraJoin ? [{ event: eventId, name: 'James', at: new Date().toISOString() }] : [])] : []), hl_cheers: () => (eventId ? [{ id: 7, name: 'Maria', message: 'So proud of you!', at: new Date().toISOString() }] : []) });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   await page.goto(base);
@@ -109,6 +110,12 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await page.waitForTimeout(300);
   if (await page.locator('.cheer-card').count()) errors.push('cheer card did not go away');
   if ((await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).share.seen)) !== 7) errors.push('seen cheer not remembered');
+
+  // A new friend joins while the app is open → an in-app message (the phone also notifies in the background)
+  extraJoin = true;
+  await page.waitForTimeout(21000); // the app checks at most every 20 s
+  await page.goto(base + '#/calendar');
+  await page.waitForSelector('.toast.show >> text=James is joining you', { timeout: 8000 }).catch(() => errors.push('no in-app message when a friend joins'));
 
   // ---- Views: Day / 3 days / Week / Month / Schedule ----
   await page.goto(base + '#/calendar');

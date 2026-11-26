@@ -65,12 +65,35 @@ export async function sync(ctx) {
   if (!s?.id) return;
   try {
     await rpc('hl_publish', { p_id: s.id, p_key: s.key, p_name: s.name || '', p_events: publicEvents(ctx.state) });
+    watch(ctx.state); // keep notification titles up to date
   } catch (e) {
     ctx.toast('Couldn’t update your shared calendar — you may be offline. It updates next time.');
   }
 }
 
 /** Fetch who's joining (at most every 20 s). */
+let loadedOnce = false;
+
+/** "Walk with friends · Fri 27 Nov 07:30" for each shared event id (what notifications say). */
+function titlesFor(state) {
+  const out = {};
+  for (const e of publicEvents(state)) out[e.id] = `${e.title} · ${new Date(e.date + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}${e.time ? ` ${e.time}` : ''}`;
+  return out;
+}
+
+/** Tell the phone to watch for joins and cheers in the background (Android app), or stop. */
+export async function watch(state) {
+  const p = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.HabitAlarm : null;
+  if (!p?.setFriendsWatch) return;
+  const on = !!state.share?.id && state.reminders?.friendsOn !== false;
+  try {
+    await p.setFriendsWatch({ on, id: state.share?.id || null, key: state.share?.key || null, titles: on ? titlesFor(state) : {} });
+  } catch (e) {
+    /* older app build */
+  }
+}
+
+/** Fetch who's joining and cheers (at most every 20 s); say so when something new arrives. */
 export async function refresh(ctx, force = false) {
   const s = ctx.state.share;
   if (!s?.id || (!force && Date.now() - lastFetch < 20000)) return;
@@ -78,8 +101,19 @@ export async function refresh(ctx, force = false) {
   try {
     const [list, ch] = await Promise.all([rpc('hl_signups', { p_id: s.id, p_key: s.key }), rpc('hl_cheers', { p_id: s.id, p_key: s.key }).catch(() => cheers)]);
     const changed = (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(signups)) || (Array.isArray(ch) && JSON.stringify(ch) !== JSON.stringify(cheers));
+    if (loadedOnce && Array.isArray(list)) {
+      const had = new Set(signups.map((x) => `${x.event}|${x.name}`));
+      const titles = titlesFor(ctx.state);
+      const fresh = list.filter((x) => !had.has(`${x.event}|${x.name}`));
+      if (fresh.length) ctx.toast(fresh.length === 1 ? `🙌 ${fresh[0].name} is joining you — ${titles[fresh[0].event] || 'your activity'}` : `🙌 ${fresh.length} friends just joined your activities`);
+    }
+    if (loadedOnce && Array.isArray(ch) && ch.length && (!cheers.length || ch[0].id > cheers[0].id)) ctx.toast(`💌 ${ch[0].name} sent you a cheer: “${ch[0].message}”`);
     if (Array.isArray(list)) signups = list;
     if (Array.isArray(ch)) cheers = ch;
+    loadedOnce = true;
+    // Seen in the app: the phone won't notify about these again.
+    const p = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.HabitAlarm : null;
+    p?.friendsSeen?.({ signups, cheer: cheers[0]?.id || 0 }).catch(() => {});
     if (changed) ctx.rerender();
   } catch (e) {
     /* offline: keep what we have */
@@ -124,6 +158,7 @@ export const shareActions = {
       return st;
     }, { quiet: true });
     ctx.toast('Your link is ready — share it with friends.');
+    watch(ctx.state);
   },
   async shareCopy(el, ev, ctx) {
     try {
@@ -155,5 +190,6 @@ export const shareActions = {
       return st;
     }, { quiet: true });
     ctx.toast('Sharing stopped');
+    watch(ctx.state);
   },
 };

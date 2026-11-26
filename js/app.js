@@ -31,6 +31,7 @@ import { floatXp, confetti, chime, buzz, showCelebration, ringBanner } from './u
 import { newlyClosed, allClosed } from './views/dayrings.js';
 import { setViewDate } from './viewdate.js';
 import { reasonLine, addReason } from './data/affirmations.js';
+import * as share from './share.js';
 import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
 import { closeSheet } from './ui/sheet.js';
@@ -425,6 +426,9 @@ window.addEventListener('hashchange', navigate);
 window.addEventListener('scroll', () => document.querySelector('.topbar')?.classList.toggle('scrolled', window.scrollY > 4), { passive: true });
 renderRoute();
 scheduleSync();
+// Shared calendar: background notifications on the phone, and a quick in-app check every minute.
+share.watch(state);
+setInterval(() => document.visibilityState === 'visible' && state.share?.id && share.refresh(ctx), 60000);
 // Android app: recover from the native copy if the WebView's storage is empty or older.
 store.nativeRestoreCandidate(state).then((restored) => {
   if (!restored) return;

@@ -82,6 +82,21 @@ public class HabitAlarmPlugin extends Plugin {
         call.resolve(o);
     }
 
+    /** Friends on your shared calendar: watch for joins and cheers in the background (or stop). */
+    @PluginMethod
+    public void setFriendsWatch(PluginCall call) {
+        FriendsWatch.configure(getContext(), call.getString("id"), call.getString("key"), Boolean.TRUE.equals(call.getBoolean("on", false)), call.getObject("titles", new JSObject()));
+        call.resolve();
+    }
+
+    /** What the app already showed you, so it doesn't notify again. */
+    @PluginMethod
+    public void friendsSeen(PluginCall call) {
+        Double cheer = call.getDouble("cheer", 0.0);
+        FriendsWatch.markSeen(getContext(), call.getArray("signups", new JSArray()), cheer == null ? 0 : cheer.longValue());
+        call.resolve();
+    }
+
     @PluginMethod
     public void setAlarms(PluginCall call) {
         JSArray alarms = call.getArray("alarms", new JSArray());

@@ -4639,6 +4639,7 @@ const DEFAULT_REMINDERS = {
   checkinDay: 6, // 0 = Monday … 6 = Sunday
   checkinAt: '18:00',
   planOn: true, // plan tomorrow in the evening (only when the wind-down alarm isn't doing it)
+  friendsOn: true, // a notification when a friend joins your activity or sends a cheer (Android app)
 };
 
 const ENCOURAGEMENTS = [
@@ -8015,12 +8016,35 @@ async function sync(ctx) {
   if (!s?.id) return;
   try {
     await rpc('hl_publish', { p_id: s.id, p_key: s.key, p_name: s.name || '', p_events: publicEvents(ctx.state) });
+    watch(ctx.state); // keep notification titles up to date
   } catch (e) {
     ctx.toast('Couldn’t update your shared calendar — you may be offline. It updates next time.');
   }
 }
 
 /** Fetch who's joining (at most every 20 s). */
+let loadedOnce = false;
+
+/** "Walk with friends · Fri 27 Nov 07:30" for each shared event id (what notifications say). */
+function titlesFor(state) {
+  const out = {};
+  for (const e of publicEvents(state)) out[e.id] = `${e.title} · ${new Date(e.date + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}${e.time ? ` ${e.time}` : ''}`;
+  return out;
+}
+
+/** Tell the phone to watch for joins and cheers in the background (Android app), or stop. */
+async function watch(state) {
+  const p = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.HabitAlarm : null;
+  if (!p?.setFriendsWatch) return;
+  const on = !!state.share?.id && state.reminders?.friendsOn !== false;
+  try {
+    await p.setFriendsWatch({ on, id: state.share?.id || null, key: state.share?.key || null, titles: on ? titlesFor(state) : {} });
+  } catch (e) {
+    /* older app build */
+  }
+}
+
+/** Fetch who's joining and cheers (at most every 20 s); say so when something new arrives. */
 async function refresh(ctx, force = false) {
   const s = ctx.state.share;
   if (!s?.id || (!force && Date.now() - lastFetch < 20000)) return;
@@ -8028,8 +8052,19 @@ async function refresh(ctx, force = false) {
   try {
     const [list, ch] = await Promise.all([rpc('hl_signups', { p_id: s.id, p_key: s.key }), rpc('hl_cheers', { p_id: s.id, p_key: s.key }).catch(() => cheers)]);
     const changed = (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(signups)) || (Array.isArray(ch) && JSON.stringify(ch) !== JSON.stringify(cheers));
+    if (loadedOnce && Array.isArray(list)) {
+      const had = new Set(signups.map((x) => `${x.event}|${x.name}`));
+      const titles = titlesFor(ctx.state);
+      const fresh = list.filter((x) => !had.has(`${x.event}|${x.name}`));
+      if (fresh.length) ctx.toast(fresh.length === 1 ? `🙌 ${fresh[0].name} is joining you — ${titles[fresh[0].event] || 'your activity'}` : `🙌 ${fresh.length} friends just joined your activities`);
+    }
+    if (loadedOnce && Array.isArray(ch) && ch.length && (!cheers.length || ch[0].id > cheers[0].id)) ctx.toast(`💌 ${ch[0].name} sent you a cheer: “${ch[0].message}”`);
     if (Array.isArray(list)) signups = list;
     if (Array.isArray(ch)) cheers = ch;
+    loadedOnce = true;
+    // Seen in the app: the phone won't notify about these again.
+    const p = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.HabitAlarm : null;
+    p?.friendsSeen?.({ signups, cheer: cheers[0]?.id || 0 }).catch(() => {});
     if (changed) ctx.rerender();
   } catch (e) {
     /* offline: keep what we have */
@@ -8074,6 +8109,7 @@ const shareActions = {
       return st;
     }, { quiet: true });
     ctx.toast('Your link is ready — share it with friends.');
+    watch(ctx.state);
   },
   async shareCopy(el, ev, ctx) {
     try {
@@ -8105,10 +8141,11 @@ const shareActions = {
       return st;
     }, { quiet: true });
     ctx.toast('Sharing stopped');
+    watch(ctx.state);
   },
 };
 
-Object.assign(__m, { SUPABASE_URL, SHARE_BASE, rpc, shareLink, signupsFor, cheersList, newCheers, cheerCardHtml, publicEvents, sync, refresh, shareCardHtml, shareActions });
+Object.assign(__m, { SUPABASE_URL, SHARE_BASE, rpc, shareLink, signupsFor, cheersList, newCheers, cheerCardHtml, publicEvents, sync, watch, refresh, shareCardHtml, shareActions });
 },
 /* js/views/calendar.js */ 36: function (__m, __req) {
 // Activity calendar, Google/Outlook style: Day, 3 days, Week, Month and Schedule views of your
@@ -12407,6 +12444,7 @@ const { goalHint } = __req(23);
 const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(53);
 const { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(17);
 const store = __req(16);
+const share = __req(35);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
 const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
@@ -12457,6 +12495,7 @@ function remindersHtml(state) {
       ${row('encourage', 'encourageAt', 'Encouragement', 'A short tip or pep talk')}
       ${row('eveningOn', 'evening', 'Evening wrap-up', 'Only if quests are left')}
       ${row('planOn', null, 'Plan tomorrow', 'An hour before bed — unless your wind-down alarm already opens it')}
+      ${row('friendsOn', null, 'Friends joining & cheers', 'When someone joins your activity or sends a cheer (shared calendar, Android app)')}
       ${row('checkin', 'checkinAt', 'Weekly check-in', DAY_NAMES[Number(r.checkinDay)] + 's')}
     </ul></div>
     <label class="field"><span>Check-in day</span><select name="checkinDay">${DAY_NAMES.map((d, i) => `<option value="${i}" ${Number(r.checkinDay) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
@@ -12636,11 +12675,12 @@ __m.default = {
       ctx.update((st) => {
         const r = { ...st.reminders, enabled };
         for (const k of ['morning', 'breakfast', 'lunch', 'dinner', 'move', 'evening', 'encourageAt', 'checkinAt']) if (data[k]) r[k] = data[k];
-        for (const k of ['meals', 'encourage', 'checkin', 'morningOn', 'moveOn', 'eveningOn', 'planOn']) r[k] = !!data[k];
+        for (const k of ['meals', 'encourage', 'checkin', 'morningOn', 'moveOn', 'eveningOn', 'planOn', 'friendsOn']) r[k] = !!data[k];
         r.checkinDay = Number(data.checkinDay);
         st.reminders = r;
         return st;
       }, { quiet: true });
+      share.watch(ctx.state); // friends notifications on/off
       const res = await ctx.syncReminders();
       reminderStatus = enabled ? `On — ${res?.scheduled ?? 0} reminders scheduled${res?.platform === 'web' ? ' for while this page is open' : ' for the next 7 days'}.` : 'Reminders are off.';
       ctx.rerender();
@@ -13657,6 +13697,7 @@ const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(34
 const { newlyClosed, allClosed } = __req(32);
 const { setViewDate } = __req(24);
 const { reasonLine, addReason } = __req(51);
+const share = __req(35);
 const { BADGES } = __req(13);
 const notify = __req(54);
 const { closeSheet } = __req(25);
@@ -14051,6 +14092,9 @@ window.addEventListener('hashchange', navigate);
 window.addEventListener('scroll', () => document.querySelector('.topbar')?.classList.toggle('scrolled', window.scrollY > 4), { passive: true });
 renderRoute();
 scheduleSync();
+// Shared calendar: background notifications on the phone, and a quick in-app check every minute.
+share.watch(state);
+setInterval(() => document.visibilityState === 'visible' && state.share?.id && share.refresh(ctx), 60000);
 // Android app: recover from the native copy if the WebView's storage is empty or older.
 store.nativeRestoreCandidate(state).then((restored) => {
   if (!restored) return;

@@ -3,6 +3,7 @@ import { goalHint } from './onboarding.js';
 import { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } from './alarms.js';
 import { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } from '../ui/dom.js';
 import * as store from '../store.js';
+import * as share from '../share.js';
 import { ACTIVITY_LEVELS, PACES, weightAtBmi } from '../engine/calc.js';
 import { DIETS, ALLERGENS, FOODS } from '../data/foods.js';
 import { CARDIO } from '../data/exercises.js';
@@ -53,6 +54,7 @@ function remindersHtml(state) {
       ${row('encourage', 'encourageAt', 'Encouragement', 'A short tip or pep talk')}
       ${row('eveningOn', 'evening', 'Evening wrap-up', 'Only if quests are left')}
       ${row('planOn', null, 'Plan tomorrow', 'An hour before bed — unless your wind-down alarm already opens it')}
+      ${row('friendsOn', null, 'Friends joining & cheers', 'When someone joins your activity or sends a cheer (shared calendar, Android app)')}
       ${row('checkin', 'checkinAt', 'Weekly check-in', DAY_NAMES[Number(r.checkinDay)] + 's')}
     </ul></div>
     <label class="field"><span>Check-in day</span><select name="checkinDay">${DAY_NAMES.map((d, i) => `<option value="${i}" ${Number(r.checkinDay) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
@@ -232,11 +234,12 @@ export default {
       ctx.update((st) => {
         const r = { ...st.reminders, enabled };
         for (const k of ['morning', 'breakfast', 'lunch', 'dinner', 'move', 'evening', 'encourageAt', 'checkinAt']) if (data[k]) r[k] = data[k];
-        for (const k of ['meals', 'encourage', 'checkin', 'morningOn', 'moveOn', 'eveningOn', 'planOn']) r[k] = !!data[k];
+        for (const k of ['meals', 'encourage', 'checkin', 'morningOn', 'moveOn', 'eveningOn', 'planOn', 'friendsOn']) r[k] = !!data[k];
         r.checkinDay = Number(data.checkinDay);
         st.reminders = r;
         return st;
       }, { quiet: true });
+      share.watch(ctx.state); // friends notifications on/off
       const res = await ctx.syncReminders();
       reminderStatus = enabled ? `On — ${res?.scheduled ?? 0} reminders scheduled${res?.platform === 'web' ? ' for while this page is open' : ' for the next 7 days'}.` : 'Reminders are off.';
       ctx.rerender();
