@@ -27,6 +27,7 @@ export const DEFAULT_REMINDERS = {
   checkin: true, // weekly check-in reminder
   checkinDay: 6, // 0 = Monday … 6 = Sunday
   checkinAt: '18:00',
+  planOn: true, // plan tomorrow in the evening (only when the wind-down alarm isn't doing it)
 };
 
 export const ENCOURAGEMENTS = [
@@ -44,7 +45,7 @@ export const ENCOURAGEMENTS = [
   ['Veg first', 'Starting with vegetables fills you up on fewer calories.'],
 ];
 
-const DAY_SLOTS = ['morning', 'breakfast', 'lunch', 'move', 'encourage', 'dinner', 'evening', 'checkin', 'wrap'];
+const DAY_SLOTS = ['morning', 'breakfast', 'lunch', 'move', 'encourage', 'dinner', 'evening', 'checkin', 'wrap', 'plan'];
 
 /** Notification id: stable per (date, slot) so rescheduling replaces rather than duplicates. */
 export function reminderId(date, slot) {
@@ -150,6 +151,12 @@ export function buildReminders(state, now, ctx = {}) {
       } else {
         push(date, 'evening', r.evening, 'Wrap up your day', 'Tick off anything you haven’t logged — a perfect day is +25 XP.', '#/today');
       }
+    }
+
+    // Plan tomorrow: 15 min before wind-down time, unless the wind-down alarm already opens it.
+    if (r.planOn && !state.alarms?.wind?.on && !(isToday && state.flags?.planned === addDays(date, 1))) {
+      const d = daySchedule(state.profile);
+      push(date, 'plan', d.bed - 60, 'Plan tomorrow (2 minutes)', 'When and where will you move? Peek at tomorrow’s meals. Plans made the night before are far more likely to happen.', '#/plan');
     }
 
     // Weekly check-in

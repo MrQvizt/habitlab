@@ -567,7 +567,7 @@ test('alarms: specs from settings and day schedule; morning messages from values
   assert.ok(msgs.some((m) => /You care about the people you love/.test(m)));
   // Your own values: turned round to speak to you, mixed with presets, no placeholders left
   const { valueInfo } = await import('../js/data/affirmations.js');
-  assert.deepEqual(valueInfo('My kids'), { label: 'My kids', phrase: 'your kids', custom: true });
+  assert.deepEqual(valueInfo('My kids'), { label: 'My kids', phrase: 'your kids', custom: true, kind: 'value' });
   assert.equal(valueInfo('being there for my mum').phrase, 'being there for your mum');
   assert.equal(valueInfo('NYC marathon').phrase, 'NYC marathon');
   assert.equal(valueInfo('family').label, 'Family');
@@ -597,7 +597,8 @@ test('alarms: specs from settings and day schedule; morning messages from values
   assert.deepEqual(clean.alarms.wake.days, [0, 1]);
   assert.equal(clean.alarms.wind.before, 120);
   assert.equal(clean.alarms.snooze, 30);
-  assert.equal(clean.affirm.values.length, 3);
+  assert.equal(clean.affirm.values.length, 4); // no limit of 3 any more (cap 60)
+  assert.equal(sanitize({ ...emptyState(), affirm: { values: Array.from({ length: 80 }, (_, i) => 'R' + i) } }).affirm.values.length, 60);
   assert.equal(clean.affirm.why, '');
   assert.deepEqual(clean.affirm.custom, ['x']);
   assert.deepEqual(Object.keys(clean.wakes), ['2026-11-25']);
@@ -773,9 +774,91 @@ test('snooze starts at 5 minutes; the old 9-minute default moves to 5 once, a ch
 
 test('lock-screen morning hand-off is validated', async () => {
   const { parseWake } = await import('../js/alarm-native.js');
-  assert.deepEqual(parseWake('{"date":"2026-11-26","at":"06:52","value":"family","fav":true,"message":"Hi"}'), { date: '2026-11-26', at: '06:52', value: 'family', fav: true, message: 'Hi' });
+  assert.deepEqual(parseWake('{"date":"2026-11-26","at":"06:52","value":"family","fav":true,"message":"Hi"}'), { date: '2026-11-26', at: '06:52', values: ['family'], added: [], other: '', fav: true, message: 'Hi' });
+  assert.deepEqual(parseWake('{"date":"2026-11-26","at":"06:52","values":["family","me",5],"other":" my kids "}').values, ['family', 'me']);
+  assert.equal(parseWake('{"date":"2026-11-26","at":"06:52","values":[],"other":" my kids "}').other, 'my kids');
   assert.equal(parseWake('{"date":"<b>","at":"06:52"}'), null);
   assert.equal(parseWake('{"date":"2026-11-26","at":"99:99"}'), null);
   assert.equal(parseWake('not json'), null);
   assert.equal(parseWake('{"date":"2026-11-26","at":"07:00","fav":"yes"}').fav, false);
+});
+
+test('morning reasons: several values, me, and your own words', async () => {
+  const { reasonLine, valueInfo, morningMessages } = await import('../js/data/affirmations.js');
+  assert.equal(reasonLine(['me']), 'Good. You are reason enough.');
+  assert.equal(reasonLine([]), '');
+  assert.equal(reasonLine(['family']), 'Your reasons today: the people you love. Every good choice counts.');
+  assert.equal(reasonLine(['me', 'Freedom', 'Keep up with my kids'], 'my health check'), 'Your reasons today: you, freedom, keep up with your kids and your health check. Every good choice counts.');
+  // Casing: common words lower-case, names and acronyms keep theirs; long reasons are not cut
+  assert.equal(valueInfo('Freedom').phrase, 'freedom');
+  assert.equal(valueInfo('Emma').phrase, 'Emma');
+  assert.equal(valueInfo('NYC trip').phrase, 'NYC trip');
+  assert.equal(valueInfo('Go to the playground with my kids').phrase, 'go to the playground with your kids');
+  // One message per reason; action reasons are quoted, not forced into "You care about …"
+  const msgs = morningMessages({ values: ['Freedom', 'Lower my blood pressure'] });
+  assert.ok(msgs.some((m) => /freedom/.test(m)));
+  assert.ok(msgs.some((m) => /lower your blood pressure/i.test(m) && !/care about lower/i.test(m)));
+});
+
+test('reason library: 600 distinct single words in every theme, read naturally', async () => {
+  const { REASONS, REASON_CATS } = await import('../js/data/reasons.js');
+  const { valueInfo } = await import('../js/data/affirmations.js');
+  assert.ok(REASONS.length >= 600, String(REASONS.length));
+  assert.equal(new Set(REASONS.map((r) => r[1].toLowerCase())).size, REASONS.length);
+  for (const c of Object.keys(REASON_CATS)) assert.ok(REASONS.filter((r) => r[0] === c).length >= 30, c);
+  assert.ok(REASONS.every((r) => !/\s/.test(r[1]) && REASON_CATS[r[0]]), 'single words only');
+  assert.ok(!REASONS.some((r) => r[1].toLowerCase() === 'me'), '"Me" is its own chip');
+  assert.equal(valueInfo('Knees').phrase, 'your knees');
+  assert.equal(valueInfo('Kids').phrase, 'your kids');
+  assert.equal(valueInfo('Hiking').phrase, 'hiking');
+  assert.equal(valueInfo('Paris').phrase, 'Paris');
+});
+
+test('food database: search, sides, totals and labels', async () => {
+  const { FOOD_DB, SIDES, searchFoods, totalOf, describe } = await import('../js/data/fooddb.js');
+  assert.ok(FOOD_DB.length >= 150 && SIDES.length >= 30);
+  assert.equal(new Set([...FOOD_DB, ...SIDES].map((x) => x.id)).size, FOOD_DB.length + SIDES.length, 'unique ids');
+  assert.ok([...FOOD_DB, ...SIDES].every((x) => x.kcal >= 0 && x.kcal < 2500 && x.p >= 0 && x.p * 4 <= x.kcal + 20), 'plausible values');
+  assert.ok(searchFoods('sausage').some((x) => /Sausage/.test(x.name)));
+  assert.ok(searchFoods('curry chicken').some((x) => x.id === 'chicken_curry'), 'words in any order');
+  assert.deepEqual(searchFoods(''), []);
+  const items = [{ id: 'sausages_2', n: 1 }, { id: 'side_salad', n: 1 }, { id: 'fries_small', n: 0.5 }];
+  const t = totalOf(items);
+  assert.equal(t.kcal, 360 + 25 + 115);
+  assert.equal(describe(items), 'Sausages (2) + Side salad (no dressing) + 0.5× Fries (small)');
+});
+
+test('re-planning: moves put a planned item on another day; emptied days rest', async () => {
+  const { applyMoves, itemKey } = await import('../js/engine/workouts.js');
+  const week = [0, 1, 2, 3, 4, 5, 6].map((d) => ({ day: d, items: d === 0 ? [{ kind: 'strength', variant: 'A' }] : d === 2 ? [{ kind: 'activity', id: 'pad', name: 'Padel' }] : [{ kind: 'rest' }] }));
+  const out = applyMoves(week, [{ key: 'strength:A', from: 0, to: 1 }, { key: 'activity:pad', from: 2, to: 2 }]);
+  assert.equal(out[0].items[0].kind, 'rest');
+  assert.equal(itemKey(out[1].items[0]), 'strength:A');
+  assert.equal(out[1].items[0].from, 0);
+  assert.equal(itemKey(out[2].items[0]), 'activity:pad', 'a move to the same day changes nothing');
+  assert.equal(applyMoves(week, [{ key: 'cardio:walk', from: 3, to: 4 }])[4].items[0].kind, 'rest', 'unknown item ignored');
+  assert.equal(applyMoves(week, []), week);
+});
+
+test('evening planning: the wind-down alarm opens Plan tomorrow; else an evening reminder (until planned)', async () => {
+  const { alarmSpecs } = await import('../js/engine/alarms.js');
+  const { buildReminders } = await import('../js/engine/reminders.js');
+  const base = { profile: { startDate: '2026-11-01', schedule: { wake: '07:00', bed: '23:00' } }, prefs: { mealsPerDay: 4 } };
+  const wind = alarmSpecs({ ...base, alarms: { wind: { on: true } } }).find((a) => a.id === 'wind');
+  assert.equal(wind.route, '#/plan');
+  const now = new Date(2026, 10, 26, 12, 0);
+  const plans = (st) => buildReminders({ ...st, reminders: { enabled: true } }, now, { days: 2 }).filter((r) => r.route === '#/plan');
+  const off = plans(base);
+  assert.equal(off.length, 2);
+  assert.equal(off[0].at.getHours(), 22); // an hour before bed
+  assert.equal(plans({ ...base, alarms: { wind: { on: true } } }).length, 0, 'the wind-down alarm does it instead');
+  assert.equal(plans({ ...base, flags: { planned: '2026-11-27' } }).length, 1, 'tonight already planned');
+});
+
+test('food picker never pushes trigger foods, but every food stays searchable', async () => {
+  const { SHOWN_SIDES, SIDES, searchFoods } = await import('../js/data/fooddb.js');
+  const shown = SHOWN_SIDES.map((x) => x.name.toLowerCase()).join(' | ');
+  for (const w of ['fries', 'onion rings', 'mozzarella', 'soft drink', 'beer', 'wine', 'dessert', 'ice cream', 'mayonnaise', 'béarnaise']) assert.ok(!shown.includes(w), `${w} shown by default`);
+  for (const q of ['fries', 'beer', 'dessert', 'pizza', 'chocolate', 'crisps', 'wine', 'ice cream']) assert.ok(searchFoods(q).length, `${q} not searchable`);
+  assert.ok(SIDES.length > SHOWN_SIDES.length);
 });

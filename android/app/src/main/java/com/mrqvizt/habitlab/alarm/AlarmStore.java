@@ -98,6 +98,20 @@ public final class AlarmStore {
         }
     }
 
+    /** A reason typed on the lock screen: on your list straight away (the app adds it too when it opens). */
+    public static void addValue(Context c, String label, String phrase) {
+        JSONArray a = values(c);
+        for (int i = 0; i < a.length(); i++) {
+            JSONObject o = a.optJSONObject(i);
+            if (o != null && label.equalsIgnoreCase(o.optString("id"))) return;
+        }
+        try {
+            a.put(new JSONObject().put("id", label).put("label", label).put("phrase", phrase));
+        } catch (JSONException ignored) {
+        }
+        prefs(c).edit().putString("values", a.toString()).apply();
+    }
+
     public static boolean isFav(Context c, String message) {
         if (message == null) return false;
         try {
@@ -182,6 +196,23 @@ public final class AlarmStore {
 
     public static long snoozeAt(Context c) {
         return prefs(c).getLong("snooze_at", 0);
+    }
+
+    // ---------- auto-snooze chain: an unanswered alarm snoozes itself until an hour after it first rang ----------
+    public static long chainStart(Context c) {
+        return prefs(c).getLong("chain_start", 0);
+    }
+
+    /** A ring starts: an automatic re-ring continues the chain, anything else starts a new one. */
+    public static long beginRing(Context c, long now) {
+        boolean auto = prefs(c).getBoolean("auto_pending", false);
+        long start = auto && chainStart(c) > 0 ? chainStart(c) : now;
+        prefs(c).edit().putLong("chain_start", start).putBoolean("auto_pending", false).apply();
+        return start;
+    }
+
+    public static void setAutoPending(Context c, boolean auto) {
+        prefs(c).edit().putBoolean("auto_pending", auto).apply();
     }
 
     public static void clearSnooze(Context c) {

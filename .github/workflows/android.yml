@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # full history: the commit count is the Android versionCode
+          fetch-depth: 0  # full history (the commit time gives the Android versionCode)
       - uses: actions/setup-node@v4
         with:
           node-version: 22

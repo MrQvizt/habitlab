@@ -18,21 +18,28 @@ import journeyView from './views/journey.js';
 import wrapView from './views/wrap.js';
 import wakeView from './views/wake.js';
 import bodyView from './views/body.js';
+import calendarView from './views/calendar.js';
+import { calendarActions } from './views/calendar.js';
+import joinView from './views/join.js';
+import planView from './views/plan.js';
+import sosView from './views/sos.js';
+import { resetSos } from './views/sos.js';
 import { organActions } from './views/body.js';
 import { organById } from './engine/body.js';
 import * as alarmNative from './alarm-native.js';
 import { floatXp, confetti, chime, buzz, showCelebration, ringBanner } from './ui/celebrate.js';
 import { newlyClosed, allClosed } from './views/dayrings.js';
-import { valueInfo } from './data/affirmations.js';
+import { setViewDate } from './viewdate.js';
+import { reasonLine, addReason } from './data/affirmations.js';
 import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
 import { closeSheet } from './ui/sheet.js';
 import { sheetActions } from './views/sheets.js';
 import { daySummary, readDay } from './views/day.js';
 
-const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 // Screens without their own tab light up the tab they belong to.
-const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today' };
+const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today', calendar: 'move', plan: 'today', sos: 'today' };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -235,7 +242,7 @@ function xpChip() {
 let lastRoute = '';
 function renderRoute() {
   let { name, params } = parseRoute();
-  if (!state.profile && name !== 'start' && name !== 'learn') name = 'start';
+  if (!state.profile && name !== 'start' && name !== 'learn' && name !== 'join') name = 'start';
   if (state.profile && name === 'start') name = 'today';
   const view = VIEWS[name] || todayView;
   // Make sure derived data (this week's plan, workout progress) exists before rendering.
@@ -247,7 +254,7 @@ function renderRoute() {
       store.save(state);
     }
   }
-  const hasShell = !!state.profile;
+  const hasShell = !!state.profile && name !== 'join';
   document.querySelector('.sidebar').innerHTML = hasShell ? navHtml(name, 'side') : '';
   document.querySelector('.bottomnav').innerHTML = hasShell ? navHtml(name, 'bottom') : '';
   document.querySelector('.bottomnav').style.display = hasShell ? '' : 'none';
@@ -260,6 +267,7 @@ function renderRoute() {
   const saveBanner = saveFailing && hasShell
     ? `<div class="notice warn" role="alert">${icon('alert')}<div class="grow"><strong>Changes aren’t being saved.</strong> This device’s storage is full or blocked, so anything you log now will be lost when you close the app. <a href="#/settings/data">Export a backup</a>, then free up some space.</div></div>`
     : '';
+  if (name !== 'today') setViewDate(null); // past-day editing belongs to Today only
   main.innerHTML = top + saveBanner + view.render(state, params, ctx);
   view.after?.(main, ctx, params);
   const routeKey = `${name}/${params.join('/')}`;
@@ -272,7 +280,7 @@ function renderRoute() {
 
 function currentView() {
   const { name } = parseRoute();
-  return VIEWS[state.profile ? name : 'start'] || todayView;
+  return VIEWS[state.profile || name === 'join' ? name : 'start'] || todayView;
 }
 
 function dispatch(kind, el, ev) {
@@ -286,6 +294,7 @@ function dispatch(kind, el, ev) {
 
 const GLOBAL = {
   ...sheetActions,
+  ...calendarActions,
   ...organActions,
   theme(el) {
     const t = el.dataset.value;
@@ -383,6 +392,9 @@ alarmNative.listen((route) => ctx.go(route), (w) => {
   // "Start my day" on the lock screen: record the morning (once a day) and the message you liked.
   ctx.update((st) => {
     if (!st.wakes?.[w.date]) st.wakes = { ...(st.wakes || {}), [w.date]: w.at };
+    st.reasons = { date: w.date, values: w.values.slice(0, 20), other: w.other || '' };
+    // Reasons typed on the lock screen join your list, so they're a choice next time.
+    for (const r of w.added) st.affirm = addReason(st.affirm || {}, r);
     if (w.message) {
       const favs = new Set(st.affirm?.favs || []);
       if (w.fav) favs.add(w.message);
@@ -391,13 +403,14 @@ alarmNative.listen((route) => ctx.go(route), (w) => {
     }
     return st;
   }, { render: false });
-  const v = w.value === 'me' ? null : valueInfo(w.value);
-  ctx.toast(v ? `Good morning. Today you’re doing this for ${v.label.toLowerCase()}.` : 'Good morning. You are reason enough.');
+  ctx.toast(`Good morning. ${reasonLine(w.values, w.other) || 'Have a good day.'}`);
 });
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
 
 let transitioning = false;
-function navigate() {
+function navigate(ev) {
+  // Opening the craving SOS from anywhere else starts it from the beginning.
+  if (ev?.oldURL != null && !/#\/sos(\/|$)/.test(ev.oldURL) && /^#\/sos(\/|$)/.test(location.hash)) resetSos();
   closeSheet(true);
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   if (document.startViewTransition && !reduce && !transitioning) {

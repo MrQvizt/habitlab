@@ -82,6 +82,39 @@ const shots = process.argv[3] || null;
   await page.click('.sheet .quick-chips button:has-text("700")');
   await page.click('.sheet button:has-text("Save")');
   await page.waitForSelector('text=Something else · 700 kcal');
+  // Off-plan meal from the food database: sausages + a side salad, totals and protein tracked
+  await page.click('.tg-day button[data-action=openMeal] >> nth=1');
+  await page.waitForSelector('.sheet.open');
+  await page.click('.sheet button:has-text("Something else")');
+  // Nothing tempting is put in front of you: no treats or drinks shown until you search for them
+  const before = (await page.textContent('.sheet .food-picker')).toLowerCase();
+  for (const w of ['pizza', 'fries', 'beer', 'wine', 'dessert', 'soft drink', 'chocolate', 'crisps', 'sweets', 'cake', 'onion rings']) if (before.includes(w)) errors.push(`food picker shows "${w}" before searching`);
+  await page.fill('.sheet [data-food-search]', 'fries');
+  if (!(await page.locator('.sheet .food-hit:has-text("Fries (small)")').count())) errors.push('fries not findable by search');
+  await page.fill('.sheet [data-food-search]', 'sausages');
+  await page.click('.sheet .food-hit:has-text("Sausages (2)")');
+  await page.click('.sheet .side-chip:has-text("Side salad (no dressing)")');
+  await page.waitForSelector('.sheet .food-total');
+  if (!/385 kcal/.test(await page.textContent('.sheet .food-total'))) errors.push('picked total: ' + (await page.textContent('.sheet .food-total')));
+  if ((await page.inputValue('.sheet input[name=kcal]')) !== '385') errors.push('kcal not filled from picks');
+  await page.click('.sheet button:has-text("Save")');
+  await page.waitForSelector('text=Sausages (2) + Side salad (no dressing) · 385 kcal');
+  // Add an extra snack from the database
+  await page.click('button[data-action=openExtra] >> nth=0');
+  await page.fill('.sheet [data-food-search]', 'latte');
+  await page.click('.sheet .food-hit:has-text("Latte")');
+  await page.click('.sheet button:has-text("Add")');
+  await page.waitForSelector('.tg-day .k-extra:has-text("Latte")');
+  const fd = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')));
+  const tdy = Object.keys(fd.extras).sort().at(-1);
+  if (!(fd.extras[tdy].find((x) => x.label === 'Latte')?.p > 0)) errors.push('extra protein not stored');
+  // It's placed in the day's timeline at the time you had it, not hidden under "Any time"
+  const latte = fd.extras[tdy].find((x) => x.label === 'Latte');
+  if (!/^\d{2}:\d{2}$/.test(latte?.at || '')) errors.push('extra time not stored: ' + JSON.stringify(latte));
+  const order = await page.$$eval('.timeline-list > li', (els) => els.map((e) => e.className));
+  const iLatte = order.findIndex((c) => c.includes('k-extra'));
+  const iAny = (await page.$$eval('.timeline-list > li', (els) => els.map((e) => e.textContent))).findIndex((t) => t === 'Any time today');
+  if (iLatte < 0 || iAny < 0 || iLatte > iAny) errors.push('added food not in the timeline');
   // Escape closes a sheet
   await page.click('.tg-day button[data-action=openMeal] >> nth=2');
   await page.waitForSelector('.sheet.open');
@@ -101,12 +134,10 @@ const shots = process.argv[3] || null;
   await page.click('.tg-day .check.partial');
   await page.waitForTimeout(300);
   if (await page.locator('.tg-day .check.partial').count()) errors.push('check did not upgrade small win to full');
-  // Habit row + steps sheet
+  // Habit row; step tracking was removed — nothing on Today asks for steps
   await page.click('button[data-action=habitCheck] >> nth=0');
-  await page.click('button[data-action=openSteps]');
-  await page.fill('.sheet input[name=steps]', '5200');
-  await page.click('.sheet button:has-text("Save steps")');
-  await page.waitForSelector('text=5,200 steps');
+  if (await page.locator('[data-action=openSteps]').count()) errors.push('steps are still offered on Today');
+  if (/steps/i.test(await page.textContent('.tg-day'))) errors.push('Today still mentions steps');
 
   for (const route of ['meals', 'shopping', 'move', 'habits', 'progress', 'learn', 'settings', 'checkin']) {
     await page.goto(base + '#/' + route);
@@ -128,6 +159,7 @@ const shots = process.argv[3] || null;
   if (times.join() !== [...times].sort().join()) errors.push('meals not in time order: ' + times.join(', '));
   if (times[0] !== '06:30' || times[times.length - 1] !== '19:00') errors.push('timeline does not match the eating window: ' + times.join(', '));
 
+  let savedActId;
   // Regular activity: add one for today, see it planned, log it, check XP/quest credit
   const todayIdx = await page.evaluate(() => (new Date().getDay() + 6) % 7);
   const dayName = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][todayIdx];
@@ -154,10 +186,35 @@ const shots = process.argv[3] || null;
   await page.click('form[data-form=addActivity] button.primary');
   await page.waitForSelector('#activities >> text=Walking with friends');
   await page.goto(base + '#/today');
+  // Completing it asks how long and how hard
   await page.click('button[data-action=activityDone]');
-  await page.waitForSelector('text=Walking with friends logged');
+  await page.waitForSelector('.sheet form[data-form=activityDoneSave]');
+  await page.click('.sheet button[data-action=sheetQuickMin][data-v="45"]');
+  await page.click('.sheet .int-opt:has-text("Vigorous")');
+  await page.click('.sheet button:has-text("Save")');
+  await page.waitForSelector('text=Walking with friends logged — 45 min, vigorous');
+  const actLog = await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('habitlab.v1')).workouts.log).flat().find((x) => x.name === 'Walking with friends'));
+  if (actLog?.minutes !== 45 || actLog?.intensity !== 'vigorous') errors.push('activity time/intensity not saved: ' + JSON.stringify(actLog));
+  // Re-plan: move today's walk to another day from the week plan
+  await page.goto(base + '#/move');
+  await page.click(`.week button.pill[data-key="activity:${savedActId = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).profile.activities[0].id)}"]`);
+  await page.waitForSelector('.sheet .move-days');
+  const target = (todayIdx + 1) % 7;
+  await page.click(`.sheet .move-day[data-to="${target}"]`);
+  await page.waitForSelector(`text=Moved to`);
+  const moves = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).workouts.moves);
+  if (!Object.values(moves).flat().some((m) => m.to === target)) errors.push('move not saved: ' + JSON.stringify(moves));
+  await page.click(`.week button.pill.moved`);
+  await page.click('.sheet button[data-action=moveItemReset]');
+  await page.waitForSelector('text=Back on its planned day');
   await page.goto(base + '#/move');
   await page.selectOption('form[data-form=logCardio] select[name=mode]', 'other');
+  // Our own suggestions (not the phone's see-through autocomplete pop-up)
+  if (await page.locator('form[data-form=logCardio] input[list]').count()) errors.push('activity box still uses the native autocomplete list');
+  await page.type('form[data-form=logCardio] input[name=name]', 'pa');
+  await page.waitForSelector('.hobby-suggest button');
+  await page.click('.hobby-suggest button:has-text("Padel")');
+  if ((await page.inputValue('form[data-form=logCardio] input[name=name]')) !== 'Padel') errors.push('suggestion not filled in');
   await page.fill('form[data-form=logCardio] input[name=name]', 'Padel');
   await page.fill('form[data-form=logCardio] input[name=minutes]', '40');
   await page.click('form[data-form=logCardio] button.primary');

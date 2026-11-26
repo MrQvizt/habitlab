@@ -1,6 +1,7 @@
 // Movement: the week's schedule, strength session player with feedback, cardio logging.
 import { html, esc, icon, progressBar, fmtNum } from '../ui/dom.js';
 import * as store from '../store.js';
+import { logDate, validLogDate } from '../viewdate.js';
 import { progressChain, stepOf, stepGoal, REP_RANGE, INTENSITY, creditedMinutes } from '../engine/workouts.js';
 import { chips } from '../ui/dom.js';
 import { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } from '../data/hobbies.js';
@@ -8,6 +9,8 @@ import { CARDIO, WARMUP, COOLDOWN, CHAINS } from '../data/exercises.js';
 import { STOP_SIGNS } from '../engine/safety.js';
 import { addDays, weekStart, weekOrder, dateInWeek } from '../engine/util.js';
 import { dayIndex } from './shared.js';
+import { askActivity, itemName } from './planmove.js';
+import { itemKey } from '../engine/workouts.js';
 
 let ratings = {}; // chainKey -> rating, for the session in progress
 let showAddActivity = false;
@@ -40,7 +43,7 @@ function activitiesCard(state) {
     const tabs = [['pop', 'Popular', HOBBIES.filter((h) => h.pop).length], ['all', 'All', HOBBIES.length], ...Object.entries(HOBBY_CATEGORIES).map(([k, l]) => [k, l, HOBBIES.filter((h) => h.cat === k).length])];
     form = `<div class="card flat" style="margin-top:10px">
       <div class="row between" style="margin-bottom:8px"><strong>What do you do?</strong><button class="btn ghost small" data-action="toggleAddActivity">Cancel</button></div>
-      <input type="search" placeholder="Search all ${HOBBIES.length} — e.g. squash, gardening, scuba" data-filter="hobby" aria-label="Search activities" style="margin-bottom:10px">
+      <input type="search" autocomplete="off" placeholder="Search all ${HOBBIES.length} — e.g. squash, gardening, scuba" data-filter="hobby" aria-label="Search activities" style="margin-bottom:10px">
       <div class="scroll-x" style="margin-bottom:10px">${tabs.map(([k, l, n]) => `<button type="button" class="qchip ${pickCat === k ? 'done' : ''}" style="padding-left:12px" data-action="hobbyCat" data-value="${k}" aria-pressed="${pickCat === k}">${esc(l)} <span class="muted">${n}</span></button>`).join('')}</div>
       <div class="hobby-grid" data-filter-target="hobby">${HOBBIES.map((h) => `<button type="button" class="hobby-btn" data-action="pickHobby" data-name="${esc(h.name)}" data-filter-text="${esc(h.name.toLowerCase())} ${esc(HOBBY_CATEGORIES[h.cat].toLowerCase())}"${inCat(h) ? '' : ' data-out="1" hidden'}><span>${esc(h.name)}</span><small class="int-${intensityFromMet(h.met)}">${INTENSITY[intensityFromMet(h.met)].label}${h.strength ? ' · strength' : ''}</small></button>`).join('')}
         <button type="button" class="hobby-btn custom" data-action="pickHobby" data-name="" data-filter-text="something else other custom"><span>${icon('plus')} Something else</span><small>Type your own</small></button></div>
@@ -88,7 +91,6 @@ function overview(state) {
   const { schedule, cardioMin, activityMin, strengthFromActivities } = store.schedule(state, date);
   const done = weekMinutes(state, wk);
   const strengthPlanned = schedule.reduce((a, d) => a + d.items.filter((i) => i.kind === 'strength').length, 0);
-  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
   const ti = dayIndex(date);
   const grid = weekOrder().map((i) => {
     const d = schedule[i];
@@ -97,9 +99,9 @@ function overview(state) {
     const pills = d.items.map((it) => {
       const isDone = itemDone(logged, it);
       if (it.kind === 'rest') return '<span class="pill rest">rest</span>';
-      if (it.kind === 'activity') return `<span class="pill activity ${isDone ? 'done' : ''}" title="${esc(it.name)}, ${it.minutes} min">${esc(shortName(it.name))}</span>`;
-      if (it.kind === 'strength') return `<span class="pill strength ${isDone ? 'done' : ''}" title="Strength session ${it.variant}">Str ${it.variant}</span>`;
-      return `<span class="pill cardio ${isDone ? 'done' : ''}" title="${esc(CARDIO[it.mode].label)}">${it.minutes}′ ${esc(it.mode)}</span>`;
+      const text = it.kind === 'activity' ? esc(shortName(it.name)) : it.kind === 'strength' ? `Str ${it.variant}` : `${it.minutes}′ ${esc(it.mode)}`;
+      // Tap to move it to another day this week.
+      return `<button type="button" class="pill ${it.kind} ${isDone ? 'done' : ''} ${it.from != null ? 'moved' : ''}" data-action="openMoveItem" data-key="${esc(itemKey(it))}" data-from="${i}" data-date="${dd}" aria-label="Move ${esc(itemName(it))} (${d.name})">${text}</button>`;
     });
     return `<div class="d ${i === ti ? 'today' : ''}"><b>${d.name}</b>${pills.join('')}</div>`;
   });
@@ -107,6 +109,7 @@ function overview(state) {
   const prog = state.workouts.progress;
   return html`<header class="page-head"><div><div class="eyebrow">Week ${store.weeksSinceStart(state, date) + 1}</div><h1>Move</h1></div></header>
     <p class="muted" style="margin:-8px 0 14px">For health, mood and keeping weight off — not to earn food. Start low, go slow; the plan builds with you.</p>
+    <a class="card cal-link" href="#/calendar"><span class="cal-emoji big" aria-hidden="true">📅</span><span class="grow"><strong>Calendar</strong><small>Set when and where, add walks and batch cooking, invite friends</small></span>${icon('chevron')}</a>
     <div class="grid two">
       <div class="card"><h2>Today</h2>${today.items.map((it) => {
         if (it.kind === 'rest') return '<p class="muted">Rest day — gentle walking is still great.</p>';
@@ -120,16 +123,16 @@ function overview(state) {
       <div class="card"><h2>This week</h2>
         <div class="macro"><span>Cardio</span>${progressBar(done.cardio, cardioMin, { label: 'Cardio minutes' })}<span>${done.cardio}/${cardioMin} min</span></div>
         <div class="macro"><span>Strength</span>${progressBar(done.strength, strengthPlanned, { label: 'Strength sessions' })}<span>${done.strength}/${strengthPlanned}</span></div>
-        <p class="muted" style="font-size:.86rem;margin-top:8px">Target grows ~10% a week toward 150+ min.${activityMin ? ` Your regular activities cover about ${activityMin} min of it${strengthFromActivities ? ` and ${strengthFromActivities} strength session${strengthFromActivities > 1 ? 's' : ''}` : ''}.` : ''} Daily steps goal: ${fmtNum(goal)}.</p>
+        <p class="muted" style="font-size:.86rem;margin-top:8px">Target grows ~10% a week toward 150+ min.${activityMin ? ` Your regular activities cover about ${activityMin} min of it${strengthFromActivities ? ` and ${strengthFromActivities} strength session${strengthFromActivities > 1 ? 's' : ''}` : ''}.` : ''}</p>
       </div>
     </div>
     <div class="card"><h2>Week plan</h2><div class="week">${grid.join('')}</div>
-      <p class="muted" style="font-size:.84rem;margin:8px 0 0">One main thing per day: your own activities, a strength session or a cardio session.</p></div>
+      <p class="muted" style="font-size:.84rem;margin:8px 0 0">One main thing per day: your own activities, a strength session or a cardio session. <strong>Tap one to move it to another day.</strong></p></div>
     ${activitiesCard(state)}
     <div class="card"><div class="card-head"><h2>Log activity</h2></div>
       <form data-form="logCardio" class="row">
         <select name="mode" aria-label="Activity" style="flex:1;min-width:150px" data-change="logMode">${Object.entries(CARDIO).map(([k, c]) => `<option value="${k}">${esc(c.label)}</option>`).join('')}${(state.profile.activities || []).map((a) => `<option value="act:${esc(a.id)}" ${logOther === 'act:' + a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}<option value="other" ${logOther === 'other' ? 'selected' : ''}>Something else…</option></select>
-        ${logOther === 'other' ? `<input type="text" name="name" aria-label="What was it?" maxlength="80" required placeholder="What was it?" list="hobby-names" style="flex:1;min-width:150px"><datalist id="hobby-names">${HOBBIES.map((h) => `<option value="${esc(h.name)}"></option>`).join('')}</datalist><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
+        ${logOther === 'other' ? `<span class="suggest-wrap" style="flex:1;min-width:150px"><input type="text" name="name" aria-label="What was it?" maxlength="80" required placeholder="What was it?" autocomplete="off" data-hobby-suggest><span class="hobby-suggest" role="listbox" aria-label="Suggestions"></span></span><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
         <input type="number" name="minutes" aria-label="Minutes" min="1" max="300" placeholder="minutes" required style="width:110px" inputmode="numeric">
         <input type="date" name="date" aria-label="Date" value="${date}" max="${date}" style="width:160px">
         <button class="btn primary">Log</button>
@@ -209,7 +212,7 @@ export default {
     logCardio(form, ev, ctx, data) {
       const minutes = Number(data.minutes);
       if (!(minutes > 0)) return;
-      const date = /^\d{4}-\d{2}-\d{2}$/.test(data.date || '') && data.date <= store.today() ? data.date : store.today();
+      const date = validLogDate(data.date) ? data.date : logDate();
       let entry = { kind: 'cardio', mode: data.mode, minutes };
       if (data.mode === 'other') {
         const h = hobbyByName(data.name);
@@ -227,6 +230,12 @@ export default {
         return st;
       });
       ctx.toast(`${minutes} minutes logged.`);
+    },
+    pickSuggest(el) {
+      const input = el.closest('.suggest-wrap').querySelector('input');
+      input.value = el.dataset.v;
+      el.parentElement.innerHTML = '';
+      input.focus();
     },
     logMode(el, ev, ctx) {
       const v = el.value;
@@ -285,14 +294,17 @@ export default {
 };
 void REP_RANGE;
 
-/** Log today's planned regular activity (shared with the Today screen). */
+// Suggestions for "Something else…" — our own list instead of the phone's autocomplete pop-up,
+// which Android's in-app browser draws see-through.
+document.addEventListener('input', (ev) => {
+  if (!ev.target.matches?.('[data-hobby-suggest]')) return;
+  const box = ev.target.parentElement.querySelector('.hobby-suggest');
+  const q = ev.target.value.trim().toLowerCase();
+  const hits = q.length < 2 ? [] : HOBBIES.filter((h) => h.name.toLowerCase().includes(q)).sort((a, b) => Number(!a.name.toLowerCase().startsWith(q)) - Number(!b.name.toLowerCase().startsWith(q))).slice(0, 6);
+  box.innerHTML = hits.map((h) => `<button type="button" role="option" data-action="pickSuggest" data-v="${esc(h.name)}">${esc(h.name)}</button>`).join('');
+});
+
+/** A planned regular activity is done: ask how long and how hard (shared with the Today screen). */
 export function logPlannedActivity(ctx, id) {
-  const a = (ctx.state.profile.activities || []).find((x) => x.id === id);
-  if (!a) return;
-  const date = store.today();
-  ctx.update((st) => {
-    st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'activity', actId: a.id, name: a.name, intensity: a.intensity, minutes: a.minutes }];
-    return st;
-  });
-  ctx.toast(`${a.name} logged — nice!`);
+  askActivity(ctx, id);
 }

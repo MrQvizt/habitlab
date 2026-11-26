@@ -7,7 +7,9 @@ Habit Lab ships as two artefacts built from the same code:
 | **Web app** (`www/`: one HTML file + manifest + service worker) | `npm run build` | Vercel (preview per push; production from `main`) |
 | **Android app** (`habit-lab.apk`, Capacitor) | `npm run android:apk` | GitHub Actions artefact; "latest" GitHub release from `main` |
 
-There is no server and no database: every user's data lives on their own device.
+Everything you log lives on your own device. The one exception is **calendar sharing** (opt-in): the
+activities you mark "Open to friends" (what, when, where) and the names friends type when they join are stored
+in the Supabase project `habitlab` (eu-north-1). Schema and functions: `supabase/shared_calendars.sql`.
 
 ## Quality gates (all must pass)
 
@@ -36,8 +38,8 @@ script; a stale hash would make browsers block the app. **After any code change,
 ### Android
 1. Merge into `main` → CI builds and publishes `habit-lab.apk` to the `latest` GitHub release.
 2. Install by opening the APK on the phone. Updates install over the previous version and keep all data, because:
-   every build is signed with the same key (`android/app/debug-shared.keystore`), and `versionCode` is the git
-   commit count (always increasing).
+   every build is signed with the same key (`android/app/debug-shared.keystore`), and `versionCode` is the number of
+   minutes from 2025-01-01 to the commit (always increasing, also across squash merges).
 3. Verify on a device: **Settings → Alarms & wake-up → Test in 5 s**, lock the phone, and check the wake screen
    appears and the melody plays; then check a chime alarm, and that alarms survive a reboot.
 
@@ -61,7 +63,8 @@ Android does not install an **older** `versionCode` over a newer one, and uninst
 
 ## Monitoring
 
-Habit Lab collects **no telemetry and no crash reports** by design: health data never leaves the device. Signals:
+Habit Lab collects **no telemetry and no crash reports** by design: health data never leaves the device (only
+the shared-calendar data above does, when you create a link). Signals:
 - CI status on every push (all test layers).
 - Vercel deployment status and build logs.
 - Users can export their data (Settings → Your data) to share when reporting a problem.
@@ -107,3 +110,9 @@ battery management).
 - **The CSP applies to the web build only.** Inside the Android app, Capacitor injects its own bridge script, so the
   page-level policy isn't used there; script injection is still prevented by escaping (verified by `xss`).
 - **Research content is general information,** not medical advice; sources are cited in-app and in `RESEARCH.md`.
+- **Shared calendars:** anyone with a link can read that calendar's open activities and join with any name;
+  links are random UUIDs (unguessable), only the owner's secret key can publish, read names or delete, and
+  joining is limited to 100 per activity. Friends can also send a short cheer (owner-only; 50 a day per calendar). There's no account system, so names aren't verified. The Supabase
+  advisor flags the public functions and the no-policy tables — both intentional (see the SQL file).
+- **Join links point at the production web app** (`habitlab-eight.vercel.app`), so they work once this is
+  merged and deployed. Other `*.vercel.app` aliases of the project are behind Vercel login.

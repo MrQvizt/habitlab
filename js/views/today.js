@@ -2,17 +2,22 @@
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 import { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
+import { setViewDate, logDate, MAX_BACK } from '../viewdate.js';
 import { mealsFor, eatenSoFar, proteinEaten, dayComplete, safetyNotices, checkinDue, slotLabel, computeIntake } from './shared.js';
 import { byId } from '../engine/meals.js';
 import { habitById, streak, habitLevels, levelIndex } from '../engine/habits.js';
-import { stepGoal } from '../engine/workouts.js';
 import { CARDIO } from '../data/exercises.js';
-import { daysBetween } from '../engine/util.js';
+import { daysBetween, addDays } from '../engine/util.js';
 import { toHHMM } from '../engine/schedule.js';
 import { itemDone, logPlannedActivity } from './move.js';
 import { toggleHabit, mealRowList } from './sheets.js';
 import { planDay, partOf, PARTS } from '../engine/dayplan.js';
 import { dayRings, ringsSvg, RING_META } from './dayrings.js';
+import { eventsOn, EVENT_KINDS } from './calendar.js';
+import { itemKey } from '../engine/workouts.js';
+import { isPlanned } from './plan.js';
+import * as share from '../share.js';
+import { toMin } from '../engine/schedule.js';
 import { journey, nextStops, recentTimeStop } from '../engine/journey.js';
 import { whenLabel } from './journey.js';
 import { wrapReadyCard, bodyRingsCard } from './wrap.js';
@@ -35,6 +40,17 @@ function journeyCard(state, date) {
 }
 
 const SLOT_HOUR = { breakfast: 7, snack: 10, lunch: 12, snack2: 15, dinner: 18, snack3: 20 };
+
+/** Evening: a nudge to plan tomorrow (until it's done). */
+function planCard(state) {
+  if (new Date().getHours() < 18 || isPlanned(state)) return '';
+  return `<a class="card plan-card" href="#/plan"><span class="cal-emoji big" aria-hidden="true">🌙</span><span class="grow"><strong>Plan tomorrow</strong><small>Two minutes: when and where you’ll move, and a look at tomorrow’s meals</small></span>${icon('chevron')}</a>`;
+}
+
+function dayLabel(date, today) {
+  if (date === addDays(today, -1)) return 'Yesterday';
+  return fmtDate(date, { weekday: 'long', day: 'numeric', month: 'short' });
+}
 
 function greeting() {
   const h = new Date().getHours();
@@ -69,8 +85,8 @@ function quickLog(state) {
   return `<div class="quick-log" role="group" aria-label="Quick log">
     ${b('openExtra', 'plus', 'Food')}
     ${hide ? '' : b('openWeigh', 'scale', 'Weight')}
-    ${b('openSteps', 'progress', 'Steps')}
     <a class="ql-btn" href="#/move"><span class="ql-ico">${icon('move')}</span>Workout</a>
+    <a class="ql-btn ql-sos" href="#/sos"><span class="ql-ico" aria-hidden="true">🌊</span>Craving</a>
   </div>`;
 }
 
@@ -87,7 +103,7 @@ function nextUp(state, date) {
   const due = meals.find((m) => !log[m.slot] && m.time <= nowMin + 30);
   if (due) return card(`Next up · ${toHHMM(due.time)} ${slotLabel(due.slot)}`, esc(byId(due.recipeId).name), 'Log it, whatever you ate · +10 XP', btn('Log', `data-action="openMeal" data-slot="${due.slot}" data-date="${date}"`));
   const { schedule } = store.schedule(state, date);
-  const items = schedule[(new Date().getDay() + 6) % 7].items;
+  const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items;
   const move = items.find((it) => it.kind !== 'rest' && !itemDone(state.workouts.log[date] || [], it));
   if (move && h >= 7) {
     if (move.kind === 'strength') return card('Next up · Movement', `Strength session ${move.variant}`, `About ${move.minutes} min · +40 XP`, `<a class="btn small" href="#/move/session/${move.variant}">Start</a>`);
@@ -137,26 +153,27 @@ function weighRow(state, date) {
   return `<li class="k-weigh ${todays ? 'is-done' : ''}"><div class="lrow ${todays ? 'done' : ''}"><button class="check ${todays ? 'on' : ''}" data-action="openWeigh" aria-label="${todays ? 'Weighed in' : 'Weigh in'}">${icon(todays ? 'check' : 'scale')}</button><button class="body row-btn" data-action="openWeigh"><div class="over">Morning · after the bathroom</div><div class="title">${todays ? `Weighed in · ${fmtWeight(todays.kg, u)}` : 'Weigh in'}</div><div class="sub">Trend ${fmtWeight(trend, u)}${Math.abs(state.profile.startWeightKg - trend) >= 0.1 ? ` · ${fmtDelta(trend - state.profile.startWeightKg, u)} since start` : ''}</div></button><span class="trail" aria-hidden="true">${icon('chevron')}</span></div></li>`;
 }
 
-function moveRows(state, date) {
+/** Planned movement rows. One you gave a time in the calendar (or evening planning) sits at that time. */
+function moveRows(state, date, linked = {}) {
   const { schedule } = store.schedule(state, date);
-  const items = schedule[(new Date().getDay() + 6) % 7].items;
+  const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items;
   const logged = state.workouts.log[date] || [];
   const doneTag = `<span class="check on" style="animation:none" aria-label="Done">${icon('check')}</span>`;
-  return items.map((it) => {
+  const out = { any: [], timed: [] };
+  for (const it of items) {
     const done = itemDone(logged, it);
     const cls = `k-move ${done ? 'is-done' : ''}`;
-    if (it.kind === 'rest') return `<li class="k-move"><div class="lrow"><span class="slot-ico">${icon('move')}</span><div class="body"><div class="title">Rest day</div><div class="sub">A relaxed walk still counts</div></div></div></li>`;
-    if (it.kind === 'strength') return `<li class="${cls}"><a class="lrow ${done ? 'done' : ''}" href="#/move/session/${it.variant}" style="text-decoration:none">${done ? doneTag : `<span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('move')}</span>`}<div class="body"><div class="over">Movement · +40 XP</div><div class="title">Strength session ${it.variant}</div><div class="sub">${it.exercises.length} exercises · ~${it.minutes} min</div></div><span class="trail">${done ? '' : `<span class="btn small primary">Start</span>`}</span></a></li>`;
-    if (it.kind === 'activity') return `<li class="${cls}"><div class="lrow ${done ? 'done' : ''}">${done ? doneTag : `<button class="check" data-action="activityDone" data-id="${esc(it.id)}" aria-label="Done: ${esc(it.name)}">${icon('check')}</button>`}<div class="body"><div class="over">Movement · your activity</div><div class="title">${esc(it.name)}</div><div class="sub">${it.minutes} min</div></div></div></li>`;
-    return `<li class="${cls}"><div class="lrow ${done ? 'done' : ''}">${done ? doneTag : `<button class="check" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}" aria-label="Done: ${esc(CARDIO[it.mode].label)}">${icon('check')}</button>`}<div class="body"><div class="over">Movement</div><div class="title">${esc(CARDIO[it.mode].label)}</div><div class="sub">${it.minutes} min · chatty pace</div></div></div></li>`;
-  }).join('');
-}
-
-function stepsRow(state, date) {
-  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
-  const steps = state.steps[date] || 0;
-  const pct = Math.min(100, (steps / goal) * 100);
-  return `<li class="k-steps ${steps >= goal ? 'is-done' : ''}"><button class="lrow" data-action="openSteps"><span class="slot-ico">${icon('progress')}</span><span class="body"><span class="title">${steps ? `${fmtNum(steps)} steps` : 'Add today’s steps'}</span><span class="meter" style="display:block;height:6px;margin:6px 0 0"><span style="width:${pct.toFixed(1)}%"></span></span><span class="sub" style="display:block">Goal ${fmtNum(goal)}</span></span><span class="trail">${icon('chevron')}</span></button></li>`;
+    const ev = it.kind === 'rest' ? null : linked[itemKey(it)];
+    const when = ev ? `${ev.time ? esc(ev.time) : 'Planned'}${ev.place ? ` · ${esc(ev.place)}` : ''} · ` : '';
+    let html;
+    if (it.kind === 'rest') html = `<li class="k-move"><div class="lrow"><span class="slot-ico">${icon('move')}</span><div class="body"><div class="title">Rest day</div><div class="sub">A relaxed walk still counts</div></div></div></li>`;
+    else if (it.kind === 'strength') html = `<li class="${cls}"><a class="lrow ${done ? 'done' : ''}" href="#/move/session/${it.variant}" style="text-decoration:none">${done ? doneTag : `<span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('move')}</span>`}<div class="body"><div class="over">${when}Movement · +40 XP</div><div class="title">Strength session ${it.variant}</div><div class="sub">${it.exercises.length} exercises · ~${it.minutes} min</div></div><span class="trail">${done ? '' : `<span class="btn small primary">Start</span>`}</span></a></li>`;
+    else if (it.kind === 'activity') html = `<li class="${cls}"><div class="lrow ${done ? 'done' : ''}">${done ? doneTag : `<button class="check" data-action="activityDone" data-id="${esc(it.id)}" aria-label="Done: ${esc(it.name)}">${icon('check')}</button>`}<div class="body"><div class="over">${when}Movement · your activity</div><div class="title">${esc(it.name)}</div><div class="sub">${it.minutes} min</div></div></div></li>`;
+    else html = `<li class="${cls}"><div class="lrow ${done ? 'done' : ''}">${done ? doneTag : `<button class="check" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}" aria-label="Done: ${esc(CARDIO[it.mode].label)}">${icon('check')}</button>`}<div class="body"><div class="over">${when}Movement</div><div class="title">${esc(CARDIO[it.mode].label)}</div><div class="sub">${it.minutes} min · chatty pace</div></div></div></li>`;
+    if (ev?.time) out.timed.push({ time: toMin(ev.time), html });
+    else out.any.push(html);
+  }
+  return out;
 }
 
 function yourDay(state, date) {
@@ -169,7 +186,21 @@ function yourDay(state, date) {
   const byId = Object.fromEntries(active.map((a) => [a.id, a]));
   const mealHtml = Object.fromEntries(meals.map((m) => [m.slot, m.html]));
   const habitHtml = (id, label) => habitRow(state, byId[id], date, 'habitCheck', 'openHabit', label);
-  const itemHtml = (it) => (it.kind === 'meal' ? mealHtml[it.slot] : it.kind === 'habit' ? habitHtml(it.id, it.label) : weighRow(state, date));
+  // Your calendar events for the day sit at their time (untimed ones under "Any time").
+  const allEvs = eventsOn(state, date);
+  const linked = Object.fromEntries(allEvs.filter((e) => e.planKey).map((e) => [e.planKey, e]));
+  const dayKeys = new Set(store.schedule(state, date).schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items.map(itemKey));
+  const evs = allEvs.filter((e) => !e.planKey || !dayKeys.has(e.planKey)); // linked ones show as the session itself
+  const moves = moveRows(state, date, linked);
+  for (const m of moves.timed) plan.timed.push({ kind: 'movehtml', time: m.time, html: m.html, order: 1.6 });
+  const evRow = (e) => `<li class="k-event"><button class="lrow" data-action="calEdit" data-id="${esc(e.id)}"><span class="slot-ico" style="font-size:1.15rem">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}</span><span class="body"><span class="over">${e.time ? esc(e.time) : 'Any time'} · Calendar${e.public ? ' · open to friends' : ''}</span><span class="title">${esc(e.title)}</span>${e.place ? `<span class="sub">${esc(e.place)}</span>` : ''}</span><span class="trail">${icon('chevron')}</span></button></li>`;
+  for (const e of evs) if (e.time) plan.timed.push({ kind: 'event', time: toMin(e.time), ev: e, order: 1.5 });
+  // Food you added off the plan sits where you ate it (older entries without a time: under "Any time").
+  const extras = state.extras[date] || [];
+  const extraRow = (x, i) => `<li class="k-extra is-done"><div class="lrow"><span class="slot-ico" style="background:color-mix(in srgb, var(--ring-eat) 14%, transparent);color:var(--ring-eat-text)">${icon('check')}</span><div class="body">${x.at ? `<div class="over">${esc(x.at)} · You added</div>` : ''}<div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal${x.p ? ` · ${x.p} g protein` : ''}</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`;
+  extras.forEach((x, i) => x.at && plan.timed.push({ kind: 'extra', time: toMin(x.at), html: extraRow(x, i), order: 2.5 }));
+  plan.timed.sort((a, b) => a.time - b.time || a.order - b.order);
+  const itemHtml = (it) => (it.kind === 'meal' ? mealHtml[it.slot] : it.kind === 'habit' ? habitHtml(it.id, it.label) : it.kind === 'event' ? evRow(it.ev) : it.kind === 'movehtml' || it.kind === 'extra' ? it.html : weighRow(state, date));
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const parts = [];
@@ -177,7 +208,7 @@ function yourDay(state, date) {
   let nowShown = false;
   const nowLine = `<li class="tl-now" aria-label="Now"><span>Now · ${toHHMM(nowMin)}</span></li>`;
   for (const it of plan.timed) {
-    if (!nowShown && it.time > nowMin) {
+    if (!nowShown && date === store.today() && it.time > nowMin) {
       parts.push(nowLine);
       nowShown = true;
     }
@@ -188,11 +219,10 @@ function yourDay(state, date) {
     }
     parts.push(itemHtml(it));
   }
-  if (!nowShown) parts.push(nowLine);
-  const extras = state.extras[date] || [];
-  const extraRows = extras.map((x, i) => `<li class="k-extra is-done"><div class="lrow"><span class="slot-ico">${icon('plus')}</span><div class="body"><div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`).join('');
-  const any = [moveRows(state, date), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
-  const total = plan.timed.length + plan.anytime.length;
+  if (!nowShown && date === store.today()) parts.push(nowLine);
+  const extraRows = extras.map((x, i) => (x.at ? '' : extraRow(x, i))).join('');
+  const any = [moves.any.join(''), ...evs.filter((e) => !e.time).map(evRow), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
+  const total = plan.timed.filter((t) => t.kind !== 'extra').length + plan.anytime.length;
   const doneCount = meals.filter((m) => m.done).length + active.filter((a) => state.habits.log[date]?.[a.id]).length + (!hide && state.weights.some((w) => w.date === date) ? 1 : 0);
   const noHabit = active.length ? '' : `<li class="tl-empty"><a class="lrow" href="#/habits" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('habits')}</span><span class="body"><span class="title">Pick one small habit</span><span class="sub">It slots into your day at the moment you choose</span></span><span class="trail">${icon('chevron')}</span></a></li>`;
   return `<div class="section-head"><h2>Your day</h2><span class="day-count">${doneCount} of ${total} done</span></div>
@@ -201,7 +231,7 @@ function yourDay(state, date) {
         <li class="tl-part" aria-hidden="true">Any time today</li>${any}
         <li><button class="lrow" data-action="openExtra" style="min-height:54px"><span class="slot-ico" style="background:var(--accent-tint);color:var(--accent)">${icon('plus')}</span><span class="body"><span class="title" style="color:var(--accent)">Add something else you ate</span></span></button></li>
       </ul>
-      <div class="day-links"><a href="#/meals">Week meal plan</a><a href="#/habits">Manage habits</a><a href="#/move">This week’s movement</a></div>
+      <div class="day-links"><a href="#/calendar">Calendar</a><a href="#/meals">Week meal plan</a><a href="#/habits">Manage habits</a><a href="#/move">This week’s movement</a></div>
     </div>`;
 }
 
@@ -259,22 +289,36 @@ function banners(state, date) {
 }
 
 export default {
-  render(state) {
-    const date = store.today();
-    return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${greeting()}</h1></div></header>
-      ${banners(state, date)}
+  render(state, params = []) {
+    // Today, or a day up to a week back to fill in what you forgot (#/today/2026-11-24).
+    setViewDate(params[0]);
+    const date = logDate();
+    const today = store.today();
+    const past = date !== today;
+    const canBack = date > addDays(today, -MAX_BACK);
+    const dayNav = `<nav class="day-nav" aria-label="Choose a day">
+        ${canBack ? `<a class="icon-btn" href="#/today/${addDays(date, -1)}" aria-label="Previous day">${icon('chevron')}</a>` : `<button class="icon-btn" disabled aria-disabled="true" aria-label="Previous day">${icon('chevron')}</button>`}
+        <span class="day-nav-label">${past ? esc(dayLabel(date, today)) : 'Today'}</span>
+        ${past ? `<a class="icon-btn" href="${addDays(date, 1) === today ? '#/today' : `#/today/${addDays(date, 1)}`}" aria-label="Next day">${icon('chevron')}</a>` : `<button class="icon-btn" disabled aria-disabled="true" aria-label="Next day">${icon('chevron')}</button>`}
+      </nav>`;
+    return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${past ? 'Fill in the gaps' : greeting()}</h1></div>${dayNav}</header>
+      ${past ? `<div class="notice info past-day" style="align-items:center">${icon('calendar')}<div class="grow"><strong>${esc(dayLabel(date, today))}</strong> — anything you tick here is saved to that day.</div><a class="btn small" href="#/today">Back to today</a></div>` : banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${welcomeBack(state, date)}${wrapReadyCard(state, date)}${hero(state, date)}${nextUp(state, date)}${quickLog(state)}</div>
+        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + share.cheerCardHtml(state) + planCard(state) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : nextUp(state, date)}${quickLog(state)}</div>
         <div class="tg-day">${yourDay(state, date)}</div>
-        <div class="tg-rest">${bodyRingsCard(state, date)}${journeyCard(state, date)}${firstWeek(state, date)}</div>
+        <div class="tg-rest">${past ? '' : bodyRingsCard(state, date) + journeyCard(state, date) + firstWeek(state, date)}</div>
       </div>`;
   },
+  after(root, ctx) {
+    share.refresh(ctx); // cheers and sign-ups from your shared calendar (no-op if you haven't shared)
+  },
   actions: {
+    cheersSeen: share.shareActions.cheersSeen,
     habitCheck(el, ev, ctx) {
       toggleHabit(ctx, el.dataset.id);
     },
     rmExtra(el, ev, ctx) {
-      const date = store.today();
+      const date = logDate();
       ctx.undoable('Removed', (st) => {
         st.extras[date] = (st.extras[date] || []).filter((_, i) => i !== Number(el.dataset.i));
         st.intake[date] = computeIntake(st, date);
@@ -285,7 +329,7 @@ export default {
       logPlannedActivity(ctx, el.dataset.id);
     },
     cardioDone(el, ev, ctx) {
-      const date = store.today();
+      const date = logDate();
       ctx.undoable('Nice work — logged', (st) => {
         st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'cardio', mode: el.dataset.mode, minutes: Number(el.dataset.min) }];
         return st;

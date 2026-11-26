@@ -2,14 +2,16 @@ apply plugin: 'com.android.application'
 
 // Version code must always increase or Android refuses the update. It comes from the number of
 // commits (CI checks out full history), or VERSION_CODE if set. versionName follows package.json.
-def gitCommitCount() {
+// versionCode = minutes from 2025-01-01 to the HEAD commit. It only grows (a squash merge on main is newer
+// than the branch commits it replaces, unlike a commit count), so every build installs over the last one.
+def commitMinutes() {
     try {
-        def proc = ['git', 'rev-list', '--count', 'HEAD'].execute(null, rootProject.projectDir)
+        def proc = ['git', 'log', '-1', '--format=%ct', 'HEAD'].execute(null, rootProject.projectDir)
         proc.waitFor()
-        return proc.exitValue() == 0 ? proc.text.trim().toInteger() : 1
+        return proc.exitValue() == 0 ? (proc.text.trim().toLong() - 1735689600L).intdiv(60).toInteger() : 1
     } catch (ignored) { return 1 }
 }
-def appVersionCode = (System.getenv('VERSION_CODE') ?: gitCommitCount().toString()).toInteger()
+def appVersionCode = (System.getenv('VERSION_CODE') ?: commitMinutes().toString()).toInteger()
 def appVersionName = new groovy.json.JsonSlurper().parse(file('../../package.json')).version
 
 android {

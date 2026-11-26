@@ -2,7 +2,19 @@
 import { esc, icon } from '../ui/dom.js';
 import { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } from '../engine/alarms.js';
 import { daySchedule, mealTimes } from '../engine/schedule.js';
-import { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, valueInfo, morningMessages, messageForDay } from '../data/affirmations.js';
+import { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } from '../data/affirmations.js';
+import { REASONS, REASON_CATS } from '../data/reasons.js';
+
+// Reason library state (kept across re-renders while you browse).
+let reasonCat = 'health';
+let reasonQuery = '';
+let libOpen = false;
+document.addEventListener('input', (ev) => {
+  if (ev.target.dataset?.filter === 'reason') reasonQuery = ev.target.value;
+});
+document.addEventListener('toggle', (ev) => {
+  if (ev.target.classList?.contains('reason-lib')) libOpen = ev.target.open;
+}, true);
 import * as alarmNative from '../alarm-native.js';
 import { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } from '../data/melodies.js';
 import { openSheet, updateSheet } from '../ui/sheet.js';
@@ -32,6 +44,26 @@ function soundSheet(state, key) {
     ${a[key].style === 'ring' ? '<p class="muted" style="font-size:var(--text-xs);margin:10px 0 0">The alarm starts quietly and grows to full volume over about a minute.</p>' : '<p class="muted" style="font-size:var(--text-xs);margin:10px 0 0">A chime plays the sound twice, at notification volume.</p>'}`;
 }
 
+/** The library of reasons: search, themes, tap to add or remove. */
+function reasonLibrary(affirm) {
+  const picked = new Set((affirm.values || []).map((v) => v.toLowerCase()));
+  const q = reasonQuery.trim().toLowerCase();
+  const tabs = Object.entries(REASON_CATS).map(([k, l]) => [k, l, REASONS.filter((r) => r[0] === k).length]);
+  const mine = REASONS.filter((r) => picked.has(r[1].toLowerCase())).length;
+  return `<details class="reason-lib" ${libOpen ? 'open' : ''}><summary id="reasons"><strong>Browse ${REASONS.length} reasons or add your own</strong>${mine ? ` <span class="muted">· ${mine} picked</span>` : ''}</summary>
+      <form class="own-value" data-form="affirmAddValue" style="margin-top:8px"><input type="text" name="value" maxlength="${VALUE_LEN}" placeholder="Your own word — e.g. Freedom" aria-label="Add your own reason"><button class="btn small tonal">Add</button></form>
+      <input type="search" class="reason-search" autocomplete="off" data-filter="reason" value="${esc(reasonQuery)}" placeholder="Search — e.g. kids, knees, Paris" aria-label="Search reasons">
+      <div class="scroll-x" style="margin:8px 0 10px">${tabs.map(([k, l, n]) => `<button type="button" class="qchip ${reasonCat === k ? 'done' : ''}" style="padding-left:12px" data-action="reasonCat" data-value="${k}" aria-pressed="${reasonCat === k}">${esc(l)} <span class="muted">${n}</span></button>`).join('')}</div>
+      <div class="reason-grid" data-filter-target="reason">${REASONS.map(([c, t]) => {
+        const on = picked.has(t.toLowerCase());
+        const text = t.toLowerCase();
+        const hide = q ? !text.includes(q) : c !== reasonCat;
+        return `<button type="button" class="reason-btn ${on ? 'on' : ''}" data-action="reasonToggle" data-value="${esc(t)}" aria-pressed="${on}" data-filter-text="${esc(text)} ${esc(REASON_CATS[c].toLowerCase())}"${c === reasonCat ? '' : ' data-out="1"'}${hide ? ' hidden' : ''}>${on ? '✓ ' : '+ '}${esc(t)}</button>`;
+      }).join('')}</div>
+      <p class="muted" style="font-size:var(--text-xs);margin:8px 0 0">Gathered from what people say in weight-loss research and interviews: health comes first for most, then how they feel, look and move, and the people they do it for.</p>
+    </details>`;
+}
+
 /** Your own values: saved even when not picked (older versions kept them only while picked). */
 export function ownValues(affirm = {}) {
   const list = [...(affirm.own || []), ...(affirm.values || []).filter((v) => !VALUES[v])];
@@ -57,7 +89,8 @@ export function alarmsSummary(state) {
   return on.length ? on.join(' · ') : 'Off';
 }
 
-export function alarmsPage(state) {
+export function alarmsPage(state, params = []) {
+  if (params[1] === 'reasons') libOpen = true;
   const a = alarmsOf(state);
   const t = alarmTimes(state);
   const d = daySchedule(state.profile);
@@ -99,11 +132,11 @@ export function alarmsPage(state) {
       <a class="btn small ghost" href="#/wake">See the good-morning screen</a>
     </div>
     <div class="card">
-      <h3 style="margin-top:0">What matters most to you?</h3>
-      <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Pick up to ${MAX_VALUES}, or add your own. Reflecting on your own values is the form of self-affirmation shown in brain scans to engage reward and self-related areas — and to help people become more active.</p>
+      <h3 style="margin-top:0">Your reasons</h3>
+      <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Pick as many as you like, add your own, or browse ${REASONS.length} reasons people give. The ticked ones show on your morning screen. Reflecting on your own values is the form of self-affirmation shown in brain scans to engage reward and self-related areas — and to help people become more active.</p>
       <div class="chips">${Object.entries(VALUES).map(([k, v]) => `<label class="chip"><input type="checkbox" data-change="affirmValue" value="${k}" ${(affirm.values || []).includes(k) ? 'checked' : ''}><span>${esc(v.label)}</span></label>`).join('')}${ownValues(affirm).map((v) => `<span class="own-chip"><label class="chip own"><input type="checkbox" data-change="affirmValue" value="${esc(v)}" ${(affirm.values || []).includes(v) ? 'checked' : ''}><span>${esc(valueInfo(v).label)}</span></label><button type="button" class="own-x" data-action="affirmRemoveOwn" data-value="${esc(v)}" aria-label="Delete ${esc(valueInfo(v).label)}">${icon('x')}</button></span>`).join('')}</div>
-      <form class="own-value" data-form="affirmAddValue"><input type="text" name="value" maxlength="30" placeholder="Add your own — e.g. My kids, Painting, Being present" aria-label="Add your own value"><button class="btn small tonal">Add</button></form>
-      ${ownValues(affirm).length ? `<p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">Your own values stay on the list — tick the ones to use, tap × to delete one. ${(affirm.values || []).length}/${MAX_VALUES} picked.</p>` : ''}
+      ${ownValues(affirm).length ? `<p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">Your own reasons stay on the list — tick the ones to use, tap × to delete one. ${(affirm.values || []).length} picked.</p>` : ''}
+      ${reasonLibrary(affirm)}
       <label class="field" style="margin-top:14px"><span>Your “why” <span class="hint">Finish the sentence: I’m doing this…</span></span><input type="text" maxlength="120" data-change="affirmWhy" value="${esc(affirm.why || '')}" placeholder="to have energy to play with my kids"></label>
     </div>
     <div class="card">
@@ -114,7 +147,9 @@ export function alarmsPage(state) {
     </div>`;
 }
 
-export async function alarmsAfter(root) {
+export async function alarmsAfter(root, ctx, params = []) {
+  // Opened from the morning screen's link: jump to the library (once, after the router's scroll-to-top).
+  if (params[1] === 'reasons') setTimeout(() => window.scrollY < 50 && root.querySelector('.reason-lib')?.scrollIntoView({ block: 'start' }), 0);
   const el = root.querySelector('#alarm-status');
   if (!el) return;
   const s = await alarmNative.status();
@@ -221,30 +256,38 @@ export const alarmActions = {
     const picked = [...document.querySelectorAll('[data-change=affirmValue]:checked')].map((x) => x.value);
     if (picked.length > MAX_VALUES) {
       el.checked = false;
-      return ctx.toast(`Pick up to ${MAX_VALUES} — the ones that matter most`);
+      return ctx.toast(`That’s ${MAX_VALUES} — untick one to pick another`);
     }
     save(ctx, (st) => {
-      // Keep own values on the list when they're unticked.
+      // Keep own reasons on the list when they're unticked.
       st.affirm = { ...(st.affirm || {}), own: ownValues(st.affirm || {}), values: picked };
     });
   },
   affirmAddValue(form, ev, ctx, data) {
-    const v = String(data.value || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+    const v = String(data.value || '').trim().replace(/\s+/g, ' ').slice(0, VALUE_LEN);
     if (!v) return;
     const affirm = ctx.state.affirm || {};
-    const picked = affirm.values || [];
-    // A typed preset ("family") just ticks the preset.
-    const preset = Object.entries(VALUES).find(([, x]) => x.label.toLowerCase() === v.toLowerCase())?.[0];
-    const own = ownValues(affirm);
-    if (!preset && own.some((x) => x.toLowerCase() === v.toLowerCase())) return ctx.toast('Already on your list');
-    if (!preset && own.length >= 12) return ctx.toast('That’s 12 of your own — delete one to add another');
-    const room = picked.length < MAX_VALUES;
+    if ((affirm.values || []).some((x) => x.toLowerCase() === v.toLowerCase())) return ctx.toast('Already on your list');
+    if (ownValues(affirm).length >= MAX_OWN) return ctx.toast(`That’s ${MAX_OWN} of your own — delete one to add another`);
     save(ctx, (st) => {
-      const cur = st.affirm || {};
-      const values = cur.values || [];
-      st.affirm = { ...cur, own: preset ? ownValues(cur) : [...ownValues(cur), v], values: room && !values.includes(preset || v) ? [...values, preset || v] : values };
+      st.affirm = addReason({ ...(st.affirm || {}), own: ownValues(st.affirm || {}) }, v);
     });
-    ctx.toast(room ? `Added and picked “${valueInfo(preset || v).label}”` : `Saved “${valueInfo(preset || v).label}” — you have ${MAX_VALUES} picked, untick one to use it`);
+    ctx.toast(`Added “${valueInfo(v).label}”`);
+  },
+  reasonToggle(el, ev, ctx) {
+    const v = el.dataset.value;
+    const on = (ctx.state.affirm?.values || []).some((x) => x.toLowerCase() === v.toLowerCase());
+    libOpen = true;
+    save(ctx, (st) => {
+      const cur = { ...(st.affirm || {}), own: ownValues(st.affirm || {}) };
+      st.affirm = on ? removeReason(cur, v) : addReason(cur, v);
+    });
+  },
+  reasonCat(el, ev, ctx) {
+    reasonCat = el.dataset.value;
+    reasonQuery = '';
+    libOpen = true;
+    ctx.rerender();
   },
   affirmRemoveOwn(el, ev, ctx) {
     const v = el.dataset.value;

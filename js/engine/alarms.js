@@ -18,7 +18,7 @@ export const DEFAULT_ALARMS = {
 };
 
 export const STYLES = {
-  ring: { label: 'Alarm', hint: 'Rings with a gentle melody until you tap “I’m up”' },
+  ring: { label: 'Alarm', hint: 'Rings with a gentle melody until you tap “I’m up”. Not answered? It snoozes itself every 5 min for up to an hour.' },
   gentle: { label: 'Chime', hint: 'One chime and a notification' },
 };
 
@@ -68,7 +68,7 @@ export function alarmSpecs(state) {
   const bed = toHHMM(d.bed);
   const snd = (key) => nativeSound(a[key].sound || DEFAULT_SOUND[key]);
   if (a.wake.on) out.push({ id: 'wake', kind: 'wake', label: 'Good morning', body: '', ...hm(t.wake), days: a.wake.days?.length ? a.wake.days : [0, 1, 2, 3, 4, 5, 6], style: a.wake.style, route: '#/wake', ...snd('wake') });
-  if (a.wind.on) out.push({ id: 'wind', kind: 'wind', label: 'Time to wind down', body: `Dim the lights and put screens away — bright screens before bed push sleep later. Bed at ${bed}.`, ...hm(t.wind), days: [0, 1, 2, 3, 4, 5, 6], style: a.wind.style, route: '#/today', ...snd('wind') });
+  if (a.wind.on) out.push({ id: 'wind', kind: 'wind', label: 'Time to wind down', body: `Take two minutes to plan tomorrow, then dim the lights and put screens away. Bed at ${bed}.`, ...hm(t.wind), days: [0, 1, 2, 3, 4, 5, 6], style: a.wind.style, route: '#/plan', ...snd('wind') });
   if (a.bed.on) out.push({ id: 'bed', kind: 'bed', label: 'Bedtime', body: 'Lights out. A good night’s sleep makes tomorrow’s choices easier — people who slept longer ate less the next day.', ...hm(t.bed), days: [0, 1, 2, 3, 4, 5, 6], style: a.bed.style, route: '#/today', ...snd('bed') });
   if (a.meals.on) {
     const slots = mealSlots(state, a.meals.snacks);

@@ -250,3 +250,28 @@ export function sessionExercises(progress, variant, profile) {
   }
   return out;
 }
+
+/** A stable key for a planned item ("strength:A", "activity:<id>", "cardio:walk"). */
+export function itemKey(it) {
+  return it.kind === 'strength' ? `strength:${it.variant}` : it.kind === 'activity' ? `activity:${it.id}` : it.kind === 'cardio' ? `cardio:${it.mode}` : 'rest';
+}
+
+/**
+ * Your re-planning on top of the generated week: moves = [{ key, from, to }] (days Monday = 0).
+ * Moved items carry `from`; emptied days become rest days.
+ */
+export function applyMoves(schedule, moves = []) {
+  if (!moves.length) return schedule;
+  const days = schedule.map((d) => ({ ...d, items: d.items.filter((i) => i.kind !== 'rest') }));
+  for (const m of moves) {
+    const src = days[m.from];
+    const dst = days[m.to];
+    if (!src || !dst || m.from === m.to) continue;
+    const i = src.items.findIndex((it) => itemKey(it) === m.key);
+    if (i < 0) continue;
+    const [it] = src.items.splice(i, 1);
+    dst.items.push({ ...it, from: it.from ?? m.from });
+  }
+  for (const d of days) if (!d.items.length) d.items.push({ kind: 'rest', minutes: 0 });
+  return days;
+}

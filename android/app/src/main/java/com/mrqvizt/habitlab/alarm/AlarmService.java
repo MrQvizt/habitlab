@@ -32,9 +32,11 @@ public class AlarmService extends Service {
     public static final String ACTION_DISMISS = "com.mrqvizt.habitlab.alarm.DISMISS";
     public static final String ACTION_SNOOZE = "com.mrqvizt.habitlab.alarm.SNOOZE";
     public static final String ACTION_CHIME = "com.mrqvizt.habitlab.alarm.CHIME";
+    public static final String ACTION_STOP_AUTO = "com.mrqvizt.habitlab.alarm.STOP_AUTO";
+    public static final int AUTO_ID = 6912;
     public static final int CHIME_ID = 6911;
     public static final int NOTIF_ID = 6901;
-    private static final long MAX_RING_MS = 10 * 60_000L;
+    private static final long MAX_RING_MS = AlarmScheduler.AUTO_RING_MS;
 
     /** What is ringing now (read by AlarmActivity). */
     public static volatile String ringingId;
@@ -51,7 +53,8 @@ public class AlarmService extends Service {
     private PowerManager.WakeLock wake;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable vibrate = this::startVibration;
-    private final Runnable timeout = () -> stopRinging(true);
+    private final Runnable timeout = this::unanswered;
+    private long chainStart;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -66,6 +69,16 @@ public class AlarmService extends Service {
             String msg = ringingMessage;
             stopRinging(false);
             if (intent.getBooleanExtra("open", false)) openApp(this, route, msg);
+            return START_NOT_STICKY;
+        }
+        if (ACTION_STOP_AUTO.equals(action)) {
+            // "Stop alarm" on the auto-snooze notification: no more rings this time.
+            AlarmStore.clearSnooze(this);
+            AlarmStore.setAutoPending(this, false);
+            AlarmScheduler.scheduleAll(this);
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancel(AUTO_ID);
+            if (ringingId == null) stopSelf();
             return START_NOT_STICKY;
         }
         if (ACTION_SNOOZE.equals(action)) {
@@ -88,6 +101,9 @@ public class AlarmService extends Service {
         }
         // START: one alarm at a time; a new one replaces the old.
         stopSound();
+        chainStart = AlarmStore.beginRing(this, System.currentTimeMillis());
+        NotificationManager autoNm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (autoNm != null) autoNm.cancel(AUTO_ID);
         ringingId = intent.getStringExtra(AlarmScheduler.EXTRA_ID);
         ringingKind = intent.getStringExtra("kind");
         ringingLabel = intent.getStringExtra("label");
@@ -225,6 +241,35 @@ public class AlarmService extends Service {
         sound.stop();
     }
 
+    /** Nobody answered: snooze 5 minutes and ring again, until an hour after the first ring. */
+    private void unanswered() {
+        AlarmStore.Alarm a = current();
+        long next = AlarmScheduler.nextAutoRing(chainStart, System.currentTimeMillis());
+        if (a == null || next < 0) {
+            stopRinging(true);
+            return;
+        }
+        String label = ringingLabel;
+        stopRinging(false);
+        AlarmScheduler.autoSnooze(this, a, next);
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        PendingIntent stop = PendingIntent.getService(this, 6913, new Intent(this, AlarmService.class).setAction(ACTION_STOP_AUTO),
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        String at = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(new java.util.Date(next));
+        try {
+            nm.notify(AUTO_ID, new NotificationCompat.Builder(this, AlarmReceiver.CH_GENTLE)
+                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setContentTitle("Snoozed: " + (label == null ? "Alarm" : label))
+                .setContentText("No answer, so it rings again at " + at + ".")
+                .setOngoing(true)
+                .setSilent(true)
+                .addAction(0, "Stop alarm", stop)
+                .build());
+        } catch (SecurityException ignored) {
+        }
+    }
+
     private void stopRinging(boolean missed) {
         stopSound();
         if (wake != null && wake.isHeld()) wake.release();
@@ -238,7 +283,7 @@ public class AlarmService extends Service {
                 nm.notify(NOTIF_ID + 1, new NotificationCompat.Builder(this, AlarmReceiver.CH_GENTLE)
                     .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                     .setContentTitle("Missed alarm: " + (label == null ? "Alarm" : label))
-                    .setContentText("It rang for 10 minutes. Tap to open Habit Lab.")
+                    .setContentText("It kept ringing on and off for an hour. Tap to open Habit Lab.")
                     .setAutoCancel(true)
                     .setContentIntent(AlarmReceiver.openApp(this, "#/today", null, 6905))
                     .build());

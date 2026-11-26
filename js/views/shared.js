@@ -46,7 +46,11 @@ export function computeIntake(state, date) {
 export function proteinEaten(state, date) {
   const log = state.mealLog[date] || {};
   let p = 0;
-  for (const m of mealsFor(state, date)) if (log[m.slot]?.status === 'ate') p += scaledNutrition(byId(m.recipeId), m.scale).p;
+  for (const m of mealsFor(state, date)) {
+    if (log[m.slot]?.status === 'ate') p += scaledNutrition(byId(m.recipeId), m.scale).p;
+    else if (log[m.slot]?.status === 'other') p += Number(log[m.slot].p) || 0;
+  }
+  for (const x of state.extras[date] || []) p += Number(x.p) || 0;
   return p;
 }
 

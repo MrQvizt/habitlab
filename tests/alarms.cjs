@@ -73,25 +73,24 @@ const shots = process.argv[3] || null;
   await page.click('label.switch:has(input[data-path="wind.on"])');
   await page.click('label.chip:has-text("Family")');
   await page.click('label.chip:has-text("Energy")');
-  // Add your own value
+  // Add your own: inside "Browse 610 reasons or add your own"
+  if (!/Browse \d+ reasons or add your own/.test(await page.textContent('.reason-lib summary'))) errors.push('library heading wording');
+  await page.click('.reason-lib summary');
   await page.fill('.own-value input', 'My kids');
   await page.click('.own-value button');
   await page.waitForSelector('label.chip.own:has-text("My kids")');
   if (!(await page.locator('label.chip.own:has-text("My kids") input:checked').count())) errors.push('a new own value is picked while there is room');
-  // With 3 picked, a new own value is saved to the list but not picked
+  // No limit of 3 any more: a 4th own reason is picked too
   await page.fill('.own-value input', 'Painting');
   await page.click('.own-value button');
-  await page.waitForSelector('label.chip.own:has-text("Painting")');
-  if (await page.locator('label.chip.own:has-text("Painting") input:checked').count()) errors.push('4th value should not be picked');
-  // Unticking an own value keeps it on the list; it can be picked again later
+  await page.waitForSelector('label.chip.own:has-text("Painting") input:checked');
+  // Unticking an own reason keeps it on the list; it can be picked again later
   await page.click('label.chip.own:has-text("My kids")');
   await page.waitForTimeout(300);
   if (!(await page.locator('label.chip.own:has-text("My kids")').count())) errors.push('unticked own value disappeared');
-  await page.click('label.chip.own:has-text("Painting")');
-  await page.waitForSelector('label.chip.own:has-text("Painting") input:checked');
-  await page.click('label.chip.own:has-text("My kids")'); // 4th: refused, stays unticked
-  await page.waitForTimeout(300);
-  if (await page.locator('label.chip.own:has-text("My kids") input:checked').count()) errors.push('more than 3 picked');
+  if (await page.locator('label.chip.own:has-text("My kids") input:checked').count()) errors.push('own value did not untick');
+  await page.locator('label.chip.own:has-text("My kids") input').check();
+  await page.waitForSelector('label.chip.own:has-text("My kids") input:checked');
   // × deletes an own value
   await page.fill('.own-value input', 'Temp value');
   await page.click('.own-value button');
@@ -102,7 +101,7 @@ const shots = process.argv[3] || null;
   // Pick My kids again (untick Energy) for the rest of the test
   await page.click('label.chip:has-text("Energy")');
   await page.waitForTimeout(200);
-  await page.click('label.chip.own:has-text("My kids")');
+  await page.locator('label.chip.own:has-text("My kids") input').check();
   await page.waitForSelector('label.chip.own:has-text("My kids") input:checked');
   await page.fill('[data-change=affirmWhy]', 'To have energy to play with my kids');
   await page.locator('[data-change=affirmWhy]').dispatchEvent('change');
@@ -162,24 +161,64 @@ const shots = process.argv[3] || null;
   if (!a.tests.some((t) => t.id === 'wake')) errors.push('test alarm not requested');
   if (!/Next alarm/.test(await page.textContent('#alarm-status'))) errors.push('next alarm not shown');
 
+  // Reason library: 600 reasons, search, tap to add (as many as you like), tap again to remove
+  await page.goto(url + '#/settings/alarms/reasons'); // the morning screen's link opens the library directly
+  await page.waitForSelector('.reason-lib[open]');
+  if ((await page.locator('.reason-btn').count()) < 600) errors.push('fewer than 600 reasons in the library');
+  await page.fill('.reason-search', 'knee');
+  const hits = await page.$$eval('.reason-btn:not([hidden])', (els) => els.map((e) => e.textContent));
+  if (!hits.length || !hits.every((t) => /knee/i.test(t))) errors.push('reason search: ' + hits.join(' | '));
+  const all = await page.$$eval('.reason-btn', (els) => els.map((e) => e.textContent.slice(2)));
+  if (all.some((t) => /\s/.test(t))) errors.push('library should be single words: ' + all.filter((t) => /\s/.test(t)).join(', '));
+  for (const t of ['Knees', 'Freedom', 'Kids', 'Hiking']) {
+    await page.fill('.reason-search', t);
+    await page.click(`.reason-btn:not([hidden]) >> text=/^. ${t}$/`);
+  }
+  let aff = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).affirm);
+  const has = (list, t) => list.some((x) => x.toLowerCase() === t.toLowerCase()); // "Freedom" is also a built-in value ("freedom")
+  for (const t of ['Knees', 'Freedom', 'Kids', 'Hiking']) if (!has(aff.values, t)) errors.push('library reason not picked: ' + t);
+  if (aff.values.length < 6) errors.push('should allow more than 3 reasons: ' + aff.values.length);
+  if (!(await page.locator('.reason-lib[open]').count())) errors.push('library closed after picking');
+  await page.fill('.reason-search', 'Freedom');
+  await page.click('.reason-btn.on:not([hidden]) >> text=/^. Freedom$/');
+  aff = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).affirm);
+  if (has(aff.values, 'Freedom')) errors.push('tapping a picked reason should remove it');
+
   // "I'm up" on the phone → app opens the Good-morning screen with the alarm's message
   await page.goto(url + '#/today');
   await page.waitForSelector('.tg-hero');
   await page.evaluate(() => window.__alarm.listeners.route({ route: '#/wake', message: 'You deserve a healthy life.' }));
   await page.waitForSelector('.wake-screen');
   if ((await page.textContent('.wk-msg')) !== 'You deserve a healthy life.') errors.push('wake message not handed over');
+  if (!/Browse \d+ reasons or add your own/.test(await page.textContent('.wk-link')) || (await page.getAttribute('.wk-link', 'href')) !== '#/settings/alarms/reasons') errors.push('morning screen link to the reasons library');
   if (!(await page.locator('.wk-value:has-text("Family")').count())) errors.push('values not offered for reflection');
   if (!(await page.locator('.wk-value:has-text("My kids")').count())) errors.push('own value not offered for reflection');
   if (!(await page.locator('.w-btn[disabled]').count())) errors.push('start should wait for a reflection');
   await snap('a2-wake');
   await page.click('.wk-heart');
   await page.click('.wk-value:has-text("Family")');
+  // More than one reason, plus your own words
+  await page.click('.wk-value:has-text("Me")');
+  await page.click('[data-action=wakeOther]');
+  await page.fill('[data-wake-other]', 'my health check in May');
+  const why = await page.textContent('.wk-why');
+  if (!/the people you love and your health check in May/.test(why) || !/you, /.test(why)) errors.push('reason line with several picks: ' + why);
+  if ((await page.locator('.wk-value.on').count()) !== 2) errors.push('several values should stay picked');
+  // Add → it becomes a picked chip and is saved for next time
+  await page.click('.wk-add-btn');
+  await page.waitForSelector('.wk-value.on:has-text("My health check in May")');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).affirm);
+  if (!saved.values.includes('my health check in May') || !saved.own.includes('my health check in May')) errors.push('typed reason not saved: ' + JSON.stringify(saved));
+  await page.click('.wk-value:has-text("My health check in May")');
+  await page.click('.wk-value:has-text("Me")');
+  if ((await page.locator('.wk-value.on').count()) !== 1) errors.push('tapping again should unpick');
   await snap('a3-wake-chosen');
   await page.click('.w-btn');
   await page.waitForSelector('.tg-hero');
   const st = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')));
   const today = await page.evaluate(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
   if (!st.wakes?.[today]) errors.push('morning intention not recorded');
+  if (st.reasons?.date !== today || !st.reasons.values.includes('family')) errors.push('morning reasons not kept for the craving SOS: ' + JSON.stringify(st.reasons));
   if (!st.affirm.favs.includes('You deserve a healthy life.')) errors.push('favourite not saved');
   if (await page.evaluate(() => document.body.classList.contains('wrap-open'))) errors.push('overlay class left on');
   // "Start my day" on the lock screen: the app opens on Today and records the morning it was handed
@@ -190,11 +229,12 @@ const shots = process.argv[3] || null;
   });
   await page.reload();
   await page.waitForSelector('.tg-hero');
-  await page.evaluate((d) => window.__alarm.listeners.route({ route: '#/today', wake: JSON.stringify({ date: d, at: '06:52', value: 'family', fav: true, message: 'You look beautiful.' }) }), today);
-  await page.waitForSelector('.toast.show >> text=doing this for family');
+  await page.evaluate((d) => window.__alarm.listeners.route({ route: '#/today', wake: JSON.stringify({ date: d, at: '06:52', values: ['family', 'me'], other: 'my kids', added: ['Freedom'], fav: true, message: 'You look beautiful.' }) }), today);
+  await page.waitForSelector('.toast.show >> text=Your reasons today: you, the people you love and your kids');
   const st2 = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')));
   if (st2.wakes?.[today] !== '06:52') errors.push('lock-screen morning not recorded: ' + JSON.stringify(st2.wakes));
   if (!st2.affirm.favs.includes('You look beautiful.')) errors.push('lock-screen favourite not saved');
+  if (!st2.affirm.values.some((x) => x.toLowerCase() === 'freedom')) errors.push('reason typed on the lock screen not saved: ' + JSON.stringify(st2.affirm));
   // A malformed hand-off is ignored safely
   await page.evaluate(() => window.__alarm.listeners.route({ route: '#/today', wake: '{"date":"<b>","at":"99:99"}' }));
   // Learn card

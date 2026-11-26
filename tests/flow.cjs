@@ -63,8 +63,92 @@ const shots = process.argv[3] || null;
   const eatAfter = await page.textContent('.ring-leg:nth-child(1)');
   if (!/✓/.test(eatAfter)) errors.push(`Eat ring did not close: ${eatBefore} → ${eatAfter}`);
   if (!/ring closed/.test((await page.locator('.ring-banner').textContent().catch(() => '')) || '')) errors.push('no "ring closed" celebration');
-  // Quick log row: food, weight, steps, workout
+  // No step tracking: the Move ring never mentions steps, and logged steps don't close it
+  await page.evaluate(() => {
+    const st = JSON.parse(localStorage.getItem('habitlab.v1'));
+    const d = new Date();
+    const t = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    st.steps[t] = 50000;
+    st.workouts.log[t] = [];
+    localStorage.setItem('habitlab.v1', JSON.stringify(st));
+  });
+  await page.reload();
+  await page.waitForSelector('.ring-leg');
+  const moveLeg = await page.textContent('.ring-leg:nth-child(2)');
+  if (/step/i.test(moveLeg)) errors.push('Move ring still shows steps: ' + moveLeg);
+  if (!/Rest day/.test(moveLeg) && /✓/.test(moveLeg)) errors.push('steps closed the Move ring: ' + moveLeg);
+  // Craving SOS: this morning's reasons, a short tool, how it feels after; never shows food
+  await page.evaluate(() => {
+    const st = JSON.parse(localStorage.getItem('habitlab.v1'));
+    const d = new Date();
+    st.reasons = { date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, values: ['family', 'Freedom'], other: '' };
+    localStorage.setItem('habitlab.v1', JSON.stringify(st));
+  });
+  await page.goto(base + '#/today');
+  await page.reload();
+  await page.click('.quick-log a[href="#/sos"]');
+  await page.waitForSelector('.sos-tools');
+  if (!/This morning you said/.test(await page.textContent('.sos-hero')) || !/the people you love and freedom/.test(await page.textContent('.sos-hero'))) errors.push('SOS should show this morning’s reasons: ' + (await page.textContent('.sos-hero')));
+  const sosText = (await page.textContent('main')).toLowerCase();
+  for (const w of ['chocolate', 'pizza', 'sweets', 'crisps', 'soda', 'cake']) if (sosText.includes(w)) errors.push(`SOS screen mentions "${w}"`);
+  if ((await page.locator('.sos-tool').count()) < 6) errors.push('SOS tools missing');
+  await page.click('.sos-tool[data-tool=puzzle]');
+  await page.waitForSelector('.sos-puzzle');
+  if ((await page.locator('.sos-tile:not(.blank)').count()) !== 8) errors.push('puzzle tiles');
+  const t1 = await page.textContent('[data-timer]');
+  await page.waitForTimeout(1300);
+  if ((await page.textContent('[data-timer]')) === t1) errors.push('SOS timer not counting down');
+  await page.click('button[data-action=sosDone]');
+  await page.click('button[data-action=sosResult][data-v=gone]');
+  await page.waitForSelector('text=You rode it out');
+  const cr = await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('habitlab.v1')).cravings || {}).flat());
+  if (!cr.some((c) => c.tool === 'puzzle' && c.result === 'gone')) errors.push('craving not logged: ' + JSON.stringify(cr));
+  // Leaving and coming back starts fresh
+  await page.goto(base + '#/today');
+  await page.goto(base + '#/sos');
+  await page.waitForSelector('.sos-tools');
+  await page.goto(base + '#/today');
+  await page.waitForSelector('.quick-log');
+
+  // Quick log row: food, weight, workout
   if ((await page.locator('.quick-log .ql-btn').count()) < 3) errors.push('quick log missing');
+  // Forgot to log yesterday: step back on Today, tick a meal and a habit → saved to yesterday, not today
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const yday = ymd(new Date(Date.now() - 864e5));
+  await page.evaluate((y) => {
+    const st = JSON.parse(localStorage.getItem('habitlab.v1'));
+    delete st.mealLog[y];
+    delete st.habits.log[y];
+    localStorage.setItem('habitlab.v1', JSON.stringify(st));
+  }, yday);
+  await page.goto(base + '#/today');
+  await page.reload();
+  await page.waitForSelector('.day-nav');
+  await page.click('.day-nav a[aria-label="Previous day"]');
+  await page.waitForSelector('.past-day');
+  if (!/Yesterday/.test(await page.textContent('.day-nav-label'))) errors.push('day nav label: ' + (await page.textContent('.day-nav-label')));
+  await page.click('.tg-day button[data-action=mealCheck] >> nth=0');
+  await page.waitForTimeout(300);
+  await page.click('.tg-day button[data-action=habitCheck] >> nth=0');
+  await page.waitForTimeout(300);
+  const back = await page.evaluate((y) => JSON.parse(localStorage.getItem('habitlab.v1')), yday);
+  if (!Object.keys(back.mealLog[yday] || {}).length) errors.push('meal ticked on yesterday not saved to yesterday');
+  if (!Object.keys(back.habits.log[yday] || {}).length) errors.push('habit ticked on yesterday not saved to yesterday');
+  // Up to 7 days back; not into the future
+  await page.goto(base + '#/today/' + ymd(new Date(Date.now() - 7 * 864e5)));
+  // (wait for the new day to render — the previous past day's banner is already on screen)
+  await page.waitForSelector('.day-nav [aria-label="Previous day"][aria-disabled=true]', { timeout: 5000 }).catch(() => errors.push('should stop at 7 days back'));
+  await page.goto(base + '#/today/' + ymd(new Date(Date.now() + 864e5)));
+  await page.waitForSelector('.tg-hero');
+  if (await page.locator('.past-day').count()) errors.push('future date should show today');
+  // Leaving Today resets: the weigh-in sheet elsewhere defaults to today
+  await page.goto(base + '#/today/' + yday);
+  await page.waitForSelector('.past-day');
+  await page.goto(base + '#/progress');
+  await page.goto(base + '#/today');
+  await page.waitForSelector('.tg-hero');
+  if (await page.locator('.past-day').count()) errors.push('Today should open on today again');
+
   // Lapsed user: nothing logged for 4 days → a kind welcome-back card, dismissible for today
   await page.evaluate(() => {
     const st = JSON.parse(localStorage.getItem('habitlab.v1'));

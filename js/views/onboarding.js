@@ -171,7 +171,6 @@ function movement() {
       <label class="field"><span>Time per session</span><select name="sessionMinutes">
         ${[15, 20, 30, 45].map((m) => `<option value="${m}" ${Number(draft.sessionMinutes || 30) === m ? 'selected' : ''}>${m} minutes</option>`)}</select></label>
       <label class="field"><span>Current activity per week <span class="hint">Brisk walking, cycling, swimming… (minutes)</span></span>${num('baselineCardioMin', draft.baselineCardioMin ?? 30, { min: 0, max: 1500, step: 5, unit: 'min' })}</label>
-      <label class="field"><span>Average daily steps <span class="hint">From your phone or watch. Leave blank if unsure.</span></span>${num('baselineSteps', draft.baselineSteps ?? '', { min: 0, max: 40000, step: 100, required: false, placeholder: 'e.g. 4000' })}</label>
     </div>
     <fieldset><legend>Cardio you’d enjoy (or tolerate)</legend>${chips('cardioPrefs', Object.fromEntries(Object.entries(CARDIO).map(([k, c]) => [k, c.label])), draft.cardioPrefs || ['walk'])}</fieldset>
     <p class="muted" style="font-size:.88rem">Already walk with friends, play a sport or dance? You can add those on the Move page — they count toward your week, so the app plans less on top.</p>

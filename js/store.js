@@ -3,7 +3,7 @@ import { isoDate, weekStart, hashString, weekdayOf, dateInWeek, planDayFor, setW
 import { dailyTargets, estimateTdee } from './engine/calc.js';
 import { latestTrend } from './engine/trend.js';
 import { planWeek } from './engine/meals.js';
-import { initialProgress, weekSchedule } from './engine/workouts.js';
+import { initialProgress, weekSchedule, applyMoves } from './engine/workouts.js';
 import { screen } from './engine/safety.js';
 import { summary as gameSummaryRaw } from './engine/game.js';
 import { DEFAULT_REMINDERS } from './engine/reminders.js';
@@ -198,6 +198,7 @@ export function sanitize(s) {
     blockedRecipes: subset(pr.blockedRecipes, recipeIds),
     seed: num(pr.seed, 0, 1e6, 0),
   };
+  s.checkins = (Array.isArray(s.checkins) ? s.checkins : []).filter((c) => c && typeof c === 'object' && ISO.test(c.date));
   s.weights = (Array.isArray(s.weights) ? s.weights : []).filter((w) => w && ISO.test(w.date) && num(w.kg, 30, 400) != null).map((w) => ({ date: w.date, kg: Number(w.kg) }));
   s.waist = (Array.isArray(s.waist) ? s.waist : []).filter((w) => w && ISO.test(w.date) && num(w.cm, 30, 300) != null).map((w) => ({ date: w.date, cm: Number(w.cm) }));
   s.intake = dateMap(s.intake, (v) => num(v, 0, 20000));
@@ -222,9 +223,23 @@ export function sanitize(s) {
     s.flags = { ...(s.flags && typeof s.flags === 'object' ? s.flags : {}), snooze5: true };
     const f = s.affirm && typeof s.affirm === 'object' ? s.affirm : {};
     const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
-    s.affirm = { values: strs(f.values, 3, 30), own: strs(f.own, 12, 30), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
+    s.affirm = { values: strs(f.values, 60, 40), own: strs(f.own, 200, 40), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
   }
-  s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 80), kcal: num(x?.kcal, 0, 10000, 0) })) : null));
+  // This morning's reasons (shown again when a craving hits) and cravings you rode out.
+  const rs = s.reasons;
+  if (rs && typeof rs === 'object' && ISO.test(rs.date)) s.reasons = { date: rs.date, values: (Array.isArray(rs.values) ? rs.values : []).filter((v) => typeof v === 'string' && v).map((v) => v.slice(0, 40)).slice(0, 20), other: typeof rs.other === 'string' ? rs.other.slice(0, 40) : '' };
+  else delete s.reasons;
+  s.cravings = dateMap(s.cravings, (v) => (Array.isArray(v) ? v.filter((c) => c && typeof c === 'object').slice(-30).map((c) => ({ at: typeof c.at === 'string' && /^\d{2}:\d{2}$/.test(c.at) ? c.at : '', tool: typeof c.tool === 'string' ? c.tool.slice(0, 20) : '', result: ['gone', 'weaker', 'still'].includes(c.result) ? c.result : 'weaker' })) : null));
+  // Your calendar events, and your shared-calendar link (id + secret key stay on this device).
+  const KINDS = ['walk', 'workout', 'sport', 'outdoors', 'cooking', 'shopping', 'habit', 'other'];
+  s.events = (Array.isArray(s.events) ? s.events : []).filter((e) => e && typeof e.id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(e.id) && ISO.test(e.date) && typeof e.title === 'string' && e.title.trim()).slice(-500).map((e) => ({
+    id: e.id, ...(typeof e.planKey === 'string' && /^(strength|activity|cardio):[\w-]{1,60}$/.test(e.planKey) ? { planKey: e.planKey } : {}), title: e.title.trim().slice(0, 60), date: e.date, time: typeof e.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(e.time) ? e.time : '',
+    place: typeof e.place === 'string' ? e.place.slice(0, 80) : '', kind: KINDS.includes(e.kind) ? e.kind : 'other', notes: typeof e.notes === 'string' ? e.notes.slice(0, 140) : '', public: e.public === true,
+  }));
+  const sh = s.share;
+  if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40), ...(num(sh.seen, 1, 1e15, 0) ? { seen: num(sh.seen, 1, 1e15, 0) } : {}) };
+  else delete s.share;
+  s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 120), kcal: num(x?.kcal, 0, 10000, 0), ...(num(x?.p, 0, 500, 0) ? { p: num(x?.p, 0, 500, 0) } : {}), ...(typeof x?.at === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x.at) ? { at: x.at } : {}) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
   const g = s.game && typeof s.game === 'object' ? s.game : {};
   s.game = {
@@ -249,7 +264,7 @@ export function sanitize(s) {
   s.habits.retired = (Array.isArray(s.habits.retired) ? s.habits.retired : []).filter((r) => r && habitIds.includes(r.id)).map((r) => ({ id: r.id, date: isoOr(r.date, isoDate()) }));
   // Habit log values: true (full habit) or a 1-based small-win level.
   s.habits.log = dateMap(s.habits.log, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k, x]) => habitIds.includes(k) && x).map(([k, x]) => [k, x === true ? true : Number.isInteger(x) && x >= 1 && x <= 3 ? x : true])) : null));
-  s.mealLog = dateMap(s.mealLog, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([slot, e]) => /^(breakfast|lunch|dinner|snack\d?)$/.test(slot) && ['ate', 'skip', 'other'].includes(e?.status)).map(([slot, e]) => [slot, e.status === 'other' ? { status: 'other', kcal: num(e.kcal, 0, 10000, 0) } : { status: e.status }])) : null));
+  s.mealLog = dateMap(s.mealLog, (v) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([slot, e]) => /^(breakfast|lunch|dinner|snack\d?)$/.test(slot) && ['ate', 'skip', 'other'].includes(e?.status)).map(([slot, e]) => [slot, e.status === 'other' ? { status: 'other', kcal: num(e.kcal, 0, 10000, 0), ...(num(e.p, 0, 500, 0) ? { p: num(e.p, 0, 500, 0) } : {}), ...(typeof e.label === 'string' && e.label.trim() ? { label: e.label.trim().slice(0, 120) } : {}) } : { status: e.status }])) : null));
   const wl = s.workouts.log;
   s.workouts.log = dateMap(wl, (v) => (Array.isArray(v) ? v.filter((x) => x && ['strength', 'cardio', 'activity'].includes(x.kind)).map((x) => ({
     kind: x.kind,
@@ -261,8 +276,11 @@ export function sanitize(s) {
     minutes: num(x.minutes, 0, 600, 0),
     ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined,
   })) : null));
+  // Your moves of planned sessions to other days, per week (kept for 8 weeks).
+  const mv = s.workouts.moves && typeof s.workouts.moves === 'object' ? s.workouts.moves : {};
+  s.workouts.moves = Object.fromEntries(Object.entries(mv).filter(([wk, list]) => ISO.test(wk) && Array.isArray(list)).sort().slice(-8).map(([wk, list]) => [wk, list.filter((m) => m && typeof m.key === 'string' && /^(strength|activity|cardio):[\w-]{1,60}$/.test(m.key) && Number.isInteger(m.from) && Number.isInteger(m.to) && m.from >= 0 && m.from < 7 && m.to >= 0 && m.to < 7).slice(0, 30).map((m) => ({ key: m.key, from: m.from, to: m.to }))]));
   const prog = s.workouts.progress && typeof s.workouts.progress === 'object' ? s.workouts.progress : {};
-  s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.slice(-30) : [] }]));
+  s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.filter((h) => h && typeof h === 'object').slice(-30) : [] }]));
   // Plans reference recipes by id; drop any plan containing an unknown recipe (it will be rebuilt).
   s.plans = Object.fromEntries(Object.entries(s.plans || {}).filter(([k, v]) => ISO.test(k) && Array.isArray(v?.days) && v.days.every((d) => Array.isArray(d) && d.every((m) => recipeIds.includes(m?.recipeId) && Number.isFinite(m.scale)))));
   s.prefs.weekStart = Math.round(s.prefs.weekStart);
@@ -371,7 +389,9 @@ export function ensureProgress(state) {
 }
 
 export function schedule(state, date = today()) {
-  return weekSchedule(state.profile, state.workouts.progress, weeksSinceStart(state, date));
+  const base = weekSchedule(state.profile, state.workouts.progress, weeksSinceStart(state, date));
+  const moves = state.workouts.moves?.[weekStart(date)];
+  return moves?.length ? { ...base, schedule: applyMoves(base.schedule, moves) } : base;
 }
 
 export function exportJson(state) {
