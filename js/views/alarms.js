@@ -52,7 +52,7 @@ function reasonLibrary(affirm) {
   const mine = REASONS.filter((r) => picked.has(r[1].toLowerCase())).length;
   return `<details class="reason-lib" ${libOpen ? 'open' : ''}><summary id="reasons"><strong>Browse ${REASONS.length} reasons or add your own</strong>${mine ? ` <span class="muted">· ${mine} picked</span>` : ''}</summary>
       <form class="own-value" data-form="affirmAddValue" style="margin-top:8px"><input type="text" name="value" maxlength="${VALUE_LEN}" placeholder="Your own word — e.g. Freedom" aria-label="Add your own reason"><button class="btn small tonal">Add</button></form>
-      <input type="search" class="reason-search" data-filter="reason" value="${esc(reasonQuery)}" placeholder="Search — e.g. kids, knees, Paris" aria-label="Search reasons">
+      <input type="search" class="reason-search" autocomplete="off" data-filter="reason" value="${esc(reasonQuery)}" placeholder="Search — e.g. kids, knees, Paris" aria-label="Search reasons">
       <div class="scroll-x" style="margin:8px 0 10px">${tabs.map(([k, l, n]) => `<button type="button" class="qchip ${reasonCat === k ? 'done' : ''}" style="padding-left:12px" data-action="reasonCat" data-value="${k}" aria-pressed="${reasonCat === k}">${esc(l)} <span class="muted">${n}</span></button>`).join('')}</div>
       <div class="reason-grid" data-filter-target="reason">${REASONS.map(([c, t]) => {
         const on = picked.has(t.toLowerCase());

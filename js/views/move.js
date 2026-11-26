@@ -43,7 +43,7 @@ function activitiesCard(state) {
     const tabs = [['pop', 'Popular', HOBBIES.filter((h) => h.pop).length], ['all', 'All', HOBBIES.length], ...Object.entries(HOBBY_CATEGORIES).map(([k, l]) => [k, l, HOBBIES.filter((h) => h.cat === k).length])];
     form = `<div class="card flat" style="margin-top:10px">
       <div class="row between" style="margin-bottom:8px"><strong>What do you do?</strong><button class="btn ghost small" data-action="toggleAddActivity">Cancel</button></div>
-      <input type="search" placeholder="Search all ${HOBBIES.length} — e.g. squash, gardening, scuba" data-filter="hobby" aria-label="Search activities" style="margin-bottom:10px">
+      <input type="search" autocomplete="off" placeholder="Search all ${HOBBIES.length} — e.g. squash, gardening, scuba" data-filter="hobby" aria-label="Search activities" style="margin-bottom:10px">
       <div class="scroll-x" style="margin-bottom:10px">${tabs.map(([k, l, n]) => `<button type="button" class="qchip ${pickCat === k ? 'done' : ''}" style="padding-left:12px" data-action="hobbyCat" data-value="${k}" aria-pressed="${pickCat === k}">${esc(l)} <span class="muted">${n}</span></button>`).join('')}</div>
       <div class="hobby-grid" data-filter-target="hobby">${HOBBIES.map((h) => `<button type="button" class="hobby-btn" data-action="pickHobby" data-name="${esc(h.name)}" data-filter-text="${esc(h.name.toLowerCase())} ${esc(HOBBY_CATEGORIES[h.cat].toLowerCase())}"${inCat(h) ? '' : ' data-out="1" hidden'}><span>${esc(h.name)}</span><small class="int-${intensityFromMet(h.met)}">${INTENSITY[intensityFromMet(h.met)].label}${h.strength ? ' · strength' : ''}</small></button>`).join('')}
         <button type="button" class="hobby-btn custom" data-action="pickHobby" data-name="" data-filter-text="something else other custom"><span>${icon('plus')} Something else</span><small>Type your own</small></button></div>
@@ -132,7 +132,7 @@ function overview(state) {
     <div class="card"><div class="card-head"><h2>Log activity</h2></div>
       <form data-form="logCardio" class="row">
         <select name="mode" aria-label="Activity" style="flex:1;min-width:150px" data-change="logMode">${Object.entries(CARDIO).map(([k, c]) => `<option value="${k}">${esc(c.label)}</option>`).join('')}${(state.profile.activities || []).map((a) => `<option value="act:${esc(a.id)}" ${logOther === 'act:' + a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}<option value="other" ${logOther === 'other' ? 'selected' : ''}>Something else…</option></select>
-        ${logOther === 'other' ? `<input type="text" name="name" aria-label="What was it?" maxlength="80" required placeholder="What was it?" list="hobby-names" style="flex:1;min-width:150px"><datalist id="hobby-names">${HOBBIES.map((h) => `<option value="${esc(h.name)}"></option>`).join('')}</datalist><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
+        ${logOther === 'other' ? `<span class="suggest-wrap" style="flex:1;min-width:150px"><input type="text" name="name" aria-label="What was it?" maxlength="80" required placeholder="What was it?" autocomplete="off" data-hobby-suggest><span class="hobby-suggest" role="listbox" aria-label="Suggestions"></span></span><select name="intensity" style="width:130px">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === 'moderate' ? 'selected' : ''}>${v.label}</option>`).join('')}</select>` : ''}
         <input type="number" name="minutes" aria-label="Minutes" min="1" max="300" placeholder="minutes" required style="width:110px" inputmode="numeric">
         <input type="date" name="date" aria-label="Date" value="${date}" max="${date}" style="width:160px">
         <button class="btn primary">Log</button>
@@ -231,6 +231,12 @@ export default {
       });
       ctx.toast(`${minutes} minutes logged.`);
     },
+    pickSuggest(el) {
+      const input = el.closest('.suggest-wrap').querySelector('input');
+      input.value = el.dataset.v;
+      el.parentElement.innerHTML = '';
+      input.focus();
+    },
     logMode(el, ev, ctx) {
       const v = el.value;
       const next = v === 'other' ? 'other' : v.startsWith('act:') ? v : false;
@@ -287,6 +293,16 @@ export default {
   },
 };
 void REP_RANGE;
+
+// Suggestions for "Something else…" — our own list instead of the phone's autocomplete pop-up,
+// which Android's in-app browser draws see-through.
+document.addEventListener('input', (ev) => {
+  if (!ev.target.matches?.('[data-hobby-suggest]')) return;
+  const box = ev.target.parentElement.querySelector('.hobby-suggest');
+  const q = ev.target.value.trim().toLowerCase();
+  const hits = q.length < 2 ? [] : HOBBIES.filter((h) => h.name.toLowerCase().includes(q)).sort((a, b) => Number(!a.name.toLowerCase().startsWith(q)) - Number(!b.name.toLowerCase().startsWith(q))).slice(0, 6);
+  box.innerHTML = hits.map((h) => `<button type="button" role="option" data-action="pickSuggest" data-v="${esc(h.name)}">${esc(h.name)}</button>`).join('');
+});
 
 /** A planned regular activity is done: ask how long and how hard (shared with the Today screen). */
 export function logPlannedActivity(ctx, id) {

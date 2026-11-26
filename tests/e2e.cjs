@@ -209,6 +209,12 @@ const shots = process.argv[3] || null;
   await page.waitForSelector('text=Back on its planned day');
   await page.goto(base + '#/move');
   await page.selectOption('form[data-form=logCardio] select[name=mode]', 'other');
+  // Our own suggestions (not the phone's see-through autocomplete pop-up)
+  if (await page.locator('form[data-form=logCardio] input[list]').count()) errors.push('activity box still uses the native autocomplete list');
+  await page.type('form[data-form=logCardio] input[name=name]', 'pa');
+  await page.waitForSelector('.hobby-suggest button');
+  await page.click('.hobby-suggest button:has-text("Padel")');
+  if ((await page.inputValue('form[data-form=logCardio] input[name=name]')) !== 'Padel') errors.push('suggestion not filled in');
   await page.fill('form[data-form=logCardio] input[name=name]', 'Padel');
   await page.fill('form[data-form=logCardio] input[name=minutes]', '40');
   await page.click('form[data-form=logCardio] button.primary');

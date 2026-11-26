@@ -134,6 +134,7 @@ export default {
         if (ctx.state.game?.sound !== false) chime('quest');
         ctx.update((st) => {
           st.wakes = { ...(st.wakes || {}), [today]: hhmm };
+          st.reasons = { date: today, values: [...chosen].slice(0, 20), other: other.trim().slice(0, 40) };
           return st;
         }, { render: false });
       }

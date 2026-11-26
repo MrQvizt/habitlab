@@ -22,6 +22,8 @@ import calendarView from './views/calendar.js';
 import { calendarActions } from './views/calendar.js';
 import joinView from './views/join.js';
 import planView from './views/plan.js';
+import sosView from './views/sos.js';
+import { resetSos } from './views/sos.js';
 import { organActions } from './views/body.js';
 import { organById } from './engine/body.js';
 import * as alarmNative from './alarm-native.js';
@@ -35,9 +37,9 @@ import { closeSheet } from './ui/sheet.js';
 import { sheetActions } from './views/sheets.js';
 import { daySummary, readDay } from './views/day.js';
 
-const VIEWS = { plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 // Screens without their own tab light up the tab they belong to.
-const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today', calendar: 'move', plan: 'today' };
+const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today', calendar: 'move', plan: 'today', sos: 'today' };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -390,6 +392,7 @@ alarmNative.listen((route) => ctx.go(route), (w) => {
   // "Start my day" on the lock screen: record the morning (once a day) and the message you liked.
   ctx.update((st) => {
     if (!st.wakes?.[w.date]) st.wakes = { ...(st.wakes || {}), [w.date]: w.at };
+    st.reasons = { date: w.date, values: w.values.slice(0, 20), other: w.other || '' };
     // Reasons typed on the lock screen join your list, so they're a choice next time.
     for (const r of w.added) st.affirm = addReason(st.affirm || {}, r);
     if (w.message) {
@@ -405,7 +408,9 @@ alarmNative.listen((route) => ctx.go(route), (w) => {
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
 
 let transitioning = false;
-function navigate() {
+function navigate(ev) {
+  // Opening the craving SOS from anywhere else starts it from the beginning.
+  if (ev?.oldURL != null && !/#\/sos(\/|$)/.test(ev.oldURL) && /^#\/sos(\/|$)/.test(location.hash)) resetSos();
   closeSheet(true);
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   if (document.startViewTransition && !reduce && !transitioning) {

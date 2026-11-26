@@ -225,6 +225,11 @@ export function sanitize(s) {
     const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
     s.affirm = { values: strs(f.values, 60, 40), own: strs(f.own, 200, 40), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
   }
+  // This morning's reasons (shown again when a craving hits) and cravings you rode out.
+  const rs = s.reasons;
+  if (rs && typeof rs === 'object' && ISO.test(rs.date)) s.reasons = { date: rs.date, values: (Array.isArray(rs.values) ? rs.values : []).filter((v) => typeof v === 'string' && v).map((v) => v.slice(0, 40)).slice(0, 20), other: typeof rs.other === 'string' ? rs.other.slice(0, 40) : '' };
+  else delete s.reasons;
+  s.cravings = dateMap(s.cravings, (v) => (Array.isArray(v) ? v.filter((c) => c && typeof c === 'object').slice(-30).map((c) => ({ at: typeof c.at === 'string' && /^\d{2}:\d{2}$/.test(c.at) ? c.at : '', tool: typeof c.tool === 'string' ? c.tool.slice(0, 20) : '', result: ['gone', 'weaker', 'still'].includes(c.result) ? c.result : 'weaker' })) : null));
   // Your calendar events, and your shared-calendar link (id + secret key stay on this device).
   const KINDS = ['walk', 'workout', 'sport', 'outdoors', 'cooking', 'shopping', 'habit', 'other'];
   s.events = (Array.isArray(s.events) ? s.events : []).filter((e) => e && typeof e.id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(e.id) && ISO.test(e.date) && typeof e.title === 'string' && e.title.trim()).slice(-500).map((e) => ({

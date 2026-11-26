@@ -86,6 +86,7 @@ function quickLog(state) {
     ${b('openExtra', 'plus', 'Food')}
     ${hide ? '' : b('openWeigh', 'scale', 'Weight')}
     <a class="ql-btn" href="#/move"><span class="ql-ico">${icon('move')}</span>Workout</a>
+    <a class="ql-btn ql-sos" href="#/sos"><span class="ql-ico" aria-hidden="true">🌊</span>Craving</a>
   </div>`;
 }
 

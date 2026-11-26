@@ -218,6 +218,7 @@ const shots = process.argv[3] || null;
   const st = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')));
   const today = await page.evaluate(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
   if (!st.wakes?.[today]) errors.push('morning intention not recorded');
+  if (st.reasons?.date !== today || !st.reasons.values.includes('family')) errors.push('morning reasons not kept for the craving SOS: ' + JSON.stringify(st.reasons));
   if (!st.affirm.favs.includes('You deserve a healthy life.')) errors.push('favourite not saved');
   if (await page.evaluate(() => document.body.classList.contains('wrap-open'))) errors.push('overlay class left on');
   // "Start my day" on the lock screen: the app opens on Today and records the morning it was handed

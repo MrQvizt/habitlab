@@ -77,6 +77,39 @@ const shots = process.argv[3] || null;
   const moveLeg = await page.textContent('.ring-leg:nth-child(2)');
   if (/step/i.test(moveLeg)) errors.push('Move ring still shows steps: ' + moveLeg);
   if (!/Rest day/.test(moveLeg) && /✓/.test(moveLeg)) errors.push('steps closed the Move ring: ' + moveLeg);
+  // Craving SOS: this morning's reasons, a short tool, how it feels after; never shows food
+  await page.evaluate(() => {
+    const st = JSON.parse(localStorage.getItem('habitlab.v1'));
+    const d = new Date();
+    st.reasons = { date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, values: ['family', 'Freedom'], other: '' };
+    localStorage.setItem('habitlab.v1', JSON.stringify(st));
+  });
+  await page.goto(base + '#/today');
+  await page.reload();
+  await page.click('.quick-log a[href="#/sos"]');
+  await page.waitForSelector('.sos-tools');
+  if (!/This morning you said/.test(await page.textContent('.sos-hero')) || !/the people you love and freedom/.test(await page.textContent('.sos-hero'))) errors.push('SOS should show this morning’s reasons: ' + (await page.textContent('.sos-hero')));
+  const sosText = (await page.textContent('main')).toLowerCase();
+  for (const w of ['chocolate', 'pizza', 'sweets', 'crisps', 'soda', 'cake']) if (sosText.includes(w)) errors.push(`SOS screen mentions "${w}"`);
+  if ((await page.locator('.sos-tool').count()) < 6) errors.push('SOS tools missing');
+  await page.click('.sos-tool[data-tool=puzzle]');
+  await page.waitForSelector('.sos-puzzle');
+  if ((await page.locator('.sos-tile:not(.blank)').count()) !== 8) errors.push('puzzle tiles');
+  const t1 = await page.textContent('[data-timer]');
+  await page.waitForTimeout(1300);
+  if ((await page.textContent('[data-timer]')) === t1) errors.push('SOS timer not counting down');
+  await page.click('button[data-action=sosDone]');
+  await page.click('button[data-action=sosResult][data-v=gone]');
+  await page.waitForSelector('text=You rode it out');
+  const cr = await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('habitlab.v1')).cravings || {}).flat());
+  if (!cr.some((c) => c.tool === 'puzzle' && c.result === 'gone')) errors.push('craving not logged: ' + JSON.stringify(cr));
+  // Leaving and coming back starts fresh
+  await page.goto(base + '#/today');
+  await page.goto(base + '#/sos');
+  await page.waitForSelector('.sos-tools');
+  await page.goto(base + '#/today');
+  await page.waitForSelector('.quick-log');
+
   // Quick log row: food, weight, workout
   if ((await page.locator('.quick-log .ql-btn').count()) < 3) errors.push('quick log missing');
   // Forgot to log yesterday: step back on Today, tick a meal and a habit → saved to yesterday, not today
