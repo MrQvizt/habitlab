@@ -9395,7 +9395,7 @@ Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, valueInfo, DEFAULT_SETS, 
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
 const { alarmSpecs, alarmsOf } = __req(41);
-const { morningMessages } = __req(42);
+const { morningMessages, valueInfo } = __req(42);
 
 let lastMessage = null;
 
@@ -9414,7 +9414,10 @@ async function sync(state) {
   const p = plugin();
   if (!p || !state.profile) return null;
   try {
-    return await p.setAlarms({ alarms: alarmSpecs(state), messages: morningMessages(state.affirm || {}), snooze: alarmsOf(state).snooze });
+    const affirm = state.affirm || {};
+    // The morning screen runs on the lock screen, so it needs your values and saved favourites.
+    const values = (affirm.values || []).map((v) => ({ id: v, ...valueInfo(v) })).filter((v) => v.label).map((v) => ({ id: v.id, label: v.label, phrase: v.phrase || '' }));
+    return await p.setAlarms({ alarms: alarmSpecs(state), messages: morningMessages(affirm), snooze: alarmsOf(state).snooze, values, favs: affirm.favs || [] });
   } catch (e) {
     return null;
   }
@@ -9476,13 +9479,26 @@ function takeMessage() {
   return m;
 }
 
+/** The morning the lock-screen wake screen recorded ("Start my day"), checked: {date, at, value, fav, message} or null. */
+function parseWake(raw) {
+  try {
+    const w = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!w || !/^\d{4}-\d{2}-\d{2}$/.test(w.date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(w.at)) return null;
+    return { date: w.date, at: w.at, value: typeof w.value === 'string' ? w.value.slice(0, 30) : 'me', fav: w.fav === true, message: typeof w.message === 'string' ? w.message.slice(0, 200) : '' };
+  } catch (e) {
+    return null;
+  }
+}
+
 /** Open the screen an alarm points to, on cold start and while running. */
-async function listen(go) {
+async function listen(go, onWake) {
   const p = plugin();
   if (!p) return;
   const handle = (r) => {
     if (!r?.route) return;
     if (r.message) lastMessage = r.message;
+    const w = r.wake ? parseWake(r.wake) : null;
+    if (w && onWake) onWake(w);
     go(r.route);
   };
   try {
@@ -9493,7 +9509,7 @@ async function listen(go) {
   }
 }
 
-Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, listen });
+Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, parseWake, listen });
 },
 /* js/views/alarms.js */ 44: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
@@ -10715,6 +10731,7 @@ const { organById } = __req(12);
 const alarmNative = __req(43);
 const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(30);
 const { newlyClosed, allClosed } = __req(28);
+const { valueInfo } = __req(42);
 const { BADGES } = __req(13);
 const notify = __req(45);
 const { closeSheet } = __req(25);
@@ -11070,7 +11087,21 @@ function syncReminders() {
   });
 }
 notify.listen();
-alarmNative.listen((route) => ctx.go(route));
+alarmNative.listen((route) => ctx.go(route), (w) => {
+  // "Start my day" on the lock screen: record the morning (once a day) and the message you liked.
+  ctx.update((st) => {
+    if (!st.wakes?.[w.date]) st.wakes = { ...(st.wakes || {}), [w.date]: w.at };
+    if (w.message) {
+      const favs = new Set(st.affirm?.favs || []);
+      if (w.fav) favs.add(w.message);
+      else favs.delete(w.message);
+      st.affirm = { ...(st.affirm || {}), favs: [...favs].slice(-30) };
+    }
+    return st;
+  }, { render: false });
+  const v = w.value === 'me' ? null : valueInfo(w.value);
+  ctx.toast(v ? `Good morning. Today you’re doing this for ${v.label.toLowerCase()}.` : 'Good morning. You are reason enough.');
+});
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
 
 let transitioning = false;

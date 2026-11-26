@@ -23,6 +23,7 @@ import { organById } from './engine/body.js';
 import * as alarmNative from './alarm-native.js';
 import { floatXp, confetti, chime, buzz, showCelebration, ringBanner } from './ui/celebrate.js';
 import { newlyClosed, allClosed } from './views/dayrings.js';
+import { valueInfo } from './data/affirmations.js';
 import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
 import { closeSheet } from './ui/sheet.js';
@@ -378,7 +379,21 @@ export function syncReminders() {
   });
 }
 notify.listen();
-alarmNative.listen((route) => ctx.go(route));
+alarmNative.listen((route) => ctx.go(route), (w) => {
+  // "Start my day" on the lock screen: record the morning (once a day) and the message you liked.
+  ctx.update((st) => {
+    if (!st.wakes?.[w.date]) st.wakes = { ...(st.wakes || {}), [w.date]: w.at };
+    if (w.message) {
+      const favs = new Set(st.affirm?.favs || []);
+      if (w.fav) favs.add(w.message);
+      else favs.delete(w.message);
+      st.affirm = { ...(st.affirm || {}), favs: [...favs].slice(-30) };
+    }
+    return st;
+  }, { render: false });
+  const v = w.value === 'me' ? null : valueInfo(w.value);
+  ctx.toast(v ? `Good morning. Today you’re doing this for ${v.label.toLowerCase()}.` : 'Good morning. You are reason enough.');
+});
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
 
 let transitioning = false;

@@ -770,3 +770,12 @@ test('snooze starts at 5 minutes; the old 9-minute default moves to 5 once, a ch
   // After the move, a deliberate 9 stays 9
   assert.equal(store.sanitize({ ...emptyState(), alarms: { snooze: 9 }, flags: { snooze5: true } }).alarms.snooze, 9);
 });
+
+test('lock-screen morning hand-off is validated', async () => {
+  const { parseWake } = await import('../js/alarm-native.js');
+  assert.deepEqual(parseWake('{"date":"2026-11-26","at":"06:52","value":"family","fav":true,"message":"Hi"}'), { date: '2026-11-26', at: '06:52', value: 'family', fav: true, message: 'Hi' });
+  assert.equal(parseWake('{"date":"<b>","at":"06:52"}'), null);
+  assert.equal(parseWake('{"date":"2026-11-26","at":"99:99"}'), null);
+  assert.equal(parseWake('not json'), null);
+  assert.equal(parseWake('{"date":"2026-11-26","at":"07:00","fav":"yes"}').fav, false);
+});

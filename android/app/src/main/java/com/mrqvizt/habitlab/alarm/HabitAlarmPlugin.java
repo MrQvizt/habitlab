@@ -34,6 +34,7 @@ import org.json.JSONException;
 public class HabitAlarmPlugin extends Plugin {
     private static String pendingRoute;
     private static String pendingMessage;
+    private static String pendingWake;
 
     @Override
     public void load() {
@@ -48,6 +49,10 @@ public class HabitAlarmPlugin extends Plugin {
             JSObject o = new JSObject();
             o.put("route", pendingRoute);
             o.put("message", pendingMessage);
+            o.put("wake", pendingWake);
+            pendingRoute = null;
+            pendingMessage = null;
+            pendingWake = null;
             notifyListeners("route", o, true);
         }
     }
@@ -58,8 +63,10 @@ public class HabitAlarmPlugin extends Plugin {
         if (r == null) return false;
         pendingRoute = r;
         pendingMessage = intent.getStringExtra("habit_message");
+        pendingWake = intent.getStringExtra("habit_wake");
         intent.removeExtra("habit_route");
         intent.removeExtra("habit_message");
+        intent.removeExtra("habit_wake");
         return true;
     }
 
@@ -68,8 +75,10 @@ public class HabitAlarmPlugin extends Plugin {
         JSObject o = new JSObject();
         o.put("route", pendingRoute);
         o.put("message", pendingMessage);
+        o.put("wake", pendingWake);
         pendingRoute = null;
         pendingMessage = null;
+        pendingWake = null;
         call.resolve(o);
     }
 
@@ -79,6 +88,7 @@ public class HabitAlarmPlugin extends Plugin {
         JSArray messages = call.getArray("messages", new JSArray());
         int snooze = call.getInt("snooze", 9);
         AlarmStore.save(getContext(), alarms, messages, snooze);
+        AlarmStore.saveMorning(getContext(), call.getArray("values", new JSArray()), call.getArray("favs", new JSArray()));
         AlarmScheduler.scheduleAll(getContext());
         call.resolve(status());
     }

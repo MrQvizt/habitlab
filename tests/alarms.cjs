@@ -153,6 +153,9 @@ const shots = process.argv[3] || null;
     if (!last.messages.some((m) => /to have energy to play with my kids/.test(m))) errors.push('why missing from messages');
     if (!last.messages.includes('Future you is proud of you.')) errors.push('custom message missing');
     if (last.snooze !== 5) errors.push('snooze');
+    // The lock-screen morning screen gets your values (with labels) and favourites
+    if (!last.values?.some((v) => v.id === 'family' && v.label === 'Family' && v.phrase)) errors.push('values not sent to the phone: ' + JSON.stringify(last.values));
+    if (!Array.isArray(last.favs)) errors.push('favourites not sent to the phone');
   }
   if (!a.opened.includes('fullScreen')) errors.push('permission button did not open settings');
   if (!a.opened.includes('overlay')) errors.push('overlay button did not open settings');
@@ -179,6 +182,21 @@ const shots = process.argv[3] || null;
   if (!st.wakes?.[today]) errors.push('morning intention not recorded');
   if (!st.affirm.favs.includes('You deserve a healthy life.')) errors.push('favourite not saved');
   if (await page.evaluate(() => document.body.classList.contains('wrap-open'))) errors.push('overlay class left on');
+  // "Start my day" on the lock screen: the app opens on Today and records the morning it was handed
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('habitlab.v1'));
+    s.wakes = {};
+    localStorage.setItem('habitlab.v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForSelector('.tg-hero');
+  await page.evaluate((d) => window.__alarm.listeners.route({ route: '#/today', wake: JSON.stringify({ date: d, at: '06:52', value: 'family', fav: true, message: 'You look beautiful.' }) }), today);
+  await page.waitForSelector('.toast.show >> text=doing this for family');
+  const st2 = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')));
+  if (st2.wakes?.[today] !== '06:52') errors.push('lock-screen morning not recorded: ' + JSON.stringify(st2.wakes));
+  if (!st2.affirm.favs.includes('You look beautiful.')) errors.push('lock-screen favourite not saved');
+  // A malformed hand-off is ignored safely
+  await page.evaluate(() => window.__alarm.listeners.route({ route: '#/today', wake: '{"date":"<b>","at":"99:99"}' }));
   // Learn card
   await page.goto(url + '#/learn/morning_mind');
   await page.waitForSelector('#learn-morning_mind');
