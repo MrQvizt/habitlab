@@ -36,8 +36,8 @@ script; a stale hash would make browsers block the app. **After any code change,
 ### Android
 1. Merge into `main` → CI builds and publishes `habit-lab.apk` to the `latest` GitHub release.
 2. Install by opening the APK on the phone. Updates install over the previous version and keep all data, because:
-   every build is signed with the same key (`android/app/debug-shared.keystore`), and `versionCode` is the git
-   commit count (always increasing).
+   every build is signed with the same key (`android/app/debug-shared.keystore`), and `versionCode` is the number of
+   minutes from 2025-01-01 to the commit (always increasing, also across squash merges).
 3. Verify on a device: **Settings → Alarms & wake-up → Test in 5 s**, lock the phone, and check the wake screen
    appears and the melody plays; then check a chime alarm, and that alarms survive a reboot.
 
