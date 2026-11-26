@@ -216,8 +216,10 @@ export function sanitize(s) {
       wind: { on: !!a.wind?.on, before: num(a.wind?.before, 15, 120, 45), ...(style(a.wind?.style) ? { style: a.wind.style } : {}), ...sound(a.wind?.sound) },
       bed: { on: !!a.bed?.on, ...(style(a.bed?.style) ? { style: a.bed.style } : {}), ...sound(a.bed?.sound) },
       meals: { on: !!a.meals?.on, snacks: !!a.meals?.snacks, ...(style(a.meals?.style) ? { style: a.meals.style } : {}), ...sound(a.meals?.sound) },
-      snooze: num(a.snooze, 1, 30, 9),
+      // Snooze now starts at 5 min; the old default (9) moves to 5 once, a chosen value stays.
+      snooze: s.flags?.snooze5 ? num(a.snooze, 1, 30, 5) : a.snooze == null || Number(a.snooze) === 9 ? 5 : num(a.snooze, 1, 30, 5),
     };
+    s.flags = { ...(s.flags && typeof s.flags === 'object' ? s.flags : {}), snooze5: true };
     const f = s.affirm && typeof s.affirm === 'object' ? s.affirm : {};
     const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
     s.affirm = { values: strs(f.values, 3, 30), own: strs(f.own, 12, 30), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };

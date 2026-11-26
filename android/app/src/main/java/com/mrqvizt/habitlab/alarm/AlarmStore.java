@@ -111,7 +111,7 @@ public final class AlarmStore {
     }
 
     public static int snoozeMinutes(Context c) {
-        return prefs(c).getInt("snooze", 9);
+        return prefs(c).getInt("snooze", 5);
     }
 
     /** Today's morning message: rotates by day so each morning is different. */

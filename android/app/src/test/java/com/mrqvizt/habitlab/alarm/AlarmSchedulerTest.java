@@ -114,4 +114,14 @@ public class AlarmSchedulerTest {
             }
         }
     }
+
+    @Test
+    public void snoozeStepsUpAndDown() {
+        assertEquals(10, AlarmActivity.step(5, 1));
+        assertEquals(3, AlarmActivity.step(5, -1));
+        assertEquals(1, AlarmActivity.step(1, -1));
+        assertEquals(60, AlarmActivity.step(60, 1));
+        assertEquals(10, AlarmActivity.step(9, 1)); // an old 9-minute setting snaps to the steps
+        assertEquals(5, AlarmActivity.step(9, -1));
+    }
 }

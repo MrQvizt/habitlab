@@ -111,16 +111,42 @@ public class AlarmActivity extends Activity {
             startService(new Intent(this, AlarmService.class).setAction(AlarmService.ACTION_DISMISS).putExtra("open", true));
             finish();
         });
-        Button snooze = button("Snooze " + AlarmStore.snoozeMinutes(this) + " min", false);
+        // Snooze: starts at your usual length; − / + change it for this time only.
+        snoozeMin = AlarmStore.snoozeMinutes(this);
+        final Button snooze = button(snoozeText(), false);
         snooze.setOnClickListener(v -> {
-            startService(new Intent(this, AlarmService.class).setAction(AlarmService.ACTION_SNOOZE));
+            startService(new Intent(this, AlarmService.class).setAction(AlarmService.ACTION_SNOOZE).putExtra("minutes", snoozeMin));
             finish();
         });
+        Button minus = button("−", false);
+        Button plus = button("+", false);
+        minus.setTextSize(TypedValue.COMPLEX_UNIT_SP, 26);
+        plus.setTextSize(TypedValue.COMPLEX_UNIT_SP, 26);
+        minus.setContentDescription("Shorter snooze");
+        plus.setContentDescription("Longer snooze");
+        minus.setOnClickListener(v -> {
+            snoozeMin = step(snoozeMin, -1);
+            snooze.setText(snoozeText());
+        });
+        plus.setOnClickListener(v -> {
+            snoozeMin = step(snoozeMin, 1);
+            snooze.setText(snoozeText());
+        });
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams side = new LinearLayout.LayoutParams(dp(56), LinearLayout.LayoutParams.MATCH_PARENT);
+        LinearLayout.LayoutParams centre = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+        centre.leftMargin = dp(10);
+        centre.rightMargin = dp(10);
+        row.addView(minus, side);
+        row.addView(snooze, centre);
+        row.addView(plus, new LinearLayout.LayoutParams(side));
+
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56));
         root.addView(up, lp);
         LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56));
         lp2.topMargin = dp(10);
-        root.addView(snooze, lp2);
+        root.addView(row, lp2);
         setContentView(root);
 
         ContextCompat.registerReceiver(this, finisher, new IntentFilter(ACTION_FINISH), ContextCompat.RECEIVER_NOT_EXPORTED);
@@ -141,6 +167,23 @@ public class AlarmActivity extends Activity {
             });
             dawn.start();
         }
+    }
+
+    private int snoozeMin = 5;
+    static final int[] SNOOZE_STEPS = {1, 2, 3, 5, 10, 15, 20, 30, 45, 60};
+
+    /** Next snooze length up or down the steps (a value between steps snaps to the nearest one). */
+    static int step(int current, int dir) {
+        if (dir > 0) {
+            for (int v : SNOOZE_STEPS) if (v > current) return v;
+            return SNOOZE_STEPS[SNOOZE_STEPS.length - 1];
+        }
+        for (int i = SNOOZE_STEPS.length - 1; i >= 0; i--) if (SNOOZE_STEPS[i] < current) return SNOOZE_STEPS[i];
+        return SNOOZE_STEPS[0];
+    }
+
+    private String snoozeText() {
+        return "Snooze " + snoozeMin + " min";
     }
 
     private TextView text(String s, int sp, boolean bold) {

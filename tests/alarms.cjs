@@ -152,7 +152,7 @@ const shots = process.argv[3] || null;
     if (!last.messages.some((m) => /your kids/i.test(m))) errors.push('own value missing from messages');
     if (!last.messages.some((m) => /to have energy to play with my kids/.test(m))) errors.push('why missing from messages');
     if (!last.messages.includes('Future you is proud of you.')) errors.push('custom message missing');
-    if (last.snooze !== 9) errors.push('snooze');
+    if (last.snooze !== 5) errors.push('snooze');
   }
   if (!a.opened.includes('fullScreen')) errors.push('permission button did not open settings');
   if (!a.opened.includes('overlay')) errors.push('overlay button did not open settings');

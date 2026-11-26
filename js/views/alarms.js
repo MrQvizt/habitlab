@@ -90,7 +90,7 @@ export function alarmsPage(state) {
       ${soundRow(a, 'meals')}
       <p class="al-note">From your day schedule, so meals come at regular times.</p>`, a.meals.on ? 'on' : '')}
     <p class="muted" style="font-size:var(--text-sm)">Times come from <a href="#/settings/day">Your day</a>. Quiet nudges to log meals and keep your streak are in <a href="#/settings/reminders">Reminders</a>.</p>
-    <div class="card"><label class="row between nowrap" style="font-size:var(--text-sm)"><span>Snooze length</span><select data-change="alarmSnooze">${[5, 9, 10, 15].map((m) => `<option value="${m}" ${a.snooze === m ? 'selected' : ''}>${m} minutes</option>`).join('')}</select></label></div>
+    <div class="card"><label class="row between nowrap" style="font-size:var(--text-sm)"><span>Snooze length <span class="hint" style="display:block">Change it with − and + on the alarm screen too</span></span><select data-change="alarmSnooze">${[...new Set([1, 3, 5, 10, 15, 20, a.snooze])].sort((x, y) => x - y).map((m) => `<option value="${m}" ${a.snooze === m ? 'selected' : ''}>${m} minutes</option>`).join('')}</select></label></div>
 
     <div class="section-head"><h2>Morning messages</h2><a href="#/learn/morning_mind">Why it works</a></div>
     <div class="card morning-card">

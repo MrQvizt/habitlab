@@ -4770,8 +4770,10 @@ function sanitize(s) {
       wind: { on: !!a.wind?.on, before: num(a.wind?.before, 15, 120, 45), ...(style(a.wind?.style) ? { style: a.wind.style } : {}), ...sound(a.wind?.sound) },
       bed: { on: !!a.bed?.on, ...(style(a.bed?.style) ? { style: a.bed.style } : {}), ...sound(a.bed?.sound) },
       meals: { on: !!a.meals?.on, snacks: !!a.meals?.snacks, ...(style(a.meals?.style) ? { style: a.meals.style } : {}), ...sound(a.meals?.sound) },
-      snooze: num(a.snooze, 1, 30, 9),
+      // Snooze now starts at 5 min; the old default (9) moves to 5 once, a chosen value stays.
+      snooze: s.flags?.snooze5 ? num(a.snooze, 1, 30, 5) : a.snooze == null || Number(a.snooze) === 9 ? 5 : num(a.snooze, 1, 30, 5),
     };
+    s.flags = { ...(s.flags && typeof s.flags === 'object' ? s.flags : {}), snooze5: true };
     const f = s.affirm && typeof s.affirm === 'object' ? s.affirm : {};
     const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
     s.affirm = { values: strs(f.values, 3, 30), own: strs(f.own, 12, 30), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
@@ -9151,7 +9153,7 @@ const DEFAULT_ALARMS = {
   wind: { on: false, before: 45, style: 'gentle' },
   bed: { on: false, style: 'gentle' },
   meals: { on: false, style: 'gentle', snacks: false },
-  snooze: 9,
+  snooze: 5,
 };
 
 const STYLES = {
@@ -9586,7 +9588,7 @@ function alarmsPage(state) {
       ${soundRow(a, 'meals')}
       <p class="al-note">From your day schedule, so meals come at regular times.</p>`, a.meals.on ? 'on' : '')}
     <p class="muted" style="font-size:var(--text-sm)">Times come from <a href="#/settings/day">Your day</a>. Quiet nudges to log meals and keep your streak are in <a href="#/settings/reminders">Reminders</a>.</p>
-    <div class="card"><label class="row between nowrap" style="font-size:var(--text-sm)"><span>Snooze length</span><select data-change="alarmSnooze">${[5, 9, 10, 15].map((m) => `<option value="${m}" ${a.snooze === m ? 'selected' : ''}>${m} minutes</option>`).join('')}</select></label></div>
+    <div class="card"><label class="row between nowrap" style="font-size:var(--text-sm)"><span>Snooze length <span class="hint" style="display:block">Change it with − and + on the alarm screen too</span></span><select data-change="alarmSnooze">${[...new Set([1, 3, 5, 10, 15, 20, a.snooze])].sort((x, y) => x - y).map((m) => `<option value="${m}" ${a.snooze === m ? 'selected' : ''}>${m} minutes</option>`).join('')}</select></label></div>
 
     <div class="section-head"><h2>Morning messages</h2><a href="#/learn/morning_mind">Why it works</a></div>
     <div class="card morning-card">

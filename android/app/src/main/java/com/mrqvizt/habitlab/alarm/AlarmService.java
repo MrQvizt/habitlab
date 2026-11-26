@@ -71,7 +71,11 @@ public class AlarmService extends Service {
         if (ACTION_SNOOZE.equals(action)) {
             AlarmStore.Alarm a = current();
             stopRinging(false);
-            if (a != null) AlarmScheduler.snooze(this, a);
+            int min = intent.getIntExtra("minutes", 0);
+            if (a != null) {
+                if (min > 0) AlarmScheduler.snooze(this, a, min);
+                else AlarmScheduler.snooze(this, a);
+            }
             return START_NOT_STICKY;
         }
         if (intent == null) {
