@@ -1192,3 +1192,16 @@ button.pill { font: inherit; border: 0; cursor: pointer; }
 .join-ev { margin: 0; }
 .cal-link { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); }
 .cal-link small { display: block; color: var(--ink-3); font-size: var(--text-sm); }
+
+/* ---------- Plan tomorrow ---------- */
+.plan-card { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); background: linear-gradient(135deg, color-mix(in srgb, var(--ring-habits) 14%, var(--surface)), var(--surface)); }
+.plan-card small { display: block; color: var(--ink-3); font-size: var(--text-sm); }
+.plan-list { list-style: none; margin: 0; padding: 0; }
+.plan-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.plan-row:first-child { border-top: 0; }
+.plan-row small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
+.plan-row .meal-time { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink-2); min-width: 44px; padding-top: 2px; }
+.plan-when { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.plan-when input[type=time] { width: auto; min-width: 104px; }
+.plan-when input[type=text] { flex: 1; min-width: 120px; }
+.plan-set { color: var(--accent) !important; font-weight: 650; margin-top: 4px; }

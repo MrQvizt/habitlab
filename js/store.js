@@ -198,6 +198,7 @@ export function sanitize(s) {
     blockedRecipes: subset(pr.blockedRecipes, recipeIds),
     seed: num(pr.seed, 0, 1e6, 0),
   };
+  s.checkins = (Array.isArray(s.checkins) ? s.checkins : []).filter((c) => c && typeof c === 'object' && ISO.test(c.date));
   s.weights = (Array.isArray(s.weights) ? s.weights : []).filter((w) => w && ISO.test(w.date) && num(w.kg, 30, 400) != null).map((w) => ({ date: w.date, kg: Number(w.kg) }));
   s.waist = (Array.isArray(s.waist) ? s.waist : []).filter((w) => w && ISO.test(w.date) && num(w.cm, 30, 300) != null).map((w) => ({ date: w.date, cm: Number(w.cm) }));
   s.intake = dateMap(s.intake, (v) => num(v, 0, 20000));
@@ -227,7 +228,7 @@ export function sanitize(s) {
   // Your calendar events, and your shared-calendar link (id + secret key stay on this device).
   const KINDS = ['walk', 'workout', 'sport', 'outdoors', 'cooking', 'shopping', 'habit', 'other'];
   s.events = (Array.isArray(s.events) ? s.events : []).filter((e) => e && typeof e.id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(e.id) && ISO.test(e.date) && typeof e.title === 'string' && e.title.trim()).slice(-500).map((e) => ({
-    id: e.id, title: e.title.trim().slice(0, 60), date: e.date, time: typeof e.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(e.time) ? e.time : '',
+    id: e.id, ...(typeof e.planKey === 'string' && /^(strength|activity|cardio):[\w-]{1,60}$/.test(e.planKey) ? { planKey: e.planKey } : {}), title: e.title.trim().slice(0, 60), date: e.date, time: typeof e.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(e.time) ? e.time : '',
     place: typeof e.place === 'string' ? e.place.slice(0, 80) : '', kind: KINDS.includes(e.kind) ? e.kind : 'other', notes: typeof e.notes === 'string' ? e.notes.slice(0, 140) : '', public: e.public === true,
   }));
   const sh = s.share;
@@ -274,7 +275,7 @@ export function sanitize(s) {
   const mv = s.workouts.moves && typeof s.workouts.moves === 'object' ? s.workouts.moves : {};
   s.workouts.moves = Object.fromEntries(Object.entries(mv).filter(([wk, list]) => ISO.test(wk) && Array.isArray(list)).sort().slice(-8).map(([wk, list]) => [wk, list.filter((m) => m && typeof m.key === 'string' && /^(strength|activity|cardio):[\w-]{1,60}$/.test(m.key) && Number.isInteger(m.from) && Number.isInteger(m.to) && m.from >= 0 && m.from < 7 && m.to >= 0 && m.to < 7).slice(0, 30).map((m) => ({ key: m.key, from: m.from, to: m.to }))]));
   const prog = s.workouts.progress && typeof s.workouts.progress === 'object' ? s.workouts.progress : {};
-  s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.slice(-30) : [] }]));
+  s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.filter((h) => h && typeof h === 'object').slice(-30) : [] }]));
   // Plans reference recipes by id; drop any plan containing an unknown recipe (it will be rebuilt).
   s.plans = Object.fromEntries(Object.entries(s.plans || {}).filter(([k, v]) => ISO.test(k) && Array.isArray(v?.days) && v.days.every((d) => Array.isArray(d) && d.every((m) => recipeIds.includes(m?.recipeId) && Number.isFinite(m.scale)))));
   s.prefs.weekStart = Math.round(s.prefs.weekStart);

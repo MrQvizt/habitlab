@@ -42,7 +42,8 @@ function agenda(state, from, days = 14) {
   for (let i = 0; i < days; i++) {
     const d = addDays(from, i);
     const evs = eventsOn(state, d);
-    const plan = plannedOn(state, d);
+    const linkedKeys = new Set(evs.map((e) => e.planKey).filter(Boolean));
+    const plan = plannedOn(state, d).filter((it) => !linkedKeys.has(itemKey(it)));
     out.push(`<section class="cal-day ${d === today ? 'today' : ''}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}">
       <div class="cal-date"><b>${esc(fmtDate(d, { weekday: 'short' }))}</b><span>${new Date(d + 'T12:00').getDate()}</span></div>
       <ul class="cal-items">
@@ -59,7 +60,7 @@ function editorHtml(state, ev) {
   const isNew = !ev?.id;
   const joins = e.id ? share.signupsFor(e.id) : [];
   return `<div class="sheet-head"><div><div class="over">${isNew ? 'New in your calendar' : 'Your calendar'}</div><h2>${isNew ? 'Plan something' : esc(e.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
-    <form data-form="calSave" data-id="${esc(e.id)}">
+    <form data-form="calSave" data-id="${esc(e.id)}" data-plan="${esc(e.planKey || '')}">
       ${isNew ? `<div class="quick-chips" style="margin-bottom:8px">${QUICK.map(([k, t]) => `<button type="button" data-action="calQuick" data-kind="${k}" data-title="${esc(t)}">${EVENT_KINDS[k].emoji} ${esc(t)}</button>`).join('')}</div>` : ''}
       <label class="field"><span>What</span><input type="text" name="title" maxlength="60" required value="${esc(e.title)}" placeholder="e.g. Walk round the lake"></label>
       <div class="grid two" style="gap:0 12px;margin:0">
@@ -113,6 +114,8 @@ export const calendarActions = {
     openSheet(editorHtml(ctx.state, { id: '', title: '', date: el.dataset.date || store.today(), time: el.dataset.time || '', place: '', kind: el.dataset.kind || 'walk', notes: '', public: false }), { label: 'Add to calendar' });
   },
   calFromPlan(el, ev, ctx) {
+    const existing = (ctx.state.events || []).find((x) => x.date === el.dataset.date && x.planKey === el.dataset.key);
+    if (existing) return openSheet(editorHtml(ctx.state, existing), { label: 'Edit' });
     openSheet(editorHtml(ctx.state, { id: '', title: el.dataset.title, date: el.dataset.date, time: '', place: '', kind: el.dataset.kind, notes: '', public: false, planKey: el.dataset.key }), { label: 'Set a time' });
   },
   calQuick(el) {
@@ -129,7 +132,8 @@ export const calendarActions = {
     const title = String(data.title || '').trim().slice(0, 60);
     if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(data.date || '')) return;
     const id = form.dataset.id || `ev_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    const e = { id, title, date: data.date, time: /^\d{2}:\d{2}$/.test(data.time || '') ? data.time : '', place: String(data.place || '').trim().slice(0, 80), kind: EVENT_KINDS[data.kind] ? data.kind : 'other', notes: String(data.notes || '').trim().slice(0, 140), public: data.public === '1' };
+    const planKey = /^(strength|activity|cardio):[\w-]{1,60}$/.test(form.dataset.plan || '') ? form.dataset.plan : undefined;
+    const e = { id, ...(planKey ? { planKey } : {}), title, date: data.date, time: /^\d{2}:\d{2}$/.test(data.time || '') ? data.time : '', place: String(data.place || '').trim().slice(0, 80), kind: EVENT_KINDS[data.kind] ? data.kind : 'other', notes: String(data.notes || '').trim().slice(0, 140), public: data.public === '1' };
     closeSheet();
     ctx.update((st) => {
       const list = (st.events || []).filter((x) => x.id !== id);

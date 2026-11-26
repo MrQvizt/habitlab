@@ -1203,6 +1203,19 @@ button.pill { font: inherit; border: 0; cursor: pointer; }
 .join-ev { margin: 0; }
 .cal-link { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); }
 .cal-link small { display: block; color: var(--ink-3); font-size: var(--text-sm); }
+
+/* ---------- Plan tomorrow ---------- */
+.plan-card { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); background: linear-gradient(135deg, color-mix(in srgb, var(--ring-habits) 14%, var(--surface)), var(--surface)); }
+.plan-card small { display: block; color: var(--ink-3); font-size: var(--text-sm); }
+.plan-list { list-style: none; margin: 0; padding: 0; }
+.plan-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.plan-row:first-child { border-top: 0; }
+.plan-row small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
+.plan-row .meal-time { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink-2); min-width: 44px; padding-top: 2px; }
+.plan-when { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.plan-when input[type=time] { width: auto; min-width: 104px; }
+.plan-when input[type=text] { flex: 1; min-width: 120px; }
+.plan-set { color: var(--accent) !important; font-weight: 650; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -4516,6 +4529,7 @@ const DEFAULT_REMINDERS = {
   checkin: true, // weekly check-in reminder
   checkinDay: 6, // 0 = Monday … 6 = Sunday
   checkinAt: '18:00',
+  planOn: true, // plan tomorrow in the evening (only when the wind-down alarm isn't doing it)
 };
 
 const ENCOURAGEMENTS = [
@@ -4533,7 +4547,7 @@ const ENCOURAGEMENTS = [
   ['Veg first', 'Starting with vegetables fills you up on fewer calories.'],
 ];
 
-const DAY_SLOTS = ['morning', 'breakfast', 'lunch', 'move', 'encourage', 'dinner', 'evening', 'checkin', 'wrap'];
+const DAY_SLOTS = ['morning', 'breakfast', 'lunch', 'move', 'encourage', 'dinner', 'evening', 'checkin', 'wrap', 'plan'];
 
 /** Notification id: stable per (date, slot) so rescheduling replaces rather than duplicates. */
 function reminderId(date, slot) {
@@ -4639,6 +4653,12 @@ function buildReminders(state, now, ctx = {}) {
       } else {
         push(date, 'evening', r.evening, 'Wrap up your day', 'Tick off anything you haven’t logged — a perfect day is +25 XP.', '#/today');
       }
+    }
+
+    // Plan tomorrow: 15 min before wind-down time, unless the wind-down alarm already opens it.
+    if (r.planOn && !state.alarms?.wind?.on && !(isToday && state.flags?.planned === addDays(date, 1))) {
+      const d = daySchedule(state.profile);
+      push(date, 'plan', d.bed - 60, 'Plan tomorrow (2 minutes)', 'When and where will you move? Peek at tomorrow’s meals. Plans made the night before are far more likely to happen.', '#/plan');
     }
 
     // Weekly check-in
@@ -4863,6 +4883,7 @@ function sanitize(s) {
     blockedRecipes: subset(pr.blockedRecipes, recipeIds),
     seed: num(pr.seed, 0, 1e6, 0),
   };
+  s.checkins = (Array.isArray(s.checkins) ? s.checkins : []).filter((c) => c && typeof c === 'object' && ISO.test(c.date));
   s.weights = (Array.isArray(s.weights) ? s.weights : []).filter((w) => w && ISO.test(w.date) && num(w.kg, 30, 400) != null).map((w) => ({ date: w.date, kg: Number(w.kg) }));
   s.waist = (Array.isArray(s.waist) ? s.waist : []).filter((w) => w && ISO.test(w.date) && num(w.cm, 30, 300) != null).map((w) => ({ date: w.date, cm: Number(w.cm) }));
   s.intake = dateMap(s.intake, (v) => num(v, 0, 20000));
@@ -4892,7 +4913,7 @@ function sanitize(s) {
   // Your calendar events, and your shared-calendar link (id + secret key stay on this device).
   const KINDS = ['walk', 'workout', 'sport', 'outdoors', 'cooking', 'shopping', 'habit', 'other'];
   s.events = (Array.isArray(s.events) ? s.events : []).filter((e) => e && typeof e.id === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(e.id) && ISO.test(e.date) && typeof e.title === 'string' && e.title.trim()).slice(-500).map((e) => ({
-    id: e.id, title: e.title.trim().slice(0, 60), date: e.date, time: typeof e.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(e.time) ? e.time : '',
+    id: e.id, ...(typeof e.planKey === 'string' && /^(strength|activity|cardio):[\w-]{1,60}$/.test(e.planKey) ? { planKey: e.planKey } : {}), title: e.title.trim().slice(0, 60), date: e.date, time: typeof e.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(e.time) ? e.time : '',
     place: typeof e.place === 'string' ? e.place.slice(0, 80) : '', kind: KINDS.includes(e.kind) ? e.kind : 'other', notes: typeof e.notes === 'string' ? e.notes.slice(0, 140) : '', public: e.public === true,
   }));
   const sh = s.share;
@@ -4939,7 +4960,7 @@ function sanitize(s) {
   const mv = s.workouts.moves && typeof s.workouts.moves === 'object' ? s.workouts.moves : {};
   s.workouts.moves = Object.fromEntries(Object.entries(mv).filter(([wk, list]) => ISO.test(wk) && Array.isArray(list)).sort().slice(-8).map(([wk, list]) => [wk, list.filter((m) => m && typeof m.key === 'string' && /^(strength|activity|cardio):[\w-]{1,60}$/.test(m.key) && Number.isInteger(m.from) && Number.isInteger(m.to) && m.from >= 0 && m.from < 7 && m.to >= 0 && m.to < 7).slice(0, 30).map((m) => ({ key: m.key, from: m.from, to: m.to }))]));
   const prog = s.workouts.progress && typeof s.workouts.progress === 'object' ? s.workouts.progress : {};
-  s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.slice(-30) : [] }]));
+  s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.filter((h) => h && typeof h === 'object').slice(-30) : [] }]));
   // Plans reference recipes by id; drop any plan containing an unknown recipe (it will be rebuilt).
   s.plans = Object.fromEntries(Object.entries(s.plans || {}).filter(([k, v]) => ISO.test(k) && Array.isArray(v?.days) && v.days.every((d) => Array.isArray(d) && d.every((m) => recipeIds.includes(m?.recipeId) && Number.isFinite(m.scale)))));
   s.prefs.weekStart = Math.round(s.prefs.weekStart);
@@ -7660,13 +7681,13 @@ async function refresh(ctx, force = false) {
 function shareCardHtml(state, pubCount) {
   const s = state.share;
   if (!s?.id) {
-    return `<div class="card share-card"><h3 style="margin-top:0">${icon('star')} Make changes together</h3>
+    return `<div class="card share-card"><h2 style="margin-top:0;font-size:var(--text-lg)">${icon("star")} Make changes together</h2>
       <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Share a link to your calendar. Friends see the activities you mark <strong>Open to friends</strong> and can tap “I’ll join”. Only what, when and where is shared.</p>
       <form data-form="shareCreate" class="row nowrap" style="gap:8px"><input type="text" name="name" maxlength="40" required placeholder="Your first name" aria-label="Your first name" style="flex:1;min-width:0"><button class="btn primary small">Create my link</button></form></div>`;
   }
   const link = shareLink(state);
   const total = signups.length;
-  return `<div class="card share-card"><div class="row between nowrap"><h3 style="margin:0">${icon('star')} Your shared calendar</h3>${total ? `<span class="tag green">${total} joining</span>` : ''}</div>
+  return `<div class="card share-card"><div class="row between nowrap"><h2 style="margin:0;font-size:var(--text-lg)">${icon("star")} Your shared calendar</h2>${total ? `<span class="tag green">${total} joining</span>` : ''}</div>
     <p class="muted" style="font-size:var(--text-sm);margin:6px 0 8px">${pubCount ? `${pubCount} upcoming ${pubCount === 1 ? 'activity is' : 'activities are'} open to friends.` : 'Nothing open to friends yet — tap an activity and switch on “Open to friends”.'}</p>
     <div class="share-link"><input type="text" readonly value="${esc(link)}" aria-label="Your calendar link"><button class="btn small" data-action="shareCopy">Copy</button>${navigator.share ? '<button class="btn small primary" data-action="shareNative">Share</button>' : ''}</div>
     <button class="btn ghost small" data-action="shareStop" style="margin-top:8px">Stop sharing</button></div>`;
@@ -7767,7 +7788,8 @@ function agenda(state, from, days = 14) {
   for (let i = 0; i < days; i++) {
     const d = addDays(from, i);
     const evs = eventsOn(state, d);
-    const plan = plannedOn(state, d);
+    const linkedKeys = new Set(evs.map((e) => e.planKey).filter(Boolean));
+    const plan = plannedOn(state, d).filter((it) => !linkedKeys.has(itemKey(it)));
     out.push(`<section class="cal-day ${d === today ? 'today' : ''}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}">
       <div class="cal-date"><b>${esc(fmtDate(d, { weekday: 'short' }))}</b><span>${new Date(d + 'T12:00').getDate()}</span></div>
       <ul class="cal-items">
@@ -7784,7 +7806,7 @@ function editorHtml(state, ev) {
   const isNew = !ev?.id;
   const joins = e.id ? share.signupsFor(e.id) : [];
   return `<div class="sheet-head"><div><div class="over">${isNew ? 'New in your calendar' : 'Your calendar'}</div><h2>${isNew ? 'Plan something' : esc(e.title)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
-    <form data-form="calSave" data-id="${esc(e.id)}">
+    <form data-form="calSave" data-id="${esc(e.id)}" data-plan="${esc(e.planKey || '')}">
       ${isNew ? `<div class="quick-chips" style="margin-bottom:8px">${QUICK.map(([k, t]) => `<button type="button" data-action="calQuick" data-kind="${k}" data-title="${esc(t)}">${EVENT_KINDS[k].emoji} ${esc(t)}</button>`).join('')}</div>` : ''}
       <label class="field"><span>What</span><input type="text" name="title" maxlength="60" required value="${esc(e.title)}" placeholder="e.g. Walk round the lake"></label>
       <div class="grid two" style="gap:0 12px;margin:0">
@@ -7838,6 +7860,8 @@ const calendarActions = {
     openSheet(editorHtml(ctx.state, { id: '', title: '', date: el.dataset.date || store.today(), time: el.dataset.time || '', place: '', kind: el.dataset.kind || 'walk', notes: '', public: false }), { label: 'Add to calendar' });
   },
   calFromPlan(el, ev, ctx) {
+    const existing = (ctx.state.events || []).find((x) => x.date === el.dataset.date && x.planKey === el.dataset.key);
+    if (existing) return openSheet(editorHtml(ctx.state, existing), { label: 'Edit' });
     openSheet(editorHtml(ctx.state, { id: '', title: el.dataset.title, date: el.dataset.date, time: '', place: '', kind: el.dataset.kind, notes: '', public: false, planKey: el.dataset.key }), { label: 'Set a time' });
   },
   calQuick(el) {
@@ -7854,7 +7878,8 @@ const calendarActions = {
     const title = String(data.title || '').trim().slice(0, 60);
     if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(data.date || '')) return;
     const id = form.dataset.id || `ev_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    const e = { id, title, date: data.date, time: /^\d{2}:\d{2}$/.test(data.time || '') ? data.time : '', place: String(data.place || '').trim().slice(0, 80), kind: EVENT_KINDS[data.kind] ? data.kind : 'other', notes: String(data.notes || '').trim().slice(0, 140), public: data.public === '1' };
+    const planKey = /^(strength|activity|cardio):[\w-]{1,60}$/.test(form.dataset.plan || '') ? form.dataset.plan : undefined;
+    const e = { id, ...(planKey ? { planKey } : {}), title, date: data.date, time: /^\d{2}:\d{2}$/.test(data.time || '') ? data.time : '', place: String(data.place || '').trim().slice(0, 80), kind: EVENT_KINDS[data.kind] ? data.kind : 'other', notes: String(data.notes || '').trim().slice(0, 140), public: data.public === '1' };
     closeSheet();
     ctx.update((st) => {
       const list = (st.events || []).filter((x) => x.id !== id);
@@ -7879,7 +7904,258 @@ void weekStart;
 
 Object.assign(__m, { EVENT_KINDS, eventsOn, calendarActions });
 },
-/* js/data/learn.js */ 35: function (__m, __req) {
+/* js/ui/celebrate.js */ 35: function (__m, __req) {
+// Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
+// Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
+// after the user has interacted with the page.
+const { esc, icon } = __req(17);
+
+let lastPoint = null;
+document.addEventListener('pointerdown', (e) => (lastPoint = { x: e.clientX, y: e.clientY }), true);
+
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/** "+10 XP" rising from where the user tapped. */
+function floatXp(amount, { lucky = false, label = '' } = {}) {
+  const el = document.createElement('div');
+  el.className = `xp-float${lucky ? ' lucky' : ''}`;
+  el.textContent = `+${amount} XP${label ? ` · ${label}` : ''}`;
+  const p = lastPoint || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  el.style.left = `${Math.min(window.innerWidth - 90, Math.max(10, p.x - 30))}px`;
+  el.style.top = `${p.y - 20}px`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), reducedMotion() ? 1200 : 1300);
+}
+
+/** "Eat ring closed!" pill that drops in at the top; separate from the toast so Undo stays visible. */
+function ringBanner(text, color = 'var(--accent)') {
+  document.querySelector('.ring-banner')?.remove();
+  const el = document.createElement('div');
+  el.className = 'ring-banner';
+  el.setAttribute('role', 'status');
+  el.style.setProperty('--rc', color);
+  el.innerHTML = `<span class="rb-dot"></span>${esc(text)}`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+/** Confetti burst from the tap point (or top centre). */
+function confetti(power = 1) {
+  if (reducedMotion()) return;
+  const canvas = document.createElement('canvas');
+  canvas.className = 'confetti';
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const css = getComputedStyle(document.documentElement);
+  const colors = ['--accent', '--warm', '--info', '--danger', '--chart-trend'].map((v) => css.getPropertyValue(v).trim() || '#1b6e52');
+  colors.push('#f2c14e');
+  const origin = lastPoint || { x: window.innerWidth / 2, y: window.innerHeight / 3 };
+  const n = Math.round(70 * power);
+  const parts = Array.from({ length: n }, () => {
+    const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.1;
+    const v = (5 + Math.random() * 7) * Math.sqrt(power);
+    return { x: origin.x, y: origin.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 3 + Math.random() * 4, c: colors[(Math.random() * colors.length) | 0], rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.3, shape: Math.random() < 0.5 };
+  });
+  const t0 = performance.now();
+  const frame = (t) => {
+    const age = (t - t0) / 1000;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const p of parts) {
+      p.vy += 0.28;
+      p.vx *= 0.985;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vr;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - age / 1.6);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      if (p.shape) ctx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r);
+      else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.r / 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    if (age < 1.6) requestAnimationFrame(frame);
+    else canvas.remove();
+  };
+  requestAnimationFrame(frame);
+}
+
+let audio = null;
+/** Short synthesized chime. kind: 'tick' | 'quest' | 'level' | 'badge' | 'lucky'. */
+function chime(kind = 'tick') {
+  try {
+    audio ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+    const notes = { tick: [880], lucky: [988, 1319], quest: [784, 988, 1175], badge: [659, 880, 1109, 1319], level: [523, 659, 784, 1047, 1319] }[kind] || [880];
+    const now = audio.currentTime;
+    notes.forEach((f, i) => {
+      const o = audio.createOscillator();
+      const g = audio.createGain();
+      o.type = 'triangle';
+      o.frequency.value = f;
+      const t = now + i * 0.085;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(kind === 'tick' ? 0.06 : 0.09, t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+      o.connect(g).connect(audio.destination);
+      o.start(t);
+      o.stop(t + 0.3);
+    });
+  } catch (e) {
+    /* audio unavailable */
+  }
+}
+
+function buzz(ms = 12) {
+  try {
+    navigator.vibrate?.(ms);
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+/** Celebration dialog for a level-up or a new badge. */
+function showCelebration({ kicker, title, body, iconName = 'star', ok = 'Nice!' }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-wrap';
+  wrap.innerHTML = `<div class="modal celebrate-modal" role="dialog" aria-modal="true" aria-labelledby="cel-title">
+    <div class="medal big">${icon(iconName)}</div>
+    <div class="kicker">${esc(kicker)}</div>
+    <h2 id="cel-title">${esc(title)}</h2>
+    <p class="muted-2">${esc(body)}</p>
+    <button class="btn primary" type="button">${esc(ok)}</button></div>`;
+  const close = () => wrap.remove();
+  wrap.addEventListener('click', (e) => (e.target === wrap || e.target.closest('button')) && close());
+  document.addEventListener('keydown', function onKey(e) {
+    if (e.key === 'Escape') {
+      close();
+      document.removeEventListener('keydown', onKey);
+    }
+  });
+  document.body.appendChild(wrap);
+  wrap.querySelector('button').focus();
+}
+
+Object.assign(__m, { floatXp, ringBanner, confetti, chime, buzz, showCelebration });
+},
+/* js/views/plan.js */ 36: function (__m, __req) {
+// Plan tomorrow (evening, ~2 minutes): when and where you'll move, a look at tomorrow's meals,
+// and your habits. Deciding "when, where, how" in advance — implementation intentions — made people
+// markedly more likely to follow through (meta-analysis of 94 studies, d ≈ 0.65: Gollwitzer &
+// Sheeran 2006). Opened by the wind-down alarm, an evening reminder, or the card on Today.
+const { esc, icon, fmtDate } = __req(17);
+const store = __req(16);
+const { addDays } = __req(0);
+const { itemKey } = __req(7);
+const { byId } = __req(5);
+const { habitById } = __req(10);
+const { itemName } = __req(26);
+const { eventsOn, EVENT_KINDS } = __req(34);
+const { mealsFor, slotLabel } = __req(18);
+const { toHHMM } = __req(14);
+const { confetti } = __req(35);
+const share = __req(33);
+
+const ICON = { strength: '💪', cardio: '🚶', activity: '🏸' };
+
+function tomorrow() {
+  return addDays(store.today(), 1);
+}
+
+function isPlanned(state, date = tomorrow()) {
+  return state.flags?.planned === date;
+}
+
+function moveBlock(state, date) {
+  const di = (new Date(date + 'T12:00').getDay() + 6) % 7;
+  const items = store.schedule(state, date).schedule[di].items.filter((i) => i.kind !== 'rest');
+  const evs = eventsOn(state, date);
+  const rows = items.map((it) => {
+    const key = itemKey(it);
+    const ev = evs.find((e) => e.planKey === key);
+    return `<li class="plan-row"><span class="cal-emoji" aria-hidden="true">${ICON[it.kind] || '📌'}</span>
+      <div class="grow"><strong>${esc(itemName(it))}</strong>
+        <form class="plan-when" data-form="planSetWhen" data-key="${esc(key)}" data-title="${esc(itemName(it))}" data-kind="${it.kind === 'activity' ? 'sport' : it.kind === 'cardio' ? 'walk' : 'workout'}" data-ev="${esc(ev?.id || '')}">
+          <input type="time" name="time" value="${esc(ev?.time || '')}" aria-label="Time for ${esc(itemName(it))}" required>
+          <input type="text" name="place" value="${esc(ev?.place || '')}" maxlength="80" placeholder="Where?" aria-label="Where for ${esc(itemName(it))}">
+          <button class="btn small ${ev ? '' : 'primary'}">${ev ? 'Update' : 'Set'}</button>
+        </form>
+        ${ev ? `<small class="plan-set">✓ ${esc(ev.time)}${ev.place ? ` · ${esc(ev.place)}` : ''}</small>` : ''}
+      </div>
+      <button class="btn small ghost" data-action="openMoveItem" data-key="${esc(key)}" data-from="${di}" data-date="${date}" aria-label="Move ${esc(itemName(it))} to another day">Move</button></li>`;
+  }).join('');
+  const own = evs.filter((e) => !e.planKey).map((e) => `<li class="plan-row"><span class="cal-emoji" aria-hidden="true">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}</span><div class="grow"><strong>${esc(e.title)}</strong><small>${e.time ? esc(e.time) : 'Any time'}${e.place ? ` · ${esc(e.place)}` : ''}${e.public ? ' · open to friends' : ''}</small></div><button class="btn small ghost" data-action="calEdit" data-id="${esc(e.id)}">Edit</button></li>`).join('');
+  return `<ul class="plan-list">${rows}${own}${!items.length && !evs.length ? '<li class="muted" style="padding:6px 0">Rest day on the plan — a walk still counts. Add one?</li>' : ''}</ul>
+    <div class="quick-chips" style="margin-top:8px"><button type="button" data-action="calAdd" data-date="${date}" data-kind="walk">🚶 Add a walk</button><button type="button" data-action="calAdd" data-date="${date}" data-kind="cooking">🍲 Batch cooking</button><button type="button" data-action="calAdd" data-date="${date}" data-kind="other">＋ Something else</button></div>`;
+}
+
+function mealBlock(state, date) {
+  if (store.habitsOnly(state)) return '';
+  const meals = mealsFor(state, date);
+  return `<div class="card"><h2 style="margin-top:0">🍽 Tomorrow’s food</h2>
+    <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Happy with these? Tap one to swap it or see the recipe. Anything to take out of the freezer or pack tonight?</p>
+    <ul class="plan-list">${meals.map((m) => `<li class="plan-row"><span class="meal-time">${toHHMM(m.time)}</span><div class="grow"><strong>${esc(byId(m.recipeId).name)}</strong><small>${esc(slotLabel(m.slot))}${m.leftover ? ' · leftovers' : ''}</small></div><button class="btn small ghost" data-action="openMeal" data-slot="${m.slot}" data-date="${date}">Change</button></li>`).join('')}</ul></div>`;
+}
+
+function habitBlock(state) {
+  const active = store.visibleHabits(state);
+  if (!active.length) return '';
+  return `<div class="card"><h2 style="margin-top:0">✅ Your habits</h2>
+    <ul class="plan-list">${active.map((a) => `<li class="plan-row"><div class="grow"><strong>${esc(habitById(a.id)?.title || a.id)}</strong><small>${esc(a.cue)}</small></div></li>`).join('')}</ul>
+    <a class="btn small ghost" href="#/habits">Change a cue</a></div>`;
+}
+
+__m.default = {
+  render(state) {
+    const date = tomorrow();
+    const done = isPlanned(state, date);
+    return `<header class="page-head"><div><div class="eyebrow">${esc(fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' }))}</div><h1>Plan tomorrow</h1></div></header>
+      <p class="muted" style="margin:-8px 0 14px">Two minutes now, an easier day tomorrow. Saying <em>when and where</em> you’ll do something makes it much more likely to happen.</p>
+      <div class="card"><h2 style="margin-top:0">🏃 When and where will you move?</h2>${moveBlock(state, date)}</div>
+      ${mealBlock(state, date)}
+      ${habitBlock(state)}
+      ${done ? `<div class="notice ok">${icon('check')}<div><strong>Tomorrow is planned.</strong> Sleep well.</div></div><a class="btn block" href="#/today">Back to today</a>`
+        : `<button class="btn primary large block" data-action="planDone">Tomorrow is planned ✓</button>`}
+      <p class="muted" style="font-size:var(--text-xs);margin-top:12px">Why it works: <a href="#/learn/plan_ahead">the evidence</a></p>`;
+  },
+  actions: {
+    planSetWhen(form, ev, ctx, data) {
+      const time = /^\d{2}:\d{2}$/.test(data.time || '') ? data.time : '';
+      if (!time) return ctx.toast('Pick a time');
+      const date = tomorrow();
+      const id = form.dataset.ev || `ev_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      const e = { id, planKey: form.dataset.key, title: form.dataset.title, date, time, place: String(data.place || '').trim().slice(0, 80), kind: form.dataset.kind, notes: '', public: false };
+      ctx.update((st) => {
+        const prev = (st.events || []).find((x) => x.id === id);
+        st.events = [...(st.events || []).filter((x) => x.id !== id), { ...e, public: !!prev?.public }];
+        return st;
+      }, { quiet: true });
+      ctx.toast(`${form.dataset.title}: ${time}${e.place ? ` at ${e.place}` : ''}`);
+      share.sync(ctx);
+    },
+    planDone(el, ev, ctx) {
+      ctx.update((st) => {
+        st.flags = { ...(st.flags || {}), planned: tomorrow() };
+        return st;
+      }, { quiet: true });
+      confetti(0.5);
+      ctx.toast('Tomorrow is planned. Sleep well 🌙');
+    },
+  },
+};
+
+Object.assign(__m, { tomorrow, isPlanned });
+},
+/* js/data/learn.js */ 37: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -8065,6 +8341,13 @@ const LEARN = [
     ['After a weight-loss programme, extended problem-solving therapy helped 35% of people keep a 10%+ loss, versus 6% with standard treatment alone.'],
     ['perri'],
     'The check-in asks what got in the way and gives a specific fix for each barrier you pick.'),
+  C('plan_ahead', 'Habits & mindset', 'Plan tomorrow tonight',
+    'Deciding when, where and how you’ll do something makes it far more likely to happen.',
+    ['“If it’s 7:30 and I’m at the lake, I’ll walk the loop” is an implementation intention. Across 94 studies, making plans like this had a medium-to-large effect on actually following through (d ≈ 0.65).',
+      'The plan works because the situation becomes the cue: when the time and place arrive, the action is already decided, so you need less willpower.',
+      'Plans with someone else add a second cue — and a reason not to cancel.'],
+    ['gollwitzer'],
+    'Plan tomorrow (from the wind-down alarm, an evening reminder or the card on Today) asks when and where you’ll move and lets you check tomorrow’s meals. The calendar lets friends join.'),
   C('self_compassion', 'Habits & mindset', 'Slips are data, not failure',
     'Being kind to yourself after a lapse makes it easier to get back on track.',
     ['Self-compassion interventions improved eating behaviour in 15 of 18 studies (though study quality varies).',
@@ -8182,161 +8465,18 @@ const LEARN = [
 
 Object.assign(__m, { S, LEARN_SECTIONS, LEARN });
 },
-/* js/ui/celebrate.js */ 36: function (__m, __req) {
-// Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
-// Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
-// after the user has interacted with the page.
-const { esc, icon } = __req(17);
-
-let lastPoint = null;
-document.addEventListener('pointerdown', (e) => (lastPoint = { x: e.clientX, y: e.clientY }), true);
-
-const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
-/** "+10 XP" rising from where the user tapped. */
-function floatXp(amount, { lucky = false, label = '' } = {}) {
-  const el = document.createElement('div');
-  el.className = `xp-float${lucky ? ' lucky' : ''}`;
-  el.textContent = `+${amount} XP${label ? ` · ${label}` : ''}`;
-  const p = lastPoint || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-  el.style.left = `${Math.min(window.innerWidth - 90, Math.max(10, p.x - 30))}px`;
-  el.style.top = `${p.y - 20}px`;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), reducedMotion() ? 1200 : 1300);
-}
-
-/** "Eat ring closed!" pill that drops in at the top; separate from the toast so Undo stays visible. */
-function ringBanner(text, color = 'var(--accent)') {
-  document.querySelector('.ring-banner')?.remove();
-  const el = document.createElement('div');
-  el.className = 'ring-banner';
-  el.setAttribute('role', 'status');
-  el.style.setProperty('--rc', color);
-  el.innerHTML = `<span class="rb-dot"></span>${esc(text)}`;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 2600);
-}
-
-/** Confetti burst from the tap point (or top centre). */
-function confetti(power = 1) {
-  if (reducedMotion()) return;
-  const canvas = document.createElement('canvas');
-  canvas.className = 'confetti';
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = window.innerWidth * dpr;
-  canvas.height = window.innerHeight * dpr;
-  document.body.appendChild(canvas);
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  const css = getComputedStyle(document.documentElement);
-  const colors = ['--accent', '--warm', '--info', '--danger', '--chart-trend'].map((v) => css.getPropertyValue(v).trim() || '#1b6e52');
-  colors.push('#f2c14e');
-  const origin = lastPoint || { x: window.innerWidth / 2, y: window.innerHeight / 3 };
-  const n = Math.round(70 * power);
-  const parts = Array.from({ length: n }, () => {
-    const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.1;
-    const v = (5 + Math.random() * 7) * Math.sqrt(power);
-    return { x: origin.x, y: origin.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 3 + Math.random() * 4, c: colors[(Math.random() * colors.length) | 0], rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.3, shape: Math.random() < 0.5 };
-  });
-  const t0 = performance.now();
-  const frame = (t) => {
-    const age = (t - t0) / 1000;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (const p of parts) {
-      p.vy += 0.28;
-      p.vx *= 0.985;
-      p.x += p.vx;
-      p.y += p.vy;
-      p.rot += p.vr;
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, 1 - age / 1.6);
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.rot);
-      ctx.fillStyle = p.c;
-      if (p.shape) ctx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r);
-      else {
-        ctx.beginPath();
-        ctx.arc(0, 0, p.r / 1.4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-    if (age < 1.6) requestAnimationFrame(frame);
-    else canvas.remove();
-  };
-  requestAnimationFrame(frame);
-}
-
-let audio = null;
-/** Short synthesized chime. kind: 'tick' | 'quest' | 'level' | 'badge' | 'lucky'. */
-function chime(kind = 'tick') {
-  try {
-    audio ||= new (window.AudioContext || window.webkitAudioContext)();
-    if (audio.state === 'suspended') audio.resume();
-    const notes = { tick: [880], lucky: [988, 1319], quest: [784, 988, 1175], badge: [659, 880, 1109, 1319], level: [523, 659, 784, 1047, 1319] }[kind] || [880];
-    const now = audio.currentTime;
-    notes.forEach((f, i) => {
-      const o = audio.createOscillator();
-      const g = audio.createGain();
-      o.type = 'triangle';
-      o.frequency.value = f;
-      const t = now + i * 0.085;
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(kind === 'tick' ? 0.06 : 0.09, t + 0.015);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-      o.connect(g).connect(audio.destination);
-      o.start(t);
-      o.stop(t + 0.3);
-    });
-  } catch (e) {
-    /* audio unavailable */
-  }
-}
-
-function buzz(ms = 12) {
-  try {
-    navigator.vibrate?.(ms);
-  } catch (e) {
-    /* ignore */
-  }
-}
-
-/** Celebration dialog for a level-up or a new badge. */
-function showCelebration({ kicker, title, body, iconName = 'star', ok = 'Nice!' }) {
-  const wrap = document.createElement('div');
-  wrap.className = 'modal-wrap';
-  wrap.innerHTML = `<div class="modal celebrate-modal" role="dialog" aria-modal="true" aria-labelledby="cel-title">
-    <div class="medal big">${icon(iconName)}</div>
-    <div class="kicker">${esc(kicker)}</div>
-    <h2 id="cel-title">${esc(title)}</h2>
-    <p class="muted-2">${esc(body)}</p>
-    <button class="btn primary" type="button">${esc(ok)}</button></div>`;
-  const close = () => wrap.remove();
-  wrap.addEventListener('click', (e) => (e.target === wrap || e.target.closest('button')) && close());
-  document.addEventListener('keydown', function onKey(e) {
-    if (e.key === 'Escape') {
-      close();
-      document.removeEventListener('keydown', onKey);
-    }
-  });
-  document.body.appendChild(wrap);
-  wrap.querySelector('button').focus();
-}
-
-Object.assign(__m, { floatXp, ringBanner, confetti, chime, buzz, showCelebration });
-},
-/* js/views/wrap.js */ 37: function (__m, __req) {
+/* js/views/wrap.js */ 38: function (__m, __req) {
 // Body Wrap: a short, story-style weekly recap. Each card is one body part thanking you for
 // what you did, with one research fact. Tap right/left (or use the arrow keys) to move through it.
 // Opening last week's wrap to the end earns XP once (derived from state.wraps in game.js).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(35);
+const { S: SOURCES } = __req(37);
 const { weekStart, addDays, getWeekStart } = __req(0);
 
 const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const { confetti, chime, buzz, floatXp } = __req(36);
+const { confetti, chime, buzz, floatXp } = __req(35);
 const { XP } = __req(13);
 
 let idx = 0;
@@ -8495,7 +8635,7 @@ function bodyRingsCard(state, today) {
 
 Object.assign(__m, { ring, wrapReadyCard, bodyRingsCard });
 },
-/* js/views/today.js */ 38: function (__m, __req) {
+/* js/views/today.js */ 39: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 const { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(17);
@@ -8513,10 +8653,12 @@ const { toggleHabit, mealRowList } = __req(30);
 const { planDay, partOf, PARTS } = __req(31);
 const { dayRings, ringsSvg, RING_META } = __req(32);
 const { eventsOn, EVENT_KINDS } = __req(34);
+const { itemKey } = __req(7);
+const { isPlanned } = __req(36);
 const { toMin } = __req(14);
 const { journey, nextStops, recentTimeStop } = __req(21);
 const { whenLabel } = __req(22);
-const { wrapReadyCard, bodyRingsCard } = __req(37);
+const { wrapReadyCard, bodyRingsCard } = __req(38);
 
 // ---------- Journey: the next stop on the long road (or a time stop just reached) ----------
 function journeyCard(state, date) {
@@ -8536,6 +8678,12 @@ function journeyCard(state, date) {
 }
 
 const SLOT_HOUR = { breakfast: 7, snack: 10, lunch: 12, snack2: 15, dinner: 18, snack3: 20 };
+
+/** Evening: a nudge to plan tomorrow (until it's done). */
+function planCard(state) {
+  if (new Date().getHours() < 18 || isPlanned(state)) return '';
+  return `<a class="card plan-card" href="#/plan"><span class="cal-emoji big" aria-hidden="true">🌙</span><span class="grow"><strong>Plan tomorrow</strong><small>Two minutes: when and where you’ll move, and a look at tomorrow’s meals</small></span>${icon('chevron')}</a>`;
+}
 
 function dayLabel(date, today) {
   if (date === addDays(today, -1)) return 'Yesterday';
@@ -8643,19 +8791,27 @@ function weighRow(state, date) {
   return `<li class="k-weigh ${todays ? 'is-done' : ''}"><div class="lrow ${todays ? 'done' : ''}"><button class="check ${todays ? 'on' : ''}" data-action="openWeigh" aria-label="${todays ? 'Weighed in' : 'Weigh in'}">${icon(todays ? 'check' : 'scale')}</button><button class="body row-btn" data-action="openWeigh"><div class="over">Morning · after the bathroom</div><div class="title">${todays ? `Weighed in · ${fmtWeight(todays.kg, u)}` : 'Weigh in'}</div><div class="sub">Trend ${fmtWeight(trend, u)}${Math.abs(state.profile.startWeightKg - trend) >= 0.1 ? ` · ${fmtDelta(trend - state.profile.startWeightKg, u)} since start` : ''}</div></button><span class="trail" aria-hidden="true">${icon('chevron')}</span></div></li>`;
 }
 
-function moveRows(state, date) {
+/** Planned movement rows. One you gave a time in the calendar (or evening planning) sits at that time. */
+function moveRows(state, date, linked = {}) {
   const { schedule } = store.schedule(state, date);
   const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items;
   const logged = state.workouts.log[date] || [];
   const doneTag = `<span class="check on" style="animation:none" aria-label="Done">${icon('check')}</span>`;
-  return items.map((it) => {
+  const out = { any: [], timed: [] };
+  for (const it of items) {
     const done = itemDone(logged, it);
     const cls = `k-move ${done ? 'is-done' : ''}`;
-    if (it.kind === 'rest') return `<li class="k-move"><div class="lrow"><span class="slot-ico">${icon('move')}</span><div class="body"><div class="title">Rest day</div><div class="sub">A relaxed walk still counts</div></div></div></li>`;
-    if (it.kind === 'strength') return `<li class="${cls}"><a class="lrow ${done ? 'done' : ''}" href="#/move/session/${it.variant}" style="text-decoration:none">${done ? doneTag : `<span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('move')}</span>`}<div class="body"><div class="over">Movement · +40 XP</div><div class="title">Strength session ${it.variant}</div><div class="sub">${it.exercises.length} exercises · ~${it.minutes} min</div></div><span class="trail">${done ? '' : `<span class="btn small primary">Start</span>`}</span></a></li>`;
-    if (it.kind === 'activity') return `<li class="${cls}"><div class="lrow ${done ? 'done' : ''}">${done ? doneTag : `<button class="check" data-action="activityDone" data-id="${esc(it.id)}" aria-label="Done: ${esc(it.name)}">${icon('check')}</button>`}<div class="body"><div class="over">Movement · your activity</div><div class="title">${esc(it.name)}</div><div class="sub">${it.minutes} min</div></div></div></li>`;
-    return `<li class="${cls}"><div class="lrow ${done ? 'done' : ''}">${done ? doneTag : `<button class="check" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}" aria-label="Done: ${esc(CARDIO[it.mode].label)}">${icon('check')}</button>`}<div class="body"><div class="over">Movement</div><div class="title">${esc(CARDIO[it.mode].label)}</div><div class="sub">${it.minutes} min · chatty pace</div></div></div></li>`;
-  }).join('');
+    const ev = it.kind === 'rest' ? null : linked[itemKey(it)];
+    const when = ev ? `${ev.time ? esc(ev.time) : 'Planned'}${ev.place ? ` · ${esc(ev.place)}` : ''} · ` : '';
+    let html;
+    if (it.kind === 'rest') html = `<li class="k-move"><div class="lrow"><span class="slot-ico">${icon('move')}</span><div class="body"><div class="title">Rest day</div><div class="sub">A relaxed walk still counts</div></div></div></li>`;
+    else if (it.kind === 'strength') html = `<li class="${cls}"><a class="lrow ${done ? 'done' : ''}" href="#/move/session/${it.variant}" style="text-decoration:none">${done ? doneTag : `<span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('move')}</span>`}<div class="body"><div class="over">${when}Movement · +40 XP</div><div class="title">Strength session ${it.variant}</div><div class="sub">${it.exercises.length} exercises · ~${it.minutes} min</div></div><span class="trail">${done ? '' : `<span class="btn small primary">Start</span>`}</span></a></li>`;
+    else if (it.kind === 'activity') html = `<li class="${cls}"><div class="lrow ${done ? 'done' : ''}">${done ? doneTag : `<button class="check" data-action="activityDone" data-id="${esc(it.id)}" aria-label="Done: ${esc(it.name)}">${icon('check')}</button>`}<div class="body"><div class="over">${when}Movement · your activity</div><div class="title">${esc(it.name)}</div><div class="sub">${it.minutes} min</div></div></div></li>`;
+    else html = `<li class="${cls}"><div class="lrow ${done ? 'done' : ''}">${done ? doneTag : `<button class="check" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}" aria-label="Done: ${esc(CARDIO[it.mode].label)}">${icon('check')}</button>`}<div class="body"><div class="over">${when}Movement</div><div class="title">${esc(CARDIO[it.mode].label)}</div><div class="sub">${it.minutes} min · chatty pace</div></div></div></li>`;
+    if (ev?.time) out.timed.push({ time: toMin(ev.time), html });
+    else out.any.push(html);
+  }
+  return out;
 }
 
 function stepsRow(state, date) {
@@ -8676,11 +8832,16 @@ function yourDay(state, date) {
   const mealHtml = Object.fromEntries(meals.map((m) => [m.slot, m.html]));
   const habitHtml = (id, label) => habitRow(state, byId[id], date, 'habitCheck', 'openHabit', label);
   // Your calendar events for the day sit at their time (untimed ones under "Any time").
-  const evs = eventsOn(state, date);
+  const allEvs = eventsOn(state, date);
+  const linked = Object.fromEntries(allEvs.filter((e) => e.planKey).map((e) => [e.planKey, e]));
+  const dayKeys = new Set(store.schedule(state, date).schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items.map(itemKey));
+  const evs = allEvs.filter((e) => !e.planKey || !dayKeys.has(e.planKey)); // linked ones show as the session itself
+  const moves = moveRows(state, date, linked);
+  for (const m of moves.timed) plan.timed.push({ kind: 'movehtml', time: m.time, html: m.html, order: 1.6 });
   const evRow = (e) => `<li class="k-event"><button class="lrow" data-action="calEdit" data-id="${esc(e.id)}"><span class="slot-ico" style="font-size:1.15rem">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}</span><span class="body"><span class="over">${e.time ? esc(e.time) : 'Any time'} · Calendar${e.public ? ' · open to friends' : ''}</span><span class="title">${esc(e.title)}</span>${e.place ? `<span class="sub">${esc(e.place)}</span>` : ''}</span><span class="trail">${icon('chevron')}</span></button></li>`;
   for (const e of evs) if (e.time) plan.timed.push({ kind: 'event', time: toMin(e.time), ev: e, order: 1.5 });
   plan.timed.sort((a, b) => a.time - b.time || a.order - b.order);
-  const itemHtml = (it) => (it.kind === 'meal' ? mealHtml[it.slot] : it.kind === 'habit' ? habitHtml(it.id, it.label) : it.kind === 'event' ? evRow(it.ev) : weighRow(state, date));
+  const itemHtml = (it) => (it.kind === 'meal' ? mealHtml[it.slot] : it.kind === 'habit' ? habitHtml(it.id, it.label) : it.kind === 'event' ? evRow(it.ev) : it.kind === 'movehtml' ? it.html : weighRow(state, date));
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const parts = [];
@@ -8702,7 +8863,7 @@ function yourDay(state, date) {
   if (!nowShown && date === store.today()) parts.push(nowLine);
   const extras = state.extras[date] || [];
   const extraRows = extras.map((x, i) => `<li class="k-extra is-done"><div class="lrow"><span class="slot-ico">${icon('plus')}</span><div class="body"><div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`).join('');
-  const any = [moveRows(state, date), ...evs.filter((e) => !e.time).map(evRow), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
+  const any = [moves.any.join(''), ...evs.filter((e) => !e.time).map(evRow), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
   const total = plan.timed.length + plan.anytime.length;
   const doneCount = meals.filter((m) => m.done).length + active.filter((a) => state.habits.log[date]?.[a.id]).length + (!hide && state.weights.some((w) => w.date === date) ? 1 : 0);
   const noHabit = active.length ? '' : `<li class="tl-empty"><a class="lrow" href="#/habits" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('habits')}</span><span class="body"><span class="title">Pick one small habit</span><span class="sub">It slots into your day at the moment you choose</span></span><span class="trail">${icon('chevron')}</span></a></li>`;
@@ -8785,7 +8946,7 @@ __m.default = {
     return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${past ? 'Fill in the gaps' : greeting()}</h1></div>${dayNav}</header>
       ${past ? `<div class="notice info past-day" style="align-items:center">${icon('calendar')}<div class="grow"><strong>${esc(dayLabel(date, today))}</strong> — anything you tick here is saved to that day.</div><a class="btn small" href="#/today">Back to today</a></div>` : banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : nextUp(state, date)}${quickLog(state)}</div>
+        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + planCard(state) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : nextUp(state, date)}${quickLog(state)}</div>
         <div class="tg-day">${yourDay(state, date)}</div>
         <div class="tg-rest">${past ? '' : bodyRingsCard(state, date) + journeyCard(state, date) + firstWeek(state, date)}</div>
       </div>`;
@@ -8847,7 +9008,7 @@ __m.default = {
 
 Object.assign(__m, { habitRow, lastActive });
 },
-/* js/views/meals.js */ 39: function (__m, __req) {
+/* js/views/meals.js */ 40: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 const { html, esc, icon, chips, fmtDate, fmtNum } = __req(17);
 const { mealRows } = __req(30);
@@ -9036,7 +9197,7 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 40: function (__m, __req) {
+/* js/ui/charts.js */ 41: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
 const { esc } = __req(17);
 const { daysBetween, addDays } = __req(0);
@@ -9148,10 +9309,10 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/habits.js */ 41: function (__m, __req) {
+/* js/views/habits.js */ 42: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
 const { esc, icon } = __req(17);
-const { habitGrid } = __req(40);
+const { habitGrid } = __req(41);
 const store = __req(16);
 const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(10);
@@ -9304,11 +9465,11 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/progress.js */ 42: function (__m, __req) {
+/* js/views/progress.js */ 43: function (__m, __req) {
 // Progress: the home for everything long-term. A hub (journey, body levels, rewards, weekly
 // check-in), past Body Wraps, then the weight trend, activity, weigh-ins, waist and check-in history.
 const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(17);
-const { weightChart, barChart } = __req(40);
+const { weightChart, barChart } = __req(41);
 const store = __req(16);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
@@ -9316,7 +9477,7 @@ const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
 const { journey, nextStops } = __req(21);
 const { weekBody } = __req(12);
 const { checkinDue } = __req(18);
-const { ring } = __req(37);
+const { ring } = __req(38);
 
 /** The long-term hub at the top of Progress. */
 function hub(state, date, hide) {
@@ -9491,7 +9652,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, {  });
 },
-/* js/engine/adjust.js */ 43: function (__m, __req) {
+/* js/engine/adjust.js */ 44: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -9767,11 +9928,11 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 44: function (__m, __req) {
+/* js/views/checkin.js */ 45: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
 const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(17);
 const store = __req(16);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(43);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(44);
 const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
@@ -9916,10 +10077,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/learn.js */ 45: function (__m, __req) {
+/* js/views/learn.js */ 46: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
 const { html, esc, icon } = __req(17);
-const { LEARN, LEARN_SECTIONS } = __req(35);
+const { LEARN, LEARN_SECTIONS } = __req(37);
 
 let section = 'all';
 let openAll = false;
@@ -9964,7 +10125,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/data/melodies.js */ 46: function (__m, __req) {
+/* js/data/melodies.js */ 47: function (__m, __req) {
 // Alarm sounds. Each melody is data: the same spec is played by the in-app preview (Web Audio) and by
 // the native alarm (AlarmService.java synthesises it on the alarm stream), so what you hear when you
 // choose is exactly what wakes you.
@@ -10109,7 +10270,7 @@ function previewMelody(id, { passes = 2 } = {}) {
 
 Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, stopPreview, previewMelody });
 },
-/* js/engine/alarms.js */ 47: function (__m, __req) {
+/* js/engine/alarms.js */ 48: function (__m, __req) {
 // Alarm clock settings → the specs the native alarm scheduler uses (js/alarm-native.js).
 // Defaults follow sleep research:
 // - The same wake time every day, weekends included: irregular sleep/wake timing is linked to a
@@ -10119,7 +10280,7 @@ Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSou
 //   compared with a printed book (Chang 2015).
 // - Meals at regular times from your day schedule.
 const { daySchedule, mealTimes, toHHMM, toMin } = __req(14);
-const { DEFAULT_SOUND, nativeSound } = __req(46);
+const { DEFAULT_SOUND, nativeSound } = __req(47);
 
 const DEFAULT_ALARMS = {
   wake: { on: false, time: null, days: [0, 1, 2, 3, 4, 5, 6], style: 'ring' },
@@ -10180,7 +10341,7 @@ function alarmSpecs(state) {
   const bed = toHHMM(d.bed);
   const snd = (key) => nativeSound(a[key].sound || DEFAULT_SOUND[key]);
   if (a.wake.on) out.push({ id: 'wake', kind: 'wake', label: 'Good morning', body: '', ...hm(t.wake), days: a.wake.days?.length ? a.wake.days : [0, 1, 2, 3, 4, 5, 6], style: a.wake.style, route: '#/wake', ...snd('wake') });
-  if (a.wind.on) out.push({ id: 'wind', kind: 'wind', label: 'Time to wind down', body: `Dim the lights and put screens away — bright screens before bed push sleep later. Bed at ${bed}.`, ...hm(t.wind), days: [0, 1, 2, 3, 4, 5, 6], style: a.wind.style, route: '#/today', ...snd('wind') });
+  if (a.wind.on) out.push({ id: 'wind', kind: 'wind', label: 'Time to wind down', body: `Take two minutes to plan tomorrow, then dim the lights and put screens away. Bed at ${bed}.`, ...hm(t.wind), days: [0, 1, 2, 3, 4, 5, 6], style: a.wind.style, route: '#/plan', ...snd('wind') });
   if (a.bed.on) out.push({ id: 'bed', kind: 'bed', label: 'Bedtime', body: 'Lights out. A good night’s sleep makes tomorrow’s choices easier — people who slept longer ate less the next day.', ...hm(t.bed), days: [0, 1, 2, 3, 4, 5, 6], style: a.bed.style, route: '#/today', ...snd('bed') });
   if (a.meals.on) {
     const slots = mealSlots(state, a.meals.snacks);
@@ -10200,7 +10361,7 @@ function fmtTime(min) {
 
 Object.assign(__m, { DEFAULT_ALARMS, STYLES, alarmsOf, alarmTimes, mealSlots, alarmSpecs, fmtTime });
 },
-/* js/data/reasons.js */ 48: function (__m, __req) {
+/* js/data/reasons.js */ 49: function (__m, __req) {
 // One-word reasons people give for wanting to lose weight, to pick on the morning screen and in Settings.
 // Grouped by the themes found in research: health first, then appearance and mood (O’Brien 2007),
 // function and mobility, stigma (hospital programme, open-ended answers), family and milestones
@@ -10825,7 +10986,7 @@ const REASONS = [
 
 Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 },
-/* js/data/affirmations.js */ 49: function (__m, __req) {
+/* js/data/affirmations.js */ 50: function (__m, __req) {
 // Morning messages shown when the wake-up alarm rings and on the Good-morning screen.
 // What the research says, and how it shapes these messages:
 // - Values-based self-affirmation: reflecting on what matters to you activates the brain's
@@ -10841,7 +11002,7 @@ Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 // - Compliments ("You look beautiful") are included because people asked for them; they can be
 //   switched off, and you can add your own words.
 
-const { REASONS, REASON_YOUR, REASON_PROPER } = __req(48);
+const { REASONS, REASON_YOUR, REASON_PROPER } = __req(49);
 
 const LIBRARY = new Set(REASONS.map((r) => r[1].toLowerCase()));
 
@@ -11055,11 +11216,11 @@ function removeReason(affirm = {}, text) {
 
 Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, DEFAULT_SETS, morningMessages, messageForDay, reasonLine, addReason, removeReason });
 },
-/* js/alarm-native.js */ 50: function (__m, __req) {
+/* js/alarm-native.js */ 51: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
-const { alarmSpecs, alarmsOf } = __req(47);
-const { morningMessages, valueInfo } = __req(49);
+const { alarmSpecs, alarmsOf } = __req(48);
+const { morningMessages, valueInfo } = __req(50);
 
 let lastMessage = null;
 
@@ -11177,13 +11338,13 @@ async function listen(go, onWake) {
 
 Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, parseWake, listen });
 },
-/* js/views/alarms.js */ 51: function (__m, __req) {
+/* js/views/alarms.js */ 52: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 const { esc, icon } = __req(17);
-const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(47);
+const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(48);
 const { daySchedule, mealTimes } = __req(14);
-const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(49);
-const { REASONS, REASON_CATS } = __req(48);
+const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(50);
+const { REASONS, REASON_CATS } = __req(49);
 
 // Reason library state (kept across re-renders while you browse).
 let reasonCat = 'health';
@@ -11195,8 +11356,8 @@ document.addEventListener('input', (ev) => {
 document.addEventListener('toggle', (ev) => {
   if (ev.target.classList?.contains('reason-lib')) libOpen = ev.target.open;
 }, true);
-const alarmNative = __req(50);
-const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(46);
+const alarmNative = __req(51);
+const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(47);
 const { openSheet, updateSheet } = __req(25);
 
 const KIND_NAME = { wake: 'Wake-up', wind: 'Wind-down', bed: 'Bedtime', meals: 'Meal' };
@@ -11508,7 +11669,7 @@ const alarmActions = {
 
 Object.assign(__m, { ownValues, alarmsSummary, alarmsPage, alarmsAfter, alarmActions });
 },
-/* js/notify.js */ 52: function (__m, __req) {
+/* js/notify.js */ 53: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -11645,10 +11806,10 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 53: function (__m, __req) {
+/* js/views/settings.js */ 54: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { goalHint } = __req(23);
-const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(51);
+const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(52);
 const { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(17);
 const store = __req(16);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
@@ -11656,7 +11817,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn, weekOrder } = __req(0);
-const notify = __req(52);
+const notify = __req(53);
 const { DEFAULT_REMINDERS } = __req(15);
 const { dayFields, daySummary, readDay } = __req(20);
 const { daySchedule, toHHMM } = __req(14);
@@ -11700,6 +11861,7 @@ function remindersHtml(state) {
       ${row('moveOn', 'move', 'Movement', 'Only on days with a session or activity')}
       ${row('encourage', 'encourageAt', 'Encouragement', 'A short tip or pep talk')}
       ${row('eveningOn', 'evening', 'Evening wrap-up', 'Only if quests are left')}
+      ${row('planOn', null, 'Plan tomorrow', 'An hour before bed — unless your wind-down alarm already opens it')}
       ${row('checkin', 'checkinAt', 'Weekly check-in', DAY_NAMES[Number(r.checkinDay)] + 's')}
     </ul></div>
     <label class="field"><span>Check-in day</span><select name="checkinDay">${DAY_NAMES.map((d, i) => `<option value="${i}" ${Number(r.checkinDay) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
@@ -11880,7 +12042,7 @@ __m.default = {
       ctx.update((st) => {
         const r = { ...st.reminders, enabled };
         for (const k of ['morning', 'breakfast', 'lunch', 'dinner', 'move', 'evening', 'encourageAt', 'checkinAt']) if (data[k]) r[k] = data[k];
-        for (const k of ['meals', 'encourage', 'checkin', 'morningOn', 'moveOn', 'eveningOn']) r[k] = !!data[k];
+        for (const k of ['meals', 'encourage', 'checkin', 'morningOn', 'moveOn', 'eveningOn', 'planOn']) r[k] = !!data[k];
         r.checkinDay = Number(data.checkinDay);
         st.reminders = r;
         return st;
@@ -12052,7 +12214,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 54: function (__m, __req) {
+/* js/views/shopping.js */ 55: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(17);
 const store = __req(16);
@@ -12100,15 +12262,15 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 55: function (__m, __req) {
+/* js/views/rewards.js */ 56: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(17);
-const { ring, barChart } = __req(40);
+const { ring, barChart } = __req(41);
 const store = __req(16);
 const { BADGES, XP, levelTitle } = __req(13);
 const { addDays, weekStart } = __req(0);
 const { ORGANS, lastWeekStart } = __req(12);
-const { ring: bodyRing } = __req(37);
+const { ring: bodyRing } = __req(38);
 
 function bodyMedals(state, g, date) {
   const lv = g.stats.body.levels;
@@ -12232,17 +12394,17 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/views/wake.js */ 56: function (__m, __req) {
+/* js/views/wake.js */ 57: function (__m, __req) {
 // Good morning: the screen after "I'm up". The alarm's message, then a ten-second values
 // reflection ("Today I'm doing this for…") — the kind of self-affirmation shown to engage the brain's
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(49);
-const { REASONS } = __req(48);
-const { takeMessage } = __req(50);
+const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(50);
+const { REASONS } = __req(49);
+const { takeMessage } = __req(51);
 const { XP } = __req(13);
-const { confetti, chime, buzz, floatXp } = __req(36);
+const { confetti, chime, buzz, floatXp } = __req(35);
 
 let message = null;
 let msgDate = null;
@@ -12385,18 +12547,18 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/body.js */ 57: function (__m, __req) {
+/* js/views/body.js */ 58: function (__m, __req) {
 // Your body: one card per body part — this week's ring, its long-term level and what it needs.
 // Tap any ring (here, on Today or in the Body Wrap) to open the body-part sheet.
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { openSheet } = __req(25);
 const { ORGAN_GUIDE, organById, weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(35);
+const { S: SOURCES } = __req(37);
 const { weekStart } = __req(0);
 
 const fmtDateShort = (iso) => fmtDate(iso, { day: 'numeric', month: 'short' });
-const { ring } = __req(37);
+const { ring } = __req(38);
 
 function data(state) {
   const today = store.today();
@@ -12473,7 +12635,7 @@ __m.default = {
 
 Object.assign(__m, { organSheetHtml, organActions });
 },
-/* js/views/join.js */ 58: function (__m, __req) {
+/* js/views/join.js */ 59: function (__m, __req) {
 // The page friends see from your shared link (#/join/<id>): your upcoming open activities and an
 // "I'll join" button. Works without a Habit Lab account or any data on their device.
 const { esc, icon, fmtDate } = __req(17);
@@ -12569,46 +12731,47 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/app.js */ 59: function (__m, __req) {
+/* js/app.js */ 60: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(16);
 const { icon, formData } = __req(17);
 const { setWeekStart } = __req(0);
 const onboarding = __req(23).default;
 const { goalHint } = __req(23);
-const todayView = __req(38).default;
-const meals = __req(39).default;
+const todayView = __req(39).default;
+const meals = __req(40).default;
 const move = __req(27).default;
-const habits = __req(41).default;
-const progress = __req(42).default;
-const checkin = __req(44).default;
-const learn = __req(45).default;
-const settings = __req(53).default;
-const shopping = __req(54).default;
-const rewards = __req(55).default;
+const habits = __req(42).default;
+const progress = __req(43).default;
+const checkin = __req(45).default;
+const learn = __req(46).default;
+const settings = __req(54).default;
+const shopping = __req(55).default;
+const rewards = __req(56).default;
 const journeyView = __req(22).default;
-const wrapView = __req(37).default;
-const wakeView = __req(56).default;
-const bodyView = __req(57).default;
+const wrapView = __req(38).default;
+const wakeView = __req(57).default;
+const bodyView = __req(58).default;
 const calendarView = __req(34).default;
 const { calendarActions } = __req(34);
-const joinView = __req(58).default;
-const { organActions } = __req(57);
+const joinView = __req(59).default;
+const planView = __req(36).default;
+const { organActions } = __req(58);
 const { organById } = __req(12);
-const alarmNative = __req(50);
-const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(36);
+const alarmNative = __req(51);
+const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(35);
 const { newlyClosed, allClosed } = __req(32);
 const { setViewDate } = __req(24);
-const { reasonLine, addReason } = __req(49);
+const { reasonLine, addReason } = __req(50);
 const { BADGES } = __req(13);
-const notify = __req(52);
+const notify = __req(53);
 const { closeSheet } = __req(25);
 const { sheetActions } = __req(30);
 const { daySummary, readDay } = __req(20);
 
-const VIEWS = { calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 // Screens without their own tab light up the tab they belong to.
-const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today', calendar: 'move' };
+const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today', calendar: 'move', plan: 'today' };
 const NAV = [
   ['today', 'Today', 'today'],
   ['meals', 'Meals', 'meals'],
@@ -13023,7 +13186,7 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(59);
+__req(60);
 })();</script>
 </body>
 </html>

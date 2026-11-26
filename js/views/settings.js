@@ -52,6 +52,7 @@ function remindersHtml(state) {
       ${row('moveOn', 'move', 'Movement', 'Only on days with a session or activity')}
       ${row('encourage', 'encourageAt', 'Encouragement', 'A short tip or pep talk')}
       ${row('eveningOn', 'evening', 'Evening wrap-up', 'Only if quests are left')}
+      ${row('planOn', null, 'Plan tomorrow', 'An hour before bed — unless your wind-down alarm already opens it')}
       ${row('checkin', 'checkinAt', 'Weekly check-in', DAY_NAMES[Number(r.checkinDay)] + 's')}
     </ul></div>
     <label class="field"><span>Check-in day</span><select name="checkinDay">${DAY_NAMES.map((d, i) => `<option value="${i}" ${Number(r.checkinDay) === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
@@ -232,7 +233,7 @@ export default {
       ctx.update((st) => {
         const r = { ...st.reminders, enabled };
         for (const k of ['morning', 'breakfast', 'lunch', 'dinner', 'move', 'evening', 'encourageAt', 'checkinAt']) if (data[k]) r[k] = data[k];
-        for (const k of ['meals', 'encourage', 'checkin', 'morningOn', 'moveOn', 'eveningOn']) r[k] = !!data[k];
+        for (const k of ['meals', 'encourage', 'checkin', 'morningOn', 'moveOn', 'eveningOn', 'planOn']) r[k] = !!data[k];
         r.checkinDay = Number(data.checkinDay);
         st.reminders = r;
         return st;

@@ -7,7 +7,9 @@ Habit Lab ships as two artefacts built from the same code:
 | **Web app** (`www/`: one HTML file + manifest + service worker) | `npm run build` | Vercel (preview per push; production from `main`) |
 | **Android app** (`habit-lab.apk`, Capacitor) | `npm run android:apk` | GitHub Actions artefact; "latest" GitHub release from `main` |
 
-There is no server and no database: every user's data lives on their own device.
+Everything you log lives on your own device. The one exception is **calendar sharing** (opt-in): the
+activities you mark "Open to friends" (what, when, where) and the names friends type when they join are stored
+in the Supabase project `habitlab` (eu-north-1). Schema and functions: `supabase/shared_calendars.sql`.
 
 ## Quality gates (all must pass)
 
@@ -61,7 +63,8 @@ Android does not install an **older** `versionCode` over a newer one, and uninst
 
 ## Monitoring
 
-Habit Lab collects **no telemetry and no crash reports** by design: health data never leaves the device. Signals:
+Habit Lab collects **no telemetry and no crash reports** by design: health data never leaves the device (only
+the shared-calendar data above does, when you create a link). Signals:
 - CI status on every push (all test layers).
 - Vercel deployment status and build logs.
 - Users can export their data (Settings → Your data) to share when reporting a problem.
@@ -107,3 +110,9 @@ battery management).
 - **The CSP applies to the web build only.** Inside the Android app, Capacitor injects its own bridge script, so the
   page-level policy isn't used there; script injection is still prevented by escaping (verified by `xss`).
 - **Research content is general information,** not medical advice; sources are cited in-app and in `RESEARCH.md`.
+- **Shared calendars:** anyone with a link can read that calendar's open activities and join with any name;
+  links are random UUIDs (unguessable), only the owner's secret key can publish, read names or delete, and
+  joining is limited to 100 per activity. There's no account system, so names aren't verified. The Supabase
+  advisor flags the public functions and the no-policy tables — both intentional (see the SQL file).
+- **Join links point at the production web app** (`habitlab-eight.vercel.app`), so they work once this is
+  merged and deployed. Other `*.vercel.app` aliases of the project are behind Vercel login.

@@ -73,13 +73,13 @@ export async function refresh(ctx, force = false) {
 export function shareCardHtml(state, pubCount) {
   const s = state.share;
   if (!s?.id) {
-    return `<div class="card share-card"><h3 style="margin-top:0">${icon('star')} Make changes together</h3>
+    return `<div class="card share-card"><h2 style="margin-top:0;font-size:var(--text-lg)">${icon("star")} Make changes together</h2>
       <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Share a link to your calendar. Friends see the activities you mark <strong>Open to friends</strong> and can tap “I’ll join”. Only what, when and where is shared.</p>
       <form data-form="shareCreate" class="row nowrap" style="gap:8px"><input type="text" name="name" maxlength="40" required placeholder="Your first name" aria-label="Your first name" style="flex:1;min-width:0"><button class="btn primary small">Create my link</button></form></div>`;
   }
   const link = shareLink(state);
   const total = signups.length;
-  return `<div class="card share-card"><div class="row between nowrap"><h3 style="margin:0">${icon('star')} Your shared calendar</h3>${total ? `<span class="tag green">${total} joining</span>` : ''}</div>
+  return `<div class="card share-card"><div class="row between nowrap"><h2 style="margin:0;font-size:var(--text-lg)">${icon("star")} Your shared calendar</h2>${total ? `<span class="tag green">${total} joining</span>` : ''}</div>
     <p class="muted" style="font-size:var(--text-sm);margin:6px 0 8px">${pubCount ? `${pubCount} upcoming ${pubCount === 1 ? 'activity is' : 'activities are'} open to friends.` : 'Nothing open to friends yet — tap an activity and switch on “Open to friends”.'}</p>
     <div class="share-link"><input type="text" readonly value="${esc(link)}" aria-label="Your calendar link"><button class="btn small" data-action="shareCopy">Copy</button>${navigator.share ? '<button class="btn small primary" data-action="shareNative">Share</button>' : ''}</div>
     <button class="btn ghost small" data-action="shareStop" style="margin-top:8px">Stop sharing</button></div>`;

@@ -839,3 +839,18 @@ test('re-planning: moves put a planned item on another day; emptied days rest', 
   assert.equal(applyMoves(week, [{ key: 'cardio:walk', from: 3, to: 4 }])[4].items[0].kind, 'rest', 'unknown item ignored');
   assert.equal(applyMoves(week, []), week);
 });
+
+test('evening planning: the wind-down alarm opens Plan tomorrow; else an evening reminder (until planned)', async () => {
+  const { alarmSpecs } = await import('../js/engine/alarms.js');
+  const { buildReminders } = await import('../js/engine/reminders.js');
+  const base = { profile: { startDate: '2026-11-01', schedule: { wake: '07:00', bed: '23:00' } }, prefs: { mealsPerDay: 4 } };
+  const wind = alarmSpecs({ ...base, alarms: { wind: { on: true } } }).find((a) => a.id === 'wind');
+  assert.equal(wind.route, '#/plan');
+  const now = new Date(2026, 10, 26, 12, 0);
+  const plans = (st) => buildReminders({ ...st, reminders: { enabled: true } }, now, { days: 2 }).filter((r) => r.route === '#/plan');
+  const off = plans(base);
+  assert.equal(off.length, 2);
+  assert.equal(off[0].at.getHours(), 22); // an hour before bed
+  assert.equal(plans({ ...base, alarms: { wind: { on: true } } }).length, 0, 'the wind-down alarm does it instead');
+  assert.equal(plans({ ...base, flags: { planned: '2026-11-27' } }).length, 1, 'tonight already planned');
+});

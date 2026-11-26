@@ -50,6 +50,35 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await page.goto(base + '#/today');
   await page.waitForSelector('.k-event:has-text("Walk with friends")');
   if (!/23:58/.test(await page.textContent('.k-event'))) errors.push('event time not on Today');
+  // Plan tomorrow: give tomorrow's first planned session a time and place; it's linked, not duplicated
+  await page.goto(base + '#/plan');
+  await page.waitForSelector('text=Plan tomorrow');
+  const tmr = ymd(new Date(Date.now() + 864e5));
+  if (await page.locator('form[data-form=planSetWhen]').count()) {
+    const key = await page.getAttribute('form[data-form=planSetWhen] >> nth=0', 'data-key');
+    await page.fill('form[data-form=planSetWhen] >> nth=0 >> input[name=time]', '07:15');
+    await page.fill('form[data-form=planSetWhen] >> nth=0 >> input[name=place]', 'Gym');
+    await page.click('form[data-form=planSetWhen] >> nth=0 >> button');
+    await page.waitForSelector('.plan-set:has-text("07:15 · Gym")');
+    const pe = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).events);
+    const linked = pe.filter((e) => e.planKey === key && e.date === tmr);
+    if (linked.length !== 1 || linked[0].time !== '07:15') errors.push('plan time not saved as a linked event: ' + JSON.stringify(pe));
+    // Updating keeps one event
+    await page.fill('form[data-form=planSetWhen] >> nth=0 >> input[name=time]', '07:45');
+    await page.click('form[data-form=planSetWhen] >> nth=0 >> button');
+    await page.waitForSelector('.plan-set:has-text("07:45")');
+    if ((await page.evaluate((k) => JSON.parse(localStorage.getItem('habitlab.v1')).events.filter((e) => e.planKey === k).length, key)) !== 1) errors.push('updating the time duplicated the event');
+    // On the calendar the session shows once, with its time
+    await page.goto(base + '#/calendar');
+    await page.waitForSelector('.cal-ev:has-text("07:45")');
+  } else {
+    await page.waitForSelector('text=Rest day on the plan');
+  }
+  await page.goto(base + '#/plan');
+  await page.click('button[data-action=planDone]');
+  await page.waitForSelector('text=Tomorrow is planned.');
+  if ((await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).flags.planned)) !== tmr) errors.push('planned flag');
+
   // Share: create a link (publishes only open events)
   await page.goto(base + '#/calendar');
   await page.fill('form[data-form=shareCreate] input[name=name]', 'Alex');
