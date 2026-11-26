@@ -31,8 +31,8 @@ const shots = process.argv[3] || null;
       addListener: () => ({ remove() {} }),
     };
     const habitAlarm = {
-      setAlarms: async (o) => (a.set.push(JSON.parse(JSON.stringify(o))), { exact: true, notifications: true, fullScreen: false, next: Date.now() + 3600e3, count: o.alarms.length }),
-      getStatus: async () => ({ exact: true, notifications: true, fullScreen: false, next: Date.now() + 3600e3, count: a.set.at(-1)?.alarms.length || 0 }),
+      setAlarms: async (o) => (a.set.push(JSON.parse(JSON.stringify(o))), { exact: true, notifications: true, fullScreen: false, overlay: false, next: Date.now() + 3600e3, count: o.alarms.length }),
+      getStatus: async () => ({ exact: true, notifications: true, fullScreen: false, overlay: false, next: Date.now() + 3600e3, count: a.set.at(-1)?.alarms.length || 0 }),
       openSettings: async (o) => void a.opened.push(o.which),
       test: async (o) => void a.tests.push(o),
       pickSound: async () => ({ uri: 'content://media/internal/audio/media/42', title: 'Cesium' }),
@@ -63,6 +63,9 @@ const shots = process.argv[3] || null;
   // Wake alarm on, weekdays only, then values and why
   await page.click('label.switch:has(input[data-path="wake.on"])');
   await page.waitForSelector('.alarm-card.on');
+  // With an alarm on: offer "Display over other apps" so the wake screen can take over an unlocked phone
+  await page.waitForSelector('[data-action=alarmPerm][data-which=overlay]');
+  await page.click('[data-action=alarmPerm][data-which=overlay]');
   await page.click('.al-day[data-day="6"]');
   await page.click('.al-day[data-day="5"]');
   await page.fill('input.al-time', '06:45');
@@ -149,9 +152,13 @@ const shots = process.argv[3] || null;
     if (!last.messages.some((m) => /your kids/i.test(m))) errors.push('own value missing from messages');
     if (!last.messages.some((m) => /to have energy to play with my kids/.test(m))) errors.push('why missing from messages');
     if (!last.messages.includes('Future you is proud of you.')) errors.push('custom message missing');
-    if (last.snooze !== 9) errors.push('snooze');
+    if (last.snooze !== 5) errors.push('snooze');
+    // The lock-screen morning screen gets your values (with labels) and favourites
+    if (!last.values?.some((v) => v.id === 'family' && v.label === 'Family' && v.phrase)) errors.push('values not sent to the phone: ' + JSON.stringify(last.values));
+    if (!Array.isArray(last.favs)) errors.push('favourites not sent to the phone');
   }
   if (!a.opened.includes('fullScreen')) errors.push('permission button did not open settings');
+  if (!a.opened.includes('overlay')) errors.push('overlay button did not open settings');
   if (!a.tests.some((t) => t.id === 'wake')) errors.push('test alarm not requested');
   if (!/Next alarm/.test(await page.textContent('#alarm-status'))) errors.push('next alarm not shown');
 
@@ -175,6 +182,21 @@ const shots = process.argv[3] || null;
   if (!st.wakes?.[today]) errors.push('morning intention not recorded');
   if (!st.affirm.favs.includes('You deserve a healthy life.')) errors.push('favourite not saved');
   if (await page.evaluate(() => document.body.classList.contains('wrap-open'))) errors.push('overlay class left on');
+  // "Start my day" on the lock screen: the app opens on Today and records the morning it was handed
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('habitlab.v1'));
+    s.wakes = {};
+    localStorage.setItem('habitlab.v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForSelector('.tg-hero');
+  await page.evaluate((d) => window.__alarm.listeners.route({ route: '#/today', wake: JSON.stringify({ date: d, at: '06:52', value: 'family', fav: true, message: 'You look beautiful.' }) }), today);
+  await page.waitForSelector('.toast.show >> text=doing this for family');
+  const st2 = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')));
+  if (st2.wakes?.[today] !== '06:52') errors.push('lock-screen morning not recorded: ' + JSON.stringify(st2.wakes));
+  if (!st2.affirm.favs.includes('You look beautiful.')) errors.push('lock-screen favourite not saved');
+  // A malformed hand-off is ignored safely
+  await page.evaluate(() => window.__alarm.listeners.route({ route: '#/today', wake: '{"date":"<b>","at":"99:99"}' }));
   // Learn card
   await page.goto(url + '#/learn/morning_mind');
   await page.waitForSelector('#learn-morning_mind');

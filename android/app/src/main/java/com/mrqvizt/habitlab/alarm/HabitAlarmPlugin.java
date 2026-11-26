@@ -34,6 +34,7 @@ import org.json.JSONException;
 public class HabitAlarmPlugin extends Plugin {
     private static String pendingRoute;
     private static String pendingMessage;
+    private static String pendingWake;
 
     @Override
     public void load() {
@@ -48,6 +49,10 @@ public class HabitAlarmPlugin extends Plugin {
             JSObject o = new JSObject();
             o.put("route", pendingRoute);
             o.put("message", pendingMessage);
+            o.put("wake", pendingWake);
+            pendingRoute = null;
+            pendingMessage = null;
+            pendingWake = null;
             notifyListeners("route", o, true);
         }
     }
@@ -58,8 +63,10 @@ public class HabitAlarmPlugin extends Plugin {
         if (r == null) return false;
         pendingRoute = r;
         pendingMessage = intent.getStringExtra("habit_message");
+        pendingWake = intent.getStringExtra("habit_wake");
         intent.removeExtra("habit_route");
         intent.removeExtra("habit_message");
+        intent.removeExtra("habit_wake");
         return true;
     }
 
@@ -68,8 +75,10 @@ public class HabitAlarmPlugin extends Plugin {
         JSObject o = new JSObject();
         o.put("route", pendingRoute);
         o.put("message", pendingMessage);
+        o.put("wake", pendingWake);
         pendingRoute = null;
         pendingMessage = null;
+        pendingWake = null;
         call.resolve(o);
     }
 
@@ -79,6 +88,7 @@ public class HabitAlarmPlugin extends Plugin {
         JSArray messages = call.getArray("messages", new JSArray());
         int snooze = call.getInt("snooze", 9);
         AlarmStore.save(getContext(), alarms, messages, snooze);
+        AlarmStore.saveMorning(getContext(), call.getArray("values", new JSArray()), call.getArray("favs", new JSArray()));
         AlarmScheduler.scheduleAll(getContext());
         call.resolve(status());
     }
@@ -99,6 +109,8 @@ public class HabitAlarmPlugin extends Plugin {
             full = nm != null && nm.canUseFullScreenIntent();
         }
         o.put("fullScreen", full);
+        // Without "Display over other apps", Android shows a ringing alarm as a notification while the phone is in use.
+        o.put("overlay", Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(c));
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         AlarmManager.AlarmClockInfo next = am == null ? null : am.getNextAlarmClock();
         o.put("next", next == null ? 0 : next.getTriggerTime());
@@ -116,6 +128,8 @@ public class HabitAlarmPlugin extends Plugin {
             i = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, pkg);
         } else if ("fullScreen".equals(which) && Build.VERSION.SDK_INT >= 34) {
             i = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, pkg);
+        } else if ("overlay".equals(which) && Build.VERSION.SDK_INT >= 23) {
+            i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, pkg);
         } else if ("notifications".equals(which) && Build.VERSION.SDK_INT >= 26) {
             i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, c.getPackageName());
         } else if ("battery".equals(which)) {

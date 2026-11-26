@@ -90,7 +90,7 @@ export function alarmsPage(state) {
       ${soundRow(a, 'meals')}
       <p class="al-note">From your day schedule, so meals come at regular times.</p>`, a.meals.on ? 'on' : '')}
     <p class="muted" style="font-size:var(--text-sm)">Times come from <a href="#/settings/day">Your day</a>. Quiet nudges to log meals and keep your streak are in <a href="#/settings/reminders">Reminders</a>.</p>
-    <div class="card"><label class="row between nowrap" style="font-size:var(--text-sm)"><span>Snooze length</span><select data-change="alarmSnooze">${[5, 9, 10, 15].map((m) => `<option value="${m}" ${a.snooze === m ? 'selected' : ''}>${m} minutes</option>`).join('')}</select></label></div>
+    <div class="card"><label class="row between nowrap" style="font-size:var(--text-sm)"><span>Snooze length <span class="hint" style="display:block">Change it with − and + on the alarm screen too</span></span><select data-change="alarmSnooze">${[...new Set([1, 3, 5, 10, 15, 20, a.snooze])].sort((x, y) => x - y).map((m) => `<option value="${m}" ${a.snooze === m ? 'selected' : ''}>${m} minutes</option>`).join('')}</select></label></div>
 
     <div class="section-head"><h2>Morning messages</h2><a href="#/learn/morning_mind">Why it works</a></div>
     <div class="card morning-card">
@@ -123,6 +123,8 @@ export async function alarmsAfter(root) {
   if (!s.notifications) issues.push(['notifications', 'Notifications are off for Habit Lab, so alarms can’t show.', 'Turn on']);
   if (!s.exact) issues.push(['exact', 'Exact alarms aren’t allowed, so alarms may be late.', 'Allow']);
   if (!s.fullScreen) issues.push(['fullScreen', 'Full-screen alarms aren’t allowed, so the wake screen won’t open over the lock screen.', 'Allow']);
+  // Android only lets an alarm take over the screen while the phone is in use with "Display over other apps".
+  if (s.overlay === false) issues.push(['overlay', 'While you’re using your phone, alarms ring as a notification. To have the wake screen take over the whole screen every time, allow “Display over other apps” for Habit Lab.', 'Allow']);
   el.innerHTML = `${issues.map(([k, text, btn]) => `<div class="notice warn">${icon('alert')}<div class="grow">${esc(text)}</div><button class="btn small" data-action="alarmPerm" data-which="${k}">${btn}</button></div>`).join('')}
     ${s.next ? `<div class="notice ok">${icon('clock')}<div class="grow">Next alarm: <strong>${esc(new Date(s.next).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }))}</strong></div></div>` : ''}
     ${s.count ? `<p class="muted" style="font-size:var(--text-xs);margin:-4px 0 10px">If alarms ever don’t ring, check that battery optimisation isn’t restricting Habit Lab. <button class="btn small ghost" data-action="alarmPerm" data-which="battery">Battery settings</button></p>` : ''}`;

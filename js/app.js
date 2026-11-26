@@ -21,7 +21,9 @@ import bodyView from './views/body.js';
 import { organActions } from './views/body.js';
 import { organById } from './engine/body.js';
 import * as alarmNative from './alarm-native.js';
-import { floatXp, confetti, chime, buzz, showCelebration } from './ui/celebrate.js';
+import { floatXp, confetti, chime, buzz, showCelebration, ringBanner } from './ui/celebrate.js';
+import { newlyClosed, allClosed } from './views/dayrings.js';
+import { valueInfo } from './data/affirmations.js';
 import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
 import { closeSheet } from './ui/sheet.js';
@@ -50,6 +52,7 @@ const ctx = {
     return state;
   },
   set(next, { render = true, quiet = false } = {}) {
+    const prevState = state;
     const before = state.profile ? store.game(state) : null;
     const after = next.profile ? store.game(next) : null;
     if (after?.newBadges.length) {
@@ -58,7 +61,7 @@ const ctx = {
     }
     state = next;
     setWeekStart(state.prefs?.weekStart || 0);
-    if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game));
+    if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game, prevState, next));
     scheduleSync();
     const saved = store.save(state);
     if (!saved && !saveFailing) ctx.toast('Couldn’t save — this device’s storage is full or blocked.');
@@ -150,9 +153,21 @@ function bodyUps(before, after) {
   return Object.keys(a).filter((id) => b[id] && a[id].level > b[id].level).map((id) => ({ id, ...a[id] }));
 }
 
-function celebrate(before, after, prefs) {
+const RING_WORD = { eat: 'Eat', move: 'Move', habits: 'Habits' };
+
+function celebrate(before, after, prefs, prevState, nextState) {
   const gained = after.xp - before.xp;
-  if (gained <= 0) return;
+  const rings = prevState && nextState ? newlyClosed(prevState, nextState) : [];
+  if (rings.length) {
+    const all = allClosed(nextState);
+    confetti(all ? 1.4 : 0.6);
+    if (prefs.haptics) buzz(all ? [12, 40, 12, 40, 20] : [10, 30, 10]);
+    ringBanner(all ? 'All three rings closed — perfect day!' : `${rings.map((r) => RING_WORD[r]).join(' + ')} ring closed!`, all ? 'var(--ring-move)' : `var(--ring-${rings[0]})`);
+  }
+  if (gained <= 0) {
+    if (rings.length && prefs.sound) chime('quest');
+    return;
+  }
   const todayBefore = new Set((before.byDay[store.today()]?.awards || []).map((a) => a.key));
   const fresh = (after.byDay[store.today()]?.awards || []).filter((a) => !todayBefore.has(a.key));
   const lucky = fresh.some((a) => a.lucky);
@@ -165,6 +180,7 @@ function celebrate(before, after, prefs) {
   let sound = lucky ? 'lucky' : smallWin ? 'quest' : 'tick';
   if (smallWin && !perfect) confetti(0.35);
   if (questsDoneAfter > questsDoneBefore) sound = 'quest';
+  if (rings.length) sound = allClosed(nextState) ? 'badge' : 'quest';
   if (perfect) {
     confetti(1.2);
     sound = 'badge';
@@ -363,7 +379,21 @@ export function syncReminders() {
   });
 }
 notify.listen();
-alarmNative.listen((route) => ctx.go(route));
+alarmNative.listen((route) => ctx.go(route), (w) => {
+  // "Start my day" on the lock screen: record the morning (once a day) and the message you liked.
+  ctx.update((st) => {
+    if (!st.wakes?.[w.date]) st.wakes = { ...(st.wakes || {}), [w.date]: w.at };
+    if (w.message) {
+      const favs = new Set(st.affirm?.favs || []);
+      if (w.fav) favs.add(w.message);
+      else favs.delete(w.message);
+      st.affirm = { ...(st.affirm || {}), favs: [...favs].slice(-30) };
+    }
+    return st;
+  }, { render: false });
+  const v = w.value === 'me' ? null : valueInfo(w.value);
+  ctx.toast(v ? `Good morning. Today you’re doing this for ${v.label.toLowerCase()}.` : 'Good morning. You are reason enough.');
+});
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
 
 let transitioning = false;

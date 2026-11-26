@@ -82,6 +82,32 @@ public final class AlarmStore {
             .apply();
     }
 
+    /** Your values ([{id, label, phrase}]) and saved favourite messages, for the morning screen on the lock screen. */
+    public static void saveMorning(Context c, JSONArray values, JSONArray favs) {
+        prefs(c).edit()
+            .putString("values", values == null ? "[]" : values.toString())
+            .putString("favs", favs == null ? "[]" : favs.toString())
+            .apply();
+    }
+
+    public static JSONArray values(Context c) {
+        try {
+            return new JSONArray(prefs(c).getString("values", "[]"));
+        } catch (JSONException e) {
+            return new JSONArray();
+        }
+    }
+
+    public static boolean isFav(Context c, String message) {
+        if (message == null) return false;
+        try {
+            JSONArray a = new JSONArray(prefs(c).getString("favs", "[]"));
+            for (int i = 0; i < a.length(); i++) if (message.equals(a.optString(i))) return true;
+        } catch (JSONException ignored) {
+        }
+        return false;
+    }
+
     public static List<Alarm> alarms(Context c) {
         List<Alarm> out = new ArrayList<>();
         try {
@@ -111,7 +137,7 @@ public final class AlarmStore {
     }
 
     public static int snoozeMinutes(Context c) {
-        return prefs(c).getInt("snooze", 9);
+        return prefs(c).getInt("snooze", 5);
     }
 
     /** Today's morning message: rotates by day so each morning is different. */

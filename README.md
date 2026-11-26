@@ -116,7 +116,7 @@ tools/       build.mjs (bundler + security headers), serve.mjs, browser-tests.mj
 ## Tests
 
 ```bash
-npm test                      # 54 unit tests: engines, store, fuzzing, performance budgets, build/CSP check
+npm test                      # 56 unit tests: engines, store, fuzzing, performance budgets, build/CSP check
 npm run build && npm run test:browser   # 11 browser suites against the production build + headers
 cd android && ./gradlew testDebugUnitTest   # native alarm scheduling (incl. daylight saving)
 ```

@@ -662,11 +662,11 @@ main { view-transition-name: main-content; }
 
 /* Today layout: phone = hero, next, food, habits, movement; desktop = food in its own column */
 .today-grid { display: grid; gap: 0 22px; grid-template-areas: 'hero' 'food' 'rest'; }
-.tg-hero { grid-area: hero; } .tg-food { grid-area: food; } .tg-rest { grid-area: rest; }
-.tg-food .section-head:first-child, .tg-rest .section-head:first-child { margin-top: 8px; }
+.tg-hero { grid-area: hero; } .tg-day { grid-area: food; } .tg-rest { grid-area: rest; }
+.tg-day .section-head:first-child, .tg-rest .section-head:first-child { margin-top: 8px; }
 @media (min-width: 900px) {
   .today-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'hero food' 'rest food'; align-items: start; }
-  .tg-food .section-head:first-child { margin-top: 0; }
+  .tg-day .section-head:first-child { margin-top: 0; }
 }
 .row-btn { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; display: block; }
 .lrow .body.row-btn { align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
@@ -1053,6 +1053,65 @@ body.wrap-open .modal-wrap { z-index: 1200; }
 form:has(input[name=enabled]:not(:checked)) .reminder-list { opacity: 1; filter: saturate(0.2); }
 .learn-card .learn-title { font-size: var(--text-lg); margin: 6px 0; }
 h2.h3 { font-size: var(--text-lg); }
+
+/* ---------- Today: three day rings, quick log, one timeline ---------- */
+:root { --ring-eat: #f0475f; --ring-move: #22b36b; --ring-habits: #2f8fe8; --ring-eat-text: #b81f3a; --ring-move-text: #146b42; --ring-habits-text: #1a5fa8; }
+:root[data-theme='dark'] { --ring-eat: #ff5f78; --ring-move: #3ddc8a; --ring-habits: #52b0ff; --ring-eat-text: #ff8597; --ring-move-text: #5fe39f; --ring-habits-text: #7cc3ff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --ring-eat: #ff5f78; --ring-move: #3ddc8a; --ring-habits: #52b0ff; --ring-eat-text: #ff8597; --ring-move-text: #5fe39f; --ring-habits-text: #7cc3ff; } }
+.rings-hero .hero-top { gap: 18px; }
+.rings-wrap { position: relative; flex: none; width: 132px; height: 132px; display: block; text-decoration: none; color: var(--ink); }
+.day-rings-svg { width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
+.day-rings-svg circle { fill: none; stroke-width: 13; }
+.day-rings-svg .rb { stroke-opacity: 0.16; }
+.day-rings-svg .rf { stroke-linecap: round; transition: stroke-dashoffset 900ms var(--ease-out); animation: ring-in 900ms var(--ease-out) both; }
+.day-rings-svg .rf.empty { stroke-opacity: 0; }
+@keyframes ring-in { from { stroke-dashoffset: 1000; } }
+.rings-center { position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.rings-center small { font-size: 0.85rem; color: var(--ink-3); font-weight: 700; }
+.rings-center { grid-auto-flow: column; justify-content: center; align-items: baseline; align-content: center; }
+.hero-sub { margin: 0 0 8px; font-size: var(--text-sm); color: var(--ink-3); }
+.ring-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.ring-leg { display: flex; align-items: center; gap: 7px; font-size: var(--text-sm); min-width: 0; }
+.ring-leg .rdot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.ring-leg .rl { font-weight: 750; width: 50px; flex: none; }
+.ring-leg .rv { color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ring-leg.closed .rv { color: var(--ink); font-weight: 650; }
+.rings-hero .hero-pills { margin-top: 14px; }
+.rings-hero.perfect { background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--ring-eat) 18%, var(--surface)) 0%, color-mix(in srgb, var(--ring-move) 14%, var(--surface)) 45%, color-mix(in srgb, var(--ring-habits) 16%, var(--surface)) 100%); }
+.rings-hero.perfect .day-rings-svg { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--ring-move) 45%, transparent)); }
+@media (max-width: 360px) { .rings-wrap { width: 108px; height: 108px; } .rings-hero .hero-top { gap: 12px; } .ring-leg .rl { width: 44px; } }
+
+.quick-log { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px; margin: 0 0 14px; }
+.ql-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px 9px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); font: inherit; font-size: var(--text-sm); font-weight: 650; text-decoration: none; cursor: pointer; min-height: 44px; }
+.ql-btn:active { transform: scale(0.96); }
+.ql-ico { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.ql-ico .icon { width: 18px; height: 18px; }
+
+.day-count { font-size: var(--text-sm); color: var(--ink-3); font-weight: 650; font-variant-numeric: tabular-nums; }
+.timeline-list .tl-part { padding: 14px 16px 6px; font-size: var(--text-xs); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); border-top: 1px solid var(--line); background: var(--surface-2); }
+.timeline-list > li:first-child.tl-part, .timeline-list > .kcal-sum + li { border-top: 0; }
+.timeline-list .tl-part + li > .lrow { border-top: 0; }
+.timeline-list .tl-now { position: relative; height: 22px; margin: 0 16px; display: flex; align-items: center; }
+.timeline-list .tl-now::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: var(--ring-eat); border-radius: 2px; }
+.timeline-list .tl-now span { position: relative; background: var(--ring-eat); color: #fff; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.02em; }
+.timeline-list .tl-now + li > .lrow, .timeline-list .tl-now + .tl-part { border-top: 0; }
+.timeline-list .k-meal .lrow .over { color: var(--ring-eat-text); }
+.timeline-list .k-habit .lrow .over { color: var(--ring-habits-text); }
+.timeline-list .k-move .lrow .over, .timeline-list .k-weigh .lrow .over { color: var(--ring-move-text); }
+.timeline-list .k-meal .check.on { background: var(--ring-eat); border-color: var(--ring-eat); color: #fff; }
+.timeline-list .k-habit .check.on { background: var(--ring-habits); border-color: var(--ring-habits); color: #fff; }
+.day-links { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 12px 16px 14px; border-top: 1px solid var(--line); font-size: var(--text-sm); font-weight: 650; }
+.day-links a { text-decoration: none; }
+
+.ring-banner { position: fixed; z-index: 90; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 14px); transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; background: var(--surface); color: var(--ink); font-weight: 750; box-shadow: 0 10px 30px rgba(0,0,0,.18); border: 2px solid var(--rc); animation: rb-in 2.6s var(--ease-out) both; pointer-events: none; white-space: nowrap; }
+.ring-banner .rb-dot { width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--rc); }
+@keyframes rb-in { 0% { opacity: 0; transform: translate(-50%, -24px) scale(.9); } 12%, 82% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -10px); } }
+@media (prefers-reduced-motion: reduce) { .ring-banner { animation: none; } }
+
+.welcome-back { border-radius: var(--radius-lg); padding: 18px; margin-bottom: 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--ring-move) 16%, var(--surface)), color-mix(in srgb, var(--ring-habits) 12%, var(--surface))); border: 1px solid color-mix(in srgb, var(--ring-move) 30%, transparent); }
+.welcome-back .wb-emoji { font-size: 2rem; line-height: 1; }
+.welcome-back h2 { margin: 6px 0 4px; font-size: var(--text-xl); }
+.welcome-back p { margin: 0 0 12px; color: var(--ink-2); font-size: var(--text-sm); line-height: 1.5; }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -4625,6 +4684,9 @@ const isoOr = (v, dflt) => (typeof v === 'string' && ISO.test(v) ? v : dflt);
 const dateMap = (obj, fn) => Object.fromEntries(Object.entries(obj && typeof obj === 'object' ? obj : {}).filter(([k]) => ISO.test(k)).map(([k, v]) => [k, fn(v)]).filter(([, v]) => v != null));
 
 function sanitize(s) {
+  // Containers the rest of sanitise writes into must be objects, whatever a corrupt file holds.
+  const base = emptyState();
+  for (const k of ['habits', 'workouts', 'prefs', 'reminders']) if (!s[k] || typeof s[k] !== 'object' || Array.isArray(s[k])) s[k] = structuredClone(base[k]);
   const p = s.profile;
   if (p && typeof p === 'object') {
     s.profile = {
@@ -4701,8 +4763,10 @@ function sanitize(s) {
       wind: { on: !!a.wind?.on, before: num(a.wind?.before, 15, 120, 45), ...(style(a.wind?.style) ? { style: a.wind.style } : {}), ...sound(a.wind?.sound) },
       bed: { on: !!a.bed?.on, ...(style(a.bed?.style) ? { style: a.bed.style } : {}), ...sound(a.bed?.sound) },
       meals: { on: !!a.meals?.on, snacks: !!a.meals?.snacks, ...(style(a.meals?.style) ? { style: a.meals.style } : {}), ...sound(a.meals?.sound) },
-      snooze: num(a.snooze, 1, 30, 9),
+      // Snooze now starts at 5 min; the old default (9) moves to 5 once, a chosen value stays.
+      snooze: s.flags?.snooze5 ? num(a.snooze, 1, 30, 5) : a.snooze == null || Number(a.snooze) === 9 ? 5 : num(a.snooze, 1, 30, 5),
     };
+    s.flags = { ...(s.flags && typeof s.flags === 'object' ? s.flags : {}), snooze5: true };
     const f = s.affirm && typeof s.affirm === 'object' ? s.affirm : {};
     const strs = (x, n, len) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim().slice(0, len)).slice(0, n) : []);
     s.affirm = { values: strs(f.values, 3, 30), own: strs(f.own, 12, 30), why: typeof f.why === 'string' ? f.why.trim().slice(0, 120) : '', sets: Array.isArray(f.sets) ? strs(f.sets, 10, 20) : null, custom: strs(f.custom, 20, 160), favs: strs(f.favs, 30, 200) };
@@ -6386,6 +6450,11 @@ function mealSheetHtml(state, date, slot, mode = '') {
 
 /** Meal rows (shared by Today and Meals). Ticking is possible for today and past days. */
 function mealRows(state, date) {
+  return mealRowList(state, date).map((x) => x.html).join('');
+}
+
+/** One `<li>` per planned meal, with its slot and time (Today interleaves them with habits). */
+function mealRowList(state, date) {
   const meals = mealsFor(state, date);
   const log = state.mealLog[date] || {};
   const show = !store.habitsOnly(state);
@@ -6399,10 +6468,10 @@ function mealRows(state, date) {
     const lead = canLog
       ? `<button class="check ${st === 'ate' || st === 'other' ? 'on' : st === 'skip' ? 'skip' : ''}" data-action="mealCheck" data-date="${date}" data-slot="${m.slot}" aria-pressed="${!!st}" aria-label="${st ? 'Clear log for' : 'Mark eaten:'} ${esc(r.name)}">${st === 'skip' ? icon('x') : icon('check')}</button>`
       : `<span class="slot-ico">${icon(slotIcon(m.slot))}</span>`;
-    return `<li><div class="lrow ${st ? 'done' : ''}">${lead}
+    return `<li class="k-meal ${st ? 'is-done' : ''}"><div class="lrow ${st ? 'done' : ''}">${lead}
       <button class="body row-btn" data-action="openMeal" data-slot="${m.slot}" data-date="${date}"><div class="over"><span class="meal-time">${toHHMM(m.time)}</span> ${esc(SLOT_LABEL[m.slot] || m.slot)}${show ? ` · ${fmtNum(n.kcal, 10)} kcal` : ''}${favs.has(r.id) ? ' · ★' : ''}</div><div class="title"><span>${esc(r.name)}</span></div><div class="sub">${sub}</div></button>
       <span class="trail" aria-hidden="true">${icon('chevron')}</span></div></li>`;
-  }).join('');
+  }).map((html, i) => ({ slot: meals[i].slot, time: meals[i].time, done: !!log[meals[i].slot], html }));
 }
 
 function openMeal(ctx, date, slot) {
@@ -6708,9 +6777,152 @@ function setHabitLevel(ctx, id, index) {
 
 
 
-Object.assign(__m, { slotIcon, mealRows, openMeal, habitLevelsHtml, sheetActions, toggleHabit, setHabitLevel, isoDate });
+Object.assign(__m, { slotIcon, mealRows, mealRowList, openMeal, habitLevelsHtml, sheetActions, toggleHabit, setHabitLevel, isoDate });
 },
-/* js/data/learn.js */ 27: function (__m, __req) {
+/* js/engine/dayplan.js */ 27: function (__m, __req) {
+// "Your day": put meals, habits and the weigh-in on one clock so Today reads top to bottom
+// like the day itself. Habits are placed by their cue ("After I finish lunch" → after lunch),
+// which is the implementation intention the person wrote — the cue is the time.
+const { daySchedule } = __req(14);
+
+/** Where a habit cue sits in the day: { time (minutes), label } or null for "any time". */
+function cueTime(cue, profile = {}, meals = {}) {
+  const c = String(cue || '').toLowerCase();
+  const d = daySchedule(profile);
+  const t = (slot, fallback) => (meals[slot] != null ? meals[slot] : fallback);
+  const clock = c.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+  if (clock) {
+    let h = Number(clock[1]) % 12;
+    if (clock[3] === 'pm') h += 12;
+    return { time: h * 60 + Number(clock[2] || 0), label: `${String(h).padStart(2, '0')}:${clock[2] || '00'}` };
+  }
+  if (/breakfast/.test(c)) return { time: t('breakfast', d.first) - 1, label: 'At breakfast' };
+  if (/lunch/.test(c)) return { time: t('lunch', 12 * 60 + 30) + 30, label: 'After lunch' };
+  if (/plate up dinner|cook dinner|make dinner/.test(c)) return { time: t('dinner', d.last) - 1, label: 'At dinner' };
+  if (/dinner|washing up|dishes/.test(c)) return { time: t('dinner', d.last) + 40, label: 'After dinner' };
+  if (/bed|night|wind-down|teeth|pyjama|pajama/.test(c)) return { time: d.bed - 30, label: 'Before bed' };
+  if (/morning|wake|get up|alarm goes off in the morning/.test(c)) return { time: d.wake + 10, label: 'Morning' };
+  if (/home from work|after work|commute/.test(c)) return { time: 17 * 60 + 30, label: 'After work' };
+  if (/afternoon/.test(c)) return { time: 15 * 60, label: 'Afternoon' };
+  if (/evening/.test(c)) return { time: Math.min(d.bed - 60, 20 * 60), label: 'Evening' };
+  return null;
+}
+
+const PARTS = [
+  { id: 'morning', label: 'Morning', until: 12 * 60 },
+  { id: 'afternoon', label: 'Afternoon', until: 17 * 60 },
+  { id: 'evening', label: 'Evening', until: 24 * 60 + 1 },
+];
+
+/** Which part of the day a minute falls in. */
+function partOf(min) {
+  return PARTS.find((p) => min < p.until).id;
+}
+
+/**
+ * Timed items, sorted, plus the habits with no clear time.
+ * meals: [{ slot, time }]; habits: [{ id, cue }]; weigh: include a morning weigh-in.
+ */
+function planDay(profile, { meals = [], habits = [], weigh = false }) {
+  const d = daySchedule(profile);
+  const mt = Object.fromEntries(meals.map((m) => [m.slot, m.time]));
+  const timed = [];
+  const anytime = [];
+  if (weigh) timed.push({ kind: 'weigh', time: d.wake + 5, label: 'Morning', order: 0 });
+  meals.forEach((m, i) => timed.push({ kind: 'meal', time: m.time, slot: m.slot, order: 2 + i }));
+  habits.forEach((h, i) => {
+    const at = cueTime(h.cue, profile, mt);
+    if (at) timed.push({ kind: 'habit', id: h.id, time: at.time, label: at.label, order: 1 + i / 100 });
+    else anytime.push({ kind: 'habit', id: h.id });
+  });
+  timed.sort((a, b) => a.time - b.time || a.order - b.order);
+  return { timed, anytime };
+}
+
+Object.assign(__m, { cueTime, PARTS, partOf, planDay });
+},
+/* js/views/dayrings.js */ 28: function (__m, __req) {
+// Today's three rings: Eat (meals logged), Move (planned movement + steps), Habits (today's habits).
+// Closing a ring is the small, visible daily win; closing all three is a perfect day.
+const store = __req(16);
+const { mealsFor } = __req(18);
+const { stepGoal } = __req(7);
+const { habitLevels, levelIndex } = __req(10);
+const { itemDone } = __req(24);
+const { fmtNum } = __req(17);
+
+const RING_META = {
+  eat: { label: 'Eat', color: 'var(--ring-eat)' },
+  move: { label: 'Move', color: 'var(--ring-move)' },
+  habits: { label: 'Habits', color: 'var(--ring-habits)' },
+};
+
+function dayRings(state, date = store.today()) {
+  if (!state?.profile) return null;
+  const meals = mealsFor(state, date);
+  const log = state.mealLog?.[date] || {};
+  const logged = meals.filter((m) => log[m.slot]).length;
+  const eat = { pct: meals.length ? logged / meals.length : 0, text: `${logged}/${meals.length} meals` };
+
+  const { schedule } = store.schedule(state, date);
+  const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items.filter((it) => it.kind !== 'rest');
+  const done = items.filter((it) => itemDone(state.workouts.log[date] || [], it)).length;
+  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
+  const steps = state.steps?.[date] || 0;
+  const stepPart = Math.min(1, steps / goal);
+  // Either the planned movement or the step goal closes the ring (rest days: any logged movement or steps).
+  const anyMove = (state.workouts.log[date] || []).length > 0;
+  const planPart = items.length ? done / items.length : anyMove ? 1 : 0;
+  const move = { pct: Math.max(planPart, stepPart), text: items.length && done === items.length ? (items.length > 1 ? 'All sessions done' : 'Session done') : stepPart >= 1 ? `${fmtNum(steps)} steps` : items.length ? `${done}/${items.length} session${items.length > 1 ? 's' : ''}` : `${fmtNum(steps)} / ${fmtNum(goal)} steps` };
+
+  const habits = store.visibleHabits(state);
+  const hlog = state.habits.log?.[date] || {};
+  const hsum = habits.reduce((s, a) => {
+    const lv = habitLevels(a.id);
+    const i = levelIndex(a.id, hlog[a.id]);
+    return s + (i < 0 ? 0 : (i + 1) / lv.length);
+  }, 0);
+  const full = habits.filter((a) => levelIndex(a.id, hlog[a.id]) === habitLevels(a.id).length - 1).length;
+  const hab = { pct: habits.length ? hsum / habits.length : 0, text: habits.length ? `${full}/${habits.length} done` : 'Pick one' };
+
+  const rings = { eat, move, habits: hab };
+  for (const r of Object.values(rings)) r.closed = r.pct >= 0.999;
+  return rings;
+}
+
+/** Concentric rings SVG (outer → inner: eat, move, habits). */
+function ringsSvg(rings, size = 132) {
+  const keys = ['eat', 'move', 'habits'];
+  const sw = 13;
+  const gap = 3;
+  const c = size / 2;
+  const arcs = keys.map((k, i) => {
+    const r = c - sw / 2 - i * (sw + gap);
+    const len = 2 * Math.PI * r;
+    const p = Math.max(0, Math.min(1, rings[k].pct));
+    const off = len * (1 - p);
+    return `<circle class="rb" cx="${c}" cy="${c}" r="${r.toFixed(1)}" style="stroke:${RING_META[k].color}"/>
+      <circle class="rf ${p > 0 ? '' : 'empty'}" cx="${c}" cy="${c}" r="${r.toFixed(1)}" style="stroke:${RING_META[k].color}" stroke-dasharray="${len.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/>`;
+  }).join('');
+  return `<svg class="day-rings-svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" aria-hidden="true">${arcs}</svg>`;
+}
+
+/** Which rings closed between two states (for the celebration). */
+function newlyClosed(before, after) {
+  const a = dayRings(before);
+  const b = dayRings(after);
+  if (!a || !b) return [];
+  return Object.keys(b).filter((k) => b[k].closed && !a[k].closed);
+}
+
+function allClosed(state) {
+  const r = dayRings(state);
+  return !!r && Object.values(r).every((x) => x.closed);
+}
+
+Object.assign(__m, { RING_META, dayRings, ringsSvg, newlyClosed, allClosed });
+},
+/* js/data/learn.js */ 29: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -7013,7 +7225,7 @@ const LEARN = [
 
 Object.assign(__m, { S, LEARN_SECTIONS, LEARN });
 },
-/* js/ui/celebrate.js */ 28: function (__m, __req) {
+/* js/ui/celebrate.js */ 30: function (__m, __req) {
 // Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
 // Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
 // after the user has interacted with the page.
@@ -7034,6 +7246,18 @@ function floatXp(amount, { lucky = false, label = '' } = {}) {
   el.style.top = `${p.y - 20}px`;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), reducedMotion() ? 1200 : 1300);
+}
+
+/** "Eat ring closed!" pill that drops in at the top; separate from the toast so Undo stays visible. */
+function ringBanner(text, color = 'var(--accent)') {
+  document.querySelector('.ring-banner')?.remove();
+  const el = document.createElement('div');
+  el.className = 'ring-banner';
+  el.setAttribute('role', 'status');
+  el.style.setProperty('--rc', color);
+  el.innerHTML = `<span class="rb-dot"></span>${esc(text)}`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
 }
 
 /** Confetti burst from the tap point (or top centre). */
@@ -7142,20 +7366,20 @@ function showCelebration({ kicker, title, body, iconName = 'star', ok = 'Nice!' 
   wrap.querySelector('button').focus();
 }
 
-Object.assign(__m, { floatXp, confetti, chime, buzz, showCelebration });
+Object.assign(__m, { floatXp, ringBanner, confetti, chime, buzz, showCelebration });
 },
-/* js/views/wrap.js */ 29: function (__m, __req) {
+/* js/views/wrap.js */ 31: function (__m, __req) {
 // Body Wrap: a short, story-style weekly recap. Each card is one body part thanking you for
 // what you did, with one research fact. Tap right/left (or use the arrow keys) to move through it.
 // Opening last week's wrap to the end earns XP once (derived from state.wraps in game.js).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(27);
+const { S: SOURCES } = __req(29);
 const { weekStart, addDays, getWeekStart } = __req(0);
 
 const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const { confetti, chime, buzz, floatXp } = __req(28);
+const { confetti, chime, buzz, floatXp } = __req(30);
 const { XP } = __req(13);
 
 let idx = 0;
@@ -7314,7 +7538,7 @@ function bodyRingsCard(state, today) {
 
 Object.assign(__m, { ring, wrapReadyCard, bodyRingsCard });
 },
-/* js/views/today.js */ 30: function (__m, __req) {
+/* js/views/today.js */ 32: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 const { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(17);
@@ -7327,10 +7551,12 @@ const { CARDIO } = __req(6);
 const { daysBetween } = __req(0);
 const { toHHMM } = __req(14);
 const { itemDone, logPlannedActivity } = __req(24);
-const { toggleHabit, mealRows } = __req(26);
+const { toggleHabit, mealRowList } = __req(26);
+const { planDay, partOf, PARTS } = __req(27);
+const { dayRings, ringsSvg, RING_META } = __req(28);
 const { journey, nextStops, recentTimeStop } = __req(21);
 const { whenLabel } = __req(22);
-const { wrapReadyCard, bodyRingsCard } = __req(29);
+const { wrapReadyCard, bodyRingsCard } = __req(31);
 
 // ---------- Journey: the next stop on the long road (or a time stop just reached) ----------
 function journeyCard(state, date) {
@@ -7356,28 +7582,37 @@ function greeting() {
   return h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 }
 
-// ---------- Hero: quests ring + XP + streak ----------
-function hero(state) {
+// ---------- Hero: today's three rings + XP + streak ----------
+function hero(state, date) {
   const g = store.game(state);
-  const done = g.quests.filter((q) => q.done).length;
-  const total = g.quests.length;
-  const r = 40;
-  const c = 2 * Math.PI * r;
-  const off = c * (1 - done / Math.max(1, total));
-  const title = done === total ? 'Perfect day!' : done === 0 ? 'Let’s get going' : `${total - done} quest${total - done > 1 ? 's' : ''} to a perfect day`;
-  return `<section class="hero-today" aria-label="Today's progress">
+  const r = dayRings(state, date);
+  const closed = Object.values(r).filter((x) => x.closed).length;
+  const title = closed === 3 ? 'All rings closed!' : closed === 0 ? 'Close your three rings' : `${3 - closed} ring${3 - closed > 1 ? 's' : ''} to go`;
+  const sub = closed === 3 ? 'A perfect day. This is what consistency looks like.' : 'Tick things off as your day happens.';
+  const leg = Object.entries(r).map(([k, x]) => `<li class="ring-leg ${x.closed ? 'closed' : ''}"><span class="rdot" style="background:${RING_META[k].color}"></span><span class="rl">${RING_META[k].label}</span><span class="rv">${x.closed ? '✓ ' : ''}${esc(x.text)}</span></li>`).join('');
+  return `<section class="hero-today rings-hero ${closed === 3 ? 'perfect' : ''}" aria-label="Today's rings: ${Object.entries(r).map(([k, x]) => `${RING_META[k].label} ${Math.round(x.pct * 100)}%`).join(', ')}">
     <div class="hero-top">
-      <div class="hero-ring"><svg viewBox="0 0 92 92" aria-hidden="true"><circle class="bg" cx="46" cy="46" r="${r}"/><circle class="fg" cx="46" cy="46" r="${r}" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg>
-        <div class="center"><div><b>${done}/${total}</b><span>quests</span></div></div></div>
-      <div class="hero-meta"><h2>${title}</h2>
-        <div class="hero-pills">
-          <a class="pill-stat xp" href="#/rewards">${icon('star')}${g.todayXp} XP today</a>
-          <a class="pill-stat streak" href="#/rewards">${icon('flame')}${g.streak}-day streak</a>
-          <a class="pill-stat" href="#/rewards">Level ${g.level}</a>
-        </div></div>
+      <a class="rings-wrap" href="#/rewards" aria-label="Rewards and quests">${ringsSvg(r)}<span class="rings-center">${closed}<small>/3</small></span></a>
+      <div class="hero-meta"><h2>${title}</h2><p class="hero-sub">${sub}</p><ul class="ring-legend">${leg}</ul></div>
     </div>
-    <div class="quest-grid">${g.quests.map((q) => `<a class="qchip ${q.done ? 'done' : ''}" href="${q.href}"><span class="dot">${q.done ? icon('check') : ''}</span>${esc(q.label)}${q.total > 1 && !q.done ? ` <span class="num">${q.progress}/${q.total}</span>` : ''}</a>`).join('')}</div>
+    <div class="hero-pills">
+      <a class="pill-stat streak" href="#/rewards">${icon('flame')}${g.streak}-day streak</a>
+      <a class="pill-stat xp" href="#/rewards">${icon('star')}${g.todayXp} XP today</a>
+      <a class="pill-stat" href="#/rewards">Level ${g.level}</a>
+    </div>
   </section>`;
+}
+
+// ---------- Quick log: the four things people log most, one tap away ----------
+function quickLog(state) {
+  const hide = store.habitsOnly(state);
+  const b = (action, ic, label, extra = '') => `<button class="ql-btn" data-action="${action}" ${extra}><span class="ql-ico">${icon(ic)}</span>${label}</button>`;
+  return `<div class="quick-log" role="group" aria-label="Quick log">
+    ${b('openExtra', 'plus', 'Food')}
+    ${hide ? '' : b('openWeigh', 'scale', 'Weight')}
+    ${b('openSteps', 'progress', 'Steps')}
+    <a class="ql-btn" href="#/move"><span class="ql-ico">${icon('move')}</span>Workout</a>
+  </div>`;
 }
 
 // ---------- Next up: the single most useful thing to do now ----------
@@ -7408,30 +7643,9 @@ function nextUp(state, date) {
   return card('All done', 'Everything’s ticked off for today', 'Rest up — see you tomorrow.', '', true);
 }
 
-// ---------- Food ----------
-function food(state, date) {
-  const t = store.targets(state, date);
-  const meals = mealsFor(state, date);
-  const log = state.mealLog[date] || {};
-  const show = !store.habitsOnly(state);
-  const eaten = eatenSoFar(state, date);
-  const p = proteinEaten(state, date);
-  const extras = state.extras[date] || [];
-  const rows = mealRows(state, date);
-  const extraRows = extras.map((x, i) => `<li><div class="lrow"><span class="slot-ico">${icon('plus')}</span><div class="body"><div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`).join('');
-  const summary = show
-    ? `<div class="kcal-sum"><div class="row between nowrap"><div><span class="big">${fmtNum(eaten)}</span> <span class="of">/ ${fmtNum(t.kcal)} kcal</span></div><span class="of">${Math.max(0, t.kcal - eaten).toLocaleString()} left</span></div>
-        <div class="meter" role="progressbar" aria-label="Calories eaten" aria-valuenow="${eaten}" aria-valuemax="${t.kcal}"><span style="width:${Math.min(100, (eaten / t.kcal) * 100).toFixed(1)}%"></span></div>
-        <div class="meter-legend"><span>Protein ${Math.round(p)} / ${t.proteinG} g</span><span>${dayComplete(state, date) ? '✓ Whole day logged' : 'Tick meals as you go'}</span></div></div>`
-    : '';
-  return `<div class="section-head"><h2>Food</h2><a href="#/meals">Week plan</a></div>
-    <div class="card tight">${summary}<ul class="rows">${rows}${extraRows}
-      <li><button class="lrow" data-action="openExtra" style="min-height:54px"><span class="slot-ico" style="background:var(--accent-tint);color:var(--accent)">${icon('plus')}</span><span class="body"><span class="title" style="color:var(--accent)">Add something else you ate</span></span></button></li></ul></div>`;
-}
-
 // ---------- Habits ----------
 /** Habit row: check = full habit (or upgrade a small win); "Small win" logs a smaller level. */
-function habitRow(state, a, date, checkAction, openAction) {
+function habitRow(state, a, date, checkAction, openAction, over = '') {
   const h = habitById(a.id);
   const val = state.habits.log[date]?.[a.id];
   const levels = habitLevels(a.id);
@@ -7440,44 +7654,96 @@ function habitRow(state, a, date, checkAction, openAction) {
   const partial = idx >= 0 && !full;
   const st = streak(state.habits.log, a.id, date);
   const sub = partial ? `<span style="color:var(--accent);font-weight:650">Small win · ${esc(levels[idx].label)}</span>` : esc(a.cue);
-  return `<li><div class="lrow ${full ? 'done' : ''}">
+  return `<li class="k-habit ${full ? 'is-done' : ''}"><div class="lrow ${full ? 'done' : ''}">
       <button class="check ${full ? 'on' : partial ? 'partial' : ''}" data-action="${checkAction}" data-id="${a.id}" aria-pressed="${full}" aria-label="${partial ? 'Upgrade to full: ' : ''}${esc(h.title)}">${icon('check')}</button>
-      <button class="body row-btn" data-action="${openAction}" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${sub}</div></button>
+      <button class="body row-btn" data-action="${openAction}" data-id="${a.id}">${over ? `<div class="over">${esc(over)} · Habit</div>` : ''}<div class="title"><span>${esc(h.title)}</span></div><div class="sub">${sub}</div></button>
       <span class="trail" style="flex-direction:column;align-items:flex-end;gap:4px">${!full && levels.length > 1 ? `<button class="win-chip" data-action="openSmallWin" data-id="${a.id}">${partial ? 'Change' : 'Small win'}</button>` : ''}${st ? `<span class="tag warm">${icon('flame', 'tiny')}${st}</span>` : ''}</span></div></li>`;
 }
 
-function habits(state, date) {
-  const active = store.visibleHabits(state);
-  if (!active.length) return `<div class="section-head"><h2>Habits</h2><a href="#/habits">Choose one</a></div><div class="card empty-state">${icon('habits')}<strong>No habit yet</strong>Pick one small habit to start with.</div>`;
-  const log = state.habits.log[date] || {};
-  return `<div class="section-head"><h2>Habits</h2><a href="#/habits">Manage</a></div><div class="card tight"><ul class="rows">${active.map((a) => {
-    return habitRow(state, a, date, 'habitCheck', 'openHabit');
-  }).join('')}</ul></div>`;
+// ---------- Your day: one timeline, in the order the day happens ----------
+function kcalSummary(state, date) {
+  if (store.habitsOnly(state)) return '';
+  const t = store.targets(state, date);
+  const eaten = eatenSoFar(state, date);
+  const p = proteinEaten(state, date);
+  return `<div class="kcal-sum"><div class="row between nowrap"><div><span class="big">${fmtNum(eaten)}</span> <span class="of">/ ${fmtNum(t.kcal)} kcal</span></div><span class="of">${Math.max(0, t.kcal - eaten).toLocaleString()} left</span></div>
+      <div class="meter" role="progressbar" aria-label="Calories eaten" aria-valuenow="${eaten}" aria-valuemax="${t.kcal}"><span style="width:${Math.min(100, (eaten / t.kcal) * 100).toFixed(1)}%"></span></div>
+      <div class="meter-legend"><span>Protein ${Math.round(p)} / ${t.proteinG} g</span><span>${dayComplete(state, date) ? '✓ Whole day logged' : 'Tick meals as you go'}</span></div></div>`;
 }
 
-// ---------- Movement + weigh-in ----------
-function movement(state, date) {
-  const { schedule } = store.schedule(state, date);
-  const items = schedule[(new Date().getDay() + 6) % 7].items;
-  const logged = state.workouts.log[date] || [];
-  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
-  const steps = state.steps[date] || 0;
-  const hide = store.habitsOnly(state);
+function weighRow(state, date) {
   const todays = state.weights.find((w) => w.date === date);
   const u = state.profile.units === 'imperial' ? 'imperial' : 'metric';
   const trend = store.trendWeight(state);
-  const rows = items.map((it) => {
+  return `<li class="k-weigh ${todays ? 'is-done' : ''}"><div class="lrow ${todays ? 'done' : ''}"><button class="check ${todays ? 'on' : ''}" data-action="openWeigh" aria-label="${todays ? 'Weighed in' : 'Weigh in'}">${icon(todays ? 'check' : 'scale')}</button><button class="body row-btn" data-action="openWeigh"><div class="over">Morning · after the bathroom</div><div class="title">${todays ? `Weighed in · ${fmtWeight(todays.kg, u)}` : 'Weigh in'}</div><div class="sub">Trend ${fmtWeight(trend, u)}${Math.abs(state.profile.startWeightKg - trend) >= 0.1 ? ` · ${fmtDelta(trend - state.profile.startWeightKg, u)} since start` : ''}</div></button><span class="trail" aria-hidden="true">${icon('chevron')}</span></div></li>`;
+}
+
+function moveRows(state, date) {
+  const { schedule } = store.schedule(state, date);
+  const items = schedule[(new Date().getDay() + 6) % 7].items;
+  const logged = state.workouts.log[date] || [];
+  const doneTag = `<span class="check on" style="animation:none" aria-label="Done">${icon('check')}</span>`;
+  return items.map((it) => {
     const done = itemDone(logged, it);
-    if (it.kind === 'rest') return `<li><div class="lrow"><span class="slot-ico">${icon('move')}</span><div class="body"><div class="title">Rest day</div><div class="sub">A relaxed walk still counts</div></div></div></li>`;
-    const doneTag = `<span class="check on" style="width:30px;height:30px;animation:none" aria-label="Done">${icon('check')}</span>`;
-    if (it.kind === 'strength') return `<li><a class="lrow" href="#/move/session/${it.variant}" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('move')}</span><div class="body"><div class="title">Strength session ${it.variant}</div><div class="sub">${it.exercises.length} exercises · ~${it.minutes} min</div></div><span class="trail">${done ? doneTag : `<span class="btn small primary">Start</span>`}</span></a></li>`;
-    if (it.kind === 'activity') return `<li><div class="lrow"><span class="slot-ico" style="background:var(--warm-soft);color:color-mix(in srgb,var(--warm) 80%,var(--ink))">${icon('flame')}</span><div class="body"><div class="title">${esc(it.name)}</div><div class="sub">${it.minutes} min · your activity</div></div><span class="trail">${done ? doneTag : `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`}</span></div></li>`;
-    return `<li><div class="lrow"><span class="slot-ico" style="background:var(--info-soft);color:var(--info)">${icon('move')}</span><div class="body"><div class="title">${esc(CARDIO[it.mode].label)}</div><div class="sub">${it.minutes} min · chatty pace</div></div><span class="trail">${done ? doneTag : `<button class="btn small primary" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}">Done</button>`}</span></div></li>`;
+    const cls = `k-move ${done ? 'is-done' : ''}`;
+    if (it.kind === 'rest') return `<li class="k-move"><div class="lrow"><span class="slot-ico">${icon('move')}</span><div class="body"><div class="title">Rest day</div><div class="sub">A relaxed walk still counts</div></div></div></li>`;
+    if (it.kind === 'strength') return `<li class="${cls}"><a class="lrow ${done ? 'done' : ''}" href="#/move/session/${it.variant}" style="text-decoration:none">${done ? doneTag : `<span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('move')}</span>`}<div class="body"><div class="over">Movement · +40 XP</div><div class="title">Strength session ${it.variant}</div><div class="sub">${it.exercises.length} exercises · ~${it.minutes} min</div></div><span class="trail">${done ? '' : `<span class="btn small primary">Start</span>`}</span></a></li>`;
+    if (it.kind === 'activity') return `<li class="${cls}"><div class="lrow ${done ? 'done' : ''}">${done ? doneTag : `<button class="check" data-action="activityDone" data-id="${esc(it.id)}" aria-label="Done: ${esc(it.name)}">${icon('check')}</button>`}<div class="body"><div class="over">Movement · your activity</div><div class="title">${esc(it.name)}</div><div class="sub">${it.minutes} min</div></div></div></li>`;
+    return `<li class="${cls}"><div class="lrow ${done ? 'done' : ''}">${done ? doneTag : `<button class="check" data-action="cardioDone" data-mode="${it.mode}" data-min="${it.minutes}" aria-label="Done: ${esc(CARDIO[it.mode].label)}">${icon('check')}</button>`}<div class="body"><div class="over">Movement</div><div class="title">${esc(CARDIO[it.mode].label)}</div><div class="sub">${it.minutes} min · chatty pace</div></div></div></li>`;
   }).join('');
+}
+
+function stepsRow(state, date) {
+  const goal = stepGoal(state.profile.baselineSteps, state.profile.stepLevel || 0, state.profile.age);
+  const steps = state.steps[date] || 0;
   const pct = Math.min(100, (steps / goal) * 100);
-  const stepsRow = `<li><button class="lrow" data-action="openSteps"><span class="slot-ico">${icon('progress')}</span><span class="body"><span class="title">${steps ? `${fmtNum(steps)} steps` : 'Add today’s steps'}</span><span class="meter" style="display:block;height:6px;margin:6px 0 0"><span style="width:${pct.toFixed(1)}%"></span></span><span class="sub" style="display:block">Goal ${fmtNum(goal)}</span></span><span class="trail">${icon('chevron')}</span></button></li>`;
-  const weighRow = hide ? '' : `<li><button class="lrow" data-action="openWeigh"><span class="slot-ico">${icon('scale')}</span><span class="body"><span class="title">${todays ? `Weighed in · ${fmtWeight(todays.kg, u)}` : 'Weigh in'}</span><span class="sub" style="display:block">Trend ${fmtWeight(trend, u)}${Math.abs(state.profile.startWeightKg - trend) >= 0.1 ? ` · ${fmtDelta(trend - state.profile.startWeightKg, u)} since start` : ''}</span></span><span class="trail">${todays ? `<span class="check on" style="width:30px;height:30px;animation:none" aria-label="Done">${icon('check')}</span>` : icon('chevron')}</span></button></li>`;
-  return `<div class="section-head"><h2>Movement & body</h2><a href="#/move">This week</a></div><div class="card tight"><ul class="rows">${rows}${stepsRow}${weighRow}</ul></div>`;
+  return `<li class="k-steps ${steps >= goal ? 'is-done' : ''}"><button class="lrow" data-action="openSteps"><span class="slot-ico">${icon('progress')}</span><span class="body"><span class="title">${steps ? `${fmtNum(steps)} steps` : 'Add today’s steps'}</span><span class="meter" style="display:block;height:6px;margin:6px 0 0"><span style="width:${pct.toFixed(1)}%"></span></span><span class="sub" style="display:block">Goal ${fmtNum(goal)}</span></span><span class="trail">${icon('chevron')}</span></button></li>`;
+}
+
+function yourDay(state, date) {
+  const hide = store.habitsOnly(state);
+  const show = !hide;
+  const meals = mealRowList(state, date);
+  const active = store.visibleHabits(state);
+  // The weigh-daily habit already sits in the morning; don't show the weigh-in twice.
+  const plan = planDay(state.profile, { meals, habits: active, weigh: !hide && !active.some((a) => a.id === 'weigh_daily') });
+  const byId = Object.fromEntries(active.map((a) => [a.id, a]));
+  const mealHtml = Object.fromEntries(meals.map((m) => [m.slot, m.html]));
+  const habitHtml = (id, label) => habitRow(state, byId[id], date, 'habitCheck', 'openHabit', label);
+  const itemHtml = (it) => (it.kind === 'meal' ? mealHtml[it.slot] : it.kind === 'habit' ? habitHtml(it.id, it.label) : weighRow(state, date));
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const parts = [];
+  let part = null;
+  let nowShown = false;
+  const nowLine = `<li class="tl-now" aria-label="Now"><span>Now · ${toHHMM(nowMin)}</span></li>`;
+  for (const it of plan.timed) {
+    if (!nowShown && it.time > nowMin) {
+      parts.push(nowLine);
+      nowShown = true;
+    }
+    const p = partOf(it.time);
+    if (p !== part) {
+      part = p;
+      parts.push(`<li class="tl-part" aria-hidden="true">${PARTS.find((x) => x.id === p).label}</li>`);
+    }
+    parts.push(itemHtml(it));
+  }
+  if (!nowShown) parts.push(nowLine);
+  const extras = state.extras[date] || [];
+  const extraRows = extras.map((x, i) => `<li class="k-extra is-done"><div class="lrow"><span class="slot-ico">${icon('plus')}</span><div class="body"><div class="title"><span>${esc(x.label || 'Extra')}</span></div>${show ? `<div class="sub">${fmtNum(x.kcal)} kcal</div>` : ''}</div><button class="icon-btn" data-action="rmExtra" data-i="${i}" aria-label="Remove ${esc(x.label || 'extra')}">${icon('x')}</button></div></li>`).join('');
+  const any = [moveRows(state, date), stepsRow(state, date), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
+  const total = plan.timed.length + plan.anytime.length;
+  const doneCount = meals.filter((m) => m.done).length + active.filter((a) => state.habits.log[date]?.[a.id]).length + (!hide && state.weights.some((w) => w.date === date) ? 1 : 0);
+  const noHabit = active.length ? '' : `<li class="tl-empty"><a class="lrow" href="#/habits" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('habits')}</span><span class="body"><span class="title">Pick one small habit</span><span class="sub">It slots into your day at the moment you choose</span></span><span class="trail">${icon('chevron')}</span></a></li>`;
+  return `<div class="section-head"><h2>Your day</h2><span class="day-count">${doneCount} of ${total} done</span></div>
+    <div class="card tight day-card">${kcalSummary(state, date)}
+      <ul class="rows timeline-list">${parts.join('')}${noHabit}
+        <li class="tl-part" aria-hidden="true">Any time today</li>${any}
+        <li><button class="lrow" data-action="openExtra" style="min-height:54px"><span class="slot-ico" style="background:var(--accent-tint);color:var(--accent)">${icon('plus')}</span><span class="body"><span class="title" style="color:var(--accent)">Add something else you ate</span></span></button></li>
+      </ul>
+      <div class="day-links"><a href="#/meals">Week meal plan</a><a href="#/habits">Manage habits</a><a href="#/move">This week’s movement</a></div>
+    </div>`;
 }
 
 function firstWeek(state, date) {
@@ -7494,6 +7760,27 @@ function firstWeek(state, date) {
   return `<details class="card" style="padding:14px 16px"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('star')}</span><span class="grow"><strong>Your first week</strong><span class="sub" style="display:block;font-size:var(--text-sm);color:var(--ink-3)">${done} of ${steps.length} done · small and consistent beats perfect</span></span>${icon('chevron')}</summary>
     <ul class="rows" style="margin-top:8px">${steps.map(([t, ok]) => `<li class="row nowrap" style="padding:8px 0;gap:10px"><span class="check ${ok ? 'on' : ''}" style="width:26px;height:26px" aria-hidden="true">${icon('check')}</span><span>${t}</span></li>`).join('')}</ul>
     <button class="btn small ghost" data-action="dismissFirstWeek" style="margin-top:6px">Hide this</button></details>`;
+}
+
+// ---------- Welcome back: the moment people usually quit, met with kindness ----------
+function lastActive(state) {
+  let last = '';
+  const keys = (o) => Object.keys(o || {}).filter((d) => Object.keys(o[d] || {}).length || (Array.isArray(o[d]) && o[d].length));
+  for (const d of [...keys(state.mealLog), ...keys(state.habits?.log), ...keys(state.workouts?.log), ...(state.weights || []).map((w) => w.date)]) if (d > last) last = d;
+  return last || null;
+}
+
+function welcomeBack(state, date) {
+  const last = lastActive(state);
+  if (!last || last >= date || state.flags?.welcomeBack === date) return '';
+  const gap = daysBetween(last, date);
+  if (gap < 3) return '';
+  return `<section class="welcome-back" aria-label="Welcome back">
+    <div class="wb-emoji" aria-hidden="true">🌱</div>
+    <h2>Welcome back</h2>
+    <p>${gap} days away doesn’t undo anything. In habit research, missing the odd day didn’t stop habits forming — what matters is picking it up again. Today is a fresh start.</p>
+    <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn primary" data-action="freshStart">Start fresh today</button><a class="btn ghost" href="#/learn/self_compassion">Why slips don’t count</a></div>
+  </section>`;
 }
 
 function banners(state, date) {
@@ -7518,9 +7805,9 @@ __m.default = {
     return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${greeting()}</h1></div></header>
       ${banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${wrapReadyCard(state, date)}${nextUp(state, date)}${hero(state)}</div>
-        <div class="tg-food">${food(state, date)}</div>
-        <div class="tg-rest">${habits(state, date)}${movement(state, date)}${bodyRingsCard(state, date)}${journeyCard(state, date)}${firstWeek(state, date)}</div>
+        <div class="tg-hero">${welcomeBack(state, date)}${wrapReadyCard(state, date)}${hero(state, date)}${nextUp(state, date)}${quickLog(state)}</div>
+        <div class="tg-day">${yourDay(state, date)}</div>
+        <div class="tg-rest">${bodyRingsCard(state, date)}${journeyCard(state, date)}${firstWeek(state, date)}</div>
       </div>`;
   },
   actions: {
@@ -7551,6 +7838,13 @@ __m.default = {
         return st;
       }, { quiet: true });
     },
+    freshStart(el, ev, ctx) {
+      ctx.update((st) => {
+        st.flags = { ...(st.flags || {}), welcomeBack: store.today() };
+        return st;
+      }, { quiet: true });
+      ctx.toast('Fresh start. One small thing today is enough 🌱');
+    },
     dismissFirstWeek(el, ev, ctx) {
       ctx.undoable('Hidden', (st) => {
         st.flags = { ...(st.flags || {}), firstWeekDone: true };
@@ -7571,9 +7865,9 @@ __m.default = {
   },
 };
 
-Object.assign(__m, { habitRow });
+Object.assign(__m, { habitRow, lastActive });
 },
-/* js/views/meals.js */ 31: function (__m, __req) {
+/* js/views/meals.js */ 33: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 const { html, esc, icon, chips, fmtDate, fmtNum } = __req(17);
 const { mealRows } = __req(26);
@@ -7762,7 +8056,7 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 32: function (__m, __req) {
+/* js/ui/charts.js */ 34: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
 const { esc } = __req(17);
 const { daysBetween, addDays } = __req(0);
@@ -7874,10 +8168,10 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/habits.js */ 33: function (__m, __req) {
+/* js/views/habits.js */ 35: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
 const { esc, icon } = __req(17);
-const { habitGrid } = __req(32);
+const { habitGrid } = __req(34);
 const store = __req(16);
 const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(10);
@@ -8030,11 +8324,11 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/progress.js */ 34: function (__m, __req) {
+/* js/views/progress.js */ 36: function (__m, __req) {
 // Progress: the home for everything long-term. A hub (journey, body levels, rewards, weekly
 // check-in), past Body Wraps, then the weight trend, activity, weigh-ins, waist and check-in history.
 const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(17);
-const { weightChart, barChart } = __req(32);
+const { weightChart, barChart } = __req(34);
 const store = __req(16);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
@@ -8042,7 +8336,7 @@ const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
 const { journey, nextStops } = __req(21);
 const { weekBody } = __req(12);
 const { checkinDue } = __req(18);
-const { ring } = __req(29);
+const { ring } = __req(31);
 
 /** The long-term hub at the top of Progress. */
 function hub(state, date, hide) {
@@ -8217,7 +8511,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, {  });
 },
-/* js/engine/adjust.js */ 35: function (__m, __req) {
+/* js/engine/adjust.js */ 37: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -8493,11 +8787,11 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 36: function (__m, __req) {
+/* js/views/checkin.js */ 38: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
 const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(17);
 const store = __req(16);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(35);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(37);
 const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
@@ -8642,10 +8936,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/learn.js */ 37: function (__m, __req) {
+/* js/views/learn.js */ 39: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
 const { html, esc, icon } = __req(17);
-const { LEARN, LEARN_SECTIONS } = __req(27);
+const { LEARN, LEARN_SECTIONS } = __req(29);
 
 let section = 'all';
 let openAll = false;
@@ -8690,7 +8984,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/data/melodies.js */ 38: function (__m, __req) {
+/* js/data/melodies.js */ 40: function (__m, __req) {
 // Alarm sounds. Each melody is data: the same spec is played by the in-app preview (Web Audio) and by
 // the native alarm (AlarmService.java synthesises it on the alarm stream), so what you hear when you
 // choose is exactly what wakes you.
@@ -8835,7 +9129,7 @@ function previewMelody(id, { passes = 2 } = {}) {
 
 Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, stopPreview, previewMelody });
 },
-/* js/engine/alarms.js */ 39: function (__m, __req) {
+/* js/engine/alarms.js */ 41: function (__m, __req) {
 // Alarm clock settings → the specs the native alarm scheduler uses (js/alarm-native.js).
 // Defaults follow sleep research:
 // - The same wake time every day, weekends included: irregular sleep/wake timing is linked to a
@@ -8845,14 +9139,14 @@ Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSou
 //   compared with a printed book (Chang 2015).
 // - Meals at regular times from your day schedule.
 const { daySchedule, mealTimes, toHHMM, toMin } = __req(14);
-const { DEFAULT_SOUND, nativeSound } = __req(38);
+const { DEFAULT_SOUND, nativeSound } = __req(40);
 
 const DEFAULT_ALARMS = {
   wake: { on: false, time: null, days: [0, 1, 2, 3, 4, 5, 6], style: 'ring' },
   wind: { on: false, before: 45, style: 'gentle' },
   bed: { on: false, style: 'gentle' },
   meals: { on: false, style: 'gentle', snacks: false },
-  snooze: 9,
+  snooze: 5,
 };
 
 const STYLES = {
@@ -8926,7 +9220,7 @@ function fmtTime(min) {
 
 Object.assign(__m, { DEFAULT_ALARMS, STYLES, alarmsOf, alarmTimes, mealSlots, alarmSpecs, fmtTime });
 },
-/* js/data/affirmations.js */ 40: function (__m, __req) {
+/* js/data/affirmations.js */ 42: function (__m, __req) {
 // Morning messages shown when the wake-up alarm rings and on the Good-morning screen.
 // What the research says, and how it shapes these messages:
 // - Values-based self-affirmation: reflecting on what matters to you activates the brain's
@@ -9090,11 +9384,11 @@ function messageForDay(list, date = new Date()) {
 
 Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, valueInfo, DEFAULT_SETS, morningMessages, messageForDay });
 },
-/* js/alarm-native.js */ 41: function (__m, __req) {
+/* js/alarm-native.js */ 43: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
-const { alarmSpecs, alarmsOf } = __req(39);
-const { morningMessages } = __req(40);
+const { alarmSpecs, alarmsOf } = __req(41);
+const { morningMessages, valueInfo } = __req(42);
 
 let lastMessage = null;
 
@@ -9113,7 +9407,10 @@ async function sync(state) {
   const p = plugin();
   if (!p || !state.profile) return null;
   try {
-    return await p.setAlarms({ alarms: alarmSpecs(state), messages: morningMessages(state.affirm || {}), snooze: alarmsOf(state).snooze });
+    const affirm = state.affirm || {};
+    // The morning screen runs on the lock screen, so it needs your values and saved favourites.
+    const values = (affirm.values || []).map((v) => ({ id: v, ...valueInfo(v) })).filter((v) => v.label).map((v) => ({ id: v.id, label: v.label, phrase: v.phrase || '' }));
+    return await p.setAlarms({ alarms: alarmSpecs(state), messages: morningMessages(affirm), snooze: alarmsOf(state).snooze, values, favs: affirm.favs || [] });
   } catch (e) {
     return null;
   }
@@ -9175,13 +9472,26 @@ function takeMessage() {
   return m;
 }
 
+/** The morning the lock-screen wake screen recorded ("Start my day"), checked: {date, at, value, fav, message} or null. */
+function parseWake(raw) {
+  try {
+    const w = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!w || !/^\d{4}-\d{2}-\d{2}$/.test(w.date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(w.at)) return null;
+    return { date: w.date, at: w.at, value: typeof w.value === 'string' ? w.value.slice(0, 30) : 'me', fav: w.fav === true, message: typeof w.message === 'string' ? w.message.slice(0, 200) : '' };
+  } catch (e) {
+    return null;
+  }
+}
+
 /** Open the screen an alarm points to, on cold start and while running. */
-async function listen(go) {
+async function listen(go, onWake) {
   const p = plugin();
   if (!p) return;
   const handle = (r) => {
     if (!r?.route) return;
     if (r.message) lastMessage = r.message;
+    const w = r.wake ? parseWake(r.wake) : null;
+    if (w && onWake) onWake(w);
     go(r.route);
   };
   try {
@@ -9192,16 +9502,16 @@ async function listen(go) {
   }
 }
 
-Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, listen });
+Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, parseWake, listen });
 },
-/* js/views/alarms.js */ 42: function (__m, __req) {
+/* js/views/alarms.js */ 44: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 const { esc, icon } = __req(17);
-const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(39);
+const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(41);
 const { daySchedule, mealTimes } = __req(14);
-const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, valueInfo, morningMessages, messageForDay } = __req(40);
-const alarmNative = __req(41);
-const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(38);
+const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, valueInfo, morningMessages, messageForDay } = __req(42);
+const alarmNative = __req(43);
+const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(40);
 const { openSheet, updateSheet } = __req(25);
 
 const KIND_NAME = { wake: 'Wake-up', wind: 'Wind-down', bed: 'Bedtime', meals: 'Meal' };
@@ -9287,7 +9597,7 @@ function alarmsPage(state) {
       ${soundRow(a, 'meals')}
       <p class="al-note">From your day schedule, so meals come at regular times.</p>`, a.meals.on ? 'on' : '')}
     <p class="muted" style="font-size:var(--text-sm)">Times come from <a href="#/settings/day">Your day</a>. Quiet nudges to log meals and keep your streak are in <a href="#/settings/reminders">Reminders</a>.</p>
-    <div class="card"><label class="row between nowrap" style="font-size:var(--text-sm)"><span>Snooze length</span><select data-change="alarmSnooze">${[5, 9, 10, 15].map((m) => `<option value="${m}" ${a.snooze === m ? 'selected' : ''}>${m} minutes</option>`).join('')}</select></label></div>
+    <div class="card"><label class="row between nowrap" style="font-size:var(--text-sm)"><span>Snooze length <span class="hint" style="display:block">Change it with − and + on the alarm screen too</span></span><select data-change="alarmSnooze">${[...new Set([1, 3, 5, 10, 15, 20, a.snooze])].sort((x, y) => x - y).map((m) => `<option value="${m}" ${a.snooze === m ? 'selected' : ''}>${m} minutes</option>`).join('')}</select></label></div>
 
     <div class="section-head"><h2>Morning messages</h2><a href="#/learn/morning_mind">Why it works</a></div>
     <div class="card morning-card">
@@ -9320,6 +9630,8 @@ async function alarmsAfter(root) {
   if (!s.notifications) issues.push(['notifications', 'Notifications are off for Habit Lab, so alarms can’t show.', 'Turn on']);
   if (!s.exact) issues.push(['exact', 'Exact alarms aren’t allowed, so alarms may be late.', 'Allow']);
   if (!s.fullScreen) issues.push(['fullScreen', 'Full-screen alarms aren’t allowed, so the wake screen won’t open over the lock screen.', 'Allow']);
+  // Android only lets an alarm take over the screen while the phone is in use with "Display over other apps".
+  if (s.overlay === false) issues.push(['overlay', 'While you’re using your phone, alarms ring as a notification. To have the wake screen take over the whole screen every time, allow “Display over other apps” for Habit Lab.', 'Allow']);
   el.innerHTML = `${issues.map(([k, text, btn]) => `<div class="notice warn">${icon('alert')}<div class="grow">${esc(text)}</div><button class="btn small" data-action="alarmPerm" data-which="${k}">${btn}</button></div>`).join('')}
     ${s.next ? `<div class="notice ok">${icon('clock')}<div class="grow">Next alarm: <strong>${esc(new Date(s.next).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }))}</strong></div></div>` : ''}
     ${s.count ? `<p class="muted" style="font-size:var(--text-xs);margin:-4px 0 10px">If alarms ever don’t ring, check that battery optimisation isn’t restricting Habit Lab. <button class="btn small ghost" data-action="alarmPerm" data-which="battery">Battery settings</button></p>` : ''}`;
@@ -9480,7 +9792,7 @@ const alarmActions = {
 
 Object.assign(__m, { ownValues, alarmsSummary, alarmsPage, alarmsAfter, alarmActions });
 },
-/* js/notify.js */ 43: function (__m, __req) {
+/* js/notify.js */ 45: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -9617,10 +9929,10 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 44: function (__m, __req) {
+/* js/views/settings.js */ 46: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { goalHint } = __req(23);
-const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(42);
+const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(44);
 const { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(17);
 const store = __req(16);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
@@ -9628,7 +9940,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn, weekOrder } = __req(0);
-const notify = __req(43);
+const notify = __req(45);
 const { DEFAULT_REMINDERS } = __req(15);
 const { dayFields, daySummary, readDay } = __req(20);
 const { daySchedule, toHHMM } = __req(14);
@@ -10024,7 +10336,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 45: function (__m, __req) {
+/* js/views/shopping.js */ 47: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(17);
 const store = __req(16);
@@ -10072,15 +10384,15 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 46: function (__m, __req) {
+/* js/views/rewards.js */ 48: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(17);
-const { ring, barChart } = __req(32);
+const { ring, barChart } = __req(34);
 const store = __req(16);
 const { BADGES, XP, levelTitle } = __req(13);
 const { addDays, weekStart } = __req(0);
 const { ORGANS, lastWeekStart } = __req(12);
-const { ring: bodyRing } = __req(29);
+const { ring: bodyRing } = __req(31);
 
 function bodyMedals(state, g, date) {
   const lv = g.stats.body.levels;
@@ -10204,16 +10516,16 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/views/wake.js */ 47: function (__m, __req) {
+/* js/views/wake.js */ 49: function (__m, __req) {
 // Good morning: the screen after "I'm up". The alarm's message, then a ten-second values
 // reflection ("Today I'm doing this for…") — the kind of self-affirmation shown to engage the brain's
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { valueInfo, morningMessages, messageForDay } = __req(40);
-const { takeMessage } = __req(41);
+const { valueInfo, morningMessages, messageForDay } = __req(42);
+const { takeMessage } = __req(43);
 const { XP } = __req(13);
-const { confetti, chime, buzz, floatXp } = __req(28);
+const { confetti, chime, buzz, floatXp } = __req(30);
 
 let message = null;
 let msgDate = null;
@@ -10245,7 +10557,7 @@ __m.default = {
         <div class="w-kicker">${esc(fmtDate(today, { weekday: 'long', day: 'numeric', month: 'long' }))}</div>
         <h1 class="wk-hello">${greeting()}</h1>
         <p class="wk-msg">${esc(message)}</p>
-        <button class="wk-heart ${fav ? 'on' : ''}" data-action="wakeFav" aria-pressed="${fav}">${fav ? '♥ Saved — you’ll see it more often' : '♡ This one helped'}</button>
+        <button class="wk-heart ${fav ? 'on' : ''}" data-action="wakeFav" aria-pressed="${fav}">${fav ? '♥ Saved — you’ll see it more often' : '♡ This one boosted me'}</button>
         <div class="wk-reflect">
           <div class="w-kicker">Today I’m doing this for…</div>
           ${values.length
@@ -10298,18 +10610,18 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/body.js */ 48: function (__m, __req) {
+/* js/views/body.js */ 50: function (__m, __req) {
 // Your body: one card per body part — this week's ring, its long-term level and what it needs.
 // Tap any ring (here, on Today or in the Body Wrap) to open the body-part sheet.
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { openSheet } = __req(25);
 const { ORGAN_GUIDE, organById, weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(27);
+const { S: SOURCES } = __req(29);
 const { weekStart } = __req(0);
 
 const fmtDateShort = (iso) => fmtDate(iso, { day: 'numeric', month: 'short' });
-const { ring } = __req(29);
+const { ring } = __req(31);
 
 function data(state) {
   const today = store.today();
@@ -10386,33 +10698,35 @@ __m.default = {
 
 Object.assign(__m, { organSheetHtml, organActions });
 },
-/* js/app.js */ 49: function (__m, __req) {
+/* js/app.js */ 51: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(16);
 const { icon, formData } = __req(17);
 const { setWeekStart } = __req(0);
 const onboarding = __req(23).default;
 const { goalHint } = __req(23);
-const todayView = __req(30).default;
-const meals = __req(31).default;
+const todayView = __req(32).default;
+const meals = __req(33).default;
 const move = __req(24).default;
-const habits = __req(33).default;
-const progress = __req(34).default;
-const checkin = __req(36).default;
-const learn = __req(37).default;
-const settings = __req(44).default;
-const shopping = __req(45).default;
-const rewards = __req(46).default;
+const habits = __req(35).default;
+const progress = __req(36).default;
+const checkin = __req(38).default;
+const learn = __req(39).default;
+const settings = __req(46).default;
+const shopping = __req(47).default;
+const rewards = __req(48).default;
 const journeyView = __req(22).default;
-const wrapView = __req(29).default;
-const wakeView = __req(47).default;
-const bodyView = __req(48).default;
-const { organActions } = __req(48);
+const wrapView = __req(31).default;
+const wakeView = __req(49).default;
+const bodyView = __req(50).default;
+const { organActions } = __req(50);
 const { organById } = __req(12);
-const alarmNative = __req(41);
-const { floatXp, confetti, chime, buzz, showCelebration } = __req(28);
+const alarmNative = __req(43);
+const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(30);
+const { newlyClosed, allClosed } = __req(28);
+const { valueInfo } = __req(42);
 const { BADGES } = __req(13);
-const notify = __req(43);
+const notify = __req(45);
 const { closeSheet } = __req(25);
 const { sheetActions } = __req(26);
 const { daySummary, readDay } = __req(20);
@@ -10439,6 +10753,7 @@ const ctx = {
     return state;
   },
   set(next, { render = true, quiet = false } = {}) {
+    const prevState = state;
     const before = state.profile ? store.game(state) : null;
     const after = next.profile ? store.game(next) : null;
     if (after?.newBadges.length) {
@@ -10447,7 +10762,7 @@ const ctx = {
     }
     state = next;
     setWeekStart(state.prefs?.weekStart || 0);
-    if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game));
+    if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game, prevState, next));
     scheduleSync();
     const saved = store.save(state);
     if (!saved && !saveFailing) ctx.toast('Couldn’t save — this device’s storage is full or blocked.');
@@ -10539,9 +10854,21 @@ function bodyUps(before, after) {
   return Object.keys(a).filter((id) => b[id] && a[id].level > b[id].level).map((id) => ({ id, ...a[id] }));
 }
 
-function celebrate(before, after, prefs) {
+const RING_WORD = { eat: 'Eat', move: 'Move', habits: 'Habits' };
+
+function celebrate(before, after, prefs, prevState, nextState) {
   const gained = after.xp - before.xp;
-  if (gained <= 0) return;
+  const rings = prevState && nextState ? newlyClosed(prevState, nextState) : [];
+  if (rings.length) {
+    const all = allClosed(nextState);
+    confetti(all ? 1.4 : 0.6);
+    if (prefs.haptics) buzz(all ? [12, 40, 12, 40, 20] : [10, 30, 10]);
+    ringBanner(all ? 'All three rings closed — perfect day!' : `${rings.map((r) => RING_WORD[r]).join(' + ')} ring closed!`, all ? 'var(--ring-move)' : `var(--ring-${rings[0]})`);
+  }
+  if (gained <= 0) {
+    if (rings.length && prefs.sound) chime('quest');
+    return;
+  }
   const todayBefore = new Set((before.byDay[store.today()]?.awards || []).map((a) => a.key));
   const fresh = (after.byDay[store.today()]?.awards || []).filter((a) => !todayBefore.has(a.key));
   const lucky = fresh.some((a) => a.lucky);
@@ -10554,6 +10881,7 @@ function celebrate(before, after, prefs) {
   let sound = lucky ? 'lucky' : smallWin ? 'quest' : 'tick';
   if (smallWin && !perfect) confetti(0.35);
   if (questsDoneAfter > questsDoneBefore) sound = 'quest';
+  if (rings.length) sound = allClosed(nextState) ? 'badge' : 'quest';
   if (perfect) {
     confetti(1.2);
     sound = 'badge';
@@ -10752,7 +11080,21 @@ function syncReminders() {
   });
 }
 notify.listen();
-alarmNative.listen((route) => ctx.go(route));
+alarmNative.listen((route) => ctx.go(route), (w) => {
+  // "Start my day" on the lock screen: record the morning (once a day) and the message you liked.
+  ctx.update((st) => {
+    if (!st.wakes?.[w.date]) st.wakes = { ...(st.wakes || {}), [w.date]: w.at };
+    if (w.message) {
+      const favs = new Set(st.affirm?.favs || []);
+      if (w.fav) favs.add(w.message);
+      else favs.delete(w.message);
+      st.affirm = { ...(st.affirm || {}), favs: [...favs].slice(-30) };
+    }
+    return st;
+  }, { render: false });
+  const v = w.value === 'me' ? null : valueInfo(w.value);
+  ctx.toast(v ? `Good morning. Today you’re doing this for ${v.label.toLowerCase()}.` : 'Good morning. You are reason enough.');
+});
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (renderRoute(), scheduleSync()));
 
 let transitioning = false;
@@ -10803,5 +11145,5 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(49);
+__req(51);
 })();</script>

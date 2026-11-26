@@ -105,8 +105,13 @@ public final class AlarmScheduler {
     }
 
     public static void snooze(Context ctx, AlarmStore.Alarm a) {
+        snooze(ctx, a, AlarmStore.snoozeMinutes(ctx));
+    }
+
+    /** Snooze for a chosen number of minutes (1–60), as picked with − / + on the wake screen. */
+    public static void snooze(Context ctx, AlarmStore.Alarm a, int minutes) {
         AlarmStore.Alarm s = AlarmStore.snoozeCopy(a.id.endsWith("_snooze") ? base(ctx, a) : a);
-        long at = System.currentTimeMillis() + AlarmStore.snoozeMinutes(ctx) * 60_000L;
+        long at = System.currentTimeMillis() + Math.max(1, Math.min(60, minutes)) * 60_000L;
         AlarmStore.putSnooze(ctx, s, at);
         scheduleAll(ctx);
     }

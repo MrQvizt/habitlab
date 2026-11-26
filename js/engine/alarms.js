@@ -14,7 +14,7 @@ export const DEFAULT_ALARMS = {
   wind: { on: false, before: 45, style: 'gentle' },
   bed: { on: false, style: 'gentle' },
   meals: { on: false, style: 'gentle', snacks: false },
-  snooze: 9,
+  snooze: 5,
 };
 
 export const STYLES = {

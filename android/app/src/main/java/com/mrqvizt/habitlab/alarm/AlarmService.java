@@ -71,7 +71,11 @@ public class AlarmService extends Service {
         if (ACTION_SNOOZE.equals(action)) {
             AlarmStore.Alarm a = current();
             stopRinging(false);
-            if (a != null) AlarmScheduler.snooze(this, a);
+            int min = intent.getIntExtra("minutes", 0);
+            if (a != null) {
+                if (min > 0) AlarmScheduler.snooze(this, a, min);
+                else AlarmScheduler.snooze(this, a);
+            }
             return START_NOT_STICKY;
         }
         if (intent == null) {
@@ -102,12 +106,9 @@ public class AlarmService extends Service {
         startSound(intent.getStringExtra("spec"));
         handler.postDelayed(vibrate, 20_000);
         handler.postDelayed(timeout, MAX_RING_MS);
-        // Try to show the wake screen directly too (allowed for alarm apps with full-screen intent).
-        try {
-            startActivity(new Intent(this, AlarmActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION));
-        } catch (Exception ignored) {
-            // background activity start blocked: the full-screen notification covers it
-        }
+        // Take over the screen straight away. Android allows this from the background when the user has
+        // granted "Display over other apps"; otherwise the full-screen notification covers the locked case.
+        showWakeScreen(this);
         return START_NOT_STICKY;
     }
 
@@ -246,6 +247,14 @@ public class AlarmService extends Service {
         }
         sendBroadcast(new Intent(AlarmActivity.ACTION_FINISH).setPackage(getPackageName()));
         stopSelf();
+    }
+
+    static void showWakeScreen(Context ctx) {
+        try {
+            ctx.startActivity(new Intent(ctx, AlarmActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        } catch (Exception ignored) {
+            // background start blocked: the notification still rings
+        }
     }
 
     static void openApp(Context ctx, String route, String message) {

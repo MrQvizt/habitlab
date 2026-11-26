@@ -1,7 +1,7 @@
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
 import { alarmSpecs, alarmsOf } from './engine/alarms.js';
-import { morningMessages } from './data/affirmations.js';
+import { morningMessages, valueInfo } from './data/affirmations.js';
 
 let lastMessage = null;
 
@@ -20,7 +20,10 @@ export async function sync(state) {
   const p = plugin();
   if (!p || !state.profile) return null;
   try {
-    return await p.setAlarms({ alarms: alarmSpecs(state), messages: morningMessages(state.affirm || {}), snooze: alarmsOf(state).snooze });
+    const affirm = state.affirm || {};
+    // The morning screen runs on the lock screen, so it needs your values and saved favourites.
+    const values = (affirm.values || []).map((v) => ({ id: v, ...valueInfo(v) })).filter((v) => v.label).map((v) => ({ id: v.id, label: v.label, phrase: v.phrase || '' }));
+    return await p.setAlarms({ alarms: alarmSpecs(state), messages: morningMessages(affirm), snooze: alarmsOf(state).snooze, values, favs: affirm.favs || [] });
   } catch (e) {
     return null;
   }
@@ -82,13 +85,26 @@ export function takeMessage() {
   return m;
 }
 
+/** The morning the lock-screen wake screen recorded ("Start my day"), checked: {date, at, value, fav, message} or null. */
+export function parseWake(raw) {
+  try {
+    const w = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!w || !/^\d{4}-\d{2}-\d{2}$/.test(w.date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(w.at)) return null;
+    return { date: w.date, at: w.at, value: typeof w.value === 'string' ? w.value.slice(0, 30) : 'me', fav: w.fav === true, message: typeof w.message === 'string' ? w.message.slice(0, 200) : '' };
+  } catch (e) {
+    return null;
+  }
+}
+
 /** Open the screen an alarm points to, on cold start and while running. */
-export async function listen(go) {
+export async function listen(go, onWake) {
   const p = plugin();
   if (!p) return;
   const handle = (r) => {
     if (!r?.route) return;
     if (r.message) lastMessage = r.message;
+    const w = r.wake ? parseWake(r.wake) : null;
+    if (w && onWake) onWake(w);
     go(r.route);
   };
   try {
