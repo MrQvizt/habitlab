@@ -3,7 +3,7 @@ import { isoDate, weekStart, hashString, weekdayOf, dateInWeek, planDayFor, setW
 import { dailyTargets, estimateTdee } from './engine/calc.js';
 import { latestTrend } from './engine/trend.js';
 import { planWeek } from './engine/meals.js';
-import { initialProgress, weekSchedule } from './engine/workouts.js';
+import { initialProgress, weekSchedule, applyMoves } from './engine/workouts.js';
 import { screen } from './engine/safety.js';
 import { summary as gameSummaryRaw } from './engine/game.js';
 import { DEFAULT_REMINDERS } from './engine/reminders.js';
@@ -261,6 +261,9 @@ export function sanitize(s) {
     minutes: num(x.minutes, 0, 600, 0),
     ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined,
   })) : null));
+  // Your moves of planned sessions to other days, per week (kept for 8 weeks).
+  const mv = s.workouts.moves && typeof s.workouts.moves === 'object' ? s.workouts.moves : {};
+  s.workouts.moves = Object.fromEntries(Object.entries(mv).filter(([wk, list]) => ISO.test(wk) && Array.isArray(list)).sort().slice(-8).map(([wk, list]) => [wk, list.filter((m) => m && typeof m.key === 'string' && /^(strength|activity|cardio):[\w-]{1,60}$/.test(m.key) && Number.isInteger(m.from) && Number.isInteger(m.to) && m.from >= 0 && m.from < 7 && m.to >= 0 && m.to < 7).slice(0, 30).map((m) => ({ key: m.key, from: m.from, to: m.to }))]));
   const prog = s.workouts.progress && typeof s.workouts.progress === 'object' ? s.workouts.progress : {};
   s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.slice(-30) : [] }]));
   // Plans reference recipes by id; drop any plan containing an unknown recipe (it will be rebuilt).
@@ -371,7 +374,9 @@ export function ensureProgress(state) {
 }
 
 export function schedule(state, date = today()) {
-  return weekSchedule(state.profile, state.workouts.progress, weeksSinceStart(state, date));
+  const base = weekSchedule(state.profile, state.workouts.progress, weeksSinceStart(state, date));
+  const moves = state.workouts.moves?.[weekStart(date)];
+  return moves?.length ? { ...base, schedule: applyMoves(base.schedule, moves) } : base;
 }
 
 export function exportJson(state) {

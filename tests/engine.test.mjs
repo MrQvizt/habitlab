@@ -827,3 +827,15 @@ test('food database: search, sides, totals and labels', async () => {
   assert.equal(t.kcal, 360 + 25 + 115);
   assert.equal(describe(items), 'Sausages (2) + Side salad (no dressing) + 0.5× Fries (small)');
 });
+
+test('re-planning: moves put a planned item on another day; emptied days rest', async () => {
+  const { applyMoves, itemKey } = await import('../js/engine/workouts.js');
+  const week = [0, 1, 2, 3, 4, 5, 6].map((d) => ({ day: d, items: d === 0 ? [{ kind: 'strength', variant: 'A' }] : d === 2 ? [{ kind: 'activity', id: 'pad', name: 'Padel' }] : [{ kind: 'rest' }] }));
+  const out = applyMoves(week, [{ key: 'strength:A', from: 0, to: 1 }, { key: 'activity:pad', from: 2, to: 2 }]);
+  assert.equal(out[0].items[0].kind, 'rest');
+  assert.equal(itemKey(out[1].items[0]), 'strength:A');
+  assert.equal(out[1].items[0].from, 0);
+  assert.equal(itemKey(out[2].items[0]), 'activity:pad', 'a move to the same day changes nothing');
+  assert.equal(applyMoves(week, [{ key: 'cardio:walk', from: 3, to: 4 }])[4].items[0].kind, 'rest', 'unknown item ignored');
+  assert.equal(applyMoves(week, []), week);
+});

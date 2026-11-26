@@ -1151,3 +1151,15 @@ h2.h3 { font-size: var(--text-lg); }
 .side-chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .side-chip.on small { color: inherit; opacity: .8; }
 .food-manual { margin-top: 8px; }
+
+/* ---------- Re-plan + activity log ---------- */
+button.pill { font: inherit; border: 0; cursor: pointer; }
+.pill.moved { outline: 2px dashed color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.move-days { display: grid; gap: 8px; }
+.move-day { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; min-height: 52px; }
+.move-day small { color: var(--ink-3); font-size: var(--text-xs); }
+.move-day.on { border-color: var(--accent); background: var(--accent-soft); }
+.intensity-opts { display: grid; gap: 8px; }
+.int-opt { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 14px; cursor: pointer; }
+.int-opt small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
+.int-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }

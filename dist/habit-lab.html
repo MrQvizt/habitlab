@@ -1162,6 +1162,18 @@ h2.h3 { font-size: var(--text-lg); }
 .side-chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .side-chip.on small { color: inherit; opacity: .8; }
 .food-manual { margin-top: 8px; }
+
+/* ---------- Re-plan + activity log ---------- */
+button.pill { font: inherit; border: 0; cursor: pointer; }
+.pill.moved { outline: 2px dashed color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.move-days { display: grid; gap: 8px; }
+.move-day { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; min-height: 52px; }
+.move-day small { color: var(--ink-3); font-size: var(--text-xs); }
+.move-day.on { border-color: var(--accent); background: var(--accent-soft); }
+.intensity-opts { display: grid; gap: 8px; }
+.int-opt { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 14px; cursor: pointer; }
+.int-opt small { display: block; color: var(--ink-3); font-size: var(--text-xs); }
+.int-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 </style>
 </head>
 <body>
@@ -2628,7 +2640,32 @@ function sessionExercises(progress, variant, profile) {
   return out;
 }
 
-Object.assign(__m, { REP_RANGE, TIME_RANGE, availableSteps, initialProgress, stepOf, progressChain, cardioTarget, stepGoal, INTENSITY, creditedMinutes, weekSchedule, sessionExercises });
+/** A stable key for a planned item ("strength:A", "activity:<id>", "cardio:walk"). */
+function itemKey(it) {
+  return it.kind === 'strength' ? `strength:${it.variant}` : it.kind === 'activity' ? `activity:${it.id}` : it.kind === 'cardio' ? `cardio:${it.mode}` : 'rest';
+}
+
+/**
+ * Your re-planning on top of the generated week: moves = [{ key, from, to }] (days Monday = 0).
+ * Moved items carry `from`; emptied days become rest days.
+ */
+function applyMoves(schedule, moves = []) {
+  if (!moves.length) return schedule;
+  const days = schedule.map((d) => ({ ...d, items: d.items.filter((i) => i.kind !== 'rest') }));
+  for (const m of moves) {
+    const src = days[m.from];
+    const dst = days[m.to];
+    if (!src || !dst || m.from === m.to) continue;
+    const i = src.items.findIndex((it) => itemKey(it) === m.key);
+    if (i < 0) continue;
+    const [it] = src.items.splice(i, 1);
+    dst.items.push({ ...it, from: it.from ?? m.from });
+  }
+  for (const d of days) if (!d.items.length) d.items.push({ kind: 'rest', minutes: 0 });
+  return days;
+}
+
+Object.assign(__m, { REP_RANGE, TIME_RANGE, availableSteps, initialProgress, stepOf, progressChain, cardioTarget, stepGoal, INTENSITY, creditedMinutes, weekSchedule, sessionExercises, itemKey, applyMoves });
 },
 /* js/engine/safety.js */ 8: function (__m, __req) {
 // Safety screen. This app is general education and self-management support, not medical care.
@@ -4602,7 +4639,7 @@ const { isoDate, weekStart, hashString, weekdayOf, dateInWeek, planDayFor, setWe
 const { dailyTargets, estimateTdee } = __req(1);
 const { latestTrend } = __req(2);
 const { planWeek } = __req(5);
-const { initialProgress, weekSchedule } = __req(7);
+const { initialProgress, weekSchedule, applyMoves } = __req(7);
 const { screen } = __req(8);
 const { summary: gameSummaryRaw } = __req(13);
 const { DEFAULT_REMINDERS } = __req(15);
@@ -4860,6 +4897,9 @@ function sanitize(s) {
     minutes: num(x.minutes, 0, 600, 0),
     ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined,
   })) : null));
+  // Your moves of planned sessions to other days, per week (kept for 8 weeks).
+  const mv = s.workouts.moves && typeof s.workouts.moves === 'object' ? s.workouts.moves : {};
+  s.workouts.moves = Object.fromEntries(Object.entries(mv).filter(([wk, list]) => ISO.test(wk) && Array.isArray(list)).sort().slice(-8).map(([wk, list]) => [wk, list.filter((m) => m && typeof m.key === 'string' && /^(strength|activity|cardio):[\w-]{1,60}$/.test(m.key) && Number.isInteger(m.from) && Number.isInteger(m.to) && m.from >= 0 && m.from < 7 && m.to >= 0 && m.to < 7).slice(0, 30).map((m) => ({ key: m.key, from: m.from, to: m.to }))]));
   const prog = s.workouts.progress && typeof s.workouts.progress === 'object' ? s.workouts.progress : {};
   s.workouts.progress = Object.fromEntries(Object.entries(prog).filter(([k, v]) => k in CHAINS && CHAINS[k].steps.some((st) => st.id === v?.stepId)).map(([k, v]) => [k, { ...v, sets: num(v.sets, 1, 5, 2), reps: num(v.reps, 1, 120, 10), rightStreak: num(v.rightStreak, 0, 10, 0), history: Array.isArray(v.history) ? v.history.slice(-30) : [] }]));
   // Plans reference recipes by id; drop any plan containing an unknown recipe (it will be rebuilt).
@@ -4970,7 +5010,9 @@ function ensureProgress(state) {
 }
 
 function schedule(state, date = today()) {
-  return weekSchedule(state.profile, state.workouts.progress, weeksSinceStart(state, date));
+  const base = weekSchedule(state.profile, state.workouts.progress, weeksSinceStart(state, date));
+  const moves = state.workouts.moves?.[weekStart(date)];
+  return moves?.length ? { ...base, schedule: applyMoves(base.schedule, moves) } : base;
 }
 
 function exportJson(state) {
@@ -6046,7 +6088,232 @@ function isPast() {
 
 Object.assign(__m, { MAX_BACK, validLogDate, setViewDate, logDate, isPast });
 },
-/* js/views/move.js */ 25: function (__m, __req) {
+/* js/ui/sheet.js */ 25: function (__m, __req) {
+// Bottom sheet (dialog on wide screens): swipe-down / scrim / Escape to close, focus trapped,
+// focus returned to the opener. Content is HTML; buttons inside use the normal data-action routing.
+let current = null;
+
+// The (Android) back button closes an open sheet instead of leaving the screen: each sheet pushes a
+// history entry, and going back pops it.
+window.addEventListener('popstate', () => {
+  if (current) closeSheet(false, { fromHistory: true });
+});
+
+
+function setBackgroundInert(on) {
+  for (const el of document.querySelectorAll('body > .app, body > .bottomnav')) el.inert = on;
+}
+
+function openSheet(html, { label = 'Details', onClose } = {}) {
+  closeSheet(true);
+  const opener = document.activeElement;
+  const scrim = document.createElement('div');
+  scrim.className = 'sheet-scrim';
+  const sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  sheet.setAttribute('role', 'dialog');
+  sheet.setAttribute('aria-modal', 'true');
+  sheet.setAttribute('aria-label', label);
+  sheet.innerHTML = `<span class="grab" aria-hidden="true"></span>${html}`;
+  document.body.append(scrim, sheet);
+  document.body.style.overflow = 'hidden';
+  // Everything behind the sheet is inert: not focusable, not clickable, hidden from screen readers.
+  setBackgroundInert(true);
+  requestAnimationFrame(() => {
+    scrim.classList.add('open');
+    sheet.classList.add('open');
+  });
+  const focusables = () => [...sheet.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter((el) => !el.disabled && el.offsetParent !== null);
+  setTimeout(() => (sheet.querySelector('[autofocus]') || focusables()[0])?.focus({ preventScroll: true }), 60);
+  const onKey = (e) => {
+    if (e.key === 'Escape') closeSheet();
+    if (e.key === 'Tab') {
+      const f = focusables();
+      if (!f.length) return;
+      if (e.shiftKey && document.activeElement === f[0]) (e.preventDefault(), f[f.length - 1].focus());
+      else if (!e.shiftKey && document.activeElement === f[f.length - 1]) (e.preventDefault(), f[0].focus());
+    }
+  };
+  document.addEventListener('keydown', onKey);
+  scrim.addEventListener('click', () => closeSheet());
+  // Swipe down to dismiss (only when scrolled to top).
+  let startY = null;
+  let dy = 0;
+  sheet.addEventListener('pointerdown', (e) => {
+    if (sheet.scrollTop > 0 || e.target.closest('input, select, textarea, button, a')) return;
+    startY = e.clientY;
+    dy = 0;
+    sheet.classList.add('dragging');
+  });
+  sheet.addEventListener('pointermove', (e) => {
+    if (startY == null) return;
+    dy = Math.max(0, e.clientY - startY);
+    sheet.style.transform = `translateY(${dy}px)`;
+  });
+  const end = () => {
+    if (startY == null) return;
+    sheet.classList.remove('dragging');
+    sheet.style.transform = '';
+    startY = null;
+    if (dy > 90) closeSheet();
+  };
+  sheet.addEventListener('pointerup', end);
+  sheet.addEventListener('pointercancel', end);
+  try {
+    history.pushState({ hlSheet: true }, '');
+  } catch (e) {
+    /* sandboxed: fine without */
+  }
+  current = { scrim, sheet, onKey, opener, onClose };
+  return sheet;
+}
+
+/**
+ * @param immediate skip the exit animation (also used when navigating away: history is left alone)
+ * @param opts.fromHistory the back button closed it (its history entry is already gone)
+ */
+function closeSheet(immediate = false, { fromHistory = false } = {}) {
+  if (!current) return;
+  const { scrim, sheet, onKey, opener, onClose } = current;
+  current = null;
+  if (!immediate && !fromHistory && history.state?.hlSheet) {
+    try {
+      history.back();
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  document.removeEventListener('keydown', onKey);
+  document.body.style.overflow = '';
+  setBackgroundInert(false);
+  const remove = () => (scrim.remove(), sheet.remove());
+  if (immediate || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) remove();
+  else {
+    scrim.classList.remove('open');
+    sheet.classList.remove('open');
+    setTimeout(remove, 280);
+  }
+  if (opener?.isConnected) opener.focus?.({ preventScroll: true });
+  onClose?.();
+}
+
+/** Replace the open sheet's content in place (keeps it open). */
+function updateSheet(html) {
+  if (!current) return;
+  current.sheet.innerHTML = `<span class="grab" aria-hidden="true"></span>${html}`;
+}
+
+Object.assign(__m, { openSheet, closeSheet, updateSheet });
+},
+/* js/views/planmove.js */ 26: function (__m, __req) {
+// Re-planning the week (move a session to another day) and logging a regular activity with
+// how long it really took and how hard it felt.
+const { esc, icon } = __req(17);
+const store = __req(16);
+const { logDate } = __req(24);
+const { INTENSITY, itemKey } = __req(7);
+const { CARDIO } = __req(6);
+const { weekStart, weekOrder, dateInWeek } = __req(0);
+const { openSheet, closeSheet, updateSheet } = __req(25);
+
+const DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+function itemName(it) {
+  return it.kind === 'strength' ? `Strength session ${it.variant}` : it.kind === 'activity' ? it.name : `${it.minutes} min ${CARDIO[it.mode]?.label.toLowerCase() || 'cardio'}`;
+}
+
+function moveSheetHtml(state, date, key, from) {
+  const wk = weekStart(date);
+  const { schedule } = store.schedule(state, date);
+  const it = schedule[from]?.items.find((x) => itemKey(x) === key);
+  if (!it) return '';
+  const moved = (state.workouts.moves?.[wk] || []).some((m) => m.key === key);
+  const busy = (d) => schedule[d].items.filter((x) => x.kind !== 'rest').map(itemName);
+  return `<div class="sheet-head"><div><div class="over">Re-plan this week</div><h2>Move ${esc(itemName(it))}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+    <p class="muted" style="margin-top:0">Now on <strong>${DAY[from]}</strong>. Pick a better day — life happens, the plan should bend.</p>
+    <div class="move-days">${weekOrder().map((d) => {
+      const others = busy(d).filter((n) => n !== itemName(it));
+      return `<button class="move-day ${d === from ? 'on' : ''}" data-action="moveItemTo" data-key="${esc(key)}" data-from="${from}" data-to="${d}" data-date="${dateInWeek(wk, d)}" ${d === from ? 'aria-current="true"' : ''}><strong>${DAY[d]}</strong><small>${others.length ? esc(others.join(' · ')) : 'free'}</small></button>`;
+    }).join('')}</div>
+    ${moved ? `<button class="btn ghost small" data-action="moveItemReset" data-key="${esc(key)}" data-date="${date}" style="margin-top:10px">Put it back where the plan had it</button>` : ''}
+    <p class="muted" style="font-size:var(--text-xs);margin-top:10px">Tip: keep a rest day between strength sessions so muscles recover.</p>`;
+}
+
+function activitySheetHtml(state, id) {
+  const a = (state.profile.activities || []).find((x) => x.id === id);
+  if (!a) return '';
+  return `<div class="sheet-head"><div><div class="over">Nice work</div><h2>${esc(a.name)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+    <form data-form="activityDoneSave" data-id="${esc(a.id)}">
+      <label class="field"><span>How long did you go?</span>
+        <div class="quick-chips">${[15, 30, 45, 60, 90].map((m) => `<button type="button" data-action="sheetQuickMin" data-v="${m}">${m} min</button>`).join('')}</div>
+        <div class="inline-inputs"><input type="number" name="minutes" inputmode="numeric" min="1" max="600" value="${a.minutes}" required><span class="unit">min</span></div></label>
+      <fieldset class="field" style="border:0;padding:0;margin:0"><legend style="font-weight:600;margin-bottom:6px">How hard did it feel?</legend>
+        <div class="intensity-opts">${Object.entries(INTENSITY).map(([k, v]) => `<label class="int-opt"><input type="radio" name="intensity" value="${k}" ${k === a.intensity ? 'checked' : ''}><span><strong>${v.label}</strong><small>${esc(v.hint)}</small></span></label>`).join('')}</div></fieldset>
+      <button class="btn primary large block" style="margin-top:14px">Save</button>
+    </form>`;
+}
+
+/** Open the "how did it go?" sheet for a planned regular activity. */
+function askActivity(ctx, id) {
+  openSheet(activitySheetHtml(ctx.state, id), { label: 'Log activity' });
+}
+
+const saveMoves = (ctx, date, fn) => ctx.update((st) => {
+  const wk = weekStart(date);
+  st.workouts.moves = { ...(st.workouts.moves || {}), [wk]: fn([...(st.workouts.moves?.[wk] || [])]) };
+  return st;
+}, { quiet: true });
+
+const planActions = {
+  openMoveItem(el, ev, ctx) {
+    openSheet(moveSheetHtml(ctx.state, el.dataset.date, el.dataset.key, Number(el.dataset.from)), { label: 'Move to another day' });
+  },
+  moveItemTo(el, ev, ctx) {
+    const key = el.dataset.key;
+    const from = Number(el.dataset.from);
+    const to = Number(el.dataset.to);
+    if (from === to) return closeSheet();
+    saveMoves(ctx, el.dataset.date, (list) => {
+      // Moving again from the moved-to day: update the original move rather than stacking.
+      const prev = list.find((m) => m.key === key && m.to === from);
+      if (prev) {
+        prev.to = to;
+        return list.filter((m) => m.from !== m.to);
+      }
+      return [...list, { key, from, to }];
+    });
+    closeSheet();
+    ctx.toast(`Moved to ${DAY[to]}`);
+  },
+  moveItemReset(el, ev, ctx) {
+    saveMoves(ctx, el.dataset.date, (list) => list.filter((m) => m.key !== el.dataset.key));
+    closeSheet();
+    ctx.toast('Back on its planned day');
+  },
+  sheetQuickMin(el) {
+    const input = el.closest('form').querySelector('input[name=minutes]');
+    if (input) input.value = el.dataset.v;
+  },
+  activityDoneSave(form, ev, ctx, data) {
+    const a = (ctx.state.profile.activities || []).find((x) => x.id === form.dataset.id);
+    const minutes = Math.round(Number(data.minutes));
+    if (!a || !(minutes > 0 && minutes <= 600)) return;
+    const intensity = INTENSITY[data.intensity] ? data.intensity : a.intensity;
+    const date = logDate();
+    closeSheet();
+    ctx.update((st) => {
+      st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'activity', actId: a.id, name: a.name, intensity, minutes }];
+      return st;
+    });
+    ctx.toast(`${a.name} logged — ${minutes} min, ${INTENSITY[intensity].label.toLowerCase()}. Nice!`);
+  },
+};
+
+
+
+Object.assign(__m, { itemName, askActivity, planActions, updateSheet });
+},
+/* js/views/move.js */ 27: function (__m, __req) {
 // Movement: the week's schedule, strength session player with feedback, cardio logging.
 const { html, esc, icon, progressBar, fmtNum } = __req(17);
 const store = __req(16);
@@ -6058,6 +6325,8 @@ const { CARDIO, WARMUP, COOLDOWN, CHAINS } = __req(6);
 const { STOP_SIGNS } = __req(8);
 const { addDays, weekStart, weekOrder, dateInWeek } = __req(0);
 const { dayIndex } = __req(18);
+const { askActivity, itemName } = __req(26);
+const { itemKey } = __req(7);
 
 let ratings = {}; // chainKey -> rating, for the session in progress
 let showAddActivity = false;
@@ -6147,9 +6416,9 @@ function overview(state) {
     const pills = d.items.map((it) => {
       const isDone = itemDone(logged, it);
       if (it.kind === 'rest') return '<span class="pill rest">rest</span>';
-      if (it.kind === 'activity') return `<span class="pill activity ${isDone ? 'done' : ''}" title="${esc(it.name)}, ${it.minutes} min">${esc(shortName(it.name))}</span>`;
-      if (it.kind === 'strength') return `<span class="pill strength ${isDone ? 'done' : ''}" title="Strength session ${it.variant}">Str ${it.variant}</span>`;
-      return `<span class="pill cardio ${isDone ? 'done' : ''}" title="${esc(CARDIO[it.mode].label)}">${it.minutes}′ ${esc(it.mode)}</span>`;
+      const text = it.kind === 'activity' ? esc(shortName(it.name)) : it.kind === 'strength' ? `Str ${it.variant}` : `${it.minutes}′ ${esc(it.mode)}`;
+      // Tap to move it to another day this week.
+      return `<button type="button" class="pill ${it.kind} ${isDone ? 'done' : ''} ${it.from != null ? 'moved' : ''}" data-action="openMoveItem" data-key="${esc(itemKey(it))}" data-from="${i}" data-date="${dd}" aria-label="Move ${esc(itemName(it))} (${d.name})">${text}</button>`;
     });
     return `<div class="d ${i === ti ? 'today' : ''}"><b>${d.name}</b>${pills.join('')}</div>`;
   });
@@ -6174,7 +6443,7 @@ function overview(state) {
       </div>
     </div>
     <div class="card"><h2>Week plan</h2><div class="week">${grid.join('')}</div>
-      <p class="muted" style="font-size:.84rem;margin:8px 0 0">One main thing per day: your own activities, a strength session or a cardio session.</p></div>
+      <p class="muted" style="font-size:.84rem;margin:8px 0 0">One main thing per day: your own activities, a strength session or a cardio session. <strong>Tap one to move it to another day.</strong></p></div>
     ${activitiesCard(state)}
     <div class="card"><div class="card-head"><h2>Log activity</h2></div>
       <form data-form="logCardio" class="row">
@@ -6335,138 +6604,14 @@ __m.default = {
 };
 void REP_RANGE;
 
-/** Log today's planned regular activity (shared with the Today screen). */
+/** A planned regular activity is done: ask how long and how hard (shared with the Today screen). */
 function logPlannedActivity(ctx, id) {
-  const a = (ctx.state.profile.activities || []).find((x) => x.id === id);
-  if (!a) return;
-  const date = logDate();
-  ctx.update((st) => {
-    st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'activity', actId: a.id, name: a.name, intensity: a.intensity, minutes: a.minutes }];
-    return st;
-  });
-  ctx.toast(`${a.name} logged — nice!`);
+  askActivity(ctx, id);
 }
 
 Object.assign(__m, { itemDone, logPlannedActivity });
 },
-/* js/ui/sheet.js */ 26: function (__m, __req) {
-// Bottom sheet (dialog on wide screens): swipe-down / scrim / Escape to close, focus trapped,
-// focus returned to the opener. Content is HTML; buttons inside use the normal data-action routing.
-let current = null;
-
-// The (Android) back button closes an open sheet instead of leaving the screen: each sheet pushes a
-// history entry, and going back pops it.
-window.addEventListener('popstate', () => {
-  if (current) closeSheet(false, { fromHistory: true });
-});
-
-
-function setBackgroundInert(on) {
-  for (const el of document.querySelectorAll('body > .app, body > .bottomnav')) el.inert = on;
-}
-
-function openSheet(html, { label = 'Details', onClose } = {}) {
-  closeSheet(true);
-  const opener = document.activeElement;
-  const scrim = document.createElement('div');
-  scrim.className = 'sheet-scrim';
-  const sheet = document.createElement('div');
-  sheet.className = 'sheet';
-  sheet.setAttribute('role', 'dialog');
-  sheet.setAttribute('aria-modal', 'true');
-  sheet.setAttribute('aria-label', label);
-  sheet.innerHTML = `<span class="grab" aria-hidden="true"></span>${html}`;
-  document.body.append(scrim, sheet);
-  document.body.style.overflow = 'hidden';
-  // Everything behind the sheet is inert: not focusable, not clickable, hidden from screen readers.
-  setBackgroundInert(true);
-  requestAnimationFrame(() => {
-    scrim.classList.add('open');
-    sheet.classList.add('open');
-  });
-  const focusables = () => [...sheet.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter((el) => !el.disabled && el.offsetParent !== null);
-  setTimeout(() => (sheet.querySelector('[autofocus]') || focusables()[0])?.focus({ preventScroll: true }), 60);
-  const onKey = (e) => {
-    if (e.key === 'Escape') closeSheet();
-    if (e.key === 'Tab') {
-      const f = focusables();
-      if (!f.length) return;
-      if (e.shiftKey && document.activeElement === f[0]) (e.preventDefault(), f[f.length - 1].focus());
-      else if (!e.shiftKey && document.activeElement === f[f.length - 1]) (e.preventDefault(), f[0].focus());
-    }
-  };
-  document.addEventListener('keydown', onKey);
-  scrim.addEventListener('click', () => closeSheet());
-  // Swipe down to dismiss (only when scrolled to top).
-  let startY = null;
-  let dy = 0;
-  sheet.addEventListener('pointerdown', (e) => {
-    if (sheet.scrollTop > 0 || e.target.closest('input, select, textarea, button, a')) return;
-    startY = e.clientY;
-    dy = 0;
-    sheet.classList.add('dragging');
-  });
-  sheet.addEventListener('pointermove', (e) => {
-    if (startY == null) return;
-    dy = Math.max(0, e.clientY - startY);
-    sheet.style.transform = `translateY(${dy}px)`;
-  });
-  const end = () => {
-    if (startY == null) return;
-    sheet.classList.remove('dragging');
-    sheet.style.transform = '';
-    startY = null;
-    if (dy > 90) closeSheet();
-  };
-  sheet.addEventListener('pointerup', end);
-  sheet.addEventListener('pointercancel', end);
-  try {
-    history.pushState({ hlSheet: true }, '');
-  } catch (e) {
-    /* sandboxed: fine without */
-  }
-  current = { scrim, sheet, onKey, opener, onClose };
-  return sheet;
-}
-
-/**
- * @param immediate skip the exit animation (also used when navigating away: history is left alone)
- * @param opts.fromHistory the back button closed it (its history entry is already gone)
- */
-function closeSheet(immediate = false, { fromHistory = false } = {}) {
-  if (!current) return;
-  const { scrim, sheet, onKey, opener, onClose } = current;
-  current = null;
-  if (!immediate && !fromHistory && history.state?.hlSheet) {
-    try {
-      history.back();
-    } catch (e) {
-      /* ignore */
-    }
-  }
-  document.removeEventListener('keydown', onKey);
-  document.body.style.overflow = '';
-  setBackgroundInert(false);
-  const remove = () => (scrim.remove(), sheet.remove());
-  if (immediate || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) remove();
-  else {
-    scrim.classList.remove('open');
-    sheet.classList.remove('open');
-    setTimeout(remove, 280);
-  }
-  if (opener?.isConnected) opener.focus?.({ preventScroll: true });
-  onClose?.();
-}
-
-/** Replace the open sheet's content in place (keeps it open). */
-function updateSheet(html) {
-  if (!current) return;
-  current.sheet.innerHTML = `<span class="grab" aria-hidden="true"></span>${html}`;
-}
-
-Object.assign(__m, { openSheet, closeSheet, updateSheet });
-},
-/* js/data/fooddb.js */ 27: function (__m, __req) {
+/* js/data/fooddb.js */ 28: function (__m, __req) {
 // Common foods and dishes per typical portion, for logging what you ate off the plan.
 // Values are approximate, rounded averages from food composition tables (USDA FoodData Central,
 // UK McCance & Widdowson, Swedish Livsmedelsverket) for a standard portion; real portions vary.
@@ -6752,12 +6897,12 @@ function describe(items = []) {
 
 Object.assign(__m, { FOOD_CATS, FOOD_DB, SIDES, foodById, searchFoods, totalOf, describe });
 },
-/* js/views/foodpick.js */ 28: function (__m, __req) {
+/* js/views/foodpick.js */ 29: function (__m, __req) {
 // Food picker: search common foods, add sides ("sausage + side salad"), adjust portions.
 // Used by "Something else" on a planned meal and by "Add something else you ate".
 const { esc, icon, fmtNum } = __req(17);
-const { FOOD_DB, SIDES, FOOD_CATS, searchFoods, totalOf, describe, foodById } = __req(27);
-const { updateSheet } = __req(26);
+const { FOOD_DB, SIDES, FOOD_CATS, searchFoods, totalOf, describe, foodById } = __req(28);
+const { updateSheet } = __req(25);
 
 let items = [];
 let rerender = null;
@@ -6836,15 +6981,16 @@ function pickResult(data) {
 
 Object.assign(__m, { startPick, picked, pickerHtml, foodActions, pickResult, FOOD_CATS, updateSheet });
 },
-/* js/views/sheets.js */ 29: function (__m, __req) {
+/* js/views/sheets.js */ 30: function (__m, __req) {
 // Bottom-sheet flows shared by Today and Meals: a meal's detail + logging, weigh-in stepper,
 // steps, extra food and habit detail. Every reversible change offers Undo instead of asking first.
 const { esc, icon, fmtNum, toKg, weightNum } = __req(17);
-const { openSheet, closeSheet, updateSheet } = __req(26);
+const { openSheet, closeSheet, updateSheet } = __req(25);
 const store = __req(16);
 const { logDate, validLogDate } = __req(24);
-const { pickerHtml, startPick, pickResult, picked, foodActions } = __req(28);
-const { totalOf } = __req(27);
+const { pickerHtml, startPick, pickResult, picked, foodActions } = __req(29);
+const { planActions } = __req(26);
+const { totalOf } = __req(28);
 const { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } = __req(18);
 const { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } = __req(5);
 const { habitById, streak, habitLevels, levelIndex, levelValue } = __req(10);
@@ -7032,6 +7178,7 @@ function habitSheetHtml(state, id) {
 /** Actions to spread into a view's `actions`. */
 const sheetActions = {
   ...foodActions,
+  ...planActions,
   mealCheck(el, ev, ctx) {
     const date = el.dataset.date || logDate();
     const slot = el.dataset.slot;
@@ -7255,7 +7402,7 @@ function setHabitLevel(ctx, id, index) {
 
 Object.assign(__m, { slotIcon, mealRows, mealRowList, openMeal, habitLevelsHtml, sheetActions, toggleHabit, setHabitLevel, isoDate });
 },
-/* js/engine/dayplan.js */ 30: function (__m, __req) {
+/* js/engine/dayplan.js */ 31: function (__m, __req) {
 // "Your day": put meals, habits and the weigh-in on one clock so Today reads top to bottom
 // like the day itself. Habits are placed by their cue ("After I finish lunch" → after lunch),
 // which is the implementation intention the person wrote — the cue is the time.
@@ -7317,14 +7464,14 @@ function planDay(profile, { meals = [], habits = [], weigh = false }) {
 
 Object.assign(__m, { cueTime, PARTS, partOf, planDay });
 },
-/* js/views/dayrings.js */ 31: function (__m, __req) {
+/* js/views/dayrings.js */ 32: function (__m, __req) {
 // Today's three rings: Eat (meals logged), Move (planned movement + steps), Habits (today's habits).
 // Closing a ring is the small, visible daily win; closing all three is a perfect day.
 const store = __req(16);
 const { mealsFor } = __req(18);
 const { stepGoal } = __req(7);
 const { habitLevels, levelIndex } = __req(10);
-const { itemDone } = __req(25);
+const { itemDone } = __req(27);
 const { fmtNum } = __req(17);
 
 const RING_META = {
@@ -7398,7 +7545,7 @@ function allClosed(state) {
 
 Object.assign(__m, { RING_META, dayRings, ringsSvg, newlyClosed, allClosed });
 },
-/* js/data/learn.js */ 32: function (__m, __req) {
+/* js/data/learn.js */ 33: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -7701,7 +7848,7 @@ const LEARN = [
 
 Object.assign(__m, { S, LEARN_SECTIONS, LEARN });
 },
-/* js/ui/celebrate.js */ 33: function (__m, __req) {
+/* js/ui/celebrate.js */ 34: function (__m, __req) {
 // Celebration effects: floating XP, confetti, chimes, haptics and the level-up / badge dialogs.
 // Everything degrades gracefully: reduced motion skips animation, sound is optional and only plays
 // after the user has interacted with the page.
@@ -7844,18 +7991,18 @@ function showCelebration({ kicker, title, body, iconName = 'star', ok = 'Nice!' 
 
 Object.assign(__m, { floatXp, ringBanner, confetti, chime, buzz, showCelebration });
 },
-/* js/views/wrap.js */ 34: function (__m, __req) {
+/* js/views/wrap.js */ 35: function (__m, __req) {
 // Body Wrap: a short, story-style weekly recap. Each card is one body part thanking you for
 // what you did, with one research fact. Tap right/left (or use the arrow keys) to move through it.
 // Opening last week's wrap to the end earns XP once (derived from state.wraps in game.js).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(32);
+const { S: SOURCES } = __req(33);
 const { weekStart, addDays, getWeekStart } = __req(0);
 
 const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const { confetti, chime, buzz, floatXp } = __req(33);
+const { confetti, chime, buzz, floatXp } = __req(34);
 const { XP } = __req(13);
 
 let idx = 0;
@@ -8014,7 +8161,7 @@ function bodyRingsCard(state, today) {
 
 Object.assign(__m, { ring, wrapReadyCard, bodyRingsCard });
 },
-/* js/views/today.js */ 35: function (__m, __req) {
+/* js/views/today.js */ 36: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 const { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(17);
@@ -8027,13 +8174,13 @@ const { stepGoal } = __req(7);
 const { CARDIO } = __req(6);
 const { daysBetween, addDays } = __req(0);
 const { toHHMM } = __req(14);
-const { itemDone, logPlannedActivity } = __req(25);
-const { toggleHabit, mealRowList } = __req(29);
-const { planDay, partOf, PARTS } = __req(30);
-const { dayRings, ringsSvg, RING_META } = __req(31);
+const { itemDone, logPlannedActivity } = __req(27);
+const { toggleHabit, mealRowList } = __req(30);
+const { planDay, partOf, PARTS } = __req(31);
+const { dayRings, ringsSvg, RING_META } = __req(32);
 const { journey, nextStops, recentTimeStop } = __req(21);
 const { whenLabel } = __req(22);
-const { wrapReadyCard, bodyRingsCard } = __req(34);
+const { wrapReadyCard, bodyRingsCard } = __req(35);
 
 // ---------- Journey: the next stop on the long road (or a time stop just reached) ----------
 function journeyCard(state, date) {
@@ -8359,10 +8506,10 @@ __m.default = {
 
 Object.assign(__m, { habitRow, lastActive });
 },
-/* js/views/meals.js */ 36: function (__m, __req) {
+/* js/views/meals.js */ 37: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 const { html, esc, icon, chips, fmtDate, fmtNum } = __req(17);
-const { mealRows } = __req(29);
+const { mealRows } = __req(30);
 const store = __req(16);
 const { recipeDetails, dayIndex, setMealStatus, eatenSoFar, dayComplete } = __req(18);
 const { markChosen } = __req(18);
@@ -8548,7 +8695,7 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 37: function (__m, __req) {
+/* js/ui/charts.js */ 38: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
 const { esc } = __req(17);
 const { daysBetween, addDays } = __req(0);
@@ -8660,16 +8807,16 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/habits.js */ 38: function (__m, __req) {
+/* js/views/habits.js */ 39: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
 const { esc, icon } = __req(17);
-const { habitGrid } = __req(37);
+const { habitGrid } = __req(38);
 const store = __req(16);
 const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(10);
 const { daysBetween } = __req(0);
-const { openSheet, closeSheet, updateSheet } = __req(26);
-const { toggleHabit, habitLevelsHtml } = __req(29);
+const { openSheet, closeSheet, updateSheet } = __req(25);
+const { toggleHabit, habitLevelsHtml } = __req(30);
 const { habitLevels, levelIndex } = __req(10);
 
 let filter = 'all';
@@ -8816,11 +8963,11 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/progress.js */ 39: function (__m, __req) {
+/* js/views/progress.js */ 40: function (__m, __req) {
 // Progress: the home for everything long-term. A hub (journey, body levels, rewards, weekly
 // check-in), past Body Wraps, then the weight trend, activity, weigh-ins, waist and check-in history.
 const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(17);
-const { weightChart, barChart } = __req(37);
+const { weightChart, barChart } = __req(38);
 const store = __req(16);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
@@ -8828,7 +8975,7 @@ const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
 const { journey, nextStops } = __req(21);
 const { weekBody } = __req(12);
 const { checkinDue } = __req(18);
-const { ring } = __req(34);
+const { ring } = __req(35);
 
 /** The long-term hub at the top of Progress. */
 function hub(state, date, hide) {
@@ -9003,7 +9150,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, {  });
 },
-/* js/engine/adjust.js */ 40: function (__m, __req) {
+/* js/engine/adjust.js */ 41: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -9279,11 +9426,11 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 41: function (__m, __req) {
+/* js/views/checkin.js */ 42: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
 const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(17);
 const store = __req(16);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(40);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(41);
 const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
@@ -9428,10 +9575,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/learn.js */ 42: function (__m, __req) {
+/* js/views/learn.js */ 43: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
 const { html, esc, icon } = __req(17);
-const { LEARN, LEARN_SECTIONS } = __req(32);
+const { LEARN, LEARN_SECTIONS } = __req(33);
 
 let section = 'all';
 let openAll = false;
@@ -9476,7 +9623,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/data/melodies.js */ 43: function (__m, __req) {
+/* js/data/melodies.js */ 44: function (__m, __req) {
 // Alarm sounds. Each melody is data: the same spec is played by the in-app preview (Web Audio) and by
 // the native alarm (AlarmService.java synthesises it on the alarm stream), so what you hear when you
 // choose is exactly what wakes you.
@@ -9621,7 +9768,7 @@ function previewMelody(id, { passes = 2 } = {}) {
 
 Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, stopPreview, previewMelody });
 },
-/* js/engine/alarms.js */ 44: function (__m, __req) {
+/* js/engine/alarms.js */ 45: function (__m, __req) {
 // Alarm clock settings → the specs the native alarm scheduler uses (js/alarm-native.js).
 // Defaults follow sleep research:
 // - The same wake time every day, weekends included: irregular sleep/wake timing is linked to a
@@ -9631,7 +9778,7 @@ Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSou
 //   compared with a printed book (Chang 2015).
 // - Meals at regular times from your day schedule.
 const { daySchedule, mealTimes, toHHMM, toMin } = __req(14);
-const { DEFAULT_SOUND, nativeSound } = __req(43);
+const { DEFAULT_SOUND, nativeSound } = __req(44);
 
 const DEFAULT_ALARMS = {
   wake: { on: false, time: null, days: [0, 1, 2, 3, 4, 5, 6], style: 'ring' },
@@ -9712,7 +9859,7 @@ function fmtTime(min) {
 
 Object.assign(__m, { DEFAULT_ALARMS, STYLES, alarmsOf, alarmTimes, mealSlots, alarmSpecs, fmtTime });
 },
-/* js/data/reasons.js */ 45: function (__m, __req) {
+/* js/data/reasons.js */ 46: function (__m, __req) {
 // One-word reasons people give for wanting to lose weight, to pick on the morning screen and in Settings.
 // Grouped by the themes found in research: health first, then appearance and mood (O’Brien 2007),
 // function and mobility, stigma (hospital programme, open-ended answers), family and milestones
@@ -10337,7 +10484,7 @@ const REASONS = [
 
 Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 },
-/* js/data/affirmations.js */ 46: function (__m, __req) {
+/* js/data/affirmations.js */ 47: function (__m, __req) {
 // Morning messages shown when the wake-up alarm rings and on the Good-morning screen.
 // What the research says, and how it shapes these messages:
 // - Values-based self-affirmation: reflecting on what matters to you activates the brain's
@@ -10353,7 +10500,7 @@ Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 // - Compliments ("You look beautiful") are included because people asked for them; they can be
 //   switched off, and you can add your own words.
 
-const { REASONS, REASON_YOUR, REASON_PROPER } = __req(45);
+const { REASONS, REASON_YOUR, REASON_PROPER } = __req(46);
 
 const LIBRARY = new Set(REASONS.map((r) => r[1].toLowerCase()));
 
@@ -10567,11 +10714,11 @@ function removeReason(affirm = {}, text) {
 
 Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, DEFAULT_SETS, morningMessages, messageForDay, reasonLine, addReason, removeReason });
 },
-/* js/alarm-native.js */ 47: function (__m, __req) {
+/* js/alarm-native.js */ 48: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
-const { alarmSpecs, alarmsOf } = __req(44);
-const { morningMessages, valueInfo } = __req(46);
+const { alarmSpecs, alarmsOf } = __req(45);
+const { morningMessages, valueInfo } = __req(47);
 
 let lastMessage = null;
 
@@ -10689,13 +10836,13 @@ async function listen(go, onWake) {
 
 Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, parseWake, listen });
 },
-/* js/views/alarms.js */ 48: function (__m, __req) {
+/* js/views/alarms.js */ 49: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 const { esc, icon } = __req(17);
-const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(44);
+const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(45);
 const { daySchedule, mealTimes } = __req(14);
-const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(46);
-const { REASONS, REASON_CATS } = __req(45);
+const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(47);
+const { REASONS, REASON_CATS } = __req(46);
 
 // Reason library state (kept across re-renders while you browse).
 let reasonCat = 'health';
@@ -10707,9 +10854,9 @@ document.addEventListener('input', (ev) => {
 document.addEventListener('toggle', (ev) => {
   if (ev.target.classList?.contains('reason-lib')) libOpen = ev.target.open;
 }, true);
-const alarmNative = __req(47);
-const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(43);
-const { openSheet, updateSheet } = __req(26);
+const alarmNative = __req(48);
+const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(44);
+const { openSheet, updateSheet } = __req(25);
 
 const KIND_NAME = { wake: 'Wake-up', wind: 'Wind-down', bed: 'Bedtime', meals: 'Meal' };
 const soundOf = (a, key) => a[key].sound || DEFAULT_SOUND[key];
@@ -11020,7 +11167,7 @@ const alarmActions = {
 
 Object.assign(__m, { ownValues, alarmsSummary, alarmsPage, alarmsAfter, alarmActions });
 },
-/* js/notify.js */ 49: function (__m, __req) {
+/* js/notify.js */ 50: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -11157,10 +11304,10 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 50: function (__m, __req) {
+/* js/views/settings.js */ 51: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { goalHint } = __req(23);
-const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(48);
+const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(49);
 const { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(17);
 const store = __req(16);
 const { ACTIVITY_LEVELS, PACES, weightAtBmi } = __req(1);
@@ -11168,7 +11315,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn, weekOrder } = __req(0);
-const notify = __req(49);
+const notify = __req(50);
 const { DEFAULT_REMINDERS } = __req(15);
 const { dayFields, daySummary, readDay } = __req(20);
 const { daySchedule, toHHMM } = __req(14);
@@ -11564,7 +11711,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 51: function (__m, __req) {
+/* js/views/shopping.js */ 52: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(17);
 const store = __req(16);
@@ -11612,15 +11759,15 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 52: function (__m, __req) {
+/* js/views/rewards.js */ 53: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(17);
-const { ring, barChart } = __req(37);
+const { ring, barChart } = __req(38);
 const store = __req(16);
 const { BADGES, XP, levelTitle } = __req(13);
 const { addDays, weekStart } = __req(0);
 const { ORGANS, lastWeekStart } = __req(12);
-const { ring: bodyRing } = __req(34);
+const { ring: bodyRing } = __req(35);
 
 function bodyMedals(state, g, date) {
   const lv = g.stats.body.levels;
@@ -11744,17 +11891,17 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/views/wake.js */ 53: function (__m, __req) {
+/* js/views/wake.js */ 54: function (__m, __req) {
 // Good morning: the screen after "I'm up". The alarm's message, then a ten-second values
 // reflection ("Today I'm doing this for…") — the kind of self-affirmation shown to engage the brain's
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(46);
-const { REASONS } = __req(45);
-const { takeMessage } = __req(47);
+const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(47);
+const { REASONS } = __req(46);
+const { takeMessage } = __req(48);
 const { XP } = __req(13);
-const { confetti, chime, buzz, floatXp } = __req(33);
+const { confetti, chime, buzz, floatXp } = __req(34);
 
 let message = null;
 let msgDate = null;
@@ -11897,18 +12044,18 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/body.js */ 54: function (__m, __req) {
+/* js/views/body.js */ 55: function (__m, __req) {
 // Your body: one card per body part — this week's ring, its long-term level and what it needs.
 // Tap any ring (here, on Today or in the Body Wrap) to open the body-part sheet.
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
-const { openSheet } = __req(26);
+const { openSheet } = __req(25);
 const { ORGAN_GUIDE, organById, weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(32);
+const { S: SOURCES } = __req(33);
 const { weekStart } = __req(0);
 
 const fmtDateShort = (iso) => fmtDate(iso, { day: 'numeric', month: 'short' });
-const { ring } = __req(34);
+const { ring } = __req(35);
 
 function data(state) {
   const today = store.today();
@@ -11985,38 +12132,38 @@ __m.default = {
 
 Object.assign(__m, { organSheetHtml, organActions });
 },
-/* js/app.js */ 55: function (__m, __req) {
+/* js/app.js */ 56: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(16);
 const { icon, formData } = __req(17);
 const { setWeekStart } = __req(0);
 const onboarding = __req(23).default;
 const { goalHint } = __req(23);
-const todayView = __req(35).default;
-const meals = __req(36).default;
-const move = __req(25).default;
-const habits = __req(38).default;
-const progress = __req(39).default;
-const checkin = __req(41).default;
-const learn = __req(42).default;
-const settings = __req(50).default;
-const shopping = __req(51).default;
-const rewards = __req(52).default;
+const todayView = __req(36).default;
+const meals = __req(37).default;
+const move = __req(27).default;
+const habits = __req(39).default;
+const progress = __req(40).default;
+const checkin = __req(42).default;
+const learn = __req(43).default;
+const settings = __req(51).default;
+const shopping = __req(52).default;
+const rewards = __req(53).default;
 const journeyView = __req(22).default;
-const wrapView = __req(34).default;
-const wakeView = __req(53).default;
-const bodyView = __req(54).default;
-const { organActions } = __req(54);
+const wrapView = __req(35).default;
+const wakeView = __req(54).default;
+const bodyView = __req(55).default;
+const { organActions } = __req(55);
 const { organById } = __req(12);
-const alarmNative = __req(47);
-const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(33);
-const { newlyClosed, allClosed } = __req(31);
+const alarmNative = __req(48);
+const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(34);
+const { newlyClosed, allClosed } = __req(32);
 const { setViewDate } = __req(24);
-const { reasonLine, addReason } = __req(46);
+const { reasonLine, addReason } = __req(47);
 const { BADGES } = __req(13);
-const notify = __req(49);
-const { closeSheet } = __req(26);
-const { sheetActions } = __req(29);
+const notify = __req(50);
+const { closeSheet } = __req(25);
+const { sheetActions } = __req(30);
 const { daySummary, readDay } = __req(20);
 
 const VIEWS = { rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
@@ -12435,7 +12582,7 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(55);
+__req(56);
 })();</script>
 </body>
 </html>

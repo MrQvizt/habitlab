@@ -5,6 +5,7 @@ import { openSheet, closeSheet, updateSheet } from '../ui/sheet.js';
 import * as store from '../store.js';
 import { logDate, validLogDate } from '../viewdate.js';
 import { pickerHtml, startPick, pickResult, picked, foodActions } from './foodpick.js';
+import { planActions } from './planmove.js';
 import { totalOf } from '../data/fooddb.js';
 import { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } from './shared.js';
 import { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } from '../engine/meals.js';
@@ -193,6 +194,7 @@ function habitSheetHtml(state, id) {
 /** Actions to spread into a view's `actions`. */
 export const sheetActions = {
   ...foodActions,
+  ...planActions,
   mealCheck(el, ev, ctx) {
     const date = el.dataset.date || logDate();
     const slot = el.dataset.slot;

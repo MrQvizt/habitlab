@@ -9,6 +9,8 @@ import { CARDIO, WARMUP, COOLDOWN, CHAINS } from '../data/exercises.js';
 import { STOP_SIGNS } from '../engine/safety.js';
 import { addDays, weekStart, weekOrder, dateInWeek } from '../engine/util.js';
 import { dayIndex } from './shared.js';
+import { askActivity, itemName } from './planmove.js';
+import { itemKey } from '../engine/workouts.js';
 
 let ratings = {}; // chainKey -> rating, for the session in progress
 let showAddActivity = false;
@@ -98,9 +100,9 @@ function overview(state) {
     const pills = d.items.map((it) => {
       const isDone = itemDone(logged, it);
       if (it.kind === 'rest') return '<span class="pill rest">rest</span>';
-      if (it.kind === 'activity') return `<span class="pill activity ${isDone ? 'done' : ''}" title="${esc(it.name)}, ${it.minutes} min">${esc(shortName(it.name))}</span>`;
-      if (it.kind === 'strength') return `<span class="pill strength ${isDone ? 'done' : ''}" title="Strength session ${it.variant}">Str ${it.variant}</span>`;
-      return `<span class="pill cardio ${isDone ? 'done' : ''}" title="${esc(CARDIO[it.mode].label)}">${it.minutes}′ ${esc(it.mode)}</span>`;
+      const text = it.kind === 'activity' ? esc(shortName(it.name)) : it.kind === 'strength' ? `Str ${it.variant}` : `${it.minutes}′ ${esc(it.mode)}`;
+      // Tap to move it to another day this week.
+      return `<button type="button" class="pill ${it.kind} ${isDone ? 'done' : ''} ${it.from != null ? 'moved' : ''}" data-action="openMoveItem" data-key="${esc(itemKey(it))}" data-from="${i}" data-date="${dd}" aria-label="Move ${esc(itemName(it))} (${d.name})">${text}</button>`;
     });
     return `<div class="d ${i === ti ? 'today' : ''}"><b>${d.name}</b>${pills.join('')}</div>`;
   });
@@ -125,7 +127,7 @@ function overview(state) {
       </div>
     </div>
     <div class="card"><h2>Week plan</h2><div class="week">${grid.join('')}</div>
-      <p class="muted" style="font-size:.84rem;margin:8px 0 0">One main thing per day: your own activities, a strength session or a cardio session.</p></div>
+      <p class="muted" style="font-size:.84rem;margin:8px 0 0">One main thing per day: your own activities, a strength session or a cardio session. <strong>Tap one to move it to another day.</strong></p></div>
     ${activitiesCard(state)}
     <div class="card"><div class="card-head"><h2>Log activity</h2></div>
       <form data-form="logCardio" class="row">
@@ -286,14 +288,7 @@ export default {
 };
 void REP_RANGE;
 
-/** Log today's planned regular activity (shared with the Today screen). */
+/** A planned regular activity is done: ask how long and how hard (shared with the Today screen). */
 export function logPlannedActivity(ctx, id) {
-  const a = (ctx.state.profile.activities || []).find((x) => x.id === id);
-  if (!a) return;
-  const date = logDate();
-  ctx.update((st) => {
-    st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'activity', actId: a.id, name: a.name, intensity: a.intensity, minutes: a.minutes }];
-    return st;
-  });
-  ctx.toast(`${a.name} logged — nice!`);
+  askActivity(ctx, id);
 }

@@ -149,6 +149,7 @@ const shots = process.argv[3] || null;
   if (times.join() !== [...times].sort().join()) errors.push('meals not in time order: ' + times.join(', '));
   if (times[0] !== '06:30' || times[times.length - 1] !== '19:00') errors.push('timeline does not match the eating window: ' + times.join(', '));
 
+  let savedActId;
   // Regular activity: add one for today, see it planned, log it, check XP/quest credit
   const todayIdx = await page.evaluate(() => (new Date().getDay() + 6) % 7);
   const dayName = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][todayIdx];
@@ -175,8 +176,27 @@ const shots = process.argv[3] || null;
   await page.click('form[data-form=addActivity] button.primary');
   await page.waitForSelector('#activities >> text=Walking with friends');
   await page.goto(base + '#/today');
+  // Completing it asks how long and how hard
   await page.click('button[data-action=activityDone]');
-  await page.waitForSelector('text=Walking with friends logged');
+  await page.waitForSelector('.sheet form[data-form=activityDoneSave]');
+  await page.click('.sheet button[data-action=sheetQuickMin][data-v="45"]');
+  await page.click('.sheet .int-opt:has-text("Vigorous")');
+  await page.click('.sheet button:has-text("Save")');
+  await page.waitForSelector('text=Walking with friends logged — 45 min, vigorous');
+  const actLog = await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('habitlab.v1')).workouts.log).flat().find((x) => x.name === 'Walking with friends'));
+  if (actLog?.minutes !== 45 || actLog?.intensity !== 'vigorous') errors.push('activity time/intensity not saved: ' + JSON.stringify(actLog));
+  // Re-plan: move today's walk to another day from the week plan
+  await page.goto(base + '#/move');
+  await page.click(`.week button.pill[data-key="activity:${savedActId = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).profile.activities[0].id)}"]`);
+  await page.waitForSelector('.sheet .move-days');
+  const target = (todayIdx + 1) % 7;
+  await page.click(`.sheet .move-day[data-to="${target}"]`);
+  await page.waitForSelector(`text=Moved to`);
+  const moves = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).workouts.moves);
+  if (!Object.values(moves).flat().some((m) => m.to === target)) errors.push('move not saved: ' + JSON.stringify(moves));
+  await page.click(`.week button.pill.moved`);
+  await page.click('.sheet button[data-action=moveItemReset]');
+  await page.waitForSelector('text=Back on its planned day');
   await page.goto(base + '#/move');
   await page.selectOption('form[data-form=logCardio] select[name=mode]', 'other');
   await page.fill('form[data-form=logCardio] input[name=name]', 'Padel');
