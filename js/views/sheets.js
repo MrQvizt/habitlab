@@ -267,7 +267,7 @@ export const sheetActions = {
     const { date, slot } = form.dataset;
     closeSheet();
     const r = pickResult({ ...data, kcal: data.kcal ?? '' });
-    ctx.undoable('Logged', (st) => setMealStatus(st, date, slot, () => ({ status: 'other', kcal: r.kcal, p: r.p, ...(r.label ? { label: r.label } : {}) })));
+    ctx.undoable('Logged', (st) => setMealStatus(st, date, slot, () => ({ status: 'other', kcal: r.kcal, p: r.p, ...(r.fib ? { fib: r.fib } : {}), ...(r.label ? { label: r.label } : {}) })));
   },
   sheetMealSwap(el, ev, ctx) {
     const { date, slot } = el.dataset;
@@ -360,7 +360,7 @@ export const sheetActions = {
     closeSheet();
     ctx.undoable('Added', (st) => {
       const at = /^([01]\d|2[0-3]):[0-5]\d$/.test(data.at || '') ? data.at : undefined;
-      st.extras[date] = [...(st.extras[date] || []), { label: r.label || 'Extra', kcal: r.kcal, p: r.p, ...(at ? { at } : {}) }];
+      st.extras[date] = [...(st.extras[date] || []), { label: r.label || 'Extra', kcal: r.kcal, p: r.p, ...(r.fib ? { fib: r.fib } : {}), ...(at ? { at } : {}) }];
       st.intake[date] = computeIntake(st, date);
       return st;
     });

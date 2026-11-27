@@ -832,6 +832,30 @@ test('food database: search, sides, totals and labels', async () => {
   assert.equal(describe(items), 'Sausages (2) + Side salad (no dressing) + 0.5× Fries (small)');
 });
 
+test('fibre: every food has a value, logs save it, and old logs are read from their names', async () => {
+  const { FOOD_DB, SIDES, FIBRE_IDS, totalOf, fibreFromLabel, foodById } = await import('../js/data/fooddb.js');
+  const all = [...FOOD_DB, ...SIDES];
+  assert.deepEqual(all.filter((x) => !FIBRE_IDS.includes(x.id)).map((x) => x.id), [], 'every food has a fibre value');
+  assert.ok(all.every((x) => x.fib >= 0 && x.fib <= x.c + 1), 'fibre is part of the carbs, never more');
+  assert.equal(foodById('kiwi').fib, 2);
+  assert.ok(foodById('lentils').fib >= 8 && foodById('raspberries').fib >= 6, 'fibre-rich foods carry their fibre');
+  assert.equal(totalOf([{ id: 'kiwi', n: 2 }, { id: 'side_salad', n: 1 }]).fib, 6);
+  assert.equal(fibreFromLabel('Kiwi'), 2);
+  assert.equal(fibreFromLabel('2× Kiwi + Side salad (no dressing)'), 6);
+  assert.equal(fibreFromLabel('Something I typed'), 0);
+  // The week's gut ring counts a logged kiwi (an extra) as well as ticked meals
+  const { weekBody } = await import('../js/engine/body.js');
+  const { weekStart } = await import('../js/engine/util.js');
+  const store = await import('../js/store.js');
+  const d = '2026-03-04';
+  const ws = weekStart(d);
+  const base = store.sanitize({ profile: { startDate: ws } });
+  const before = weekBody(base, ws).stats.fibre;
+  const st = store.sanitize({ ...base, extras: { [d]: [{ label: 'Kiwi', kcal: 42, p: 1, fib: 2 }, { label: '2× Kiwi', kcal: 84 }] } });
+  assert.equal(st.extras[d][0].fib, 2, 'fibre is kept when saved');
+  assert.equal(weekBody(st, ws).stats.fibre - before, 2 + 4, 'saved fibre and fibre read back from the name both count');
+});
+
 test('activity search: everyday words find the right activities', async () => {
   const { HOBBIES, searchHobbies, hobbyByName } = await import('../js/data/hobbies.js');
   const { CARDIO } = await import('../js/data/exercises.js');

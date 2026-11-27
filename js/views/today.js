@@ -3,7 +3,7 @@
 import { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
 import { setViewDate, logDate, MAX_BACK } from '../viewdate.js';
-import { mealsFor, eatenSoFar, proteinEaten, dayComplete, safetyNotices, checkinDue, slotLabel, computeIntake } from './shared.js';
+import { mealsFor, eatenSoFar, proteinEaten, fibreEaten, dayComplete, safetyNotices, checkinDue, slotLabel, computeIntake } from './shared.js';
 import { byId } from '../engine/meals.js';
 import { habitById, streak, habitLevels, levelIndex } from '../engine/habits.js';
 import { CARDIO } from '../data/exercises.js';
@@ -141,9 +141,10 @@ function kcalSummary(state, date) {
   const t = store.targets(state, date);
   const eaten = eatenSoFar(state, date);
   const p = proteinEaten(state, date);
+  const fib = fibreEaten(state, date);
   return `<div class="kcal-sum"><div class="row between nowrap"><div><span class="big">${fmtNum(eaten)}</span> <span class="of">/ ${fmtNum(t.kcal)} kcal</span></div><span class="of">${Math.max(0, t.kcal - eaten).toLocaleString()} left</span></div>
       <div class="meter" role="progressbar" aria-label="Calories eaten" aria-valuenow="${eaten}" aria-valuemax="${t.kcal}"><span style="width:${Math.min(100, (eaten / t.kcal) * 100).toFixed(1)}%"></span></div>
-      <div class="meter-legend"><span>Protein ${Math.round(p)} / ${t.proteinG} g</span><span>${dayComplete(state, date) ? '✓ Whole day logged' : 'Tick meals as you go'}</span></div></div>`;
+      <div class="meter-legend"><span>Protein ${Math.round(p)} / ${t.proteinG} g · Fibre ${Math.round(fib)} / ${Math.round(t.fiberG)} g</span><span>${dayComplete(state, date) ? '✓ Whole day logged' : 'Tick meals as you go'}</span></div></div>`;
 }
 
 function weighRow(state, date) {

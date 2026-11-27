@@ -3,6 +3,7 @@ import { esc, icon } from '../ui/dom.js';
 import { byId, scaledNutrition, SLOT_LABEL, ingredientText } from '../engine/meals.js';
 import * as store from '../store.js';
 import { orderMeals } from '../engine/schedule.js';
+import { fibreFromLabel } from '../data/fooddb.js';
 import { daysBetween, weekdayOf, planDayFor } from '../engine/util.js';
 
 export function dayIndex(date) {
@@ -52,6 +53,22 @@ export function proteinEaten(state, date) {
   }
   for (const x of state.extras[date] || []) p += Number(x.p) || 0;
   return p;
+}
+
+/**
+ * Fibre eaten on a date: planned meals you ticked, meals you logged as something else, and extras.
+ * Things logged before fibre was saved are read back from their food names.
+ */
+export function fibreEaten(state, date) {
+  const log = state.mealLog?.[date] || {};
+  const logged = (x) => (x.fib != null ? Number(x.fib) || 0 : fibreFromLabel(x.label));
+  let g = 0;
+  for (const m of mealsFor(state, date)) {
+    if (log[m.slot]?.status === 'ate') g += scaledNutrition(byId(m.recipeId), m.scale).fib;
+    else if (log[m.slot]?.status === 'other') g += logged(log[m.slot]);
+  }
+  for (const x of state.extras?.[date] || []) g += logged(x);
+  return g;
 }
 
 export function recipeDetails(m, units = 'metric', open = false) {

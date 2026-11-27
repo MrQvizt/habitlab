@@ -406,8 +406,62 @@ const S = [
 
 export const FOOD_CATS = { meal: 'Meals', fast: 'Fast food', breakfast: 'Breakfast', bread: 'Bread & grains', dairy: 'Dairy & eggs', fruit: 'Fruit & veg', protein: 'Meat, fish & beans', extras: 'Nuts, oils & spreads', snack: 'Snacks & sweets', drink: 'Drinks' };
 
-export const FOOD_DB = R.map(([id, name, portion, kcal, p, c, f, cat]) => ({ id, name, portion, kcal, p, c, f, cat }));
-export const SIDES = S.map(([id, name, kcal, p, c, f]) => ({ id, name, portion: 'side', kcal, p, c, f, cat: 'side', side: true }));
+// Fibre (g) per portion above, same sources. Kept apart so the rows stay readable; every food has one.
+const FIB = {
+  spaghetti_bolognese:7, lasagne:4, mac_cheese:3, carbonara:4, pesto_pasta:5, tomato_pasta:7, chicken_curry:3,
+  tikka_masala:3, butter_chicken:2, dal:10, chili_con_carne:9, beef_stew:5, meatballs:1, meatballs_mash:4,
+  shepherds_pie:5, fish_pie:3, roast_dinner:9, roast_chicken:0, chicken_breast_cooked:0, steak:0, pork_chop:0,
+  salmon_fillet:0, white_fish:0, fish_fingers:1, fish_and_chips:8, sausages:0, sausages_2:0, bratwurst:0,
+  hot_dog:1, sausage_and_mash:4, falukorv:0, pyttipanna:5, stir_fry:5, fried_rice:2, pad_thai:4, ramen:3,
+  sushi_8:2, poke_bowl:5, burrito:9, burrito_bowl:10, tacos_3:6, quesadilla:3, nachos:7, omelette:0, quiche:1,
+  soup_veg:5, soup_cream:2, pea_soup:9, salad_chicken:4, caesar_salad:3, greek_salad:4, tuna_salad:4,
+  jacket_potato:13, risotto:2, paella:3, kebab_plate:3, gyros_pita:3, falafel_wrap:9, pancakes_swedish:2,
+  pizza_slice:2, pizza_whole:12, kebab_pizza:10, burger:2, cheeseburger:2, double_burger:2, big_burger:3,
+  chicken_burger:3, veggie_burger:6, nuggets_6:1, nuggets_9:1, fried_chicken:1, wings_6:0, sub_6:4,
+  wrap_chicken:3, club_sandwich:3, toastie:2, sandwich:3, baguette:3, sausage_roll:1, pasty:2,
+  bagel_cream_cheese:2, porridge:5, overnight_oats:7, cereal_milk:3, granola_yogurt:5, muesli:6, eggs_boiled_2:0,
+  eggs_scrambled:2, eggs_fried:0, full_breakfast:7, bacon_2:0, pancakes_stack:2, waffle:1, avocado_toast:6,
+  smoothie_bowl:8, croissant:1, pain_au_chocolat:2, bread_slice:1, toast_butter:1, crispbread:2, open_sandwich:2,
+  bagel:2, pita:1, tortilla:2, naan:2, rice_cooked:1, pasta_cooked:3, couscous:2, quinoa:5, potatoes_boiled:4,
+  yogurt_greek:0, yogurt_fruit:0, skyr:0, cottage_cheese:0, cheese_slice:0, cheese_chunk:0, milk_glass:0,
+  oat_milk:2, egg:0, apple:4, banana:3, orange:3, pear:6, grapes:1, berries:4, melon:1, mango:5, dried_fruit:2,
+  avocado:7, carrot_sticks:3, raw_veg:3, crisps_small:1, crisps_share:6, popcorn:8, nuts:3, peanut_butter:1,
+  chocolate_bar:1, chocolate_squares:1, sweets:0, lordagsgodis:0, biscuit:0, digestive_3:1, cake_slice:1,
+  cinnamon_bun:2, muffin:1, donut:1, brownie:1, ice_cream:0, ice_lolly:0, protein_bar:5, cereal_bar:1,
+  rice_cakes:1, hummus_pitta:5, dip_chips:3, latte:0, cappuccino:0, coffee_milk:0, black_coffee:0, frappe:0,
+  hot_chocolate:2, soda:0, soda_zero:0, juice:1, smoothie:2, energy_drink:0, protein_shake:1, beer:0,
+  beer_light:0, wine_glass:0, cider:0, spirit_mixer:0, cocktail:0, kiwi:2, clementine:1, plum:1, peach:2,
+  apricots:2, cherries:2, strawberries:3, blueberries:4, raspberries:10, lingonberries:4, watermelon:1,
+  pineapple:2, grapefruit:2, pomegranate:4, figs:4, dates:5, raisins:1, prunes:3, papaya:3, passion_fruit:2,
+  lychees:1, fruit_salad:4, apple_sauce:1, broccoli:3, cauliflower:2, spinach:2, salad_leaves:1, cucumber:1,
+  tomato:1, cherry_tomatoes:1, bell_pepper:2, carrot:2, onion:2, mushrooms:1, green_beans:3, asparagus:2,
+  courgette:1, aubergine:3, kale:2, cabbage:3, beetroot:3, sweetcorn:2, edamame:5, sweet_potato:4,
+  brussels_sprouts:4, gherkins:1, olives:1, mixed_salad:4, kefir:0, filmjolk:0, filmjolk_light:0, buttermilk:0,
+  yogurt_natural:0, yogurt_low:0, quark:0, protein_pudding:0, milk_skim:0, milk_whole:0, soy_milk:1,
+  almond_milk:1, cream_cheese:0, feta:0, mozzarella:0, halloumi:0, parmesan:0, cream:0, sour_cream:0, butter:0,
+  egg_whites:0, chicken_thigh:0, mince_beef:0, mince_lean:0, turkey_slices:0, ham_slices:0, salami:0, pate:0,
+  tuna_tin:0, smoked_salmon:0, mackerel_tin:1, herring:0, prawns:0, sardines:0, lamb_chop:0, pulled_pork:0,
+  tofu:1, quorn:6, lentils:12, chickpeas:8, beans_kidney:8, oats_dry:4, rye_bread:3, wholegrain_bread:3,
+  sourdough:1, brown_rice:3, wholewheat_pasta:9, bulgur:7, egg_noodles:2, gnocchi:3, potato_baked:4, crackers:1,
+  corn_cakes:1, almonds:4, walnuts:2, cashews:1, peanuts:3, seeds:1, chia:4, nut_butter:2, olive_oil:0, honey:0,
+  jam:0, choc_spread:1, sugar:0, dressing:0, pesto:0, dark_chocolate:3, popcorn_home:4, tortilla_chips:2,
+  pretzels:1, energy_balls:3, liquorice:0, rice_pudding:0, fruit_bar:2, flat_white:0, mocha:2, chai_latte:0,
+  iced_coffee_can:0, tea_milk:0, apple_juice:0, coconut_water:0, kombucha:0, sports_drink:0, flavoured_water:0,
+  water:0, milkshake:0, protein_shake_milk:1, beer_alcohol_free:0, sparkling_wine:0, toast_pb:3, toast_jam:1,
+  yogurt_muesli_berries:6, chia_pudding:10, smoothie_home:5, salmon_potatoes:6, chicken_rice_veg:5,
+  friday_tacos:6, tofu_stir_fry:5, veggie_chilli:15, pho:2, fajitas:5, moussaka:5, pierogi:3, gyoza:2,
+  lentil_soup:10, tomato_soup:3, chicken_soup:2, buddha_bowl:12, side_salad:2, side_salad_dressing:2, coleslaw:2,
+  veg_steamed:4, veg_roasted:4, peas:4, corn:2, beans_baked:7, fries_small:3, fries_medium:4, fries_large:6,
+  sweet_potato_fries:5, wedges:4, mash:3, boiled_potatoes:3, roast_potatoes:4, rice:1, fried_rice_side:1,
+  pasta_side:3, noodles:2, bread_roll:2, garlic_bread:1, naan_side:2, onion_rings:2, mozzarella_sticks:1,
+  gravy:0, ketchup:0, mayo:0, bearnaise:0, cheese_sauce:0, dip:0, hummus:3, guacamole:4, egg_side:0,
+  cheese_side:0, bacon_side:0, avocado_side:7, soup_side:2, fruit_side:3, soda_side:0, diet_soda_side:0,
+  water_side:0, beer_side:0, wine_side:0, dessert_side:1, ice_cream_side:0
+};
+
+export const FOOD_DB = R.map(([id, name, portion, kcal, p, c, f, cat]) => ({ id, name, portion, kcal, p, c, f, fib: FIB[id] ?? 0, cat }));
+export const SIDES = S.map(([id, name, kcal, p, c, f]) => ({ id, name, portion: 'side', kcal, p, c, f, fib: FIB[id] ?? 0, cat: 'side', side: true }));
+export const FIBRE_IDS = Object.keys(FIB);
 const SHOWN = new Set(['side_salad', 'side_salad_dressing', 'veg_steamed', 'veg_roasted', 'peas', 'corn', 'beans_baked', 'boiled_potatoes', 'mash', 'rice', 'pasta_side', 'noodles', 'bread_roll', 'hummus', 'avocado_side', 'egg_side', 'soup_side', 'fruit_side', 'water_side']);
 /** The side chips shown without searching. */
 export const SHOWN_SIDES = SIDES.filter((x) => SHOWN.has(x.id));
@@ -435,7 +489,7 @@ export function searchFoods(q, limit = 30) {
 
 /** Total of picked items [{id, n}] (n = portions). */
 export function totalOf(items = []) {
-  const t = { kcal: 0, p: 0, c: 0, f: 0 };
+  const t = { kcal: 0, p: 0, c: 0, f: 0, fib: 0 };
   for (const it of items) {
     const x = foodById(it.id);
     if (!x) continue;
@@ -444,8 +498,9 @@ export function totalOf(items = []) {
     t.p += x.p * n;
     t.c += x.c * n;
     t.f += x.f * n;
+    t.fib += x.fib * n;
   }
-  return { kcal: Math.round(t.kcal), p: Math.round(t.p), c: Math.round(t.c), f: Math.round(t.f) };
+  return { fib: Math.round(t.fib), kcal: Math.round(t.kcal), p: Math.round(t.p), c: Math.round(t.c), f: Math.round(t.f) };
 }
 
 /** "Sausages (2) + Side salad" */
@@ -457,3 +512,18 @@ export function describe(items = []) {
     return n === 1 ? x.name : `${n}× ${x.name}`;
   }).filter(Boolean).join(' + ');
 }
+
+/**
+ * Fibre in something logged before fibre was saved, read back from its label
+ * ("2× Kiwi + Side salad (no dressing)"). Unknown parts count as 0.
+ */
+export function fibreFromLabel(label) {
+  let g = 0;
+  for (const part of String(label || '').split(' + ')) {
+    const m = part.match(/^(\d+(?:\.\d+)?)× (.+)$/);
+    const x = NAME_INDEX.get((m ? m[2] : part).trim().toLowerCase());
+    if (x) g += x.fib * (m ? Number(m[1]) : 1);
+  }
+  return Math.round(g);
+}
+const NAME_INDEX = new Map([...FOOD_DB, ...SIDES].map((x) => [x.name.toLowerCase(), x]));

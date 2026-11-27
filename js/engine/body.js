@@ -7,6 +7,7 @@ import { creditedMinutes, stepGoal } from './workouts.js';
 import { byId, scaledNutrition } from './meals.js';
 import { trendSeries } from './trend.js';
 import { hobbyByName } from '../data/hobbies.js';
+import { fibreFromLabel } from '../data/fooddb.js';
 
 const NUM = new Intl.NumberFormat(); // one formatter: toLocaleString() builds a new one per call
 export const KNEE_FACTOR = 4; // each kg lost ≈ 4 kg less load on the knee per step (Messier 2005)
@@ -94,10 +95,21 @@ export function weekBody(state, ws, { asOf = addDays(ws, 6), habitsOnly = false,
     const meals = plannedMeals(state, d);
     let fib = 0;
     let ate = 0;
+    // Fibre from ticked meals, meals logged as something else, and extras (older logs: from the food names).
+    const logged = (x) => (x.fib != null ? Number(x.fib) || 0 : fibreFromLabel(x.label));
     for (const m of meals) {
-      if (ml[m.slot]?.status !== 'ate') continue;
-      const r = byId(m.recipeId);
-      if (r) fib += scaledNutrition(r, m.scale).fib;
+      const e = ml[m.slot];
+      if (e?.status === 'ate') {
+        const r = byId(m.recipeId);
+        if (r) fib += scaledNutrition(r, m.scale).fib;
+        ate++;
+      } else if (e?.status === 'other') {
+        fib += logged(e);
+        ate++;
+      }
+    }
+    for (const x of state.extras?.[d] || []) {
+      fib += logged(x);
       ate++;
     }
     s.mealsLogged += meals.filter((m) => ml[m.slot]).length;
