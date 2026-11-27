@@ -31,6 +31,7 @@ import { floatXp, confetti, chime, buzz, showCelebration, ringBanner } from './u
 import { newlyClosed, allClosed } from './views/dayrings.js';
 import { setViewDate } from './viewdate.js';
 import { reasonLine, addReason } from './data/affirmations.js';
+import * as share from './share.js';
 import { BADGES } from './engine/game.js';
 import * as notify from './notify.js';
 import { closeSheet } from './ui/sheet.js';
@@ -327,8 +328,8 @@ document.addEventListener('submit', (ev) => {
 document.addEventListener('input', (ev) => {
   const key = ev.target.dataset?.filter;
   if (!key) return;
-  const q = ev.target.value.trim().toLowerCase();
-  for (const el of document.querySelectorAll(`[data-filter-target="${key}"] [data-filter-text]`)) el.hidden = q ? !el.dataset.filterText.includes(q) && !el.classList.contains('custom') : el.dataset.out === '1';
+  const words = ev.target.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().split(/\s+/).filter(Boolean);
+  for (const el of document.querySelectorAll(`[data-filter-target="${key}"] [data-filter-text]`)) el.hidden = words.length ? !words.every((w) => el.dataset.filterText.includes(w)) && !el.classList.contains('custom') : el.dataset.out === '1';
 });
 // Body Wrap: arrow keys move through the story, Escape closes it.
 document.addEventListener('keydown', (ev) => {
@@ -425,6 +426,9 @@ window.addEventListener('hashchange', navigate);
 window.addEventListener('scroll', () => document.querySelector('.topbar')?.classList.toggle('scrolled', window.scrollY > 4), { passive: true });
 renderRoute();
 scheduleSync();
+// Shared calendar: background notifications on the phone, and a quick in-app check every minute.
+share.watch(state);
+setInterval(() => document.visibilityState === 'visible' && state.share?.id && share.refresh(ctx), 60000);
 // Android app: recover from the native copy if the WebView's storage is empty or older.
 store.nativeRestoreCandidate(state).then((restored) => {
   if (!restored) return;

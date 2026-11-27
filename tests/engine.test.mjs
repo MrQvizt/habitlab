@@ -822,10 +822,29 @@ test('food database: search, sides, totals and labels', async () => {
   assert.ok(searchFoods('sausage').some((x) => /Sausage/.test(x.name)));
   assert.ok(searchFoods('curry chicken').some((x) => x.id === 'chicken_curry'), 'words in any order');
   assert.deepEqual(searchFoods(''), []);
+  // Everyday foods, plurals and accents
+  for (const [q, id] of [['kiwi', 'kiwi'], ['kiwis', 'kiwi'], ['kefir', 'kefir'], ['soured milk', 'filmjolk'], ['creme fraiche', 'sour_cream'], ['strawberries', 'strawberries'], ['broccoli', 'broccoli'], ['tuna', 'tuna_tin'], ['almonds', 'almonds']]) {
+    assert.ok(searchFoods(q).some((x) => x.id === id), `${q} finds ${id}`);
+  }
   const items = [{ id: 'sausages_2', n: 1 }, { id: 'side_salad', n: 1 }, { id: 'fries_small', n: 0.5 }];
   const t = totalOf(items);
   assert.equal(t.kcal, 360 + 25 + 115);
   assert.equal(describe(items), 'Sausages (2) + Side salad (no dressing) + 0.5× Fries (small)');
+});
+
+test('activity search: everyday words find the right activities', async () => {
+  const { HOBBIES, searchHobbies, hobbyByName } = await import('../js/data/hobbies.js');
+  const { CARDIO } = await import('../js/data/exercises.js');
+  assert.equal(CARDIO.cardio.label, 'Cardio', 'plain cardio can be logged and planned');
+  assert.equal(new Set(HOBBIES.map((h) => h.name)).size, HOBBIES.length, 'unique names');
+  assert.equal(searchHobbies('cardio')[0].name, 'Cardio', 'plain Cardio comes first');
+  assert.equal(hobbyByName('cardio').name, 'Cardio');
+  assert.ok(searchHobbies('cardio', 20).some((h) => h.name === 'Elliptical trainer'), 'cardio also finds machines');
+  assert.deepEqual(searchHobbies('cardio hard').map((h) => h.name), ['Cardio (hard)']);
+  assert.ok(searchHobbies('cross trainer').some((h) => h.name === 'Elliptical trainer'));
+  assert.ok(searchHobbies('strength', 3).some((h) => h.name === 'Weights at the gym'));
+  assert.equal(searchHobbies('walking')[0].name, 'Walking');
+  assert.deepEqual(searchHobbies('x'), []);
 });
 
 test('re-planning: moves put a planned item on another day; emptied days rest', async () => {
@@ -861,4 +880,24 @@ test('food picker never pushes trigger foods, but every food stays searchable', 
   for (const w of ['fries', 'onion rings', 'mozzarella', 'soft drink', 'beer', 'wine', 'dessert', 'ice cream', 'mayonnaise', 'béarnaise']) assert.ok(!shown.includes(w), `${w} shown by default`);
   for (const q of ['fries', 'beer', 'dessert', 'pizza', 'chocolate', 'crisps', 'wine', 'ice cream']) assert.ok(searchFoods(q).length, `${q} not searchable`);
   assert.ok(SIDES.length > SHOWN_SIDES.length);
+});
+
+test('repeating calendar events: daily, weekly days, every 2 weeks, monthly, until, skip', async () => {
+  const { occursOn, expand, repeatLabel } = await import('../js/engine/recur.js');
+  const base = { id: 'w', title: 'Walk', date: '2026-11-23', time: '07:30' }; // a Monday
+  assert.ok(occursOn(base, '2026-11-23') && !occursOn(base, '2026-11-24'));
+  const daily = { ...base, repeat: { freq: 'daily' } };
+  assert.ok(occursOn(daily, '2027-01-05') && !occursOn(daily, '2026-11-22'));
+  const weekly = { ...base, repeat: { freq: 'weekly', days: [0, 2] } }; // Mon + Wed
+  assert.deepEqual(expand([weekly], '2026-11-23', '2026-12-06').map((e) => e.date), ['2026-11-23', '2026-11-25', '2026-11-30', '2026-12-02']);
+  const bi = { ...base, repeat: { freq: 'biweekly' } };
+  assert.deepEqual(expand([bi], '2026-11-23', '2026-12-21').map((e) => e.date), ['2026-11-23', '2026-12-07', '2026-12-21']);
+  const monthly = { ...base, date: '2026-01-31', repeat: { freq: 'monthly' } };
+  assert.ok(occursOn(monthly, '2026-02-28') && occursOn(monthly, '2026-03-31') && !occursOn(monthly, '2026-03-30'));
+  const until = { ...daily, repeat: { freq: 'daily', until: '2026-11-25' } };
+  assert.equal(expand([until], '2026-11-20', '2026-12-31').length, 3);
+  const skipped = { ...daily, skip: ['2026-11-24'] };
+  assert.deepEqual(expand([skipped], '2026-11-23', '2026-11-25').map((e) => e.date), ['2026-11-23', '2026-11-25']);
+  assert.equal(expand([weekly], '2026-11-25', '2026-11-25')[0].series, 'w');
+  assert.equal(repeatLabel(weekly.repeat), 'Every week on Mon, Wed');
 });

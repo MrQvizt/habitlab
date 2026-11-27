@@ -46,6 +46,10 @@
             android:exported="false" />
 
         <!-- System events only: re-schedules alarms, nothing else. -->
+        <!-- Friends on your shared calendar: periodic check for joins and cheers (not exported) -->
+        <receiver
+            android:name=".alarm.FriendsReceiver"
+            android:exported="false" />
         <receiver
             android:name=".alarm.BootReceiver"
             android:exported="true">

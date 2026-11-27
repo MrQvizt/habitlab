@@ -30,6 +30,7 @@ export const HOBBY_CATEGORIES = {
 
 export const HOBBIES = [
   A('Walking with friends', 'outdoors', 3.5, 45, { est: true, note: "Estimated from walking at an easy-moderate pace (~3 mph)", pop: true }),
+  A('Walking', 'outdoors', 3.8, 30, { code: '17190', pop: true }), // 2.8–3.4 mph, level, moderate pace
   A('Dog walk', 'outdoors', 3.0, 30, { code: '17165', pop: true }),
   A('Brisk walking', 'outdoors', 4.8, 30, { code: '17200', pop: true }),
   A('Leisure stroll', 'outdoors', 3.5, 30, { code: '17160' }),
@@ -229,6 +230,11 @@ export const HOBBIES = [
   A('Stretching', 'mindbody', 2.3, 15, { code: '02101' }),
   A('Stability ball exercises', 'mindbody', 2.8, 30, { code: '02112', strength: true }),
   A('Sit-to-stand exercises', 'mindbody', 2.8, 10, { code: '02340', strength: true }),
+  A('Cardio', 'fitness', 5.0, 30, { code: '02048', pop: true }), // any cardio; elliptical at moderate effort
+  A('Cardio (easy)', 'fitness', 4.0, 30, { code: '01214' }), // Compendium: stationary bike, light effort
+  A('Cardio (moderate)', 'fitness', 5.0, 30, { code: '02048' }), // elliptical, moderate effort
+  A('Cardio (hard)', 'fitness', 9.0, 30, { code: '02049' }), // elliptical, vigorous effort
+  A('Gym session (cardio + weights)', 'fitness', 5.5, 60, { code: '02060', strength: true, pop: true }), // health club exercise, general
   A('Weights at the gym', 'fitness', 3.5, 45, { code: '02054', strength: true, pop: true }),
   A('Heavy lifting (squats, deadlifts)', 'fitness', 5.0, 45, { code: '02052', strength: true }),
   A('Bodyweight workout (light)', 'fitness', 3.0, 30, { code: '02056', strength: true }),
@@ -867,6 +873,47 @@ export const HOBBIES = [
   A("Skateboard, longboard, 13.3 km/h, slow speed", 'wheels', 6.8, 60, { code: '15595' }),
   A("Skateboarding, competitive, vigorous effort", 'wheels', 6.0, 60, { code: '15582' }),
 ];
+
+// Everyday words people search with that aren't in the names ("cardio" → treadmill, rower, …).
+const TAGS = [
+  [/cardio|elliptical|gym session|rowing machine|rowing, stationary|stair machine|ski machine|exercise bike|bicycl|stationary|spin|treadmill|jog|running|run-walk|jump rope|hiit|aerobic|step|swim|cycling|zumba|boxercise|bootcamp|conditioning/i, 'cardio'],
+  [/elliptical/i, 'cross trainer cross-trainer crosstrainer'],
+  [/rowing machine|rowing, stationary/i, 'rower erg'],
+  [/exercise bike|stationary|spin/i, 'bike indoor cycling'],
+  [/stair machine/i, 'stairmaster stepper'],
+  [/treadmill/i, 'walking machine'],
+  [/jog|running/i, 'run'],
+  [/swim/i, 'pool'],
+  [/cycling|bike|bicycl/i, 'bike biking'],
+  [/hiit|circuit|bootcamp|conditioning|calisthenics|burpee/i, 'interval workout training'],
+  [/weights|lifting|resistance|kettlebell|calisthenics|bodyweight|dumbbell|barbell/i, 'strength weight training lifting gym'],
+  [/yoga|pilates|stretch|tai chi/i, 'flexibility mobility'],
+  [/walk|hike|hiking|ramble/i, 'walking steps'],
+  [/dance|zumba/i, 'dancing'],
+];
+for (const h of HOBBIES) {
+  h.words = TAGS.filter(([re]) => re.test(h.name)).map(([, t]) => t).join(' ');
+  h.tags = `${h.words}${h.strength ? ' strength' : ''}`.trim();
+}
+const plain = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+/** What a search looks through for an activity: its name, everyday words for it, and its group. */
+export const hobbySearchText = (h) => plain(`${h.name} ${h.tags || ''} ${HOBBY_CATEGORIES[h.cat] || ''}`);
+/** Every word must appear somewhere ("cardio hard", "bike indoor"). */
+export const matchesWords = (text, q) => plain(q).trim().split(/\s+/).filter(Boolean).every((w) => text.includes(w));
+
+/** Activities matching a search, names that start with it first, then names containing it, then the rest. */
+export function searchHobbies(q, limit = 8) {
+  const first = plain(q).trim().split(/\s+/)[0] || '';
+  if (first.length < 2) return [];
+  const rank = (h) => {
+    const n = plain(h.name);
+    if (n === plain(q).trim()) return -1;
+    // Found by an everyday word ("cardio"): gym activities first, then pool, bike, outdoors…
+    return n.startsWith(first) ? 0 : n.includes(first) ? 1 : (h.words || '').includes(first) ? (h.cat === 'fitness' ? 2 : 2.5) : 3;
+  };
+  // Same rank: catalogue order, which lists the everyday names before the long Compendium ones.
+  return HOBBIES.map((h, i) => [rank(h), i, h]).filter((x) => matchesWords(hobbySearchText(x[2]), q)).sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, limit).map((x) => x[2]);
+}
 
 /** Compendium intensity band → the app's intensity levels. */
 export function intensityFromMet(met) {

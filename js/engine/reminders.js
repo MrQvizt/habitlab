@@ -28,6 +28,7 @@ export const DEFAULT_REMINDERS = {
   checkinDay: 6, // 0 = Monday … 6 = Sunday
   checkinAt: '18:00',
   planOn: true, // plan tomorrow in the evening (only when the wind-down alarm isn't doing it)
+  friendsOn: true, // a notification when a friend joins your activity or sends a cheer (Android app)
 };
 
 export const ENCOURAGEMENTS = [
