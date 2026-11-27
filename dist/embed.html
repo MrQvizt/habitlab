@@ -1320,6 +1320,23 @@ body.cal-dragging .cg-scroll, body.cal-dragging .cal-view { touch-action: none; 
 .cal-chip.mini { font-size: 10px; padding: 1px 3px; min-height: 18px; letter-spacing: -.01em; }
 .cm-plans { display: flex; flex-wrap: wrap; gap: 2px; }
 .cm-plans .cal-chip.mini { width: auto; display: inline-block; padding: 0 3px; margin: 0; }
+
+/* Calendar: your meals and sleep alongside activities */
+.cal-layers { display: flex; gap: 6px; margin: 0 0 8px; flex-wrap: wrap; }
+.cal-layer { font: inherit; font-size: var(--text-sm); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 6px 12px; min-height: 36px; cursor: pointer; }
+.cal-layer.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.cg-meal { background: var(--surface); color: var(--ring-eat-text); border: 1px solid var(--ring-eat); box-shadow: none; white-space: nowrap; }
+.cg-meal.done { background: var(--ring-eat); color: #fff; }
+.cg-meal b { display: inline; }
+.cg-sleep { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ring-habits) 14%, transparent) 0 6px, color-mix(in srgb, var(--ring-habits) 6%, transparent) 6px 12px); pointer-events: none; }
+.cg-sleep.wind { background: color-mix(in srgb, var(--ring-habits) 7%, transparent); }
+.cg-sleep a { pointer-events: auto; position: absolute; left: 3px; font-size: 10px; font-weight: 600; color: var(--ring-habits-text); text-decoration: none; padding: 2px 4px; white-space: nowrap; overflow: hidden; max-width: calc(100% - 6px); text-overflow: ellipsis; }
+.cg-sleep.am a { bottom: 0; }
+.cg-sleep.pm a, .cg-sleep.wind a { top: 0; }
+.cal-rhythm { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: var(--text-xs); }
+.cal-meal, .cal-sleep-link { font: inherit; font-size: var(--text-xs); border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 4px 10px; min-height: 32px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; text-decoration: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-meal.done { border-color: var(--ring-eat); color: var(--ring-eat-text); }
+.cal-sleep-link { color: var(--ring-habits-text); }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -8140,11 +8157,248 @@ const shareActions = {
 
 Object.assign(__m, { SUPABASE_URL, SHARE_BASE, rpc, shareLink, signupsFor, cheersList, newCheers, cheerCardHtml, publicEvents, sync, watch, refresh, shareCardHtml, shareActions });
 },
-/* js/views/calendar.js */ 36: function (__m, __req) {
+/* js/data/melodies.js */ 36: function (__m, __req) {
+// Alarm sounds. Each melody is data: the same spec is played by the in-app preview (Web Audio) and by
+// the native alarm (AlarmService.java synthesises it on the alarm stream), so what you hear when you
+// choose is exactly what wakes you.
+// Melodic sounds were linked to less morning grogginess than unmelodic ones (McFarlane et al. 2020),
+// so most choices are melodic; a classic beep is offered for people who want it.
+//
+// Spec: { notes: [[freq Hz, beats, glideTo Hz?], …] (freq 0 = silence), beat: seconds per beat,
+//         decay: amplitude decay per second, attack: seconds, partials: [[multiple, amplitude], …],
+//         rest: seconds of silence after the pattern }
+
+const N = { A3: 220, C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392, A4: 440, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, Fs5: 739.99, G5: 783.99, A5: 880, B5: 987.77, C6: 1046.5, Fs4: 369.99 };
+
+const MELODIES = {
+  sunrise: {
+    name: 'Sunrise', hint: 'A bright rising-and-falling melody', moods: ['wake'],
+    beat: 0.34, decay: 6.5, attack: 0.012, partials: [[1, 1], [2, 0.35], [3, 0.12]], rest: 0.9,
+    notes: [[N.C5, 1], [N.E5, 1], [N.G5, 1], [N.A5, 1], [N.C6, 1], [N.A5, 1], [N.G5, 1], [N.E5, 1]],
+  },
+  bells: {
+    name: 'Morning bells', hint: 'Slow, ringing church-style bells', moods: ['wake', 'bed'],
+    beat: 0.8, decay: 1.8, attack: 0.005, partials: [[1, 1], [2.76, 0.4], [5.4, 0.18]], rest: 1.2,
+    notes: [[N.G5, 1], [N.E5, 1], [N.C5, 1], [N.G4, 1.5]],
+  },
+  marimba: {
+    name: 'Marimba', hint: 'Light, bouncy wooden notes', moods: ['wake', 'meal'],
+    beat: 0.2, decay: 11, attack: 0.004, partials: [[1, 1], [4, 0.28], [10, 0.05]], rest: 0.7,
+    notes: [[N.D5, 1], [N.Fs5, 1], [N.A5, 1], [N.B5, 1], [N.A5, 1], [N.Fs5, 1], [N.D5, 1], [N.A4, 2]],
+  },
+  birdsong: {
+    name: 'Birdsong', hint: 'Bright chirps, like a garden at dawn', moods: ['wake'],
+    beat: 0.09, decay: 14, attack: 0.008, partials: [[1, 1], [2, 0.15]], rest: 1.1,
+    notes: [[2400, 1, 3300], [0, 0.6], [2600, 1, 3500], [0, 0.6], [2800, 1, 3900], [0, 3], [3200, 1.5, 2400], [0, 0.8], [3000, 1.5, 2200]],
+  },
+  ocean: {
+    name: 'Calm', hint: 'Low, warm and unhurried', moods: ['wind', 'bed', 'wake'],
+    beat: 0.6, decay: 2.6, attack: 0.06, partials: [[1, 1], [2, 0.2]], rest: 1.6,
+    notes: [[N.C4, 1], [N.G4, 1], [N.E4, 1], [N.G4, 1], [N.A3, 1], [N.E4, 1], [N.D4, 2]],
+  },
+  lullaby: {
+    name: 'Lullaby', hint: 'Soft and slow — made for winding down', moods: ['wind', 'bed'],
+    beat: 0.5, decay: 3.2, attack: 0.04, partials: [[1, 1], [3, 0.08]], rest: 1.8,
+    notes: [[N.A4, 1], [N.Fs4, 1], [N.D4, 2], [N.A4, 1], [N.B4, 1], [N.A4, 2]],
+  },
+  chime: {
+    name: 'Kitchen chime', hint: 'Two friendly notes — dinner’s ready', moods: ['meal'],
+    beat: 0.45, decay: 3.5, attack: 0.006, partials: [[1, 1], [2.4, 0.25]], rest: 1.2,
+    notes: [[N.E5, 1], [N.C5, 2]],
+  },
+  beep: {
+    name: 'Classic beep', hint: 'Not melodic — wakes fast, can feel harsher', moods: ['wake'],
+    beat: 0.13, decay: 0.5, attack: 0.002, partials: [[1, 1], [3, 0.33], [5, 0.2]], rest: 0.6,
+    notes: [[1000, 1], [0, 0.8], [1000, 1], [0, 0.8], [1000, 1], [0, 0.8], [1000, 1]],
+  },
+};
+
+/** Defaults: a melodic wake-up, calm sounds at night, a chime for meals. */
+const DEFAULT_SOUND = { wake: 'sunrise', wind: 'ocean', bed: 'lullaby', meals: 'chime' };
+
+/** Which melodies to list first for an alarm kind. */
+function melodiesFor(kind) {
+  const mood = kind === 'meals' ? 'meal' : kind;
+  return Object.entries(MELODIES).sort(([, a], [, b]) => Number(b.moods.includes(mood)) - Number(a.moods.includes(mood)));
+}
+
+/** Label for a saved sound value: a melody id, 'device', or 'uri:<content uri>|<title>'. */
+function soundLabel(sound) {
+  if (!sound) return MELODIES.sunrise.name;
+  if (MELODIES[sound]) return MELODIES[sound].name;
+  if (sound === 'device') return 'Phone’s alarm sound';
+  if (sound.startsWith('uri:')) return sound.split('|')[1] || 'Sound from phone';
+  return MELODIES.sunrise.name;
+}
+
+/** What the native alarm needs: either a melody spec or a ringtone. */
+function nativeSound(sound) {
+  if (sound === 'device') return { sound: 'device' };
+  if (sound?.startsWith('uri:')) return { sound: 'uri', uri: sound.slice(4).split('|')[0] };
+  const m = MELODIES[sound] || MELODIES.sunrise;
+  return { sound: 'melody', melody: { beat: m.beat, decay: m.decay, attack: m.attack, partials: m.partials, rest: m.rest, notes: m.notes } };
+}
+
+// ---------- In-app preview (Web Audio), mirroring the native synthesiser ----------
+let ctx = null;
+let playing = null;
+
+function stopPreview() {
+  if (playing) {
+    try {
+      playing.gain.gain.cancelScheduledValues(0);
+      playing.gain.gain.setValueAtTime(0, ctx.currentTime);
+      playing.nodes.forEach((n) => n.stop());
+    } catch (e) {
+      /* already stopped */
+    }
+    playing = null;
+  }
+}
+
+/** Play a melody twice (about 5–8 seconds). Returns false if audio isn't available. */
+function previewMelody(id, { passes = 2 } = {}) {
+  const m = MELODIES[id];
+  if (!m) return false;
+  try {
+    ctx ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+  } catch (e) {
+    return false;
+  }
+  stopPreview();
+  const out = ctx.createGain();
+  out.gain.value = 0.22;
+  out.connect(ctx.destination);
+  const nodes = [];
+  let t = ctx.currentTime + 0.05;
+  for (let p = 0; p < passes; p++) {
+    for (const [f, beats, to] of m.notes) {
+      const len = m.beat * beats;
+      if (f > 0) {
+        for (const [mult, amp] of m.partials) {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(f * mult, t);
+          if (to) o.frequency.linearRampToValueAtTime(to * mult, t + len);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.linearRampToValueAtTime(amp, t + m.attack);
+          g.gain.exponentialRampToValueAtTime(Math.max(0.0001, amp * Math.exp(-m.decay * len)), t + len);
+          g.gain.linearRampToValueAtTime(0.0001, t + len + 0.01);
+          o.connect(g).connect(out);
+          o.start(t);
+          o.stop(t + len + 0.02);
+          nodes.push(o);
+        }
+      }
+      t += len;
+    }
+    t += m.rest;
+  }
+  playing = { gain: out, nodes };
+  return true;
+}
+
+Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, stopPreview, previewMelody });
+},
+/* js/engine/alarms.js */ 37: function (__m, __req) {
+// Alarm clock settings → the specs the native alarm scheduler uses (js/alarm-native.js).
+// Defaults follow sleep research:
+// - The same wake time every day, weekends included: irregular sleep/wake timing is linked to a
+//   later body clock and worse daytime functioning (Phillips 2017).
+// - A wind-down reminder 45 minutes before bed to put screens away: reading on a light-emitting
+//   device before bed delayed sleep, suppressed melatonin and reduced next-morning alertness
+//   compared with a printed book (Chang 2015).
+// - Meals at regular times from your day schedule.
+const { daySchedule, mealTimes, toHHMM, toMin } = __req(14);
+const { DEFAULT_SOUND, nativeSound } = __req(36);
+
+const DEFAULT_ALARMS = {
+  wake: { on: false, time: null, days: [0, 1, 2, 3, 4, 5, 6], style: 'ring' },
+  wind: { on: false, before: 45, style: 'gentle' },
+  bed: { on: false, style: 'gentle' },
+  meals: { on: false, style: 'gentle', snacks: false },
+  snooze: 5,
+};
+
+const STYLES = {
+  ring: { label: 'Alarm', hint: 'Rings with a gentle melody until you tap “I’m up”. Not answered? It snoozes itself every 5 min for up to an hour.' },
+  gentle: { label: 'Chime', hint: 'One chime and a notification' },
+};
+
+const SLOT_LABEL = { breakfast: 'Breakfast', snack: 'Morning snack', lunch: 'Lunch', snack2: 'Afternoon snack', dinner: 'Dinner', snack3: 'Evening snack' };
+
+function alarmsOf(state) {
+  const a = state.alarms || {};
+  return {
+    wake: { ...DEFAULT_ALARMS.wake, ...(a.wake || {}) },
+    wind: { ...DEFAULT_ALARMS.wind, ...(a.wind || {}) },
+    bed: { ...DEFAULT_ALARMS.bed, ...(a.bed || {}) },
+    meals: { ...DEFAULT_ALARMS.meals, ...(a.meals || {}) },
+    snooze: a.snooze || DEFAULT_ALARMS.snooze,
+  };
+}
+
+const hm = (min) => {
+  const t = toHHMM(min);
+  return { hour: Number(t.slice(0, 2)), minute: Number(t.slice(3)) };
+};
+
+/** Wake, wind-down and bed times for this person (wake alarm time can differ from the day schedule). */
+function alarmTimes(state) {
+  const a = alarmsOf(state);
+  const d = daySchedule(state.profile || {});
+  const wake = a.wake.time ? toMin(a.wake.time) : d.wake;
+  return { wake, wind: d.bed - a.wind.before, bed: d.bed };
+}
+
+/** The meal slots to remind about (main meals, plus snacks if chosen). */
+function mealSlots(state, withSnacks) {
+  const n = state.prefs?.mealsPerDay || 4;
+  const slots = ['breakfast', 'lunch', 'dinner'];
+  if (withSnacks) slots.push(...(n >= 5 ? ['snack', 'snack2'] : n >= 4 ? ['snack2'] : []));
+  return slots;
+}
+
+/**
+ * Everything the native scheduler needs. Each alarm repeats on its days at hour:minute.
+ * Days are Monday = 0 … Sunday = 6.
+ */
+function alarmSpecs(state) {
+  const a = alarmsOf(state);
+  const t = alarmTimes(state);
+  const d = daySchedule(state.profile || {});
+  const out = [];
+  const bed = toHHMM(d.bed);
+  const snd = (key) => nativeSound(a[key].sound || DEFAULT_SOUND[key]);
+  if (a.wake.on) out.push({ id: 'wake', kind: 'wake', label: 'Good morning', body: '', ...hm(t.wake), days: a.wake.days?.length ? a.wake.days : [0, 1, 2, 3, 4, 5, 6], style: a.wake.style, route: '#/wake', ...snd('wake') });
+  if (a.wind.on) out.push({ id: 'wind', kind: 'wind', label: 'Time to wind down', body: `Take two minutes to plan tomorrow, then dim the lights and put screens away. Bed at ${bed}.`, ...hm(t.wind), days: [0, 1, 2, 3, 4, 5, 6], style: a.wind.style, route: '#/plan', ...snd('wind') });
+  if (a.bed.on) out.push({ id: 'bed', kind: 'bed', label: 'Bedtime', body: 'Lights out. A good night’s sleep makes tomorrow’s choices easier — people who slept longer ate less the next day.', ...hm(t.bed), days: [0, 1, 2, 3, 4, 5, 6], style: a.bed.style, route: '#/today', ...snd('bed') });
+  if (a.meals.on) {
+    const slots = mealSlots(state, a.meals.snacks);
+    const times = mealTimes(state.profile || {}, slots);
+    for (const s of slots) {
+      if (times[s] == null) continue;
+      out.push({ id: `meal_${s}`, kind: 'meal', label: `${SLOT_LABEL[s]} time`, body: 'Your meal is ready in today’s plan. Sit down, eat slowly, and tick it off.', ...hm(times[s]), days: [0, 1, 2, 3, 4, 5, 6], style: a.meals.style, route: '#/today', ...snd('meals') });
+    }
+  }
+  return out;
+}
+
+/** "07:00", for display. */
+function fmtTime(min) {
+  return toHHMM(min);
+}
+
+Object.assign(__m, { DEFAULT_ALARMS, STYLES, alarmsOf, alarmTimes, mealSlots, alarmSpecs, fmtTime });
+},
+/* js/views/calendar.js */ 38: function (__m, __req) {
 // Activity calendar, Google/Outlook style: Day, 3 days, Week, Month and Schedule views of your
 // planned sessions and your own events (walks, batch cooking, a gym class…). Events can repeat,
 // can be opened to friends (js/share.js), and can be moved by long-pressing and dragging them to
-// another day (and, in the time-grid views, another time).
+// another day (and, in the time-grid views, another time). Your planned meals and sleep (wake,
+// wind-down, bed) are drawn in too, so the whole day is in one place; they can be hidden.
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { addDays, weekStart, weekOrder } = __req(0);
@@ -8154,6 +8408,10 @@ const { itemKey } = __req(7);
 const { expand, FREQS, repeatLabel } = __req(33);
 const { buzz } = __req(34);
 const share = __req(35);
+const { mealsFor, slotLabel } = __req(18);
+const { byId } = __req(5);
+const { daySchedule, toHHMM } = __req(14);
+const { alarmsOf, alarmTimes } = __req(37);
 
 const EVENT_KINDS = {
   walk: { label: 'Walk', emoji: '🚶' },
@@ -8168,7 +8426,7 @@ const EVENT_KINDS = {
 const QUICK = [['walk', 'Walk'], ['cooking', 'Batch cooking'], ['workout', 'Gym'], ['outdoors', 'Hike'], ['sport', 'Swim'], ['shopping', 'Food shopping'], ['cooking', 'Meal prep'], ['walk', 'Walk with friends']];
 const VIEWS = [['day', 'Day'], ['3day', '3 days'], ['week', 'Week'], ['month', 'Month'], ['list', 'Schedule']];
 const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const H0 = 6; // first hour shown in the time grid
+let H0 = 6; // first hour shown in the time grid (earlier if you wake before 6)
 const H1 = 24;
 const PX = 48; // pixels per hour
 
@@ -8180,6 +8438,16 @@ const loadView = () => {
     return '3day';
   }
 };
+const LAYERS = [['meals', '🍽 Meals'], ['sleep', '😴 Sleep']];
+const loadLayers = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem('habitlab.calLayers') || 'null');
+    return { meals: v?.meals !== false, sleep: v?.sleep !== false };
+  } catch (e) {
+    return { meals: true, sleep: true };
+  }
+};
+let layers = null;
 let view = null;
 let anchor = null;
 let scrolled = '';
@@ -8207,6 +8475,26 @@ function looseplan(state, date, evs) {
   const linked = new Set(evs.map((e) => e.planKey).filter(Boolean));
   return plannedOn(state, date).filter((it) => !linked.has(itemKey(it)));
 }
+
+// ---------- your day: meals and sleep ----------
+/** Planned meals on a date (not in habits-only mode), with whether you've logged them. */
+function mealsOn(state, date) {
+  if (!layers.meals || store.habitsOnly(state)) return [];
+  const log = state.mealLog?.[date] || {};
+  return mealsFor(state, date).filter((m) => m.time < 1440).map((m) => ({ ...m, name: byId(m.recipeId)?.name || slotLabel(m.slot), done: !!log[m.slot]?.status }));
+}
+
+/** Wake, wind-down and bed (minutes) on a date: the wake alarm if it rings that day, else your usual wake time. */
+function sleepOn(state, date) {
+  if (!layers.sleep) return null;
+  const d = daySchedule(state.profile || {});
+  const a = alarmsOf(state);
+  const t = alarmTimes(state);
+  const alarmDay = a.wake.on && (a.wake.days?.length ? a.wake.days : [0, 1, 2, 3, 4, 5, 6]).includes(weekdayOf(date));
+  return { wake: alarmDay ? t.wake : d.wake, bed: d.bed, wind: a.wind.on ? t.wind : null, alarm: alarmDay };
+}
+
+const mealBtn = (m, date, cls = 'cal-meal') => `<button class="${cls}${m.done ? ' done' : ''}" data-action="openMeal" data-slot="${esc(m.slot)}" data-date="${date}" aria-label="${esc(`${slotLabel(m.slot)} at ${toHHMM(m.time)}: ${m.name}${m.done ? ' (logged)' : ''}`)}">${m.done ? '✓' : '🍽'} <b>${toHHMM(m.time)}</b> ${esc(m.name)}</button>`;
 
 // ---------- pieces ----------
 const dragAttrs = (e) => `data-drag="event" data-id="${esc(e.series || e.id)}" data-date="${e.date}"`;
@@ -8238,10 +8526,18 @@ function listView(state, from, days = 14) {
       <ul class="cal-items">
         ${plan.map((it) => `<li><button class="cal-plan" data-action="calFromPlan" ${planAttrs(it, d)}><span class="cal-emoji" aria-hidden="true">${planEmoji(it)}</span><span class="grow">${esc(itemName(it))}<small>From your plan · tap to set a time and place</small></span></button></li>`).join('')}
         ${evs.map((e) => eventRow(state, e)).join('')}
+        ${rhythmRow(state, d)}
         <li><button class="cal-add" data-action="calAdd" data-date="${d}">${icon('plus')} Add</button></li>
       </ul></section>`);
   }
   return `<div class="cal">${out.join('')}</div>`;
+}
+
+function rhythmRow(state, d) {
+  const meals = mealsOn(state, d);
+  const sl = sleepOn(state, d);
+  if (!meals.length && !sl) return '';
+  return `<li class="cal-rhythm">${sl ? `<a class="cal-sleep-link" href="#/settings/day">☀️ Up ${toHHMM(sl.wake)}</a>` : ''}${meals.map((m) => mealBtn(m, d)).join('')}${sl ? `<a class="cal-sleep-link" href="#/settings/day">🌙 Bed ${toHHMM(sl.bed % 1440)}</a>` : ''}</li>`;
 }
 
 // ---------- Day / 3 days / Week (time grid) ----------
@@ -8274,6 +8570,8 @@ function lanes(evs) {
 function gridView(state, days) {
   const today = store.today();
   const all = expand(state.events, days[0], days.at(-1));
+  const sleeps = Object.fromEntries(days.map((d) => [d, sleepOn(state, d)]));
+  H0 = Math.min(6, ...days.map((d) => (sleeps[d] ? Math.floor(sleeps[d].wake / 60) : 6)));
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const hours = [];
@@ -8285,14 +8583,20 @@ function gridView(state, days) {
   }).join('');
   const cols = days.map((d) => {
     const timed = all.filter((e) => e.date === d && e.time);
-    const blocks = lanes(timed).map(({ e, s, f, lane, n }) => {
+    const meals = mealsOn(state, d).map((m) => ({ time: toHHMM(m.time), dur: m.slot.startsWith('snack') ? 15 : 30, meal: m }));
+    const blocks = lanes([...timed, ...meals]).map(({ e, s, f, lane, n }) => {
       const top = Math.max(0, (s - H0 * 60) / 60 * PX);
       const height = Math.max(24, (Math.min(f, H1 * 60) - Math.max(s, H0 * 60)) / 60 * PX - 2);
+      const pos = `top:${top}px;height:${height}px;left:calc(${(lane / n) * 100}% + 1px);width:calc(${100 / n}% - 3px)`;
+      if (e.meal) return mealBtn(e.meal, d, 'cg-ev cg-meal').replace('<button ', `<button style="${pos}" `);
       const k = EVENT_KINDS[e.kind] || EVENT_KINDS.other;
       return `<button class="cg-ev k-${e.kind}" data-action="calEdit" ${dragAttrs(e)} style="top:${top}px;height:${height}px;left:calc(${(lane / n) * 100}% + 1px);width:calc(${100 / n}% - 3px)"><b>${k.emoji} ${esc(e.title)}${e.series ? ' ↻' : ''}</b><small>${esc(e.time)}${e.place ? ` · ${esc(e.place)}` : ''}</small></button>`;
     }).join('');
+    const sl = sleeps[d];
+    const y = (m) => (m - H0 * 60) / 60 * PX;
+    const sleep = sl ? `${sl.wake > H0 * 60 ? `<div class="cg-sleep am" style="top:0;height:${y(sl.wake)}px"><a href="#/settings/day">${sl.alarm ? '⏰' : '☀️'} Up ${toHHMM(sl.wake)}</a></div>` : ''}${sl.wind != null && sl.wind < H1 * 60 ? `<div class="cg-sleep wind" style="top:${y(sl.wind)}px;height:${y(Math.min(sl.bed, H1 * 60)) - y(sl.wind)}px"><a href="#/settings/alarms">🌗 Wind down</a></div>` : ''}${sl.bed < H1 * 60 ? `<div class="cg-sleep pm" style="top:${y(sl.bed)}px;height:${y(H1 * 60) - y(sl.bed)}px"><a href="#/settings/day">🌙 Bed ${toHHMM(sl.bed)}</a></div>` : ''}` : '';
     const nowLine = d === today && nowMin >= H0 * 60 ? `<span class="cg-now" style="top:${(nowMin - H0 * 60) / 60 * PX}px" aria-hidden="true"></span>` : '';
-    return `<div class="cg-col ${d === today ? 'today' : ''}" role="group" data-drop-date="${d}" data-grid="1" data-action="calSlot" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}: tap a time to add">${nowLine}${blocks}</div>`;
+    return `<div class="cg-col ${d === today ? 'today' : ''}" role="group" data-drop-date="${d}" data-grid="1" data-action="calSlot" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}: tap a time to add">${sleep}${nowLine}${blocks}</div>`;
   }).join('');
   return `<div class="cg" style="--cols:${days.length}">
     <div class="cg-head"><span class="cg-gutter"></span>${head}</div>
@@ -8540,6 +8844,7 @@ __m.default = {
   render(state) {
     const today = store.today();
     view ||= loadView();
+    layers ||= loadLayers();
     if (!anchor) anchor = today;
     const pub = (state.events || []).filter((e) => e.public && (e.repeat || e.date >= today)).length;
     const body = view === 'list' ? listView(state, anchor) : view === 'month' ? monthView(state, anchor) : gridView(state, rangeOf(view, anchor));
@@ -8553,6 +8858,7 @@ __m.default = {
         ${showsToday ? '' : '<button class="btn small" data-action="calShift" data-d="0">Today</button>'}
         <button class="icon-btn" data-action="calShift" data-d="1" aria-label="Later">${icon('chevron')}</button>
       </div>
+      ${view === 'month' ? '' : `<div class="cal-layers" role="group" aria-label="Also show">${LAYERS.filter(([k]) => k !== 'meals' || !store.habitsOnly(state)).map(([k, l]) => `<button class="cal-layer ${layers[k] ? 'on' : ''}" aria-pressed="${layers[k]}" data-action="calLayer" data-k="${k}">${l}</button>`).join('')}</div>`}
       <div class="cal-view">${body}</div>
       <p class="muted" style="font-size:var(--text-xs);margin-top:8px">Long-press anything and drag it to another day${view === 'month' || view === 'list' ? '' : ' or time'}. ${view === 'month' || view === 'list' ? '' : 'Tap an empty time to add something there.'}</p>`;
   },
@@ -8581,6 +8887,15 @@ __m.default = {
         /* private mode */
       }
       if (view === 'week' || view === 'month' || view === 'list') anchor = view === 'month' ? anchor.slice(0, 8) + '01' : anchor;
+      ctx.rerender();
+    },
+    calLayer(el, ev, ctx) {
+      layers[el.dataset.k] = !layers[el.dataset.k];
+      try {
+        localStorage.setItem('habitlab.calLayers', JSON.stringify(layers));
+      } catch (e) {
+        /* private mode */
+      }
       ctx.rerender();
     },
     calShift(el, ev, ctx) {
@@ -8667,7 +8982,7 @@ const calendarActions = {
 
 Object.assign(__m, { EVENT_KINDS, occId, eventsOn, dropOn, calendarActions });
 },
-/* js/views/plan.js */ 37: function (__m, __req) {
+/* js/views/plan.js */ 39: function (__m, __req) {
 // Plan tomorrow (evening, ~2 minutes): when and where you'll move, a look at tomorrow's meals,
 // and your habits. Deciding "when, where, how" in advance — implementation intentions — made people
 // markedly more likely to follow through (meta-analysis of 94 studies, d ≈ 0.65: Gollwitzer &
@@ -8679,7 +8994,7 @@ const { itemKey } = __req(7);
 const { byId } = __req(5);
 const { habitById } = __req(10);
 const { itemName } = __req(26);
-const { eventsOn, EVENT_KINDS } = __req(36);
+const { eventsOn, EVENT_KINDS } = __req(38);
 const { mealsFor, slotLabel } = __req(18);
 const { toHHMM } = __req(14);
 const { confetti } = __req(34);
@@ -8775,7 +9090,7 @@ __m.default = {
 
 Object.assign(__m, { tomorrow, isPlanned });
 },
-/* js/data/learn.js */ 38: function (__m, __req) {
+/* js/data/learn.js */ 40: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -9097,14 +9412,14 @@ const LEARN = [
 
 Object.assign(__m, { S, LEARN_SECTIONS, LEARN });
 },
-/* js/views/wrap.js */ 39: function (__m, __req) {
+/* js/views/wrap.js */ 41: function (__m, __req) {
 // Body Wrap: a short, story-style weekly recap. Each card is one body part thanking you for
 // what you did, with one research fact. Tap right/left (or use the arrow keys) to move through it.
 // Opening last week's wrap to the end earns XP once (derived from state.wraps in game.js).
 const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(38);
+const { S: SOURCES } = __req(40);
 const { weekStart, addDays, getWeekStart } = __req(0);
 
 const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -9267,7 +9582,7 @@ function bodyRingsCard(state, today) {
 
 Object.assign(__m, { ring, wrapReadyCard, bodyRingsCard });
 },
-/* js/views/today.js */ 40: function (__m, __req) {
+/* js/views/today.js */ 42: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 const { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(17);
@@ -9283,14 +9598,14 @@ const { itemDone, logPlannedActivity } = __req(27);
 const { toggleHabit, mealRowList } = __req(30);
 const { planDay, partOf, PARTS } = __req(31);
 const { dayRings, ringsSvg, RING_META } = __req(32);
-const { eventsOn, EVENT_KINDS } = __req(36);
+const { eventsOn, EVENT_KINDS } = __req(38);
 const { itemKey } = __req(7);
-const { isPlanned } = __req(37);
+const { isPlanned } = __req(39);
 const share = __req(35);
 const { toMin } = __req(14);
 const { journey, nextStops, recentTimeStop } = __req(21);
 const { whenLabel } = __req(22);
-const { wrapReadyCard, bodyRingsCard } = __req(39);
+const { wrapReadyCard, bodyRingsCard } = __req(41);
 
 // ---------- Journey: the next stop on the long road (or a time stop just reached) ----------
 function journeyCard(state, date) {
@@ -9428,7 +9743,7 @@ function moveRows(state, date, linked = {}) {
   const { schedule } = store.schedule(state, date);
   const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items;
   const logged = state.workouts.log[date] || [];
-  const doneTag = `<span class="check on" style="animation:none" aria-label="Done">${icon('check')}</span>`;
+  const doneTag = `<span class="check on" style="animation:none" role="img" aria-label="Done">${icon('check')}</span>`;
   const out = { any: [], timed: [] };
   for (const it of items) {
     const done = itemDone(logged, it);
@@ -9640,7 +9955,7 @@ __m.default = {
 
 Object.assign(__m, { habitRow, lastActive });
 },
-/* js/views/meals.js */ 41: function (__m, __req) {
+/* js/views/meals.js */ 43: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 const { html, esc, icon, chips, fmtDate, fmtNum } = __req(17);
 const { mealRows } = __req(30);
@@ -9829,7 +10144,7 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 42: function (__m, __req) {
+/* js/ui/charts.js */ 44: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
 const { esc } = __req(17);
 const { daysBetween, addDays } = __req(0);
@@ -9941,10 +10256,10 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/habits.js */ 43: function (__m, __req) {
+/* js/views/habits.js */ 45: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
 const { esc, icon } = __req(17);
-const { habitGrid } = __req(42);
+const { habitGrid } = __req(44);
 const store = __req(16);
 const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } = __req(10);
@@ -10097,11 +10412,11 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/progress.js */ 44: function (__m, __req) {
+/* js/views/progress.js */ 46: function (__m, __req) {
 // Progress: the home for everything long-term. A hub (journey, body levels, rewards, weekly
 // check-in), past Body Wraps, then the weight trend, activity, weigh-ins, waist and check-in history.
 const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(17);
-const { weightChart, barChart } = __req(42);
+const { weightChart, barChart } = __req(44);
 const store = __req(16);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
@@ -10109,7 +10424,7 @@ const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
 const { journey, nextStops } = __req(21);
 const { weekBody } = __req(12);
 const { checkinDue } = __req(18);
-const { ring } = __req(39);
+const { ring } = __req(41);
 
 /** The long-term hub at the top of Progress. */
 function hub(state, date, hide) {
@@ -10284,7 +10599,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, {  });
 },
-/* js/engine/adjust.js */ 45: function (__m, __req) {
+/* js/engine/adjust.js */ 47: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -10553,11 +10868,11 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 46: function (__m, __req) {
+/* js/views/checkin.js */ 48: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
 const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(17);
 const store = __req(16);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(45);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(47);
 const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
@@ -10702,10 +11017,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/learn.js */ 47: function (__m, __req) {
+/* js/views/learn.js */ 49: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
 const { html, esc, icon } = __req(17);
-const { LEARN, LEARN_SECTIONS } = __req(38);
+const { LEARN, LEARN_SECTIONS } = __req(40);
 
 let section = 'all';
 let openAll = false;
@@ -10749,242 +11064,6 @@ __m.default = {
 };
 
 Object.assign(__m, {  });
-},
-/* js/data/melodies.js */ 48: function (__m, __req) {
-// Alarm sounds. Each melody is data: the same spec is played by the in-app preview (Web Audio) and by
-// the native alarm (AlarmService.java synthesises it on the alarm stream), so what you hear when you
-// choose is exactly what wakes you.
-// Melodic sounds were linked to less morning grogginess than unmelodic ones (McFarlane et al. 2020),
-// so most choices are melodic; a classic beep is offered for people who want it.
-//
-// Spec: { notes: [[freq Hz, beats, glideTo Hz?], …] (freq 0 = silence), beat: seconds per beat,
-//         decay: amplitude decay per second, attack: seconds, partials: [[multiple, amplitude], …],
-//         rest: seconds of silence after the pattern }
-
-const N = { A3: 220, C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392, A4: 440, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, Fs5: 739.99, G5: 783.99, A5: 880, B5: 987.77, C6: 1046.5, Fs4: 369.99 };
-
-const MELODIES = {
-  sunrise: {
-    name: 'Sunrise', hint: 'A bright rising-and-falling melody', moods: ['wake'],
-    beat: 0.34, decay: 6.5, attack: 0.012, partials: [[1, 1], [2, 0.35], [3, 0.12]], rest: 0.9,
-    notes: [[N.C5, 1], [N.E5, 1], [N.G5, 1], [N.A5, 1], [N.C6, 1], [N.A5, 1], [N.G5, 1], [N.E5, 1]],
-  },
-  bells: {
-    name: 'Morning bells', hint: 'Slow, ringing church-style bells', moods: ['wake', 'bed'],
-    beat: 0.8, decay: 1.8, attack: 0.005, partials: [[1, 1], [2.76, 0.4], [5.4, 0.18]], rest: 1.2,
-    notes: [[N.G5, 1], [N.E5, 1], [N.C5, 1], [N.G4, 1.5]],
-  },
-  marimba: {
-    name: 'Marimba', hint: 'Light, bouncy wooden notes', moods: ['wake', 'meal'],
-    beat: 0.2, decay: 11, attack: 0.004, partials: [[1, 1], [4, 0.28], [10, 0.05]], rest: 0.7,
-    notes: [[N.D5, 1], [N.Fs5, 1], [N.A5, 1], [N.B5, 1], [N.A5, 1], [N.Fs5, 1], [N.D5, 1], [N.A4, 2]],
-  },
-  birdsong: {
-    name: 'Birdsong', hint: 'Bright chirps, like a garden at dawn', moods: ['wake'],
-    beat: 0.09, decay: 14, attack: 0.008, partials: [[1, 1], [2, 0.15]], rest: 1.1,
-    notes: [[2400, 1, 3300], [0, 0.6], [2600, 1, 3500], [0, 0.6], [2800, 1, 3900], [0, 3], [3200, 1.5, 2400], [0, 0.8], [3000, 1.5, 2200]],
-  },
-  ocean: {
-    name: 'Calm', hint: 'Low, warm and unhurried', moods: ['wind', 'bed', 'wake'],
-    beat: 0.6, decay: 2.6, attack: 0.06, partials: [[1, 1], [2, 0.2]], rest: 1.6,
-    notes: [[N.C4, 1], [N.G4, 1], [N.E4, 1], [N.G4, 1], [N.A3, 1], [N.E4, 1], [N.D4, 2]],
-  },
-  lullaby: {
-    name: 'Lullaby', hint: 'Soft and slow — made for winding down', moods: ['wind', 'bed'],
-    beat: 0.5, decay: 3.2, attack: 0.04, partials: [[1, 1], [3, 0.08]], rest: 1.8,
-    notes: [[N.A4, 1], [N.Fs4, 1], [N.D4, 2], [N.A4, 1], [N.B4, 1], [N.A4, 2]],
-  },
-  chime: {
-    name: 'Kitchen chime', hint: 'Two friendly notes — dinner’s ready', moods: ['meal'],
-    beat: 0.45, decay: 3.5, attack: 0.006, partials: [[1, 1], [2.4, 0.25]], rest: 1.2,
-    notes: [[N.E5, 1], [N.C5, 2]],
-  },
-  beep: {
-    name: 'Classic beep', hint: 'Not melodic — wakes fast, can feel harsher', moods: ['wake'],
-    beat: 0.13, decay: 0.5, attack: 0.002, partials: [[1, 1], [3, 0.33], [5, 0.2]], rest: 0.6,
-    notes: [[1000, 1], [0, 0.8], [1000, 1], [0, 0.8], [1000, 1], [0, 0.8], [1000, 1]],
-  },
-};
-
-/** Defaults: a melodic wake-up, calm sounds at night, a chime for meals. */
-const DEFAULT_SOUND = { wake: 'sunrise', wind: 'ocean', bed: 'lullaby', meals: 'chime' };
-
-/** Which melodies to list first for an alarm kind. */
-function melodiesFor(kind) {
-  const mood = kind === 'meals' ? 'meal' : kind;
-  return Object.entries(MELODIES).sort(([, a], [, b]) => Number(b.moods.includes(mood)) - Number(a.moods.includes(mood)));
-}
-
-/** Label for a saved sound value: a melody id, 'device', or 'uri:<content uri>|<title>'. */
-function soundLabel(sound) {
-  if (!sound) return MELODIES.sunrise.name;
-  if (MELODIES[sound]) return MELODIES[sound].name;
-  if (sound === 'device') return 'Phone’s alarm sound';
-  if (sound.startsWith('uri:')) return sound.split('|')[1] || 'Sound from phone';
-  return MELODIES.sunrise.name;
-}
-
-/** What the native alarm needs: either a melody spec or a ringtone. */
-function nativeSound(sound) {
-  if (sound === 'device') return { sound: 'device' };
-  if (sound?.startsWith('uri:')) return { sound: 'uri', uri: sound.slice(4).split('|')[0] };
-  const m = MELODIES[sound] || MELODIES.sunrise;
-  return { sound: 'melody', melody: { beat: m.beat, decay: m.decay, attack: m.attack, partials: m.partials, rest: m.rest, notes: m.notes } };
-}
-
-// ---------- In-app preview (Web Audio), mirroring the native synthesiser ----------
-let ctx = null;
-let playing = null;
-
-function stopPreview() {
-  if (playing) {
-    try {
-      playing.gain.gain.cancelScheduledValues(0);
-      playing.gain.gain.setValueAtTime(0, ctx.currentTime);
-      playing.nodes.forEach((n) => n.stop());
-    } catch (e) {
-      /* already stopped */
-    }
-    playing = null;
-  }
-}
-
-/** Play a melody twice (about 5–8 seconds). Returns false if audio isn't available. */
-function previewMelody(id, { passes = 2 } = {}) {
-  const m = MELODIES[id];
-  if (!m) return false;
-  try {
-    ctx ||= new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
-  } catch (e) {
-    return false;
-  }
-  stopPreview();
-  const out = ctx.createGain();
-  out.gain.value = 0.22;
-  out.connect(ctx.destination);
-  const nodes = [];
-  let t = ctx.currentTime + 0.05;
-  for (let p = 0; p < passes; p++) {
-    for (const [f, beats, to] of m.notes) {
-      const len = m.beat * beats;
-      if (f > 0) {
-        for (const [mult, amp] of m.partials) {
-          const o = ctx.createOscillator();
-          const g = ctx.createGain();
-          o.type = 'sine';
-          o.frequency.setValueAtTime(f * mult, t);
-          if (to) o.frequency.linearRampToValueAtTime(to * mult, t + len);
-          g.gain.setValueAtTime(0.0001, t);
-          g.gain.linearRampToValueAtTime(amp, t + m.attack);
-          g.gain.exponentialRampToValueAtTime(Math.max(0.0001, amp * Math.exp(-m.decay * len)), t + len);
-          g.gain.linearRampToValueAtTime(0.0001, t + len + 0.01);
-          o.connect(g).connect(out);
-          o.start(t);
-          o.stop(t + len + 0.02);
-          nodes.push(o);
-        }
-      }
-      t += len;
-    }
-    t += m.rest;
-  }
-  playing = { gain: out, nodes };
-  return true;
-}
-
-Object.assign(__m, { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, stopPreview, previewMelody });
-},
-/* js/engine/alarms.js */ 49: function (__m, __req) {
-// Alarm clock settings → the specs the native alarm scheduler uses (js/alarm-native.js).
-// Defaults follow sleep research:
-// - The same wake time every day, weekends included: irregular sleep/wake timing is linked to a
-//   later body clock and worse daytime functioning (Phillips 2017).
-// - A wind-down reminder 45 minutes before bed to put screens away: reading on a light-emitting
-//   device before bed delayed sleep, suppressed melatonin and reduced next-morning alertness
-//   compared with a printed book (Chang 2015).
-// - Meals at regular times from your day schedule.
-const { daySchedule, mealTimes, toHHMM, toMin } = __req(14);
-const { DEFAULT_SOUND, nativeSound } = __req(48);
-
-const DEFAULT_ALARMS = {
-  wake: { on: false, time: null, days: [0, 1, 2, 3, 4, 5, 6], style: 'ring' },
-  wind: { on: false, before: 45, style: 'gentle' },
-  bed: { on: false, style: 'gentle' },
-  meals: { on: false, style: 'gentle', snacks: false },
-  snooze: 5,
-};
-
-const STYLES = {
-  ring: { label: 'Alarm', hint: 'Rings with a gentle melody until you tap “I’m up”. Not answered? It snoozes itself every 5 min for up to an hour.' },
-  gentle: { label: 'Chime', hint: 'One chime and a notification' },
-};
-
-const SLOT_LABEL = { breakfast: 'Breakfast', snack: 'Morning snack', lunch: 'Lunch', snack2: 'Afternoon snack', dinner: 'Dinner', snack3: 'Evening snack' };
-
-function alarmsOf(state) {
-  const a = state.alarms || {};
-  return {
-    wake: { ...DEFAULT_ALARMS.wake, ...(a.wake || {}) },
-    wind: { ...DEFAULT_ALARMS.wind, ...(a.wind || {}) },
-    bed: { ...DEFAULT_ALARMS.bed, ...(a.bed || {}) },
-    meals: { ...DEFAULT_ALARMS.meals, ...(a.meals || {}) },
-    snooze: a.snooze || DEFAULT_ALARMS.snooze,
-  };
-}
-
-const hm = (min) => {
-  const t = toHHMM(min);
-  return { hour: Number(t.slice(0, 2)), minute: Number(t.slice(3)) };
-};
-
-/** Wake, wind-down and bed times for this person (wake alarm time can differ from the day schedule). */
-function alarmTimes(state) {
-  const a = alarmsOf(state);
-  const d = daySchedule(state.profile || {});
-  const wake = a.wake.time ? toMin(a.wake.time) : d.wake;
-  return { wake, wind: d.bed - a.wind.before, bed: d.bed };
-}
-
-/** The meal slots to remind about (main meals, plus snacks if chosen). */
-function mealSlots(state, withSnacks) {
-  const n = state.prefs?.mealsPerDay || 4;
-  const slots = ['breakfast', 'lunch', 'dinner'];
-  if (withSnacks) slots.push(...(n >= 5 ? ['snack', 'snack2'] : n >= 4 ? ['snack2'] : []));
-  return slots;
-}
-
-/**
- * Everything the native scheduler needs. Each alarm repeats on its days at hour:minute.
- * Days are Monday = 0 … Sunday = 6.
- */
-function alarmSpecs(state) {
-  const a = alarmsOf(state);
-  const t = alarmTimes(state);
-  const d = daySchedule(state.profile || {});
-  const out = [];
-  const bed = toHHMM(d.bed);
-  const snd = (key) => nativeSound(a[key].sound || DEFAULT_SOUND[key]);
-  if (a.wake.on) out.push({ id: 'wake', kind: 'wake', label: 'Good morning', body: '', ...hm(t.wake), days: a.wake.days?.length ? a.wake.days : [0, 1, 2, 3, 4, 5, 6], style: a.wake.style, route: '#/wake', ...snd('wake') });
-  if (a.wind.on) out.push({ id: 'wind', kind: 'wind', label: 'Time to wind down', body: `Take two minutes to plan tomorrow, then dim the lights and put screens away. Bed at ${bed}.`, ...hm(t.wind), days: [0, 1, 2, 3, 4, 5, 6], style: a.wind.style, route: '#/plan', ...snd('wind') });
-  if (a.bed.on) out.push({ id: 'bed', kind: 'bed', label: 'Bedtime', body: 'Lights out. A good night’s sleep makes tomorrow’s choices easier — people who slept longer ate less the next day.', ...hm(t.bed), days: [0, 1, 2, 3, 4, 5, 6], style: a.bed.style, route: '#/today', ...snd('bed') });
-  if (a.meals.on) {
-    const slots = mealSlots(state, a.meals.snacks);
-    const times = mealTimes(state.profile || {}, slots);
-    for (const s of slots) {
-      if (times[s] == null) continue;
-      out.push({ id: `meal_${s}`, kind: 'meal', label: `${SLOT_LABEL[s]} time`, body: 'Your meal is ready in today’s plan. Sit down, eat slowly, and tick it off.', ...hm(times[s]), days: [0, 1, 2, 3, 4, 5, 6], style: a.meals.style, route: '#/today', ...snd('meals') });
-    }
-  }
-  return out;
-}
-
-/** "07:00", for display. */
-function fmtTime(min) {
-  return toHHMM(min);
-}
-
-Object.assign(__m, { DEFAULT_ALARMS, STYLES, alarmsOf, alarmTimes, mealSlots, alarmSpecs, fmtTime });
 },
 /* js/data/reasons.js */ 50: function (__m, __req) {
 // One-word reasons people give for wanting to lose weight, to pick on the morning screen and in Settings.
@@ -11844,7 +11923,7 @@ Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, value
 /* js/alarm-native.js */ 52: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
-const { alarmSpecs, alarmsOf } = __req(49);
+const { alarmSpecs, alarmsOf } = __req(37);
 const { morningMessages, valueInfo } = __req(51);
 
 let lastMessage = null;
@@ -11966,7 +12045,7 @@ Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPh
 /* js/views/alarms.js */ 53: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 const { esc, icon } = __req(17);
-const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(49);
+const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(37);
 const { daySchedule, mealTimes } = __req(14);
 const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(51);
 const { REASONS, REASON_CATS } = __req(50);
@@ -11982,7 +12061,7 @@ document.addEventListener('toggle', (ev) => {
   if (ev.target.classList?.contains('reason-lib')) libOpen = ev.target.open;
 }, true);
 const alarmNative = __req(52);
-const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(48);
+const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(36);
 const { openSheet, updateSheet } = __req(25);
 
 const KIND_NAME = { wake: 'Wake-up', wind: 'Wind-down', bed: 'Bedtime', meals: 'Meal' };
@@ -12891,12 +12970,12 @@ Object.assign(__m, {  });
 /* js/views/rewards.js */ 57: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(17);
-const { ring, barChart } = __req(42);
+const { ring, barChart } = __req(44);
 const store = __req(16);
 const { BADGES, XP, levelTitle } = __req(13);
 const { addDays, weekStart } = __req(0);
 const { ORGANS, lastWeekStart } = __req(12);
-const { ring: bodyRing } = __req(39);
+const { ring: bodyRing } = __req(41);
 
 function bodyMedals(state, g, date) {
   const lv = g.stats.body.levels;
@@ -13180,11 +13259,11 @@ const { esc, icon, fmtDate } = __req(17);
 const store = __req(16);
 const { openSheet } = __req(25);
 const { ORGAN_GUIDE, organById, weekBody, lastWeekStart } = __req(12);
-const { S: SOURCES } = __req(38);
+const { S: SOURCES } = __req(40);
 const { weekStart } = __req(0);
 
 const fmtDateShort = (iso) => fmtDate(iso, { day: 'numeric', month: 'short' });
-const { ring } = __req(39);
+const { ring } = __req(41);
 
 function data(state) {
   const today = store.today();
@@ -13268,7 +13347,7 @@ Object.assign(__m, { organSheetHtml, organActions });
 // the name they typed, so it's filled in next time.
 const { esc, icon, fmtDate } = __req(17);
 const { rpc } = __req(35);
-const { EVENT_KINDS } = __req(36);
+const { EVENT_KINDS } = __req(38);
 
 let data = null; // { id, cal, error }
 const joined = new Set();
@@ -13663,24 +13742,24 @@ const { icon, formData } = __req(17);
 const { setWeekStart } = __req(0);
 const onboarding = __req(23).default;
 const { goalHint } = __req(23);
-const todayView = __req(40).default;
-const meals = __req(41).default;
+const todayView = __req(42).default;
+const meals = __req(43).default;
 const move = __req(27).default;
-const habits = __req(43).default;
-const progress = __req(44).default;
-const checkin = __req(46).default;
-const learn = __req(47).default;
+const habits = __req(45).default;
+const progress = __req(46).default;
+const checkin = __req(48).default;
+const learn = __req(49).default;
 const settings = __req(55).default;
 const shopping = __req(56).default;
 const rewards = __req(57).default;
 const journeyView = __req(22).default;
-const wrapView = __req(39).default;
+const wrapView = __req(41).default;
 const wakeView = __req(58).default;
 const bodyView = __req(59).default;
-const calendarView = __req(36).default;
-const { calendarActions } = __req(36);
+const calendarView = __req(38).default;
+const { calendarActions } = __req(38);
 const joinView = __req(60).default;
-const planView = __req(37).default;
+const planView = __req(39).default;
 const sosView = __req(61).default;
 const { resetSos } = __req(61);
 const { organActions } = __req(59);

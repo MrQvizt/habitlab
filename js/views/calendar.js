@@ -1,7 +1,8 @@
 // Activity calendar, Google/Outlook style: Day, 3 days, Week, Month and Schedule views of your
 // planned sessions and your own events (walks, batch cooking, a gym class…). Events can repeat,
 // can be opened to friends (js/share.js), and can be moved by long-pressing and dragging them to
-// another day (and, in the time-grid views, another time).
+// another day (and, in the time-grid views, another time). Your planned meals and sleep (wake,
+// wind-down, bed) are drawn in too, so the whole day is in one place; they can be hidden.
 import { esc, icon, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
 import { addDays, weekStart, weekOrder } from '../engine/util.js';
@@ -11,6 +12,10 @@ import { itemKey } from '../engine/workouts.js';
 import { expand, FREQS, repeatLabel } from '../engine/recur.js';
 import { buzz } from '../ui/celebrate.js';
 import * as share from '../share.js';
+import { mealsFor, slotLabel } from './shared.js';
+import { byId } from '../engine/meals.js';
+import { daySchedule, toHHMM } from '../engine/schedule.js';
+import { alarmsOf, alarmTimes } from '../engine/alarms.js';
 
 export const EVENT_KINDS = {
   walk: { label: 'Walk', emoji: '🚶' },
@@ -25,7 +30,7 @@ export const EVENT_KINDS = {
 const QUICK = [['walk', 'Walk'], ['cooking', 'Batch cooking'], ['workout', 'Gym'], ['outdoors', 'Hike'], ['sport', 'Swim'], ['shopping', 'Food shopping'], ['cooking', 'Meal prep'], ['walk', 'Walk with friends']];
 const VIEWS = [['day', 'Day'], ['3day', '3 days'], ['week', 'Week'], ['month', 'Month'], ['list', 'Schedule']];
 const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const H0 = 6; // first hour shown in the time grid
+let H0 = 6; // first hour shown in the time grid (earlier if you wake before 6)
 const H1 = 24;
 const PX = 48; // pixels per hour
 
@@ -37,6 +42,16 @@ const loadView = () => {
     return '3day';
   }
 };
+const LAYERS = [['meals', '🍽 Meals'], ['sleep', '😴 Sleep']];
+const loadLayers = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem('habitlab.calLayers') || 'null');
+    return { meals: v?.meals !== false, sleep: v?.sleep !== false };
+  } catch (e) {
+    return { meals: true, sleep: true };
+  }
+};
+let layers = null;
 let view = null;
 let anchor = null;
 let scrolled = '';
@@ -64,6 +79,26 @@ function looseplan(state, date, evs) {
   const linked = new Set(evs.map((e) => e.planKey).filter(Boolean));
   return plannedOn(state, date).filter((it) => !linked.has(itemKey(it)));
 }
+
+// ---------- your day: meals and sleep ----------
+/** Planned meals on a date (not in habits-only mode), with whether you've logged them. */
+function mealsOn(state, date) {
+  if (!layers.meals || store.habitsOnly(state)) return [];
+  const log = state.mealLog?.[date] || {};
+  return mealsFor(state, date).filter((m) => m.time < 1440).map((m) => ({ ...m, name: byId(m.recipeId)?.name || slotLabel(m.slot), done: !!log[m.slot]?.status }));
+}
+
+/** Wake, wind-down and bed (minutes) on a date: the wake alarm if it rings that day, else your usual wake time. */
+function sleepOn(state, date) {
+  if (!layers.sleep) return null;
+  const d = daySchedule(state.profile || {});
+  const a = alarmsOf(state);
+  const t = alarmTimes(state);
+  const alarmDay = a.wake.on && (a.wake.days?.length ? a.wake.days : [0, 1, 2, 3, 4, 5, 6]).includes(weekdayOf(date));
+  return { wake: alarmDay ? t.wake : d.wake, bed: d.bed, wind: a.wind.on ? t.wind : null, alarm: alarmDay };
+}
+
+const mealBtn = (m, date, cls = 'cal-meal') => `<button class="${cls}${m.done ? ' done' : ''}" data-action="openMeal" data-slot="${esc(m.slot)}" data-date="${date}" aria-label="${esc(`${slotLabel(m.slot)} at ${toHHMM(m.time)}: ${m.name}${m.done ? ' (logged)' : ''}`)}">${m.done ? '✓' : '🍽'} <b>${toHHMM(m.time)}</b> ${esc(m.name)}</button>`;
 
 // ---------- pieces ----------
 const dragAttrs = (e) => `data-drag="event" data-id="${esc(e.series || e.id)}" data-date="${e.date}"`;
@@ -95,10 +130,18 @@ function listView(state, from, days = 14) {
       <ul class="cal-items">
         ${plan.map((it) => `<li><button class="cal-plan" data-action="calFromPlan" ${planAttrs(it, d)}><span class="cal-emoji" aria-hidden="true">${planEmoji(it)}</span><span class="grow">${esc(itemName(it))}<small>From your plan · tap to set a time and place</small></span></button></li>`).join('')}
         ${evs.map((e) => eventRow(state, e)).join('')}
+        ${rhythmRow(state, d)}
         <li><button class="cal-add" data-action="calAdd" data-date="${d}">${icon('plus')} Add</button></li>
       </ul></section>`);
   }
   return `<div class="cal">${out.join('')}</div>`;
+}
+
+function rhythmRow(state, d) {
+  const meals = mealsOn(state, d);
+  const sl = sleepOn(state, d);
+  if (!meals.length && !sl) return '';
+  return `<li class="cal-rhythm">${sl ? `<a class="cal-sleep-link" href="#/settings/day">☀️ Up ${toHHMM(sl.wake)}</a>` : ''}${meals.map((m) => mealBtn(m, d)).join('')}${sl ? `<a class="cal-sleep-link" href="#/settings/day">🌙 Bed ${toHHMM(sl.bed % 1440)}</a>` : ''}</li>`;
 }
 
 // ---------- Day / 3 days / Week (time grid) ----------
@@ -131,6 +174,8 @@ function lanes(evs) {
 function gridView(state, days) {
   const today = store.today();
   const all = expand(state.events, days[0], days.at(-1));
+  const sleeps = Object.fromEntries(days.map((d) => [d, sleepOn(state, d)]));
+  H0 = Math.min(6, ...days.map((d) => (sleeps[d] ? Math.floor(sleeps[d].wake / 60) : 6)));
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const hours = [];
@@ -142,14 +187,20 @@ function gridView(state, days) {
   }).join('');
   const cols = days.map((d) => {
     const timed = all.filter((e) => e.date === d && e.time);
-    const blocks = lanes(timed).map(({ e, s, f, lane, n }) => {
+    const meals = mealsOn(state, d).map((m) => ({ time: toHHMM(m.time), dur: m.slot.startsWith('snack') ? 15 : 30, meal: m }));
+    const blocks = lanes([...timed, ...meals]).map(({ e, s, f, lane, n }) => {
       const top = Math.max(0, (s - H0 * 60) / 60 * PX);
       const height = Math.max(24, (Math.min(f, H1 * 60) - Math.max(s, H0 * 60)) / 60 * PX - 2);
+      const pos = `top:${top}px;height:${height}px;left:calc(${(lane / n) * 100}% + 1px);width:calc(${100 / n}% - 3px)`;
+      if (e.meal) return mealBtn(e.meal, d, 'cg-ev cg-meal').replace('<button ', `<button style="${pos}" `);
       const k = EVENT_KINDS[e.kind] || EVENT_KINDS.other;
       return `<button class="cg-ev k-${e.kind}" data-action="calEdit" ${dragAttrs(e)} style="top:${top}px;height:${height}px;left:calc(${(lane / n) * 100}% + 1px);width:calc(${100 / n}% - 3px)"><b>${k.emoji} ${esc(e.title)}${e.series ? ' ↻' : ''}</b><small>${esc(e.time)}${e.place ? ` · ${esc(e.place)}` : ''}</small></button>`;
     }).join('');
+    const sl = sleeps[d];
+    const y = (m) => (m - H0 * 60) / 60 * PX;
+    const sleep = sl ? `${sl.wake > H0 * 60 ? `<div class="cg-sleep am" style="top:0;height:${y(sl.wake)}px"><a href="#/settings/day">${sl.alarm ? '⏰' : '☀️'} Up ${toHHMM(sl.wake)}</a></div>` : ''}${sl.wind != null && sl.wind < H1 * 60 ? `<div class="cg-sleep wind" style="top:${y(sl.wind)}px;height:${y(Math.min(sl.bed, H1 * 60)) - y(sl.wind)}px"><a href="#/settings/alarms">🌗 Wind down</a></div>` : ''}${sl.bed < H1 * 60 ? `<div class="cg-sleep pm" style="top:${y(sl.bed)}px;height:${y(H1 * 60) - y(sl.bed)}px"><a href="#/settings/day">🌙 Bed ${toHHMM(sl.bed)}</a></div>` : ''}` : '';
     const nowLine = d === today && nowMin >= H0 * 60 ? `<span class="cg-now" style="top:${(nowMin - H0 * 60) / 60 * PX}px" aria-hidden="true"></span>` : '';
-    return `<div class="cg-col ${d === today ? 'today' : ''}" role="group" data-drop-date="${d}" data-grid="1" data-action="calSlot" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}: tap a time to add">${nowLine}${blocks}</div>`;
+    return `<div class="cg-col ${d === today ? 'today' : ''}" role="group" data-drop-date="${d}" data-grid="1" data-action="calSlot" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}: tap a time to add">${sleep}${nowLine}${blocks}</div>`;
   }).join('');
   return `<div class="cg" style="--cols:${days.length}">
     <div class="cg-head"><span class="cg-gutter"></span>${head}</div>
@@ -397,6 +448,7 @@ export default {
   render(state) {
     const today = store.today();
     view ||= loadView();
+    layers ||= loadLayers();
     if (!anchor) anchor = today;
     const pub = (state.events || []).filter((e) => e.public && (e.repeat || e.date >= today)).length;
     const body = view === 'list' ? listView(state, anchor) : view === 'month' ? monthView(state, anchor) : gridView(state, rangeOf(view, anchor));
@@ -410,6 +462,7 @@ export default {
         ${showsToday ? '' : '<button class="btn small" data-action="calShift" data-d="0">Today</button>'}
         <button class="icon-btn" data-action="calShift" data-d="1" aria-label="Later">${icon('chevron')}</button>
       </div>
+      ${view === 'month' ? '' : `<div class="cal-layers" role="group" aria-label="Also show">${LAYERS.filter(([k]) => k !== 'meals' || !store.habitsOnly(state)).map(([k, l]) => `<button class="cal-layer ${layers[k] ? 'on' : ''}" aria-pressed="${layers[k]}" data-action="calLayer" data-k="${k}">${l}</button>`).join('')}</div>`}
       <div class="cal-view">${body}</div>
       <p class="muted" style="font-size:var(--text-xs);margin-top:8px">Long-press anything and drag it to another day${view === 'month' || view === 'list' ? '' : ' or time'}. ${view === 'month' || view === 'list' ? '' : 'Tap an empty time to add something there.'}</p>`;
   },
@@ -438,6 +491,15 @@ export default {
         /* private mode */
       }
       if (view === 'week' || view === 'month' || view === 'list') anchor = view === 'month' ? anchor.slice(0, 8) + '01' : anchor;
+      ctx.rerender();
+    },
+    calLayer(el, ev, ctx) {
+      layers[el.dataset.k] = !layers[el.dataset.k];
+      try {
+        localStorage.setItem('habitlab.calLayers', JSON.stringify(layers));
+      } catch (e) {
+        /* private mode */
+      }
       ctx.rerender();
     },
     calShift(el, ev, ctx) {

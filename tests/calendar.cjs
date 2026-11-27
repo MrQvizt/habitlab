@@ -36,6 +36,20 @@ const base = process.argv[2] || 'http://localhost:8771/';
   // Opens in the 3-day time grid; switch to Schedule (list) for the steps below
   await page.waitForSelector('.cg');
   if ((await page.locator('.cg-col').count()) !== 3) errors.push('3-day view should show 3 columns');
+  // Your meals and sleep are in the calendar too: tap a meal to open it; both can be hidden
+  if ((await page.locator('.cg-meal').count()) < 3) errors.push('3-day view should show planned meals');
+  if ((await page.locator('.cg-sleep.am').count()) !== 3 || (await page.locator('.cg-sleep.pm').count()) !== 3) errors.push('3-day view should show wake and bed times');
+  await page.click('.cg-meal >> nth=0');
+  await page.waitForSelector('.sheet [data-action="sheetClose"]');
+  await page.click('.sheet [data-action="sheetClose"]');
+  await page.waitForSelector('.sheet-scrim', { state: 'detached' }).catch(() => {});
+  await page.click('[data-action="calLayer"][data-k="meals"]');
+  if ((await page.locator('.cg-meal').count()) !== 0) errors.push('hiding meals should remove them from the calendar');
+  await page.click('[data-action="calLayer"][data-k="sleep"]');
+  if ((await page.locator('.cg-sleep').count()) !== 0) errors.push('hiding sleep should remove it from the calendar');
+  await page.click('[data-action="calLayer"][data-k="meals"]');
+  await page.click('[data-action="calLayer"][data-k="sleep"]');
+  if (!(await page.locator('.cg-meal').count())) errors.push('meals should come back when switched on');
   await page.click('.cal-views [data-v="list"]');
   await page.waitForSelector('.cal-day');
   if (!(await page.locator('.cal-plan').count())) errors.push('planned sessions not shown on the calendar');

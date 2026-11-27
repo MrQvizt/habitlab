@@ -1314,3 +1314,20 @@ body.cal-dragging .cg-scroll, body.cal-dragging .cal-view { touch-action: none; 
 .cal-chip.mini { font-size: 10px; padding: 1px 3px; min-height: 18px; letter-spacing: -.01em; }
 .cm-plans { display: flex; flex-wrap: wrap; gap: 2px; }
 .cm-plans .cal-chip.mini { width: auto; display: inline-block; padding: 0 3px; margin: 0; }
+
+/* Calendar: your meals and sleep alongside activities */
+.cal-layers { display: flex; gap: 6px; margin: 0 0 8px; flex-wrap: wrap; }
+.cal-layer { font: inherit; font-size: var(--text-sm); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 6px 12px; min-height: 36px; cursor: pointer; }
+.cal-layer.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.cg-meal { background: var(--surface); color: var(--ring-eat-text); border: 1px solid var(--ring-eat); box-shadow: none; white-space: nowrap; }
+.cg-meal.done { background: var(--ring-eat); color: #fff; }
+.cg-meal b { display: inline; }
+.cg-sleep { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ring-habits) 14%, transparent) 0 6px, color-mix(in srgb, var(--ring-habits) 6%, transparent) 6px 12px); pointer-events: none; }
+.cg-sleep.wind { background: color-mix(in srgb, var(--ring-habits) 7%, transparent); }
+.cg-sleep a { pointer-events: auto; position: absolute; left: 3px; font-size: 10px; font-weight: 600; color: var(--ring-habits-text); text-decoration: none; padding: 2px 4px; white-space: nowrap; overflow: hidden; max-width: calc(100% - 6px); text-overflow: ellipsis; }
+.cg-sleep.am a { bottom: 0; }
+.cg-sleep.pm a, .cg-sleep.wind a { top: 0; }
+.cal-rhythm { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: var(--text-xs); }
+.cal-meal, .cal-sleep-link { font: inherit; font-size: var(--text-xs); border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 4px 10px; min-height: 32px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; text-decoration: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-meal.done { border-color: var(--ring-eat); color: var(--ring-eat-text); }
+.cal-sleep-link { color: var(--ring-habits-text); }

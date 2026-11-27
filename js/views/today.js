@@ -158,7 +158,7 @@ function moveRows(state, date, linked = {}) {
   const { schedule } = store.schedule(state, date);
   const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items;
   const logged = state.workouts.log[date] || [];
-  const doneTag = `<span class="check on" style="animation:none" aria-label="Done">${icon('check')}</span>`;
+  const doneTag = `<span class="check on" style="animation:none" role="img" aria-label="Done">${icon('check')}</span>`;
   const out = { any: [], timed: [] };
   for (const it of items) {
     const done = itemDone(logged, it);
