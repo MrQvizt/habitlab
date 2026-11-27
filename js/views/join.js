@@ -33,8 +33,10 @@ export function icsFor(e, host) {
   let when;
   if (e.time) {
     const [h, m] = e.time.split(':').map(Number);
-    const end = h * 60 + m + 60;
-    when = `DTSTART:${d}T${pad(h)}${pad(m)}00\r\nDTEND:${d}T${pad(Math.floor(end / 60) % 24)}${pad(end % 60)}00`;
+    const start = new Date(`${e.date}T${pad(h)}:${pad(m)}:00`);
+    const end = new Date(start.getTime() + (Number(e.dur) || 60) * 60000); // its own length; past midnight moves to the next day
+    const stamp = (t) => `${t.getFullYear()}${pad(t.getMonth() + 1)}${pad(t.getDate())}T${pad(t.getHours())}${pad(t.getMinutes())}00`;
+    when = `DTSTART:${stamp(start)}\r\nDTEND:${stamp(end)}`;
   } else {
     const next = new Date(e.date + 'T12:00');
     next.setDate(next.getDate() + 1);

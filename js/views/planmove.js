@@ -10,6 +10,10 @@ import { openSheet, closeSheet, updateSheet } from '../ui/sheet.js';
 
 const DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+/** How a planned session shows up everywhere (calendar, plan tomorrow, Today): its emoji and calendar type. */
+export const planEmoji = (it) => ({ strength: '💪', cardio: '🚶', activity: '🏸' })[it.kind] || '📌';
+export const planKind = (it) => (it.kind === 'activity' ? 'sport' : it.kind === 'cardio' ? 'walk' : 'workout');
+
 export function itemName(it) {
   return it.kind === 'strength' ? `Strength session ${it.variant}` : it.kind === 'activity' ? it.name : `${it.minutes} min ${CARDIO[it.mode]?.label.toLowerCase() || 'cardio'}`;
 }
@@ -31,11 +35,16 @@ function moveSheetHtml(state, date, key, from) {
     <p class="muted" style="font-size:var(--text-xs);margin-top:10px">Tip: keep a rest day between strength sessions so muscles recover.</p>`;
 }
 
-function activitySheetHtml(state, id) {
-  const a = (state.profile.activities || []).find((x) => x.id === id);
+/**
+ * "How did it go?" — how long and how hard. For one of your regular activities ({ id }), or for
+ * a walk/workout/sport from your calendar ({ ev: { id, title, dur, date } }), so it counts as movement.
+ */
+function activitySheetHtml(state, id, ev = null) {
+  const a = ev?.cardio ? { id: '', name: CARDIO[ev.cardio]?.label || 'Cardio', minutes: ev.minutes || 30, intensity: 'moderate' }
+    : ev ? { id: '', name: ev.title, minutes: ev.dur || 30, intensity: 'moderate' } : (state.profile.activities || []).find((x) => x.id === id);
   if (!a) return '';
   return `<div class="sheet-head"><div><div class="over">Nice work</div><h2>${esc(a.name)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
-    <form data-form="activityDoneSave" data-id="${esc(a.id)}">
+    <form data-form="activityDoneSave" data-id="${esc(a.id)}" ${ev?.cardio ? `data-cardio="${esc(ev.cardio)}"` : ev ? `data-ev="${esc(ev.id)}" data-name="${esc(ev.title)}" data-date="${esc(ev.date)}"` : ''}>
       <label class="field"><span>How long did you go?</span>
         <div class="quick-chips">${[15, 30, 45, 60, 90].map((m) => `<button type="button" data-action="sheetQuickMin" data-v="${m}">${m} min</button>`).join('')}</div>
         <div class="inline-inputs"><input type="number" name="minutes" inputmode="numeric" min="1" max="600" value="${a.minutes}" required><span class="unit">min</span></div></label>
@@ -46,8 +55,8 @@ function activitySheetHtml(state, id) {
 }
 
 /** Open the "how did it go?" sheet for a planned regular activity. */
-export function askActivity(ctx, id) {
-  openSheet(activitySheetHtml(ctx.state, id), { label: 'Log activity' });
+export function askActivity(ctx, id, ev = null) {
+  openSheet(activitySheetHtml(ctx.state, id, ev), { label: 'Log activity' });
 }
 
 const saveMoves = (ctx, date, fn) => ctx.update((st) => {
@@ -57,6 +66,14 @@ const saveMoves = (ctx, date, fn) => ctx.update((st) => {
 }, { quiet: true });
 
 export const planActions = {
+  /** Planned cardio done (Today or Move): like every other movement, how long and how hard? */
+  cardioDone(el, ev, ctx) {
+    askActivity(ctx, '', { cardio: el.dataset.mode, minutes: Number(el.dataset.min) || 30 });
+  },
+  /** A walk / workout / sport in your calendar is done: ask how long and how hard, and count it. */
+  eventDone(el, ev, ctx) {
+    askActivity(ctx, '', { id: el.dataset.ev, title: el.dataset.title, dur: Number(el.dataset.dur) || 0, date: el.dataset.date });
+  },
   openMoveItem(el, ev, ctx) {
     openSheet(moveSheetHtml(ctx.state, el.dataset.date, el.dataset.key, Number(el.dataset.from)), { label: 'Move to another day' });
   },
@@ -87,14 +104,17 @@ export const planActions = {
     if (input) input.value = el.dataset.v;
   },
   activityDoneSave(form, ev, ctx, data) {
-    const a = (ctx.state.profile.activities || []).find((x) => x.id === form.dataset.id);
+    const evId = form.dataset.ev || '';
+    const mode = CARDIO[form.dataset.cardio] ? form.dataset.cardio : '';
+    const a = mode ? { id: '', name: CARDIO[mode].label, intensity: 'moderate' } : evId ? { id: '', name: form.dataset.name || 'Activity', intensity: 'moderate' } : (ctx.state.profile.activities || []).find((x) => x.id === form.dataset.id);
     const minutes = Math.round(Number(data.minutes));
     if (!a || !(minutes > 0 && minutes <= 600)) return;
     const intensity = INTENSITY[data.intensity] ? data.intensity : a.intensity;
-    const date = logDate();
+    const date = evId && /^\d{4}-\d{2}-\d{2}$/.test(form.dataset.date || '') ? form.dataset.date : logDate();
     closeSheet();
     ctx.update((st) => {
-      st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'activity', actId: a.id, name: a.name, intensity, minutes }];
+      const entry = mode ? { kind: 'cardio', mode, intensity, minutes } : evId ? { kind: 'activity', evId, name: a.name, intensity, minutes } : { kind: 'activity', actId: a.id, name: a.name, intensity, minutes };
+      st.workouts.log[date] = [...(st.workouts.log[date] || []).filter((x) => !evId || x.evId !== evId), entry];
       return st;
     });
     ctx.toast(`${a.name} logged — ${minutes} min, ${INTENSITY[intensity].label.toLowerCase()}. Nice!`);

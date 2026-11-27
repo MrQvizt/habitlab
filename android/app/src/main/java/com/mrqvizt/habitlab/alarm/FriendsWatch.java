@@ -152,14 +152,14 @@ public final class FriendsWatch {
                 String k = keyOf(s.optString("event"), s.optString("name"));
                 if (seen.add(k) && !first) {
                     String what = titles.optString(s.optString("event"), "your activity");
-                    notify(c, k.hashCode(), s.optString("name") + " is joining you", what, "#/calendar");
+                    notify(c, k.hashCode(), s.optString("name") + " is joining you", what, "#/inbox");
                 }
             }
             for (int i = 0; i < cheers.length(); i++) {
                 JSONObject ch = cheers.optJSONObject(i);
                 if (ch == null) continue;
                 long cid = ch.optLong("id");
-                if (cid > lastCheer && !first) notify(c, (int) (8000 + (cid % 1000)), "💌 " + ch.optString("name") + " sent you a cheer", ch.optString("message"), "#/today");
+                if (cid > lastCheer && !first) notify(c, (int) (8000 + (cid % 1000)), "💌 " + ch.optString("name") + " sent you a cheer", ch.optString("message"), "#/inbox");
                 maxCheer = Math.max(maxCheer, cid);
             }
             save(c, seen, maxCheer, true);

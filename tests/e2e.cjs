@@ -214,16 +214,16 @@ const shots = process.argv[3] || null;
   await page.waitForSelector('text=Walking with friends logged — 45 min, vigorous');
   const actLog = await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('habitlab.v1')).workouts.log).flat().find((x) => x.name === 'Walking with friends'));
   if (actLog?.minutes !== 45 || actLog?.intensity !== 'vigorous') errors.push('activity time/intensity not saved: ' + JSON.stringify(actLog));
-  // Re-plan: move today's walk to another day from the week plan
+  // Re-plan: move today's walk to another day from this week's sessions
   await page.goto(base + '#/move');
-  await page.click(`.week button.pill[data-key="activity:${savedActId = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).profile.activities[0].id)}"]`);
+  await page.click(`.session-list button[data-action=openMoveItem][data-key="activity:${savedActId = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).profile.activities[0].id)}"]`);
   await page.waitForSelector('.sheet .move-days');
   const target = (todayIdx + 1) % 7;
   await page.click(`.sheet .move-day[data-to="${target}"]`);
   await page.waitForSelector(`text=Moved to`);
   const moves = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).workouts.moves);
   if (!Object.values(moves).flat().some((m) => m.to === target)) errors.push('move not saved: ' + JSON.stringify(moves));
-  await page.click(`.week button.pill.moved`);
+  await page.click(`.session-row:has-text("moved") button[data-action=openMoveItem]`);
   await page.click('.sheet button[data-action=moveItemReset]');
   await page.waitForSelector('text=Back on its planned day');
   await page.goto(base + '#/move');
@@ -254,7 +254,9 @@ const shots = process.argv[3] || null;
   await page.waitForSelector('text=Finish session');
   await page.click('button:has-text("Too easy") >> nth=0');
   await page.click('button:has-text("Finish session")');
-  await page.waitForSelector('text=Week plan');
+  await page.waitForSelector('.session-list');
+  // The finished session is ticked off in this week's sessions, whichever day it was planned for
+  if (!(await page.locator('.session-row.is-done:has-text("Strength session A")').count())) errors.push('finished Strength A should show as done in this week’s sessions');
   // Check-in
   await page.goto(base + '#/checkin');
   await answerCheckin(page);

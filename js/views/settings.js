@@ -9,13 +9,12 @@ import { ACTIVITY_LEVELS, PACES, weightAtBmi } from '../engine/calc.js';
 import { DIETS, ALLERGENS, FOODS } from '../data/foods.js';
 import { CARDIO } from '../data/exercises.js';
 import { initialProgress, availableSteps } from '../engine/workouts.js';
-import { round, cmToIn, weekOrder } from '../engine/util.js';
+import { round, cmToIn, weekOrder, dayChoices } from '../engine/util.js';
 import * as notify from '../notify.js';
 import { DEFAULT_REMINDERS } from '../engine/reminders.js';
 import { dayFields, daySummary, readDay } from './day.js';
 import { daySchedule, toHHMM } from '../engine/schedule.js';
 
-const DAYS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
 let showBackup = false;
 let reminderStatus = '';
 let pasteMode = false;
@@ -139,7 +138,7 @@ export default {
       <form data-form="movement" class="card">
         <fieldset><legend>Equipment</legend>${chips('equipment', { bands: 'Resistance bands', dumbbells: 'Dumbbells', gym: 'Gym' }, p.equipment)}</fieldset>
         <fieldset><legend>Painful joints</legend>${chips('limitations', { knee: 'Knees', back: 'Lower back', shoulder: 'Shoulders', wrist: 'Wrists' }, p.limitations)}</fieldset>
-        <fieldset><legend>Exercise days</legend>${chips('daysAvailable', DAYS, (p.daysAvailable || []).map(String))}</fieldset>
+        <fieldset><legend>Exercise days</legend>${chips('daysAvailable', dayChoices(), (p.daysAvailable || []).map(String))}</fieldset>
         <fieldset><legend>Cardio types</legend>${chips('cardioPrefs', Object.fromEntries(Object.entries(CARDIO).map(([k, c]) => [k, c.label])), p.cardioPrefs)}</fieldset>
         <div class="grid two">
           <label class="field"><span>Session length</span><select name="sessionMinutes">${[15, 20, 30, 45].map((m) => `<option value="${m}" ${Number(p.sessionMinutes) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></label>
@@ -207,10 +206,10 @@ export default {
       ctx.update((st) => {
         const before = daySchedule(st.profile);
         st.profile.schedule = { ...(st.profile.schedule || {}), ...readDay(data) };
+        store.setWake(st, toHHMM(daySchedule(st.profile).wake), { before: before.wake }); // the wake-up alarm follows
         const d = daySchedule(st.profile);
         // Move untouched default reminder times along with the new rhythm.
         const r = { ...DEFAULT_REMINDERS, ...(st.reminders || {}) };
-        if (r.morning === DEFAULT_REMINDERS.morning || r.morning === toHHMM(before.wake + 15)) r.morning = toHHMM(d.wake + 15);
         if (r.evening === DEFAULT_REMINDERS.evening || r.evening === toHHMM(Math.min(before.last + 90, before.bed - 60))) r.evening = toHHMM(Math.min(d.last + 90, d.bed - 60));
         st.reminders = r;
         st.flags = { ...(st.flags || {}), dayAsked: true };

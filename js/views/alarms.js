@@ -1,7 +1,9 @@
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 import { esc, icon } from '../ui/dom.js';
-import { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } from '../engine/alarms.js';
-import { daySchedule, mealTimes } from '../engine/schedule.js';
+import { alarmsOf, alarmTimes, mealSlots, planMealTimes, STYLES, fmtTime } from '../engine/alarms.js';
+import { daySchedule } from '../engine/schedule.js';
+import * as store from '../store.js';
+import { weekOrder } from '../engine/util.js';
 import { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } from '../data/affirmations.js';
 import { REASONS, REASON_CATS } from '../data/reasons.js';
 
@@ -100,13 +102,13 @@ export function alarmsPage(state, params = []) {
   const msgs = morningMessages(affirm);
   const tomorrow = new Date(Date.now() + 86400000);
   const slots = mealSlots(state, a.meals.snacks);
-  const mt = mealTimes(state.profile, slots);
+  const mt = planMealTimes(state);
   const card = (inner, cls = '') => `<div class="card alarm-card ${cls}">${inner}</div>`;
   return `
     ${native ? '<div id="alarm-status"></div>' : `<div class="notice info">${icon('info')}<div>Alarms ring in the <strong>Android app</strong>, even when it’s closed or the phone is on silent. In a browser you can set them up here, and they’ll start once you open the app on your phone.</div></div>`}
     ${card(`<div class="row between nowrap"><div class="grow"><div class="al-kicker">Wake up</div>
         <input class="al-time" type="time" value="${fmtTime(t.wake)}" data-change="alarmTime" aria-label="Wake-up time"></div>${sw('wake.on', a.wake.on, 'Wake-up alarm')}</div>
-      <div class="al-days" role="group" aria-label="Days">${DAYS.map((l, i) => `<button type="button" class="al-day ${a.wake.days.includes(i) ? 'on' : ''}" data-action="alarmDay" data-day="${i}" aria-pressed="${a.wake.days.includes(i)}" aria-label="${DAY_NAMES[i]}">${l}</button>`).join('')}</div>
+      <div class="al-days" role="group" aria-label="Days">${weekOrder().map((i) => [DAYS[i], i]).map(([l, i]) => `<button type="button" class="al-day ${a.wake.days.includes(i) ? 'on' : ''}" data-action="alarmDay" data-day="${i}" aria-pressed="${a.wake.days.includes(i)}" aria-label="${DAY_NAMES[i]}">${l}</button>`).join('')}</div>
       <div class="row between" style="margin-top:12px">${styleSeg('wake.style', a.wake.style)}${native && a.wake.on ? `<button class="btn small tonal" data-action="alarmTest" data-id="wake">Test in 5 s</button>` : ''}</div>
       ${soundRow(a, 'wake')}
       <p class="al-note">A soft melody that grows louder over a minute, a sunrise screen that slowly brightens, and a kind message to start the day. ${a.wake.days.length === 7 ? 'Same time every day — a regular wake time helps your body clock.' : 'Tip: the same time every day, weekends too, keeps your body clock steady.'}</p>`, a.wake.on ? 'on' : '')}
@@ -221,7 +223,9 @@ export const alarmActions = {
     save(ctx, (st) => {
       setPath(st, 'wake.time', el.value);
       setPath(st, 'wake.on', true);
+      store.setWake(st, el.value); // one wake time: Your day and the morning reminder follow
     });
+    ctx.toast(`Wake-up ${el.value} — Your day and your plan use it too`);
   },
   alarmDay(el, ev, ctx) {
     const day = Number(el.dataset.day);

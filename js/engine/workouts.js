@@ -138,7 +138,7 @@ export function creditedMinutes(entry) {
   if (!entry) return 0;
   if (entry.kind === 'strength') return 0;
   if (entry.kind === 'activity') return (entry.minutes || 0) * (INTENSITY[entry.intensity]?.factor ?? 1);
-  return entry.minutes || 0; // planned cardio
+  return (entry.minutes || 0) * (INTENSITY[entry.intensity]?.factor ?? 1); // cardio: as hard as you said (older entries: as planned)
 }
 
 /**

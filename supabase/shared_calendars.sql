@@ -55,10 +55,11 @@ begin
   end if;
   delete from hl.events e where e.calendar_id = p_id
     and not exists (select 1 from jsonb_array_elements(p_events) x where x->>'id' = e.id);
-  insert into hl.events (calendar_id, id, title, date, time, place, kind, notes)
-  select p_id, x->>'id', left(x->>'title', 60), (x->>'date')::date, coalesce(x->>'time', ''), left(coalesce(x->>'place', ''), 80), coalesce(x->>'kind', 'other'), left(coalesce(x->>'notes', ''), 140)
+  insert into hl.events (calendar_id, id, title, date, time, place, kind, notes, dur)
+  select p_id, x->>'id', left(x->>'title', 60), (x->>'date')::date, coalesce(x->>'time', ''), left(coalesce(x->>'place', ''), 80), coalesce(x->>'kind', 'other'), left(coalesce(x->>'notes', ''), 140),
+    case when (x->>'dur') ~ '^\d{1,3}$' and (x->>'dur')::int between 5 and 720 then (x->>'dur')::smallint end
   from jsonb_array_elements(p_events) x
-  on conflict (calendar_id, id) do update set title = excluded.title, date = excluded.date, time = excluded.time, place = excluded.place, kind = excluded.kind, notes = excluded.notes;
+  on conflict (calendar_id, id) do update set title = excluded.title, date = excluded.date, time = excluded.time, place = excluded.place, kind = excluded.kind, notes = excluded.notes, dur = excluded.dur;
 end $$;
 
 -- Anyone with the link: the upcoming public activities and how many are joining (not who).
@@ -66,7 +67,7 @@ create or replace function public.hl_calendar(p_id uuid)
 returns jsonb language sql security definer set search_path = '' stable as $$
   select case when c.id is null then null else jsonb_build_object(
     'name', c.name,
-    'events', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'title', e.title, 'date', e.date, 'time', e.time, 'place', e.place, 'kind', e.kind, 'notes', e.notes,
+    'events', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'title', e.title, 'date', e.date, 'time', e.time, 'place', e.place, 'kind', e.kind, 'notes', e.notes, 'dur', e.dur,
         'going', (select count(*) from hl.signups s where s.calendar_id = e.calendar_id and s.event_id = e.id)) order by e.date, e.time)
       from hl.events e where e.calendar_id = c.id and e.date >= current_date - 1), '[]'::jsonb)) end
   from (select 1) one left join hl.calendars c on c.id = p_id;
@@ -141,3 +142,6 @@ $$;
 
 revoke all on function public.hl_cheer(uuid, text, text), public.hl_cheers(uuid, text) from public;
 grant execute on function public.hl_cheer(uuid, text, text), public.hl_cheers(uuid, text) to anon, authenticated;
+
+-- Later (migration shared_event_length): shared activities keep their length in minutes.
+alter table hl.events add column if not exists dur smallint check (dur is null or dur between 5 and 720);

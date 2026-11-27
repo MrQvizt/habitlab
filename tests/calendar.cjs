@@ -69,9 +69,20 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await page.goto(base + '#/today');
   await page.waitForSelector('.k-event:has-text("Walk with friends")');
   if (!/23:58/.test(await page.textContent('.k-event'))) errors.push('event time not on Today');
+  // A walk in the calendar can be ticked off: how long, how hard → it counts as movement
+  await page.click('.k-event button[data-action=eventDone]');
+  await page.waitForSelector('.sheet form[data-form=activityDoneSave]');
+  await page.fill('.sheet input[name=minutes]', '40');
+  await page.click('.sheet .int-opt:has-text("Easy")');
+  await page.click('.sheet form[data-form=activityDoneSave] button.primary');
+  await page.waitForSelector('.k-event.is-done:has-text("Walk with friends")').catch(() => errors.push('ticked calendar walk should show as done'));
+  const walkLog = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('habitlab.v1')); const d = Object.keys(s.workouts.log).sort().pop(); return s.workouts.log[d].find((x) => x.evId); });
+  if (!walkLog || walkLog.minutes !== 40 || walkLog.intensity !== 'easy' || walkLog.name !== 'Walk with friends') errors.push('calendar walk should be logged as movement: ' + JSON.stringify(walkLog));
+  await page.reload();
+  await page.waitForSelector('.k-event.is-done:has-text("Walk with friends")').catch(() => errors.push('done walk should stay done after reload'));
   // Plan tomorrow: give tomorrow's first planned session a time and place; it's linked, not duplicated
   await page.goto(base + '#/plan');
-  await page.waitForSelector('text=Plan tomorrow');
+  await page.waitForSelector('main h1:has-text("Plan tomorrow")'); // not Today's evening "Plan tomorrow" card
   const tmr = ymd(new Date(Date.now() + 864e5));
   if (await page.locator('form[data-form=planSetWhen]').count()) {
     const key = await page.getAttribute('form[data-form=planSetWhen] >> nth=0', 'data-key');
@@ -116,13 +127,20 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await page.click('.cal-ev:has-text("Walk with friends")');
   await page.waitForSelector('.sheet :text("Sam")').catch(() => errors.push('sign-up names not shown to the owner'));
   await page.keyboard.press('Escape');
-  // Cheers: shown on the calendar and as a card on Today until you say thanks
-  if (!/So proud of you!/.test(await page.textContent('.share-card'))) errors.push('cheer not on the calendar');
+  // Cheers and joins live in the inbox: not listed on the calendar card; Today and the top bar say something's new
+  if (/So proud of you!/.test(await page.textContent('.share-card'))) errors.push('cheers should be in the inbox, not on the calendar card');
+  if (!(await page.locator('.share-card a[href="#/inbox"]').count())) errors.push('calendar card should link to the inbox');
   await page.goto(base + '#/today');
-  await page.waitForSelector('.cheer-card:has-text("Maria is cheering you on")', { timeout: 8000 }).catch(() => errors.push('cheer card not on Today'));
-  await page.click('.cheer-card button[data-action=cheersSeen]');
+  await page.waitForSelector('.inbox-note:has-text("Maria sent you a cheer")', { timeout: 8000 }).catch(() => errors.push('Today should say Maria sent a cheer'));
+  if ((await page.textContent('.topbar .inbox-badge').catch(() => '')) !== '1') errors.push('top bar inbox should show 1 new');
+  await page.click('.topbar .inbox-btn');
+  await page.waitForSelector('.inbox-item:has-text("So proud of you!")');
+  if (!(await page.locator('.inbox-item.new:has-text("Maria")').count())) errors.push('the new cheer should be marked new in the inbox');
+  if (!(await page.locator('.inbox-item:has-text("Sam"):has-text("Joining you: Walk with friends")').count())) errors.push('joins should be in the inbox');
+  await page.goto(base + '#/today');
   await page.waitForTimeout(300);
-  if (await page.locator('.cheer-card').count()) errors.push('cheer card did not go away');
+  if (await page.locator('.inbox-note').count()) errors.push('after opening the inbox, Today’s note should go away');
+  if (await page.locator('.topbar .inbox-badge').count()) errors.push('after opening the inbox, the badge should go away');
   if ((await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).share.seen)) !== 7) errors.push('seen cheer not remembered');
 
   // A new friend joins while the app is open → an in-app message (the phone also notifies in the background)

@@ -47,6 +47,11 @@ export function getWeekStart() {
   return WEEK_START;
 }
 /** Weekday of a date, Monday = 0. */
+/** Day names, Monday = 0 (how days are stored everywhere). */
+export const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+/** Day chips in the order of *your* week (it may start on Sunday or Saturday): [[index, 'Mon'], …]. */
+export const dayChoices = () => weekOrder().map((d) => [String(d), DAY_SHORT[d]]);
+
 export function weekdayOf(iso) {
   return (parseDate(iso).getDay() + 6) % 7;
 }

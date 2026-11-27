@@ -900,6 +900,48 @@ test('account sync: logging in merges this phone with the account, never losing 
   assert.deepEqual(m2.weights.map((w) => w.date), m.weights.map((w) => w.date));
 });
 
+test('plan week: every day of your week is in the same plan week, whatever day you started', async () => {
+  const store = await import('../js/store.js');
+  const { setWeekStart, addDays, weekStart } = await import('../js/engine/util.js');
+  for (const ws of [0, 1, 6]) {
+    setWeekStart(ws);
+    const st = { profile: { startDate: '2026-03-05' } }; // a Thursday
+    for (const probe of ['2026-03-05', '2026-03-12', '2026-04-02']) {
+      const first = weekStart(probe);
+      const weeks = [0, 1, 2, 3, 4, 5, 6].map((i) => store.weeksSinceStart(st, addDays(first, i)));
+      assert.equal(new Set(weeks).size, 1, `week start ${ws}, week of ${probe}: ${weeks}`);
+    }
+    assert.equal(store.weeksSinceStart(st, '2026-03-05'), 0);
+  }
+  setWeekStart(0);
+});
+
+test('one wake time: Your day, the wake-up alarm and the morning reminder move together', async () => {
+  const store = await import('../js/store.js');
+  const { alarmTimes } = await import('../js/engine/alarms.js');
+  const { toHHMM, daySchedule } = await import('../js/engine/schedule.js');
+  const st = store.sanitize({ ...store.emptyState(), profile: { sex: 'female', age: 35, heightCm: 165, startWeightKg: 80, startDate: '2026-01-01', schedule: { wake: '07:00', bed: '23:00' } }, alarms: { wake: { on: true, time: '07:00' } } });
+  store.setWake(st, '06:15');
+  assert.equal(toHHMM(daySchedule(st.profile).wake), '06:15', 'Your day');
+  assert.equal(st.alarms.wake.time, '06:15', 'wake-up alarm');
+  assert.equal(toHHMM(alarmTimes(st).wake), '06:15');
+  assert.equal(st.reminders.morning, '06:30', 'an untouched morning reminder follows');
+  st.reminders.morning = '09:00';
+  store.setWake(st, '06:45');
+  assert.equal(st.reminders.morning, '09:00', 'a reminder you set yourself stays');
+});
+
+test('cardio done: how hard it felt counts, older entries count as planned', async () => {
+  const { creditedMinutes } = await import('../js/engine/workouts.js');
+  const store = await import('../js/store.js');
+  assert.equal(creditedMinutes({ kind: 'cardio', mode: 'walk', minutes: 30 }), 30);
+  assert.equal(creditedMinutes({ kind: 'cardio', mode: 'walk', minutes: 30, intensity: 'vigorous' }), 60);
+  assert.equal(creditedMinutes({ kind: 'cardio', mode: 'walk', minutes: 30, intensity: 'easy' }), 15);
+  const st = store.sanitize({ workouts: { log: { '2026-03-01': [{ kind: 'cardio', mode: 'walk', minutes: 30, intensity: 'vigorous' }, { kind: 'cardio', mode: 'walk', minutes: 20, intensity: 'silly' }] } } });
+  assert.equal(st.workouts.log['2026-03-01'][0].intensity, 'vigorous');
+  assert.equal(st.workouts.log['2026-03-01'][1].intensity, undefined);
+});
+
 test('activity search: everyday words find the right activities', async () => {
   const { HOBBIES, searchHobbies, hobbyByName } = await import('../js/data/hobbies.js');
   const { CARDIO } = await import('../js/data/exercises.js');
