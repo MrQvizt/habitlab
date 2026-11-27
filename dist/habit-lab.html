@@ -255,7 +255,7 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 label.field { display: block; margin-bottom: 14px; }
 label.field > span, .field-label { display: block; font-weight: 600; font-size: var(--text-sm); margin-bottom: 6px; color: var(--ink-2); }
 .hint { font-size: var(--text-xs); color: var(--ink-3); margin-top: 4px; display: block; font-weight: 400; }
-input[type=text], input[type=number], input[type=date], input[type=time], select, textarea {
+input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], input[type=time], select, textarea {
   width: 100%; font: inherit; font-size: var(--text-base); color: var(--ink); background: var(--surface);
   border: 1px solid var(--line-strong); border-radius: var(--radius-sm); min-height: var(--tap); padding: 10px 12px;
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
@@ -6536,6 +6536,7 @@ function welcome() {
     <p style="margin:0 0 8px"><strong>Not medical care.</strong> <span class="muted-2">If you have a condition or take medication, check with your doctor.</span></p>
     <p style="margin:0"><strong>Evidence-based.</strong> <span class="muted-2">See <a href="#/learn">the research</a> behind every feature.</span></p>
   </div>
+  <p class="muted" style="text-align:center;font-size:var(--text-sm);margin-bottom:4px">Already have an account? <a class="btn small ghost" href="#/account" style="display:inline-flex;color:var(--accent)">Log in</a></p>
   <p class="muted" style="text-align:center;font-size:var(--text-sm)">Moving from another device? <label class="btn small ghost" style="display:inline-flex;color:var(--accent)"><input type="file" accept="application/json,.json" data-change="importFile" hidden>Import a backup</label></p>
   <div class="action-bar" style="flex-direction:column;align-items:stretch">
     <button class="btn primary large" data-action="next" style="max-width:none">Get started</button>
@@ -8508,7 +8509,7 @@ const shareActions = {
   },
 };
 
-Object.assign(__m, { SUPABASE_URL, SHARE_BASE, rpc, shareLink, signupsFor, cheersList, newCheers, cheerCardHtml, publicEvents, sync, watch, refresh, shareCardHtml, shareActions });
+Object.assign(__m, { SUPABASE_URL, PUBLISHABLE_KEY, SHARE_BASE, rpc, shareLink, signupsFor, cheersList, newCheers, cheerCardHtml, publicEvents, sync, watch, refresh, shareCardHtml, shareActions });
 },
 /* js/data/melodies.js */ 36: function (__m, __req) {
 // Alarm sounds. Each melody is data: the same spec is played by the in-app preview (Web Audio) and by
@@ -11493,7 +11494,324 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/data/reasons.js */ 50: function (__m, __req) {
+/* js/sync.js */ 50: function (__m, __req) {
+// Merging two copies of your data — the one on this phone and the one in your account — so logging in
+// never loses progress. The newer copy (by savedAt) wins where both have the same thing; anything only
+// one copy has is kept. Day-by-day logs merge per day, lists of things with an id merge per item.
+
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+const isDateMap = (o) => isObj(o) && Object.keys(o).length > 0 && Object.keys(o).every((k) => ISO.test(k));
+const keyOf = (arr) => {
+  const sample = arr.find(isObj);
+  if (!sample) return null;
+  if (typeof sample.id === 'string' && arr.every((x) => isObj(x) && typeof x.id === 'string')) return 'id';
+  if (typeof sample.date === 'string' && arr.every((x) => isObj(x) && typeof x.date === 'string')) return 'date';
+  return null;
+};
+
+/** Merge `other` into `pref` (the copy that wins a tie). Neither input is changed. */
+function mergeValue(pref, other) {
+  if (pref === undefined || pref === null) return other === undefined ? pref : structuredClone(other);
+  if (other === undefined || other === null) return structuredClone(pref);
+  // Logs keyed by day (meals, habits, workouts, extras…): every day from both; a day both have → the newer copy's day.
+  if ((isDateMap(pref) || Object.keys(pref).length === 0) && isDateMap(other)) return { ...structuredClone(other), ...structuredClone(pref) };
+  if (isDateMap(pref) && isObj(other) && Object.keys(other).length === 0) return structuredClone(pref);
+  if (isObj(pref) && isObj(other)) {
+    const out = {};
+    for (const k of new Set([...Object.keys(other), ...Object.keys(pref)])) out[k] = mergeValue(pref[k], other[k]);
+    return out;
+  }
+  // Lists of things with an id (calendar events, habits…) or a date (weigh-ins, check-ins): union.
+  if (Array.isArray(pref) && Array.isArray(other)) {
+    const key = keyOf([...pref, ...other]);
+    if (!key) return structuredClone(pref.length ? pref : other);
+    const seen = new Set(pref.map((x) => x[key]));
+    const merged = [...structuredClone(pref), ...structuredClone(other.filter((x) => !seen.has(x[key])))];
+    return key === 'date' ? merged.sort((a, b) => a.date.localeCompare(b.date)) : merged;
+  }
+  return structuredClone(pref);
+}
+
+/** Has this copy got any real progress in it? */
+const hasProgress = (s) => !!s?.profile;
+const isDemo = (s) => !!s?.profile?.demo;
+
+/**
+ * The copy to keep after logging in.
+ * - no account copy yet → this phone's
+ * - nothing on this phone (or only demo data) → the account's
+ * - both → merged, the newer one winning where they overlap
+ */
+function mergeStates(local, cloud) {
+  if (!hasProgress(cloud)) return local;
+  if (!hasProgress(local) || isDemo(local)) return cloud;
+  if (isDemo(cloud)) return local;
+  const localNewer = (local.savedAt || 0) >= (cloud.savedAt || 0);
+  const merged = localNewer ? mergeValue(local, cloud) : mergeValue(cloud, local);
+  merged.savedAt = Math.max(local.savedAt || 0, cloud.savedAt || 0);
+  return merged;
+}
+
+Object.assign(__m, { hasProgress, isDemo, mergeStates });
+},
+/* js/account.js */ 51: function (__m, __req) {
+// Your account: log in with email and password so your progress is saved online and comes back on a
+// new phone. Uses Supabase Auth (same project as the shared calendar) over plain fetch. Your data is
+// stored as one private copy that only you can read (functions hl_my_data / hl_save_my_data, which
+// check who is logged in). The login itself is kept on this device, outside your app data.
+const { SUPABASE_URL, PUBLISHABLE_KEY, SHARE_BASE } = __req(35);
+const { mergeStates, isDemo } = __req(50);
+const store = __req(17);
+
+const KEY = 'habitlab.account';
+const PUSH_DELAY = 4000;
+
+const read = () => {
+  try {
+    const a = JSON.parse(localStorage.getItem(KEY) || 'null');
+    return a && typeof a.access_token === 'string' && typeof a.refresh_token === 'string' ? a : null;
+  } catch (e) {
+    return null;
+  }
+};
+const write = (a) => {
+  try {
+    if (a) localStorage.setItem(KEY, JSON.stringify(a));
+    else localStorage.removeItem(KEY);
+  } catch (e) {
+    /* storage blocked */
+  }
+};
+
+let session = read();
+let pushTimer = null;
+let synced = false; // pulled from the account since this launch (until then, don't overwrite it)
+let busy = null;
+const listeners = new Set();
+const notify = () => listeners.forEach((f) => f());
+const onChange = (f) => listeners.add(f);
+
+const current = () => (session ? { email: session.email, lastSync: session.lastSync || 0, pending: !!pushTimer } : null);
+
+/** Plain-language messages for what Supabase Auth answers. */
+function friendly(body, status) {
+  const code = body?.error_code || body?.code || body?.error || '';
+  const msg = String(body?.msg || body?.message || body?.error_description || '');
+  if (/invalid_credentials|invalid_grant/.test(code) || /invalid login/i.test(msg)) return 'Wrong email or password.';
+  if (/email_not_confirmed/.test(code) || /not confirmed/i.test(msg)) return 'Confirm your email first — open the link we sent you, then log in.';
+  if (/user_already_exists|email_exists/.test(code) || /already registered/i.test(msg)) return 'There’s already an account with this email — log in instead.';
+  if (/weak_password/.test(code) || /password should/i.test(msg)) return 'Pick a longer password (at least 8 characters).';
+  if (/email_address_invalid|validation_failed/.test(code) || /invalid.*email|email.*invalid/i.test(msg)) return 'That email address doesn’t look right.';
+  if (/rate_limit|over_email_send_rate_limit/.test(code) || status === 429) return 'Too many tries — wait a little and try again.';
+  if (/signup_disabled/.test(code)) return 'New accounts are switched off right now.';
+  if (/email_address_not_authorized/.test(code) || /not authorized/i.test(msg)) return 'We can’t send email to that address yet. Ask the app owner to turn on email for everyone.';
+  return msg || 'Something went wrong — check your connection and try again.';
+}
+
+async function auth(path, body, { method = 'POST', token } = {}) {
+  let res;
+  try {
+    res = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
+      method,
+      headers: { apikey: PUBLISHABLE_KEY, 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) {
+    throw new Error('You seem to be offline — try again when you have a connection.');
+  }
+  const text = await res.text();
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch (e) {
+    json = null;
+  }
+  if (!res.ok) throw new Error(friendly(json, res.status));
+  return json;
+}
+
+function keep(tokens, extra = {}) {
+  if (!tokens?.access_token) return null;
+  session = {
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    expires_at: tokens.expires_at || Math.floor(Date.now() / 1000) + (Number(tokens.expires_in) || 3600),
+    email: tokens.user?.email || extra.email || session?.email || '',
+    lastSync: session?.lastSync || 0,
+    ...extra,
+  };
+  write(session);
+  notify();
+  return session;
+}
+
+async function token() {
+  if (!session) return null;
+  if (session.expires_at - 60 > Date.now() / 1000) return session.access_token;
+  try {
+    keep(await auth('token?grant_type=refresh_token', { refresh_token: session.refresh_token }));
+    return session.access_token;
+  } catch (e) {
+    if (/Wrong email|invalid|expired|not found/i.test(e.message)) {
+      session = null; // the login ran out: log in again
+      write(null);
+      notify();
+    }
+    throw e;
+  }
+}
+
+async function rpc(fn, args = {}) {
+  const t = await token();
+  if (!t) throw new Error('Log in first.');
+  let res;
+  try {
+    res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' }, body: JSON.stringify(args) });
+  } catch (e) {
+    throw new Error('You seem to be offline.');
+  }
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new Error(json?.message || 'Couldn’t reach your account.');
+  return json;
+}
+
+/** Create an account. Returns { confirm: true } when an email confirmation is needed first. */
+async function signUp(email, password) {
+  const r = await auth(`signup?redirect_to=${encodeURIComponent(SHARE_BASE)}`, { email, password });
+  if (r?.access_token) {
+    keep(r, { email });
+    return { confirm: false };
+  }
+  return { confirm: true };
+}
+
+async function logIn(email, password) {
+  keep(await auth('token?grant_type=password', { email, password }), { email });
+}
+
+async function resetPassword(email) {
+  await auth(`recover?redirect_to=${encodeURIComponent(SHARE_BASE)}`, { email });
+}
+
+async function setPassword(password) {
+  const t = await token();
+  await auth('user', { password }, { method: 'PUT', token: t });
+}
+
+/** Log out on this phone. Your data stays on the phone and in your account. */
+async function logOut() {
+  const t = session?.access_token;
+  clearTimeout(pushTimer);
+  pushTimer = null;
+  session = null;
+  synced = false;
+  write(null);
+  notify();
+  if (t) auth('logout', null, { token: t }).catch(() => {});
+}
+
+/**
+ * A link from an email (confirm your address / reset your password) brings tokens in the address:
+ * #access_token=…&refresh_token=…&type=signup|recovery. Keep the login and say what it was for.
+ */
+function takeTokensFromUrl() {
+  const h = location.hash || '';
+  if (!/access_token=/.test(h) || h.startsWith('#/')) {
+    if (/error_description=/.test(h) && !h.startsWith('#/')) {
+      const p = new URLSearchParams(h.slice(1));
+      history.replaceState(null, '', location.pathname + location.search + '#/account');
+      return { error: p.get('error_description') || 'That link didn’t work — it may have expired.' };
+    }
+    return null;
+  }
+  const p = new URLSearchParams(h.slice(1));
+  keep({ access_token: p.get('access_token'), refresh_token: p.get('refresh_token'), expires_in: p.get('expires_in'), expires_at: Number(p.get('expires_at')) || undefined });
+  const type = p.get('type') || 'signup';
+  history.replaceState(null, '', location.pathname + location.search + (type === 'recovery' ? '#/account/new-password' : '#/account'));
+  return { type };
+}
+
+/** Fill in the email for a login that came from a link. */
+async function whoAmI() {
+  if (session && !session.email) {
+    try {
+      const u = await auth('user', null, { method: 'GET', token: await token() });
+      if (u?.email) keep({ ...session, user: u });
+    } catch (e) {
+      /* fine */
+    }
+  }
+}
+
+/**
+ * Bring this phone and your account together: fetch the account's copy, merge it with this phone's,
+ * keep the result here and save it to the account. Returns what happened, for a message.
+ */
+function syncNow(ctx) {
+  if (!session) return Promise.resolve(null);
+  if (busy) return busy;
+  busy = (async () => {
+    await whoAmI();
+    const remote = await rpc('hl_my_data');
+    const cloud = remote?.data ? store.migrate(remote.data) : null;
+    const local = ctx.state;
+    const next = mergeStates(local, cloud);
+    let outcome = 'same';
+    const plain = (s) => JSON.stringify({ ...s, savedAt: 0 });
+    if (next !== local) {
+      const merged = store.migrate(structuredClone(next));
+      if (plain(merged) !== plain(local)) {
+        outcome = !local.profile || isDemo(local) ? 'restored' : 'merged';
+        ctx.set(merged, { quiet: true });
+      }
+    } else if (!cloud?.profile && local.profile && !isDemo(local)) outcome = 'uploaded';
+    synced = true;
+    await push(ctx.state);
+    return outcome;
+  })().finally(() => {
+    busy = null;
+  });
+  return busy;
+}
+
+async function push(state) {
+  clearTimeout(pushTimer);
+  pushTimer = null;
+  if (!session || !synced || !state?.profile || isDemo(state)) return;
+  await rpc('hl_save_my_data', { p_data: state, p_saved_at: state.savedAt || Date.now() });
+  session.lastSync = Date.now();
+  write(session);
+  notify();
+}
+
+/** After every change: save it to your account a few seconds later (changes in a burst go together). */
+function queue(ctx) {
+  if (!session || !synced) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => push(ctx.state).catch(() => {}), PUSH_DELAY);
+}
+
+/** On start (and when the app comes back to the front): catch up with your account. */
+function start(ctx) {
+  if (!session) return;
+  syncNow(ctx).catch(() => {});
+  document.addEventListener('visibilitychange', () => {
+    if (!session) return;
+    if (document.visibilityState === 'hidden' && pushTimer) push(ctx.state).catch(() => {});
+    if (document.visibilityState === 'visible') syncNow(ctx).catch(() => {});
+  });
+}
+
+/** Delete your account's copy of your data (the account login itself stays). */
+async function deleteCloudCopy() {
+  await rpc('hl_delete_my_data');
+}
+
+Object.assign(__m, { onChange, current, signUp, logIn, resetPassword, setPassword, logOut, takeTokensFromUrl, syncNow, queue, start, deleteCloudCopy });
+},
+/* js/data/reasons.js */ 52: function (__m, __req) {
 // One-word reasons people give for wanting to lose weight, to pick on the morning screen and in Settings.
 // Grouped by the themes found in research: health first, then appearance and mood (O’Brien 2007),
 // function and mobility, stigma (hospital programme, open-ended answers), family and milestones
@@ -12118,7 +12436,7 @@ const REASONS = [
 
 Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 },
-/* js/data/affirmations.js */ 51: function (__m, __req) {
+/* js/data/affirmations.js */ 53: function (__m, __req) {
 // Morning messages shown when the wake-up alarm rings and on the Good-morning screen.
 // What the research says, and how it shapes these messages:
 // - Values-based self-affirmation: reflecting on what matters to you activates the brain's
@@ -12134,7 +12452,7 @@ Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 // - Compliments ("You look beautiful") are included because people asked for them; they can be
 //   switched off, and you can add your own words.
 
-const { REASONS, REASON_YOUR, REASON_PROPER } = __req(50);
+const { REASONS, REASON_YOUR, REASON_PROPER } = __req(52);
 
 const LIBRARY = new Set(REASONS.map((r) => r[1].toLowerCase()));
 
@@ -12348,11 +12666,11 @@ function removeReason(affirm = {}, text) {
 
 Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, DEFAULT_SETS, morningMessages, messageForDay, reasonLine, addReason, removeReason });
 },
-/* js/alarm-native.js */ 52: function (__m, __req) {
+/* js/alarm-native.js */ 54: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
 const { alarmSpecs, alarmsOf } = __req(37);
-const { morningMessages, valueInfo } = __req(51);
+const { morningMessages, valueInfo } = __req(53);
 
 let lastMessage = null;
 
@@ -12470,13 +12788,13 @@ async function listen(go, onWake) {
 
 Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, parseWake, listen });
 },
-/* js/views/alarms.js */ 53: function (__m, __req) {
+/* js/views/alarms.js */ 55: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 const { esc, icon } = __req(18);
 const { alarmsOf, alarmTimes, mealSlots, STYLES, fmtTime } = __req(37);
 const { daySchedule, mealTimes } = __req(15);
-const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(51);
-const { REASONS, REASON_CATS } = __req(50);
+const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(53);
+const { REASONS, REASON_CATS } = __req(52);
 
 // Reason library state (kept across re-renders while you browse).
 let reasonCat = 'health';
@@ -12488,7 +12806,7 @@ document.addEventListener('input', (ev) => {
 document.addEventListener('toggle', (ev) => {
   if (ev.target.classList?.contains('reason-lib')) libOpen = ev.target.open;
 }, true);
-const alarmNative = __req(52);
+const alarmNative = __req(54);
 const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(36);
 const { openSheet, updateSheet } = __req(26);
 
@@ -12801,7 +13119,7 @@ const alarmActions = {
 
 Object.assign(__m, { ownValues, alarmsSummary, alarmsPage, alarmsAfter, alarmActions });
 },
-/* js/notify.js */ 54: function (__m, __req) {
+/* js/notify.js */ 56: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -12938,10 +13256,11 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 55: function (__m, __req) {
+/* js/views/settings.js */ 57: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { goalHint } = __req(24);
-const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(53);
+const account = __req(51);
+const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(55);
 const { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(18);
 const store = __req(17);
 const share = __req(35);
@@ -12950,7 +13269,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn, weekOrder } = __req(0);
-const notify = __req(54);
+const notify = __req(56);
 const { DEFAULT_REMINDERS } = __req(16);
 const { dayFields, daySummary, readDay } = __req(21);
 const { daySchedule, toHHMM } = __req(15);
@@ -13104,7 +13423,7 @@ __m.default = {
     if (section === 'data') return head('Your data') + `
       <div class="card" style="order:9"><h2 class="h3" style="margin-bottom:4px">Delete all data</h2><p class="muted" style="font-size:var(--text-sm)">Removes everything from ${notify.platform() === 'native' ? 'this phone' : 'this browser'}. Export a backup first if you might want it back.</p><button class="btn ghost danger small" data-action="reset">${icon('trash')}Delete all data…</button></div>`.replace('style="order:9"', '') + `
       <div class="card">
-        <p class="muted">${notify.platform() === 'native' ? 'Everything is stored only on this phone' : 'Everything is stored only in this browser on this device'}. Nothing is uploaded. Export a backup to move to another device or keep a copy.</p>
+        <p class="muted">${account.current() ? 'Your progress is on this device and saved to your account. A backup file is an extra copy you keep yourself.' : `${notify.platform() === 'native' ? 'Everything is stored only on this phone' : 'Everything is stored only in this browser on this device'}. Nothing is uploaded unless you <a href="#/account">log in</a>. Export a backup to keep a copy.`}</p>
         <div class="row"><button class="btn" data-action="export">Export backup</button>
           <label class="btn">Import backup file<input type="file" accept="application/json,.json" data-change="importFile" hidden></label>
           <button class="btn" data-action="pasteMode">Paste a backup</button>
@@ -13112,7 +13431,9 @@ __m.default = {
         ${showBackup ? `<div style="margin-top:14px"><label class="field"><span>Your backup <span class="hint">If no file downloaded, copy this text and save it somewhere safe (a note or an email to yourself).</span></span><textarea id="backup-out" class="backup" readonly>${esc(store.exportJson(state))}</textarea></label><button class="btn small" data-action="copyBackup">Copy to clipboard</button></div>` : ''}
         ${pasteMode ? `<form data-form="pasteImport" style="margin-top:14px"><label class="field"><span>Paste backup text</span><textarea id="backup-in" name="text" class="backup" required></textarea></label><button class="btn primary small">Import</button></form>` : ''}
       </div>`;
+    const me = account.current();
     return head('Settings', 'Habit Lab') + `
+      <div class="card tight"><ul class="rows"><li><a class="lrow" href="#/account" style="text-decoration:none"><span class="slot-ico">${icon('check')}</span><span class="body"><span class="title" style="display:block">${me ? 'Account' : 'Save your progress'}</span><span class="sub" style="display:block">${me ? esc(`${me.email || 'Logged in'} · saved online`) : 'Create an account or log in — keep everything if you change phone'}</span></span><span class="trail">${icon('chevron')}</span></a></li></ul></div>
       <div class="card tight"><ul class="rows">${SECTIONS.map(([id, t, sub, ic]) => `<li><a class="lrow" href="#/settings/${id}" style="text-decoration:none"><span class="slot-ico">${icon(ic)}</span><span class="body"><span class="title" style="display:block">${t}</span><span class="sub" style="display:block">${esc(sub)}</span></span><span class="trail">${icon('chevron')}</span></a></li>`).join('')}</ul></div>
       <div class="card tight"><ul class="rows">
         <li><a class="lrow" href="#/learn" style="text-decoration:none"><span class="slot-ico">${icon('learn')}</span><span class="body"><span class="title" style="display:block">The evidence</span><span class="sub" style="display:block">The research behind every feature</span></span><span class="trail">${icon('chevron')}</span></a></li>
@@ -13347,7 +13668,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 56: function (__m, __req) {
+/* js/views/shopping.js */ 58: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(18);
 const store = __req(17);
@@ -13395,7 +13716,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 57: function (__m, __req) {
+/* js/views/rewards.js */ 59: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(18);
 const { ring, barChart } = __req(44);
@@ -13526,15 +13847,15 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/views/wake.js */ 58: function (__m, __req) {
+/* js/views/wake.js */ 60: function (__m, __req) {
 // Good morning: the screen after "I'm up". The alarm's message, then a ten-second values
 // reflection ("Today I'm doing this for…") — the kind of self-affirmation shown to engage the brain's
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(18);
 const store = __req(17);
-const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(51);
-const { REASONS } = __req(50);
-const { takeMessage } = __req(52);
+const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(53);
+const { REASONS } = __req(52);
+const { takeMessage } = __req(54);
 const { XP } = __req(14);
 const { confetti, chime, buzz, floatXp } = __req(34);
 
@@ -13680,7 +14001,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/body.js */ 59: function (__m, __req) {
+/* js/views/body.js */ 61: function (__m, __req) {
 // Your body: one card per body part — this week's ring, its long-term level and what it needs.
 // Tap any ring (here, on Today or in the Body Wrap) to open the body-part sheet.
 const { esc, icon, fmtDate } = __req(18);
@@ -13768,7 +14089,7 @@ __m.default = {
 
 Object.assign(__m, { organSheetHtml, organActions });
 },
-/* js/views/join.js */ 60: function (__m, __req) {
+/* js/views/join.js */ 62: function (__m, __req) {
 // The page friends land on from your shared link (#/join/<id>). They don't need the app or an
 // account: it says who asked for their support, lets them join an activity with just a first name
 // (and add it to their own calendar), or send a short cheer. Nothing is stored on their phone except
@@ -13942,7 +14263,7 @@ __m.default = {
 
 Object.assign(__m, { icsFor });
 },
-/* js/views/sos.js */ 61: function (__m, __req) {
+/* js/views/sos.js */ 63: function (__m, __req) {
 // Craving SOS (#/sos): first a reminder of why you're doing this (this morning's reasons), then
 // a 1–4 minute exercise to ride the craving out, then "how is it now?". No food is ever named
 // or shown, and eating anyway is met without blame.
@@ -13959,7 +14280,7 @@ Object.assign(__m, { icsFor });
 // - Slow breathing and a minute with eyes closed are gentle ways to pause before deciding.
 const { esc, icon } = __req(18);
 const store = __req(17);
-const { valueInfo, reasonLine } = __req(51);
+const { valueInfo, reasonLine } = __req(53);
 const { chime, confetti, buzz } = __req(34);
 
 const TOOLS = {
@@ -14163,7 +14484,182 @@ function resetSos() {
 
 Object.assign(__m, { TOOLS, resetSos });
 },
-/* js/app.js */ 62: function (__m, __req) {
+/* js/views/account.js */ 64: function (__m, __req) {
+// Account: log in so your progress is saved online and comes back on a new phone. Works before
+// onboarding too ("Already have an account?"), so a new phone can pull everything down.
+const { esc, icon } = __req(18);
+const account = __req(51);
+
+let mode = 'login'; // 'login' | 'signup' | 'forgot'
+let sent = ''; // 'confirm' | 'reset' — an email is on its way
+let busy = false;
+let typedEmail = ''; // kept when the screen redraws (e.g. after a wrong password)
+
+const ago = (ms) => {
+  if (!ms) return 'not yet';
+  const s = Math.round((Date.now() - ms) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+};
+
+const MESSAGES = {
+  restored: 'Welcome back — your progress is here.',
+  merged: 'Done — the progress on this phone and in your account are combined.',
+  uploaded: 'Your progress is now saved to your account.',
+  same: 'You’re logged in — everything is up to date.',
+};
+
+/** After logging in: bring the phone and the account together, then say what happened. */
+async function afterLogin(ctx) {
+  try {
+    const outcome = await account.syncNow(ctx);
+    if (ctx.state.profile?.demo) ctx.toast('Logged in. Demo data isn’t saved to your account — start your own plan and it will be.');
+    else ctx.toast(MESSAGES[outcome] || MESSAGES.same);
+    ctx.go(ctx.state.profile ? '#/today' : '#/start');
+  } catch (e) {
+    ctx.toast(`Logged in, but couldn’t reach your saved data: ${e.message}`);
+    ctx.rerender();
+  }
+}
+
+function loggedOut(state) {
+  const back = state.profile ? '#/settings' : '#/start';
+  const head = `<a class="btn ghost small" href="${back}" style="margin:0 0 6px -10px">${icon('back')}${state.profile ? 'Settings' : 'Back'}</a>`;
+  if (sent) {
+    return `${head}<header class="page-head"><div><h1>Check your email</h1></div></header>
+      <div class="card"><p style="margin-top:0">${sent === 'confirm' ? 'We sent you a link to confirm your email. Open it, then come back here and log in.' : 'If there’s an account with that email, we sent a link to choose a new password.'}</p>
+      <p class="muted" style="font-size:var(--text-sm)">Nothing there after a few minutes? Check spam.</p>
+      <button class="btn primary" data-action="accountMode" data-m="login">Back to log in</button></div>`;
+  }
+  if (mode === 'forgot') {
+    return `${head}<header class="page-head"><div><h1>Forgot your password?</h1></div></header>
+      <form class="card" data-form="accountForgot"><p class="muted" style="margin-top:0">We’ll email you a link to choose a new one.</p>
+        <label class="field"><span>Email</span><input type="email" name="email" required autocomplete="email" inputmode="email" value="${esc(typedEmail)}"></label>
+        <button class="btn primary block" ${busy ? 'disabled' : ''}>Send the link</button>
+        <button type="button" class="btn ghost block" data-action="accountMode" data-m="login" style="margin-top:6px">Back to log in</button></form>`;
+  }
+  const signup = mode === 'signup';
+  return `${head}<header class="page-head"><div><div class="eyebrow">Your account</div><h1>${signup ? 'Create an account' : 'Log in'}</h1></div></header>
+    <p class="muted" style="margin:-8px 0 14px">${signup ? 'Save your progress online so it’s safe if you lose or change your phone.' : 'Log in to get your progress back, or to keep it saved.'}${state.profile && !state.profile.demo ? ' What’s on this phone now is kept and added to your account.' : ''}</p>
+    <div class="segmented" role="tablist" aria-label="Log in or create an account" style="margin-bottom:12px"><button role="tab" class="${signup ? '' : 'on'}" aria-selected="${!signup}" data-action="accountMode" data-m="login">Log in</button><button role="tab" class="${signup ? 'on' : ''}" aria-selected="${signup}" data-action="accountMode" data-m="signup">Create account</button></div>
+    <form class="card" data-form="accountSubmit">
+      <label class="field"><span>Email</span><input type="email" name="email" required autocomplete="email" inputmode="email" value="${esc(typedEmail)}"></label>
+      <label class="field"><span>Password${signup ? ' <span class="hint">at least 8 characters</span>' : ''}</span><input type="password" name="password" required minlength="${signup ? 8 : 1}" autocomplete="${signup ? 'new-password' : 'current-password'}"></label>
+      <button class="btn primary large block" ${busy ? 'disabled' : ''}>${busy ? 'One moment…' : signup ? 'Create account' : 'Log in'}</button>
+      ${signup ? '' : '<button type="button" class="btn ghost block" data-action="accountMode" data-m="forgot" style="margin-top:6px">Forgot password?</button>'}
+    </form>
+    <p class="muted" style="font-size:var(--text-xs)">Your data is stored privately with your account and only you can read it. Your shared calendar and friends’ names stay separate.</p>`;
+}
+
+function loggedIn(state, me) {
+  return `<a class="btn ghost small" href="#/settings" style="margin:0 0 6px -10px">${icon('back')}Settings</a>
+    <header class="page-head"><div><div class="eyebrow">Your account</div><h1>Saved online</h1></div></header>
+    <div class="card"><div class="row between nowrap"><div><strong>${esc(me.email || 'Logged in')}</strong><small class="muted" style="display:block">Last saved ${esc(ago(me.lastSync))}${me.pending ? ' · saving…' : ''}</small></div><span class="tag green">${icon('check')}On</span></div>
+      <p class="muted" style="font-size:var(--text-sm)">Everything you log is saved to your account a few seconds later. Log in on a new phone to get it all back.</p>
+      ${state.profile?.demo ? '<div class="notice info">Demo data isn’t saved to your account. Start your own plan and it will be.</div>' : ''}
+      <div class="row" style="flex-wrap:wrap;gap:8px"><button class="btn" data-action="accountSync" ${busy ? 'disabled' : ''}>Save now</button><button class="btn ghost" data-action="accountLogout">Log out</button></div></div>
+    <details class="card"><summary style="cursor:pointer"><strong>Delete my saved data</strong></summary>
+      <p class="muted" style="font-size:var(--text-sm)">Removes the copy in your account. What’s on this phone stays. It’s saved again next time you log something unless you log out first.</p>
+      <button class="btn ghost danger small" data-action="accountDeleteCloud">Delete the saved copy</button></details>`;
+}
+
+function newPassword() {
+  return `<header class="page-head"><div><div class="eyebrow">Your account</div><h1>Choose a new password</h1></div></header>
+    <form class="card" data-form="accountNewPassword"><label class="field"><span>New password <span class="hint">at least 8 characters</span></span><input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+      <button class="btn primary block">Save password</button></form>`;
+}
+
+__m.default = {
+  render(state, params = []) {
+    const me = account.current();
+    if (params[0] === 'new-password' && me) return newPassword();
+    return me ? loggedIn(state, me) : loggedOut(state);
+  },
+  actions: {
+    accountMode(el, ev, ctx) {
+      mode = el.dataset.m;
+      sent = '';
+      ctx.rerender();
+    },
+    async accountSubmit(form, ev, ctx, data) {
+      const email = String(data.email || '').trim();
+      const password = String(data.password || '');
+      if (!email || !password || busy) return;
+      typedEmail = email;
+      busy = true;
+      ctx.rerender();
+      try {
+        if (mode === 'signup') {
+          const r = await account.signUp(email, password);
+          if (r.confirm) sent = 'confirm';
+        } else await account.logIn(email, password);
+      } catch (e) {
+        busy = false;
+        ctx.rerender();
+        return ctx.toast(e.message);
+      }
+      busy = false;
+      if (account.current()) return afterLogin(ctx);
+      ctx.rerender();
+    },
+    async accountForgot(form, ev, ctx, data) {
+      busy = true;
+      try {
+        await account.resetPassword(String(data.email || '').trim());
+        sent = 'reset';
+      } catch (e) {
+        ctx.toast(e.message);
+      }
+      busy = false;
+      ctx.rerender();
+    },
+    async accountNewPassword(form, ev, ctx, data) {
+      try {
+        await account.setPassword(String(data.password || ''));
+        ctx.toast('New password saved.');
+        afterLogin(ctx);
+      } catch (e) {
+        ctx.toast(e.message);
+      }
+    },
+    async accountSync(el, ev, ctx) {
+      busy = true;
+      ctx.rerender();
+      try {
+        const outcome = await account.syncNow(ctx);
+        ctx.toast(outcome === 'merged' || outcome === 'restored' ? MESSAGES[outcome] : 'Saved to your account.');
+      } catch (e) {
+        ctx.toast(e.message);
+      }
+      busy = false;
+      ctx.rerender();
+    },
+    async accountLogout(el, ev, ctx) {
+      if (!(await ctx.confirm('Log out on this phone? Your progress stays here and in your account.', { ok: 'Log out' }))) return;
+      await account.logOut();
+      mode = 'login';
+      ctx.toast('Logged out');
+      ctx.rerender();
+    },
+    async accountDeleteCloud(el, ev, ctx) {
+      if (!(await ctx.confirm('Delete the copy of your data saved in your account? What’s on this phone stays.', { ok: 'Delete' }))) return;
+      try {
+        await account.deleteCloudCopy();
+        await account.logOut();
+        ctx.toast('Your saved copy is deleted and you’re logged out.');
+      } catch (e) {
+        ctx.toast(e.message);
+      }
+      ctx.rerender();
+    },
+  },
+};
+
+Object.assign(__m, { afterLogin });
+},
+/* js/app.js */ 65: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(17);
 const { icon, formData } = __req(18);
@@ -14177,35 +14673,38 @@ const habits = __req(45).default;
 const progress = __req(46).default;
 const checkin = __req(48).default;
 const learn = __req(49).default;
-const settings = __req(55).default;
-const shopping = __req(56).default;
-const rewards = __req(57).default;
+const settings = __req(57).default;
+const shopping = __req(58).default;
+const rewards = __req(59).default;
 const journeyView = __req(23).default;
 const wrapView = __req(41).default;
-const wakeView = __req(58).default;
-const bodyView = __req(59).default;
+const wakeView = __req(60).default;
+const bodyView = __req(61).default;
 const calendarView = __req(38).default;
 const { calendarActions } = __req(38);
-const joinView = __req(60).default;
+const joinView = __req(62).default;
 const planView = __req(39).default;
-const sosView = __req(61).default;
-const { resetSos } = __req(61);
-const { organActions } = __req(59);
+const sosView = __req(63).default;
+const { resetSos } = __req(63);
+const { organActions } = __req(61);
 const { setOwnHabits } = __req(10);
+const accountView = __req(64).default;
+const { afterLogin } = __req(64);
+const account = __req(51);
 const { organById } = __req(13);
-const alarmNative = __req(52);
+const alarmNative = __req(54);
 const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(34);
 const { newlyClosed, allClosed } = __req(32);
 const { setViewDate } = __req(25);
-const { reasonLine, addReason } = __req(51);
+const { reasonLine, addReason } = __req(53);
 const share = __req(35);
 const { BADGES } = __req(14);
-const notify = __req(54);
+const notify = __req(56);
 const { closeSheet } = __req(26);
 const { sheetActions } = __req(30);
 const { daySummary, readDay } = __req(21);
 
-const VIEWS = { sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { account: accountView, sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 // Screens without their own tab light up the tab they belong to.
 const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today', calendar: 'move', plan: 'today', sos: 'today' };
 const NAV = [
@@ -14239,6 +14738,7 @@ const ctx = {
     if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game, prevState, next));
     scheduleSync();
     const saved = store.save(state);
+    account.queue(ctx); // logged in: saved to your account a few seconds later
     if (!saved && !saveFailing) ctx.toast('Couldn’t save — this device’s storage is full or blocked.');
     saveFailing = !saved;
     if (render) renderRoute();
@@ -14411,7 +14911,7 @@ let lastRoute = '';
 function renderRoute() {
   setOwnHabits(state.habits?.own); // your own habits, for every screen that looks habits up
   let { name, params } = parseRoute();
-  if (!state.profile && name !== 'start' && name !== 'learn' && name !== 'join') name = 'start';
+  if (!state.profile && name !== 'start' && name !== 'learn' && name !== 'join' && name !== 'account') name = 'start';
   if (state.profile && name === 'start') name = 'today';
   const view = VIEWS[name] || todayView;
   // Make sure derived data (this week's plan, workout progress) exists before rendering.
@@ -14449,7 +14949,7 @@ function renderRoute() {
 
 function currentView() {
   const { name } = parseRoute();
-  return VIEWS[state.profile || name === 'join' ? name : 'start'] || todayView;
+  return VIEWS[state.profile || name === 'join' || name === 'account' ? name : 'start'] || todayView;
 }
 
 function dispatch(kind, el, ev) {
@@ -14592,8 +15092,17 @@ function navigate(ev) {
 }
 window.addEventListener('hashchange', navigate);
 window.addEventListener('scroll', () => document.querySelector('.topbar')?.classList.toggle('scrolled', window.scrollY > 4), { passive: true });
+// A link from an account email (confirm your address / new password) carries a login in the address.
+const fromEmail = account.takeTokensFromUrl();
 renderRoute();
 scheduleSync();
+account.onChange(() => parseRoute().name === 'account' && !document.querySelector('.sheet-wrap.open') && renderRoute());
+if (fromEmail?.error) ctx.toast(fromEmail.error);
+else if (fromEmail?.type === 'recovery') ctx.toast('Choose a new password');
+else if (fromEmail) {
+  ctx.toast('Email confirmed — you’re logged in.');
+  afterLogin(ctx);
+} else account.start(ctx);
 // Shared calendar: background notifications on the phone, and a quick in-app check every minute.
 share.watch(state);
 setInterval(() => document.visibilityState === 'visible' && state.share?.id && share.refresh(ctx), 60000);
@@ -14629,7 +15138,7 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(62);
+__req(65);
 })();</script>
 </body>
 </html>

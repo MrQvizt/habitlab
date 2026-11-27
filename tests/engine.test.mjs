@@ -875,6 +875,31 @@ test('own habits: saved, cleaned, looked up like library habits', async () => {
   assert.deepEqual(habitLevels('own_abc1').map((l) => l.label), ['Do a two-minute version', 'Drink a glass of water']);
 });
 
+test('account sync: logging in merges this phone with the account, never losing progress', async () => {
+  const { mergeStates } = await import('../js/sync.js');
+  const store = await import('../js/store.js');
+  const base = (over) => store.sanitize({ ...store.emptyState(), profile: { sex: 'male', age: 40, heightCm: 180, startWeightKg: 100, startDate: '2026-01-01' }, ...over });
+  const phone = base({ savedAt: 200, weights: [{ date: '2026-01-02', kg: 99 }, { date: '2026-01-05', kg: 98.5 }], habits: { active: [], retired: [], own: [], log: { '2026-01-05': { log_meals: true } } }, events: [{ id: 'ev_a', title: 'Walk', date: '2026-01-06', time: '07:00', place: '', kind: 'walk', notes: '', public: false }] });
+  const cloud = base({ savedAt: 100, weights: [{ date: '2026-01-02', kg: 99.4 }, { date: '2026-01-03', kg: 99.1 }], habits: { active: [], retired: [], own: [], log: { '2026-01-03': { weigh_daily: true }, '2026-01-05': { weigh_daily: true } } }, events: [{ id: 'ev_b', title: 'Swim', date: '2026-01-07', time: '', place: '', kind: 'sport', notes: '', public: false }] });
+  // A brand-new account: this phone's progress goes up as it is
+  assert.equal(mergeStates(phone, null), phone);
+  assert.equal(mergeStates(phone, store.emptyState()), phone);
+  // A new phone: the account's progress comes down
+  assert.equal(mergeStates(store.emptyState(), cloud), cloud);
+  // Demo data on the phone never goes into an account
+  assert.equal(mergeStates(base({ profile: { ...phone.profile, demo: true } }), cloud), cloud);
+  // Both have progress: every weigh-in, day and event from both; the newer copy wins a clash
+  const m = store.migrate(mergeStates(phone, cloud));
+  assert.deepEqual(m.weights.map((w) => `${w.date}:${w.kg}`), ['2026-01-02:99', '2026-01-03:99.1', '2026-01-05:98.5']);
+  assert.deepEqual(Object.keys(m.habits.log).sort(), ['2026-01-03', '2026-01-05']);
+  assert.deepEqual(m.habits.log['2026-01-05'], { log_meals: true }, 'a day both have: the newer copy’s day');
+  assert.deepEqual(m.events.map((e) => e.id).sort(), ['ev_a', 'ev_b']);
+  assert.equal(m.savedAt, 200);
+  // Order doesn't matter for what's kept
+  const m2 = store.migrate(mergeStates(cloud, phone));
+  assert.deepEqual(m2.weights.map((w) => w.date), m.weights.map((w) => w.date));
+});
+
 test('activity search: everyday words find the right activities', async () => {
   const { HOBBIES, searchHobbies, hobbyByName } = await import('../js/data/hobbies.js');
   const { CARDIO } = await import('../js/data/exercises.js');

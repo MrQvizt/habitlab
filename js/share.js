@@ -9,7 +9,7 @@ import { expand } from './engine/recur.js';
 
 export const SUPABASE_URL = 'https://jwjabhcebwnzhfphsuwg.supabase.co';
 // Publishable key: safe to ship in an app (it only reaches the four functions above).
-const PUBLISHABLE_KEY = 'sb_publishable_wRKoEGC_8OtpR9SoT8tGkQ_Z9rhDWjl';
+export const PUBLISHABLE_KEY = 'sb_publishable_wRKoEGC_8OtpR9SoT8tGkQ_Z9rhDWjl';
 export const SHARE_BASE = 'https://habitlab-eight.vercel.app/';
 
 let signups = []; // [{event, name, at}] for your calendar
