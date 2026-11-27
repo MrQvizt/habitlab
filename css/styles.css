@@ -244,7 +244,7 @@ body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-a
 label.field { display: block; margin-bottom: 14px; }
 label.field > span, .field-label { display: block; font-weight: 600; font-size: var(--text-sm); margin-bottom: 6px; color: var(--ink-2); }
 .hint { font-size: var(--text-xs); color: var(--ink-3); margin-top: 4px; display: block; font-weight: 400; }
-input[type=text], input[type=number], input[type=date], input[type=time], select, textarea {
+input[type=text], input[type=email], input[type=password], input[type=number], input[type=date], input[type=time], select, textarea {
   width: 100%; font: inherit; font-size: var(--text-base); color: var(--ink); background: var(--surface);
   border: 1px solid var(--line-strong); border-radius: var(--radius-sm); min-height: var(--tap); padding: 10px 12px;
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);

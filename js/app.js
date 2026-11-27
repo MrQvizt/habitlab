@@ -25,6 +25,10 @@ import planView from './views/plan.js';
 import sosView from './views/sos.js';
 import { resetSos } from './views/sos.js';
 import { organActions } from './views/body.js';
+import { setOwnHabits } from './engine/habits.js';
+import accountView from './views/account.js';
+import { afterLogin } from './views/account.js';
+import * as account from './account.js';
 import { organById } from './engine/body.js';
 import * as alarmNative from './alarm-native.js';
 import { floatXp, confetti, chime, buzz, showCelebration, ringBanner } from './ui/celebrate.js';
@@ -38,7 +42,7 @@ import { closeSheet } from './ui/sheet.js';
 import { sheetActions } from './views/sheets.js';
 import { daySummary, readDay } from './views/day.js';
 
-const VIEWS = { sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { account: accountView, sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 // Screens without their own tab light up the tab they belong to.
 const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today', calendar: 'move', plan: 'today', sos: 'today' };
 const NAV = [
@@ -72,6 +76,7 @@ const ctx = {
     if (before && after && !quiet) queueMicrotask(() => celebrate(before, after, state.game, prevState, next));
     scheduleSync();
     const saved = store.save(state);
+    account.queue(ctx); // logged in: saved to your account a few seconds later
     if (!saved && !saveFailing) ctx.toast('Couldn’t save — this device’s storage is full or blocked.');
     saveFailing = !saved;
     if (render) renderRoute();
@@ -242,8 +247,9 @@ function xpChip() {
 
 let lastRoute = '';
 function renderRoute() {
+  setOwnHabits(state.habits?.own); // your own habits, for every screen that looks habits up
   let { name, params } = parseRoute();
-  if (!state.profile && name !== 'start' && name !== 'learn' && name !== 'join') name = 'start';
+  if (!state.profile && name !== 'start' && name !== 'learn' && name !== 'join' && name !== 'account') name = 'start';
   if (state.profile && name === 'start') name = 'today';
   const view = VIEWS[name] || todayView;
   // Make sure derived data (this week's plan, workout progress) exists before rendering.
@@ -281,7 +287,7 @@ function renderRoute() {
 
 function currentView() {
   const { name } = parseRoute();
-  return VIEWS[state.profile || name === 'join' ? name : 'start'] || todayView;
+  return VIEWS[state.profile || name === 'join' || name === 'account' ? name : 'start'] || todayView;
 }
 
 function dispatch(kind, el, ev) {
@@ -424,8 +430,23 @@ function navigate(ev) {
 }
 window.addEventListener('hashchange', navigate);
 window.addEventListener('scroll', () => document.querySelector('.topbar')?.classList.toggle('scrolled', window.scrollY > 4), { passive: true });
+// A link from an account email (confirm your address / new password) carries a login in the address.
+const fromEmail = account.takeTokensFromUrl();
 renderRoute();
 scheduleSync();
+account.onChange(() => parseRoute().name === 'account' && !document.querySelector('.sheet-wrap.open') && renderRoute());
+if (fromEmail?.error) ctx.toast(fromEmail.error);
+else if (fromEmail?.type === 'recovery') ctx.toast('Choose a new password');
+else if (fromEmail) {
+  // On a phone the email link opens the browser, not the app: with nothing here yet, say where to go next.
+  if (state.profile) {
+    ctx.toast('Email confirmed — you’re logged in.');
+    afterLogin(ctx);
+  } else {
+    account.markConfirmed();
+    ctx.go('#/account');
+  }
+} else account.start(ctx);
 // Shared calendar: background notifications on the phone, and a quick in-app check every minute.
 share.watch(state);
 setInterval(() => document.visibilityState === 'visible' && state.share?.id && share.refresh(ctx), 60000);

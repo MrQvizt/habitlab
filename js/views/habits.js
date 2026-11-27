@@ -3,13 +3,23 @@ import { esc, icon } from '../ui/dom.js';
 import { habitGrid } from '../ui/charts.js';
 import * as store from '../store.js';
 import { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } from '../data/habits.js';
-import { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE } from '../engine/habits.js';
+import { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE, ownHabits, setOwnHabits, newOwnId } from '../engine/habits.js';
 import { daysBetween } from '../engine/util.js';
 import { openSheet, closeSheet, updateSheet } from '../ui/sheet.js';
 import { toggleHabit, habitLevelsHtml } from './sheets.js';
 import { habitLevels, levelIndex } from '../engine/habits.js';
 
 let filter = 'all';
+const CONNECTOR = /^(after|when|before|as soon|once|while|every|at|on|during|whenever)\b/i;
+/** "After I pour my coffee" / "When I sit down to eat" — a cue reads as written; a bare one gets "After". */
+export const cueText = (cue) => (CONNECTOR.test(String(cue || '').trim()) ? String(cue).trim() : `After ${String(cue || '').trim()}`);
+
+/** What you typed, cleaned: { title, cue, tiny, cat }. */
+function ownFrom(data) {
+  const t = (v, n) => String(v || '').trim().slice(0, n);
+  const cue = t(data.cue, 160);
+  return { title: t(data.title, 80), cue: cue && !CONNECTOR.test(cue) ? `After I ${cue.replace(/^i\s+/i, '')}` : cue, tiny: t(data.tiny, 80) || 'Do a two-minute version', cat: HABIT_CATEGORIES[data.cat] ? data.cat : 'mind' };
+}
 
 function manageSheet(state, id, mode = '') {
   const a = state.habits.active.find((x) => x.id === id);
@@ -41,12 +51,34 @@ function manageSheet(state, id, mode = '') {
       <p class="muted" style="margin:-6px 0 10px;font-size:var(--text-sm)">…I will ${esc(h.title.toLowerCase())}. The more specific the moment, the better it works.</p>
       <button class="btn tonal small">Save plan</button>
     </form>
+    ${h.own ? ownEditForm(h) : ''}
     <div class="card flat" style="margin:16px 0 0"><strong>Hard day?</strong> ${esc(h.tiny)}.<p class="muted" style="margin:6px 0 0;font-size:var(--text-sm)">${esc(h.why)} <a href="#/learn/${esc(h.ev)}">Why this works</a></p></div>
     <div class="actions-grid">
       <button class="btn" data-action="rate" data-id="${id}">How automatic is it?</button>
       ${established ? `<button class="btn primary" data-action="retire" data-id="${id}">Graduate it</button>` : `<button class="btn" data-action="remove" data-id="${id}">Stop tracking</button>`}
       ${established ? `<button class="btn ghost danger full" data-action="remove" data-id="${id}">Stop tracking</button>` : ''}
     </div>`;
+}
+
+/** Fields for making or editing your own habit. */
+function ownFields(h = {}) {
+  return `<label class="field"><span>I will…</span><input type="text" name="title" maxlength="80" required value="${esc(h.title || '')}" placeholder="e.g. Drink a glass of water"></label>
+    <label class="field"><span>When? <span class="hint">a moment you already have every day</span></span><input type="text" name="cue" maxlength="160" required value="${esc(h.cue || '')}" placeholder="e.g. After I pour my morning coffee"></label>
+    <label class="field"><span>On a hard day, at least… <span class="hint">optional</span></span><input type="text" name="tiny" maxlength="80" value="${esc(h.tiny || '')}" placeholder="e.g. A few sips"></label>
+    <label class="field"><span>Type</span><select name="cat">${Object.entries(HABIT_CATEGORIES).map(([k, l]) => `<option value="${k}" ${(h.cat || 'mind') === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
+}
+
+function ownEditForm(h) {
+  return `<details class="card flat" style="margin:16px 0 0"><summary style="cursor:pointer"><strong>Edit your habit</strong></summary>
+    <form data-form="ownSave" data-id="${esc(h.id)}" style="margin-top:10px">${ownFields(h)}<button class="btn tonal small">Save changes</button></form></details>`;
+}
+
+function ownCard(full) {
+  return `<details class="card own-habit" ${ownHabits().length ? '' : 'open'}><summary class="row nowrap" style="cursor:pointer;list-style:none"><span class="slot-ico">${icon('plus')}</span><span class="grow"><strong>Make your own habit</strong><span style="display:block;font-size:var(--text-sm);color:var(--ink-3)">Something small, tied to a moment in your day</span></span>${icon('chevron')}</summary>
+    <form data-form="ownCreate" style="margin-top:12px">${ownFields()}
+      <button class="btn primary">${full ? 'Save to my habits' : 'Create and start'}</button>
+      ${full ? '<p class="muted" style="font-size:var(--text-xs);margin:8px 0 0">All 3 slots are in use, so it’s saved under “Yours” — start it when a slot is free.</p>' : ''}
+    </form></details>`;
 }
 
 export default {
@@ -59,8 +91,10 @@ export default {
     const suggested = suggestNext(activeIds.concat(state.habits.retired.map((r) => r.id)), state.profile).slice(0, 3);
     const hideNumbers = store.habitsOnly(state);
     const retiredIds = state.habits.retired.map((r) => r.id);
-    const library = HABITS.filter((h) => (filter === 'all' || h.cat === filter) && !activeIds.includes(h.id) && !retiredIds.includes(h.id) && !(hideNumbers && (h.id === 'weigh_daily' || h.id === 'log_meals')));
-    const names = Object.fromEntries(HABITS.map((h) => [h.id, h.title]));
+    const own = ownHabits();
+    if (filter === 'own' && !own.length) filter = 'all';
+    const library = [...own, ...HABITS].filter((h) => (filter === 'all' || (filter === 'own' ? h.own : h.cat === filter)) && !activeIds.includes(h.id) && !retiredIds.includes(h.id) && !(hideNumbers && (h.id === 'weigh_daily' || h.id === 'log_meals')));
+    const names = Object.fromEntries([...HABITS, ...own].map((h) => [h.id, h.title]));
     const log = state.habits.log[date] || {};
     const rows = active.map((a) => {
       const h = habitById(a.id);
@@ -72,24 +106,64 @@ export default {
       const partial = idx >= 0 && !fullDone;
       return `<li><div class="lrow ${fullDone ? 'done' : ''}">
         <button class="check ${fullDone ? 'on' : partial ? 'partial' : ''}" data-action="toggle" data-id="${a.id}" aria-pressed="${fullDone}" aria-label="${esc(h.title)} done today">${icon('check')}</button>
-        <button class="body row-btn" data-action="manage" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${partial ? `<span style="color:var(--accent);font-weight:650">Small win · ${esc(habitLevels(a.id)[idx].label)}</span>` : `After ${esc(a.cue.replace(/^after\s+/i, ''))}`}</div>
+        <button class="body row-btn" data-action="manage" data-id="${a.id}"><div class="title"><span>${esc(h.title)}</span></div><div class="sub">${partial ? `<span style="color:var(--accent);font-weight:650">Small win · ${esc(habitLevels(a.id)[idx].label)}</span>` : esc(cueText(a.cue))}</div>
           ${days > 66 ? `<span class="sub" style="display:block;color:var(--accent);font-weight:650;margin-top:4px">Habit formed ✓ · ${st}-day streak</span>` : `<span class="meter" style="display:block;height:5px;margin:8px 0 2px"><span style="width:${Math.min(100, (days / 66) * 100).toFixed(1)}%"></span></span><span class="sub" style="display:block;font-size:var(--text-xs)">Day ${days} of ~66 · ${st}-day streak</span>`}</button></div></li>`;
     }).join('');
-    const libRows = library.map((h) => `<li><div class="lrow"><span class="body"><span class="title" style="display:block">${esc(h.title)}${suggested.includes(h.id) ? ' <span class="tag" style="background:var(--accent-soft);color:var(--accent);vertical-align:2px">suggested</span>' : ''}</span><span class="sub" style="display:block">${esc(h.cue)} · <a href="#/learn/${esc(h.ev)}">evidence</a></span></span>
-      <button class="btn small ${full ? '' : 'tonal'}" data-action="add" data-id="${h.id}" ${full ? 'disabled' : ''} aria-label="Add ${esc(h.title)}">${icon('plus')}Add</button></div></li>`).join('');
-    const libraryBlock = () => `<div class="scroll-x" style="margin-bottom:10px">${[['all', 'All'], ...Object.entries(HABIT_CATEGORIES)].map(([k, l]) => `<button type="button" class="qchip ${filter === k ? 'done' : ''}" style="padding-left:12px" data-action="filter" data-value="${k}" aria-pressed="${filter === k}">${esc(l)}</button>`).join('')}</div>
+    const libRows = library.map((h) => `<li><div class="lrow"><span class="body"><span class="title" style="display:block">${esc(h.title)}${h.own ? ' <span class="tag" style="vertical-align:2px">yours</span>' : suggested.includes(h.id) ? ' <span class="tag" style="background:var(--accent-soft);color:var(--accent);vertical-align:2px">suggested</span>' : ''}</span><span class="sub" style="display:block">${h.own ? esc(h.cue || 'Pick a moment when you add it') : `${esc(h.cue)} · <a href="#/learn/${esc(h.ev)}">evidence</a>`}</span></span>
+      ${h.own ? `<button class="icon-btn" data-action="ownDelete" data-id="${esc(h.id)}" aria-label="Delete ${esc(h.title)}">${icon('trash')}</button>` : ''}<button class="btn small ${full ? '' : 'tonal'}" data-action="add" data-id="${h.id}" ${full ? 'disabled' : ''} aria-label="Add ${esc(h.title)}">${icon('plus')}Add</button></div></li>`).join('');
+    const libraryBlock = () => `<div class="scroll-x" style="margin-bottom:10px">${[['all', 'All'], ...(own.length ? [['own', 'Yours']] : []), ...Object.entries(HABIT_CATEGORIES)].map(([k, l]) => `<button type="button" class="qchip ${filter === k ? 'done' : ''}" style="padding-left:12px" data-action="filter" data-value="${k}" aria-pressed="${filter === k}">${esc(l)}</button>`).join('')}</div>
       <div class="card tight" style="${full ? 'box-shadow:none;margin:0' : ''}"><ul class="rows">${libRows || '<li class="empty-state">Nothing else in this category.</li>'}</ul></div>`;
     return `<header class="page-head"><div><div class="eyebrow">${state.habits.active.length} of ${MAX_ACTIVE} active</div><h1>Habits</h1></div></header>
       <p class="muted" style="margin:-8px 0 14px">Small actions tied to something you already do. One missed day doesn’t matter — just don’t miss twice.</p>
       ${active.length ? `<div class="card tight"><ul class="rows">${rows}</ul></div>` : `<div class="card empty-state">${icon('habits')}<strong>No active habits</strong>Pick one small habit from the library below.</div>`}
       ${active.length ? `<div class="section-head"><h2>Last 4 weeks</h2></div><div class="card">${habitGrid(active.map((a) => a.id), state.habits.log, date, 28, names)}</div>` : ''}
-      ${full ? `<details class="card" style="margin-top:22px"><summary class="row nowrap" style="cursor:pointer;list-style:none"><span class="slot-ico">${icon('plus')}</span><span class="grow"><strong>Browse habits (${library.length})</strong><span style="display:block;font-size:var(--text-sm);color:var(--ink-3)">All 3 slots are in use — graduate or stop one to add another</span></span>${icon('chevron')}</summary><div style="margin-top:12px">${libraryBlock()}</div></details>`
-        : `<div class="section-head"><h2>Add a habit</h2><span class="meta">${active.length && !allEstablished ? 'Add one when the current ones feel easy' : 'Start with one or two'}</span></div>${libraryBlock()}`}
+      ${full ? `${ownCard(true)}<details class="card" style="margin-top:12px" ${filter === 'own' ? 'open' : ''}><summary class="row nowrap" style="cursor:pointer;list-style:none"><span class="slot-ico">${icon('plus')}</span><span class="grow"><strong>Browse habits (${library.length})</strong><span style="display:block;font-size:var(--text-sm);color:var(--ink-3)">All 3 slots are in use — graduate or stop one to add another</span></span>${icon('chevron')}</summary><div style="margin-top:12px">${libraryBlock()}</div></details>`
+        : `<div class="section-head"><h2>Add a habit</h2><span class="meta">${active.length && !allEstablished ? 'Add one when the current ones feel easy' : 'Start with one or two'}</span></div>${ownCard(false)}${libraryBlock()}`}
       ${state.habits.retired.length ? `<div class="section-head"><h2>Graduated</h2><span class="meta">part of your routine now</span></div><div class="card tight"><ul class="rows">${state.habits.retired.map((r) => `<li><div class="lrow"><span class="check on" aria-hidden="true">${icon('check')}</span><span class="body"><span class="title" style="display:block">${esc(names[r.id])}</span><span class="sub" style="display:block">Automatic since ${esc(r.date)}</span></span></div></li>`).join('')}</ul></div>` : ''}`;
   },
   actions: {
     toggle(el, ev, ctx) {
       toggleHabit(ctx, el.dataset.id);
+    },
+    ownCreate(form, ev, ctx, data) {
+      const h = ownFrom(data);
+      if (!h.title) return;
+      const id = newOwnId();
+      const start = ctx.state.habits.active.length < MAX_ACTIVE;
+      ctx.update((st) => {
+        st.habits.own = [...(st.habits.own || []), { id, ...h }].slice(-30);
+        setOwnHabits(st.habits.own);
+        if (start) st.habits.active.push({ id, cue: h.cue || 'After I…', started: store.today(), automaticity: null });
+        return st;
+      });
+      if (!start) filter = 'own'; // show it under "Yours"
+      ctx.toast(start ? `Started: ${h.title}` : `Saved: ${h.title}`);
+      ctx.rerender();
+    },
+    ownSave(form, ev, ctx, data) {
+      const id = form.dataset.id;
+      const h = ownFrom(data);
+      if (!h.title) return;
+      ctx.update((st) => {
+        st.habits.own = (st.habits.own || []).map((x) => (x.id === id ? { id, ...h } : x));
+        setOwnHabits(st.habits.own);
+        const a = st.habits.active.find((x) => x.id === id);
+        if (a && h.cue) a.cue = h.cue;
+        return st;
+      });
+      updateSheet(manageSheet(ctx.state, id));
+      ctx.toast('Saved');
+    },
+    async ownDelete(el, ev, ctx) {
+      const id = el.dataset.id;
+      if (!(await ctx.confirm(`Delete “${habitById(id)?.title || 'this habit'}”?`, { ok: 'Delete' }))) return;
+      ctx.update((st) => {
+        st.habits.own = (st.habits.own || []).filter((x) => x.id !== id);
+        st.habits.active = st.habits.active.filter((a) => a.id !== id);
+        st.habits.retired = st.habits.retired.filter((r) => r.id !== id);
+        setOwnHabits(st.habits.own);
+        return st;
+      });
     },
     manage(el, ev, ctx) {
       openSheet(manageSheet(ctx.state, el.dataset.id), { label: 'Manage habit' });

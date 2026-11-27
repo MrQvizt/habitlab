@@ -69,14 +69,14 @@ export const foodActions = {
   },
 };
 
-/** What to save: {kcal, p, label} from the picks, or from the typed fallback. */
+/** What to save: {kcal, p, fib, label} from the picks, or from the typed fallback. */
 export function pickResult(data) {
   if (items.length) {
     const t = totalOf(items);
     const typed = Number(data.kcal);
-    return { kcal: Number.isFinite(typed) && data.kcal !== '' && typed !== t.kcal ? Math.max(0, typed) : t.kcal, p: t.p, label: describe(items).slice(0, 120) };
+    return { kcal: Number.isFinite(typed) && data.kcal !== '' && typed !== t.kcal ? Math.max(0, typed) : t.kcal, p: t.p, fib: t.fib, label: describe(items).slice(0, 120) };
   }
-  return { kcal: Math.max(0, Number(data.kcal) || 0), p: 0, label: String(data.label || '').trim().slice(0, 120) };
+  return { kcal: Math.max(0, Number(data.kcal) || 0), p: 0, fib: 0, label: String(data.label || '').trim().slice(0, 120) };
 }
 
 export { FOOD_CATS, updateSheet };

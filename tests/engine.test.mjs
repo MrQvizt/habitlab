@@ -832,6 +832,74 @@ test('food database: search, sides, totals and labels', async () => {
   assert.equal(describe(items), 'Sausages (2) + Side salad (no dressing) + 0.5× Fries (small)');
 });
 
+test('fibre: every food has a value, logs save it, and old logs are read from their names', async () => {
+  const { FOOD_DB, SIDES, FIBRE_IDS, totalOf, fibreFromLabel, foodById } = await import('../js/data/fooddb.js');
+  const all = [...FOOD_DB, ...SIDES];
+  assert.deepEqual(all.filter((x) => !FIBRE_IDS.includes(x.id)).map((x) => x.id), [], 'every food has a fibre value');
+  assert.ok(all.every((x) => x.fib >= 0 && x.fib <= x.c + 1), 'fibre is part of the carbs, never more');
+  assert.equal(foodById('kiwi').fib, 2);
+  assert.ok(foodById('lentils').fib >= 8 && foodById('raspberries').fib >= 6, 'fibre-rich foods carry their fibre');
+  assert.equal(totalOf([{ id: 'kiwi', n: 2 }, { id: 'side_salad', n: 1 }]).fib, 6);
+  assert.equal(fibreFromLabel('Kiwi'), 2);
+  assert.equal(fibreFromLabel('2× Kiwi + Side salad (no dressing)'), 6);
+  assert.equal(fibreFromLabel('Something I typed'), 0);
+  // The week's gut ring counts a logged kiwi (an extra) as well as ticked meals
+  const { weekBody } = await import('../js/engine/body.js');
+  const { weekStart } = await import('../js/engine/util.js');
+  const store = await import('../js/store.js');
+  const d = '2026-03-04';
+  const ws = weekStart(d);
+  const base = store.sanitize({ profile: { startDate: ws } });
+  const before = weekBody(base, ws).stats.fibre;
+  const st = store.sanitize({ ...base, extras: { [d]: [{ label: 'Kiwi', kcal: 42, p: 1, fib: 2 }, { label: '2× Kiwi', kcal: 84 }] } });
+  assert.equal(st.extras[d][0].fib, 2, 'fibre is kept when saved');
+  assert.equal(weekBody(st, ws).stats.fibre - before, 2 + 4, 'saved fibre and fibre read back from the name both count');
+});
+
+test('own habits: saved, cleaned, looked up like library habits', async () => {
+  const store = await import('../js/store.js');
+  const { habitById, habitLevels } = await import('../js/engine/habits.js');
+  const st = store.sanitize({ habits: {
+    own: [{ id: 'own_abc1', title: '  Drink a glass of water ', cue: 'After I pour my coffee', tiny: '', cat: 'food' }, { id: 'bad id', title: 'x' }, { id: 'own_x2', title: '' }, { id: 'own_x3', title: 'Hum', cat: 'nope' }],
+    active: [{ id: 'own_abc1', cue: 'After I pour my coffee', started: '2026-01-01' }, { id: 'own_gone', cue: 'x' }],
+    log: { '2026-01-02': { own_abc1: true, own_gone: true } },
+  } });
+  assert.deepEqual(st.habits.own.map((h) => h.id), ['own_abc1', 'own_x3'], 'only valid own habits are kept');
+  assert.equal(st.habits.own[0].title, 'Drink a glass of water');
+  assert.equal(st.habits.own[0].tiny, 'Do a two-minute version', 'a smallest version is filled in');
+  assert.equal(st.habits.own[1].cat, 'mind', 'unknown type falls back');
+  assert.deepEqual(st.habits.active.map((a) => a.id), ['own_abc1'], 'active list keeps own habits, drops unknown ones');
+  assert.deepEqual(Object.keys(st.habits.log['2026-01-02']), ['own_abc1']);
+  assert.equal(habitById('own_abc1').title, 'Drink a glass of water');
+  assert.ok(habitById('own_abc1').own);
+  assert.deepEqual(habitLevels('own_abc1').map((l) => l.label), ['Do a two-minute version', 'Drink a glass of water']);
+});
+
+test('account sync: logging in merges this phone with the account, never losing progress', async () => {
+  const { mergeStates } = await import('../js/sync.js');
+  const store = await import('../js/store.js');
+  const base = (over) => store.sanitize({ ...store.emptyState(), profile: { sex: 'male', age: 40, heightCm: 180, startWeightKg: 100, startDate: '2026-01-01' }, ...over });
+  const phone = base({ savedAt: 200, weights: [{ date: '2026-01-02', kg: 99 }, { date: '2026-01-05', kg: 98.5 }], habits: { active: [], retired: [], own: [], log: { '2026-01-05': { log_meals: true } } }, events: [{ id: 'ev_a', title: 'Walk', date: '2026-01-06', time: '07:00', place: '', kind: 'walk', notes: '', public: false }] });
+  const cloud = base({ savedAt: 100, weights: [{ date: '2026-01-02', kg: 99.4 }, { date: '2026-01-03', kg: 99.1 }], habits: { active: [], retired: [], own: [], log: { '2026-01-03': { weigh_daily: true }, '2026-01-05': { weigh_daily: true } } }, events: [{ id: 'ev_b', title: 'Swim', date: '2026-01-07', time: '', place: '', kind: 'sport', notes: '', public: false }] });
+  // A brand-new account: this phone's progress goes up as it is
+  assert.equal(mergeStates(phone, null), phone);
+  assert.equal(mergeStates(phone, store.emptyState()), phone);
+  // A new phone: the account's progress comes down
+  assert.equal(mergeStates(store.emptyState(), cloud), cloud);
+  // Demo data on the phone never goes into an account
+  assert.equal(mergeStates(base({ profile: { ...phone.profile, demo: true } }), cloud), cloud);
+  // Both have progress: every weigh-in, day and event from both; the newer copy wins a clash
+  const m = store.migrate(mergeStates(phone, cloud));
+  assert.deepEqual(m.weights.map((w) => `${w.date}:${w.kg}`), ['2026-01-02:99', '2026-01-03:99.1', '2026-01-05:98.5']);
+  assert.deepEqual(Object.keys(m.habits.log).sort(), ['2026-01-03', '2026-01-05']);
+  assert.deepEqual(m.habits.log['2026-01-05'], { log_meals: true }, 'a day both have: the newer copy’s day');
+  assert.deepEqual(m.events.map((e) => e.id).sort(), ['ev_a', 'ev_b']);
+  assert.equal(m.savedAt, 200);
+  // Order doesn't matter for what's kept
+  const m2 = store.migrate(mergeStates(cloud, phone));
+  assert.deepEqual(m2.weights.map((w) => w.date), m.weights.map((w) => w.date));
+});
+
 test('activity search: everyday words find the right activities', async () => {
   const { HOBBIES, searchHobbies, hobbyByName } = await import('../js/data/hobbies.js');
   const { CARDIO } = await import('../js/data/exercises.js');

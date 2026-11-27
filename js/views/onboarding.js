@@ -67,6 +67,7 @@ function welcome() {
     <p style="margin:0 0 8px"><strong>Not medical care.</strong> <span class="muted-2">If you have a condition or take medication, check with your doctor.</span></p>
     <p style="margin:0"><strong>Evidence-based.</strong> <span class="muted-2">See <a href="#/learn">the research</a> behind every feature.</span></p>
   </div>
+  <p class="muted" style="text-align:center;font-size:var(--text-sm);margin-bottom:4px">Already have an account? <a class="btn small ghost" href="#/account" style="display:inline-flex;color:var(--accent)">Log in</a></p>
   <p class="muted" style="text-align:center;font-size:var(--text-sm)">Moving from another device? <label class="btn small ghost" style="display:inline-flex;color:var(--accent)"><input type="file" accept="application/json,.json" data-change="importFile" hidden>Import a backup</label></p>
   <div class="action-bar" style="flex-direction:column;align-items:stretch">
     <button class="btn primary large" data-action="next" style="max-width:none">Get started</button>

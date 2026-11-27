@@ -1,5 +1,6 @@
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 import { goalHint } from './onboarding.js';
+import * as account from '../account.js';
 import { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } from './alarms.js';
 import { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } from '../ui/dom.js';
 import * as store from '../store.js';
@@ -163,7 +164,7 @@ export default {
     if (section === 'data') return head('Your data') + `
       <div class="card" style="order:9"><h2 class="h3" style="margin-bottom:4px">Delete all data</h2><p class="muted" style="font-size:var(--text-sm)">Removes everything from ${notify.platform() === 'native' ? 'this phone' : 'this browser'}. Export a backup first if you might want it back.</p><button class="btn ghost danger small" data-action="reset">${icon('trash')}Delete all data…</button></div>`.replace('style="order:9"', '') + `
       <div class="card">
-        <p class="muted">${notify.platform() === 'native' ? 'Everything is stored only on this phone' : 'Everything is stored only in this browser on this device'}. Nothing is uploaded. Export a backup to move to another device or keep a copy.</p>
+        <p class="muted">${account.current() ? 'Your progress is on this device and saved to your account. A backup file is an extra copy you keep yourself.' : `${notify.platform() === 'native' ? 'Everything is stored only on this phone' : 'Everything is stored only in this browser on this device'}. Nothing is uploaded unless you <a href="#/account">log in</a>. Export a backup to keep a copy.`}</p>
         <div class="row"><button class="btn" data-action="export">Export backup</button>
           <label class="btn">Import backup file<input type="file" accept="application/json,.json" data-change="importFile" hidden></label>
           <button class="btn" data-action="pasteMode">Paste a backup</button>
@@ -171,7 +172,9 @@ export default {
         ${showBackup ? `<div style="margin-top:14px"><label class="field"><span>Your backup <span class="hint">If no file downloaded, copy this text and save it somewhere safe (a note or an email to yourself).</span></span><textarea id="backup-out" class="backup" readonly>${esc(store.exportJson(state))}</textarea></label><button class="btn small" data-action="copyBackup">Copy to clipboard</button></div>` : ''}
         ${pasteMode ? `<form data-form="pasteImport" style="margin-top:14px"><label class="field"><span>Paste backup text</span><textarea id="backup-in" name="text" class="backup" required></textarea></label><button class="btn primary small">Import</button></form>` : ''}
       </div>`;
+    const me = account.current();
     return head('Settings', 'Habit Lab') + `
+      <div class="card tight"><ul class="rows"><li><a class="lrow" href="#/account" style="text-decoration:none"><span class="slot-ico">${icon('check')}</span><span class="body"><span class="title" style="display:block">${me ? 'Account' : 'Save your progress'}</span><span class="sub" style="display:block">${me ? esc(`${me.email || 'Logged in'} · saved online`) : 'Create an account or log in — keep everything if you change phone'}</span></span><span class="trail">${icon('chevron')}</span></a></li></ul></div>
       <div class="card tight"><ul class="rows">${SECTIONS.map(([id, t, sub, ic]) => `<li><a class="lrow" href="#/settings/${id}" style="text-decoration:none"><span class="slot-ico">${icon(ic)}</span><span class="body"><span class="title" style="display:block">${t}</span><span class="sub" style="display:block">${esc(sub)}</span></span><span class="trail">${icon('chevron')}</span></a></li>`).join('')}</ul></div>
       <div class="card tight"><ul class="rows">
         <li><a class="lrow" href="#/learn" style="text-decoration:none"><span class="slot-ico">${icon('learn')}</span><span class="body"><span class="title" style="display:block">The evidence</span><span class="sub" style="display:block">The research behind every feature</span></span><span class="trail">${icon('chevron')}</span></a></li>

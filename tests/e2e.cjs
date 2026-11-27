@@ -110,6 +110,15 @@ const shots = process.argv[3] || null;
   await page.click('.sheet .food-hit:has-text("Latte")');
   await page.click('.sheet button:has-text("Add")');
   await page.waitForSelector('.tg-day .k-extra:has-text("Latte")');
+  // A logged kiwi counts toward today's fibre
+  const fibreNow = async () => Number(((await page.textContent('.meter-legend')).match(/Fibre (\d+)/) || [])[1]);
+  const fibBefore = await fibreNow();
+  await page.click('button[data-action=openExtra] >> nth=0');
+  await page.fill('.sheet [data-food-search]', 'kiwi');
+  await page.click('.sheet .food-hit:has-text("Kiwi")');
+  await page.click('.sheet button:has-text("Add")');
+  await page.waitForSelector('.tg-day .k-extra:has-text("Kiwi")');
+  if ((await fibreNow()) !== fibBefore + 2) errors.push(`kiwi should add 2 g fibre: ${fibBefore} → ${await fibreNow()}`);
   const fd = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')));
   const tdy = Object.keys(fd.extras).sort().at(-1);
   if (!(fd.extras[tdy].find((x) => x.label === 'Latte')?.p > 0)) errors.push('extra protein not stored');
