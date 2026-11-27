@@ -93,7 +93,8 @@ export function icon(name, cls = '') {
 
 export function chips(name, options, selected = [], { multi = true } = {}) {
   const sel = new Set(Array.isArray(selected) ? selected : [selected]);
-  return `<div class="chips" role="group">${Object.entries(options)
+  // options: { value: label } or, to keep a set order (e.g. days from your week start), [[value, label], …]
+  return `<div class="chips" role="group">${(Array.isArray(options) ? options : Object.entries(options))
     .map(([value, label]) => `<label class="chip"><input type="${multi ? 'checkbox' : 'radio'}" name="${esc(name)}" value="${esc(value)}" ${sel.has(value) ? 'checked' : ''}><span>${esc(typeof label === 'string' ? label : label.label)}</span></label>`)
     .join('')}</div>`;
 }

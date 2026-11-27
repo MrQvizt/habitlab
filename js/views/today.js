@@ -7,17 +7,16 @@ import { mealsFor, eatenSoFar, proteinEaten, fibreEaten, dayComplete, safetyNoti
 import { byId } from '../engine/meals.js';
 import { habitById, streak, habitLevels, levelIndex } from '../engine/habits.js';
 import { CARDIO } from '../data/exercises.js';
-import { daysBetween, addDays } from '../engine/util.js';
-import { toHHMM } from '../engine/schedule.js';
+import { daysBetween, addDays, weekdayOf } from '../engine/util.js';
+import { toHHMM, toMin } from '../engine/schedule.js';
 import { itemDone, logPlannedActivity } from './move.js';
 import { toggleHabit, mealRowList } from './sheets.js';
 import { planDay, partOf, PARTS } from '../engine/dayplan.js';
 import { dayRings, ringsSvg, RING_META } from './dayrings.js';
-import { eventsOn, EVENT_KINDS } from './calendar.js';
-import { itemKey } from '../engine/workouts.js';
+import { eventsOn, EVENT_KINDS, occId } from './calendar.js';
+import { itemKey, INTENSITY } from '../engine/workouts.js';
 import { isPlanned } from './plan.js';
 import * as share from '../share.js';
-import { toMin } from '../engine/schedule.js';
 import { journey, nextStops, recentTimeStop } from '../engine/journey.js';
 import { whenLabel } from './journey.js';
 import { wrapReadyCard, bodyRingsCard } from './wrap.js';
@@ -102,8 +101,7 @@ function nextUp(state, date) {
   const nowMin = h * 60 + new Date().getMinutes();
   const due = meals.find((m) => !log[m.slot] && m.time <= nowMin + 30);
   if (due) return card(`Next up · ${toHHMM(due.time)} ${slotLabel(due.slot)}`, esc(byId(due.recipeId).name), 'Log it, whatever you ate · +10 XP', btn('Log', `data-action="openMeal" data-slot="${due.slot}" data-date="${date}"`));
-  const { schedule } = store.schedule(state, date);
-  const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items;
+  const items = store.dayItems(state, date);
   const move = items.find((it) => it.kind !== 'rest' && !itemDone(state.workouts.log[date] || [], it));
   if (move && h >= 7) {
     if (move.kind === 'strength') return card('Next up · Movement', `Strength session ${move.variant}`, `About ${move.minutes} min · +40 XP`, `<a class="btn small" href="#/move/session/${move.variant}">Start</a>`);
@@ -156,8 +154,7 @@ function weighRow(state, date) {
 
 /** Planned movement rows. One you gave a time in the calendar (or evening planning) sits at that time. */
 function moveRows(state, date, linked = {}) {
-  const { schedule } = store.schedule(state, date);
-  const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items;
+  const items = store.dayItems(state, date);
   const logged = state.workouts.log[date] || [];
   const doneTag = `<span class="check on" style="animation:none" role="img" aria-label="Done">${icon('check')}</span>`;
   const out = { any: [], timed: [] };
@@ -190,11 +187,18 @@ function yourDay(state, date) {
   // Your calendar events for the day sit at their time (untimed ones under "Any time").
   const allEvs = eventsOn(state, date);
   const linked = Object.fromEntries(allEvs.filter((e) => e.planKey).map((e) => [e.planKey, e]));
-  const dayKeys = new Set(store.schedule(state, date).schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items.map(itemKey));
+  const dayKeys = new Set(store.dayItems(state, date).map(itemKey));
   const evs = allEvs.filter((e) => !e.planKey || !dayKeys.has(e.planKey)); // linked ones show as the session itself
   const moves = moveRows(state, date, linked);
   for (const m of moves.timed) plan.timed.push({ kind: 'movehtml', time: m.time, html: m.html, order: 1.6 });
-  const evRow = (e) => `<li class="k-event"><button class="lrow" data-action="calEdit" data-id="${esc(e.series || e.id)}" data-date="${e.date}"><span class="slot-ico" style="font-size:1.15rem">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}</span><span class="body"><span class="over">${e.time ? esc(e.time) : 'Any time'} · Calendar${e.public ? ' · open to friends' : ''}</span><span class="title">${esc(e.title)}</span>${e.place ? `<span class="sub">${esc(e.place)}</span>` : ''}</span><span class="trail">${icon('chevron')}</span></button></li>`;
+  // A walk / workout / sport in the calendar: tick it off (how long, how hard?) so it counts as movement.
+  const logged = state.workouts.log[date] || [];
+  const moveEvRow = (e) => {
+    const id = occId(e);
+    const done = logged.find((x) => x.evId === id);
+    return `<li class="k-event ${done ? 'is-done' : ''}"><div class="lrow ${done ? 'done' : ''}">${done ? `<span class="check on" style="animation:none" role="img" aria-label="Done">${icon('check')}</span>` : `<button class="check" data-action="eventDone" data-ev="${esc(id)}" data-title="${esc(e.title)}" data-dur="${e.dur || ''}" data-date="${date}" aria-label="Done: ${esc(e.title)}">${icon('check')}</button>`}<button class="body row-btn" data-action="calEdit" data-id="${esc(e.series || e.id)}" data-date="${e.date}"><div class="over">${e.time ? esc(e.time) : 'Any time'} · Calendar${e.public ? ' · open to friends' : ''}</div><div class="title"><span>${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji} ${esc(e.title)}</span></div><div class="sub">${done ? `${done.minutes} min · ${esc(INTENSITY[done.intensity]?.label.toLowerCase() || '')}` : esc(e.place || 'Tick when done — it counts as movement')}</div></button></div></li>`;
+  };
+  const evRow = (e) => (EVENT_KINDS[e.kind]?.move ? moveEvRow(e) : `<li class="k-event"><button class="lrow" data-action="calEdit" data-id="${esc(e.series || e.id)}" data-date="${e.date}"><span class="slot-ico" style="font-size:1.15rem">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}</span><span class="body"><span class="over">${e.time ? esc(e.time) : 'Any time'} · Calendar${e.public ? ' · open to friends' : ''}</span><span class="title">${esc(e.title)}</span>${e.place ? `<span class="sub">${esc(e.place)}</span>` : ''}</span><span class="trail">${icon('chevron')}</span></button></li>`);
   for (const e of evs) if (e.time) plan.timed.push({ kind: 'event', time: toMin(e.time), ev: e, order: 1.5 });
   // Food you added off the plan sits where you ate it (older entries without a time: under "Any time").
   const extras = state.extras[date] || [];
@@ -278,7 +282,7 @@ function banners(state, date) {
   if (state.profile.demo) out.push(`<div class="notice info" style="align-items:center;padding:8px 8px 8px 14px">${icon('info')}<div class="grow">Exploring demo data</div><button class="btn small" data-action="endDemo">Start my own</button></div>`);
   const last = state.checkins.length ? state.checkins[state.checkins.length - 1].date : state.profile.startDate;
   const overdue = daysBetween(last, date) >= 9;
-  const checkinDay = (new Date(date + 'T12:00').getDay() + 6) % 7 === Number(state.reminders?.checkinDay ?? 6);
+  const checkinDay = weekdayOf(date) === Number(state.reminders?.checkinDay ?? 6);
   if (checkinDue(state, date) && (overdue || checkinDay) && !nextUp(state, date).includes('Weekly check-in')) out.push(`<a class="notice ok" href="#/checkin" style="text-decoration:none;align-items:center">${icon('calendar')}<div class="grow"><strong>Weekly check-in</strong> · two minutes, +50 XP</div>${icon('chevron')}</a>`);
   if (!state.alarms?.wake?.on && !state.flags?.alarmTip && !state.profile.demo && state.profile.schedule?.wake) out.push(`<div class="notice ok" style="align-items:center"><span style="font-size:1.3rem">⏰</span><a class="grow" href="#/settings/alarms" style="text-decoration:none;color:inherit"><strong>Wake up to something kind</strong> · a gentle alarm with a message just for you</a><button class="btn small ghost" data-action="dismissAlarmTip" aria-label="Dismiss">${icon('x')}</button></div>`);
   if (!state.profile.schedule?.wake && !state.flags?.dayAsked && !state.profile.demo) out.push(`<a class="notice info" href="#/settings/day" style="text-decoration:none;align-items:center">${icon('clock')}<div class="grow"><strong>Set your day</strong> · wake, bed and meal times so snacks and reminders fit you</div>${icon('chevron')}</a>`);

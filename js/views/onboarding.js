@@ -7,7 +7,7 @@ import { HABITS } from '../data/habits.js';
 import { suggestNext } from '../engine/habits.js';
 import { screen } from '../engine/safety.js';
 import { emptyState, importJson } from '../store.js';
-import { isoDate, round, cmToIn } from '../engine/util.js';
+import { isoDate, round, cmToIn, dayChoices } from '../engine/util.js';
 import { demoState } from '../demo.js';
 import { dayFields, daySummary, readDay } from './day.js';
 import { journey, suggestedGoalKg, healthyRange, timeline } from '../engine/journey.js';
@@ -24,7 +24,6 @@ export function goalHint(heightCm, weightKg, u) {
 }
 
 const STEPS = ['Welcome', 'About you', 'Health check', 'Food', 'Movement', 'Habits', 'Your plan'];
-const DAYS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
 const DISLIKE_OPTIONS = ['tofu', 'tempeh', 'salmon', 'cod', 'tuna_can', 'shrimp', 'egg', 'cottage_cheese', 'greek_yogurt', 'mushrooms', 'avocado', 'chickpeas', 'lentils', 'black_beans', 'quinoa', 'brown_rice', 'sweet_potato', 'broccoli', 'spinach', 'kimchi', 'peanut_butter', 'whey', 'beef_mince', 'pork_tenderloin'];
 const STRUGGLES = {
   evening: 'Evening snacking',
@@ -167,7 +166,7 @@ function movement() {
       ${[['none', 'New to it', 'We’ll start with chair and wall exercises.'], ['some', 'Some experience', 'I’ve done bodyweight or gym work before.'], ['regular', 'I train regularly', 'Comfortable with squats, push-ups, weights.']].map(([v, l, h]) => `<label class="option"><input type="radio" name="experience" value="${v}" ${(draft.experience || 'none') === v ? 'checked' : ''}><div><strong>${l}</strong><small class="muted">${h}</small></div></label>`)}
     </div></fieldset>
     <fieldset><legend>Equipment you have <span class="hint">Nothing at all is fine.</span></legend>${chips('equipment', { bands: 'Resistance bands', dumbbells: 'Dumbbells', gym: 'Gym access' }, draft.equipment || [])}</fieldset>
-    <fieldset><legend>Which days could you exercise?</legend>${chips('daysAvailable', DAYS, (draft.daysAvailable || [0, 2, 4]).map(String))}</fieldset>
+    <fieldset><legend>Which days could you exercise?</legend>${chips('daysAvailable', dayChoices(), (draft.daysAvailable || [0, 2, 4]).map(String))}</fieldset>
     <div class="grid two">
       <label class="field"><span>Time per session</span><select name="sessionMinutes">
         ${[15, 20, 30, 45].map((m) => `<option value="${m}" ${Number(draft.sessionMinutes || 30) === m ? 'selected' : ''}>${m} minutes</option>`)}</select></label>

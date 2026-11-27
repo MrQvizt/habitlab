@@ -1,11 +1,11 @@
 // Repeating calendar events: an event with `repeat` happens on more days than its own `date`.
 // repeat = { freq: 'daily' | 'weekly' | 'biweekly' | 'monthly', days?: [0..6] (Monday = 0), until?: ISO }
 // `skip` lists dates where one occurrence was moved or deleted.
-import { addDays, daysBetween } from './util.js';
+import { addDays, daysBetween, weekdayOf } from './util.js';
 
 export const FREQS = { daily: 'Every day', weekly: 'Every week', biweekly: 'Every 2 weeks', monthly: 'Every month' };
 
-const weekday = (iso) => (new Date(iso + 'T12:00').getDay() + 6) % 7;
+const weekday = weekdayOf;
 const monday = (iso) => addDays(iso, -weekday(iso));
 
 /** Does event `e` happen on `date`? */

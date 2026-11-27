@@ -400,7 +400,7 @@ export function syncReminders() {
   return notify.sync(state, {
     habitsOnly: store.habitsOnly(state),
     streak: g?.streak || 0,
-    schedule: (date) => store.schedule(state, date).schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items,
+    schedule: (date) => store.dayItems(state, date),
   });
 }
 notify.listen();

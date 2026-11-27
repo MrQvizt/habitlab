@@ -154,14 +154,14 @@ export function buildReminders(state, now, ctx = {}) {
       }
     }
 
-    // Plan tomorrow: 15 min before wind-down time, unless the wind-down alarm already opens it.
+    // Plan tomorrow: an hour before bed time, unless the wind-down alarm already opens it.
     if (r.planOn && !state.alarms?.wind?.on && !(isToday && state.flags?.planned === addDays(date, 1))) {
       const d = daySchedule(state.profile);
       push(date, 'plan', d.bed - 60, 'Plan tomorrow (2 minutes)', 'When and where will you move? Peek at tomorrow’s meals. Plans made the night before are far more likely to happen.', '#/plan');
     }
 
     // Weekly check-in
-    if (r.checkin && (parseDate(date).getDay() + 6) % 7 === Number(r.checkinDay)) {
+    if (r.checkin && weekdayOf(date) === Number(r.checkinDay)) {
       const last = (state.checkins || []).map((c) => c.date).sort().pop();
       if (!(isToday && last === date)) push(date, 'checkin', r.checkinAt, 'Weekly check-in (+50 XP)', 'Two minutes to look back at your week and tune the plan.', '#/checkin');
     }

@@ -5,23 +5,23 @@
 // wind-down, bed) are drawn in too, so the whole day is in one place; they can be hidden.
 import { esc, icon, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
-import { addDays, weekStart, weekOrder } from '../engine/util.js';
+import { addDays, weekStart, weekOrder, weekdayOf } from '../engine/util.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
-import { itemName } from './planmove.js';
+import { itemName, planEmoji, planKind } from './planmove.js';
 import { itemKey } from '../engine/workouts.js';
 import { expand, FREQS, repeatLabel } from '../engine/recur.js';
 import { buzz } from '../ui/celebrate.js';
 import * as share from '../share.js';
 import { mealsFor, slotLabel } from './shared.js';
 import { byId } from '../engine/meals.js';
-import { daySchedule, toHHMM } from '../engine/schedule.js';
+import { daySchedule, toHHMM, toMin } from '../engine/schedule.js';
 import { alarmsOf, alarmTimes } from '../engine/alarms.js';
 
 export const EVENT_KINDS = {
-  walk: { label: 'Walk', emoji: '🚶' },
-  workout: { label: 'Workout', emoji: '💪' },
-  sport: { label: 'Sport / class', emoji: '🏸' },
-  outdoors: { label: 'Outdoors', emoji: '🥾' },
+  walk: { label: 'Walk', emoji: '🚶', move: true },
+  workout: { label: 'Workout', emoji: '💪', move: true },
+  sport: { label: 'Sport / class', emoji: '🏸', move: true },
+  outdoors: { label: 'Outdoors', emoji: '🥾', move: true },
   cooking: { label: 'Batch cooking', emoji: '🍲' },
   shopping: { label: 'Food shopping', emoji: '🛒' },
   habit: { label: 'Habit', emoji: '✅' },
@@ -58,9 +58,6 @@ let scrolled = '';
 let gridScroll = 0;
 let ctxRef = null;
 
-const weekdayOf = (iso) => (new Date(iso + 'T12:00').getDay() + 6) % 7;
-const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
-const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const newId = () => `ev_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 /** The id friends join for one occurrence (repeating events: one per date). */
 export const occId = (e) => (e.series ? `${e.series}_${e.date.replace(/-/g, '')}` : e.id);
@@ -70,9 +67,7 @@ export function eventsOn(state, date) {
   return expand(state.events, date, date);
 }
 
-const plannedOn = (state, date) => store.schedule(state, date).schedule[weekdayOf(date)].items.filter((i) => i.kind !== 'rest');
-const planKind = (it) => (it.kind === 'activity' ? 'sport' : it.kind === 'cardio' ? 'walk' : 'workout');
-const planEmoji = (it) => (it.kind === 'strength' ? '💪' : it.kind === 'cardio' ? '🚶' : '🏸');
+const plannedOn = (state, date) => store.dayItems(state, date).filter((i) => i.kind !== 'rest');
 
 /** Planned sessions not yet given a time on that day. */
 function looseplan(state, date, evs) {
@@ -360,7 +355,7 @@ function targetAt(x, y) {
   if (cell.dataset.grid) {
     const r = cell.getBoundingClientRect();
     const m = Math.round(((y - r.top) / PX * 60 + H0 * 60) / 15) * 15;
-    time = hhmm(Math.max(H0 * 60, Math.min(23 * 60 + 45, m)));
+    time = toHHMM(Math.max(H0 * 60, Math.min(23 * 60 + 45, m)));
   }
   return { cell, date: cell.dataset.dropDate, time };
 }
@@ -516,7 +511,7 @@ export default {
       if (ev.target !== el) return; // a tap on an event opens it instead
       const r = el.getBoundingClientRect();
       const m = Math.floor(((ev.clientY - r.top) / PX * 60 + H0 * 60) / 30) * 30;
-      calendarActions.calAdd({ dataset: { date: el.dataset.date, time: hhmm(Math.min(23 * 60 + 30, m)) } }, ev, ctx);
+      calendarActions.calAdd({ dataset: { date: el.dataset.date, time: toHHMM(Math.min(23 * 60 + 30, m)) } }, ev, ctx);
     },
     ...share.shareActions,
   },

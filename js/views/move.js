@@ -7,7 +7,7 @@ import { chips } from '../ui/dom.js';
 import { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName, hobbySearchText, searchHobbies } from '../data/hobbies.js';
 import { CARDIO, WARMUP, COOLDOWN, CHAINS } from '../data/exercises.js';
 import { STOP_SIGNS } from '../engine/safety.js';
-import { addDays, weekStart, weekOrder, dateInWeek } from '../engine/util.js';
+import { addDays, weekStart, weekOrder, dateInWeek, dayChoices, DAY_SHORT } from '../engine/util.js';
 import { dayIndex } from './shared.js';
 import { askActivity, itemName } from './planmove.js';
 import { itemKey } from '../engine/workouts.js';
@@ -17,7 +17,6 @@ let showAddActivity = false;
 let pickCat = 'pop';
 let picked = null; // hobby name, or '' for a custom activity
 let logOther = false;
-const DAY_CHIPS = { 0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun' };
 const ACTIVITY_IDEAS = ['Walking with friends', 'Dog walk', 'Football', 'Dancing', 'Swimming', 'Cycling to work', 'Gardening', 'Yoga class', 'Climbing', 'Tennis / padel', 'Gym class', 'Hiking'];
 
 /** First word, at most 7 characters, so it fits a narrow week-grid cell. */
@@ -35,7 +34,7 @@ export function itemDone(logged, it) {
 function activitiesCard(state) {
   const acts = state.profile.activities || [];
   const list = acts.length
-    ? `<ul class="list">${acts.map((a) => `<li class="row between nowrap"><div class="grow"><strong>${esc(a.name)}</strong><div class="muted" style="font-size:.86rem">${a.days.map((d) => DAY_CHIPS[d]).join(', ')} · ${a.minutes} min · ${esc(INTENSITY[a.intensity].label.toLowerCase())}${a.strength ? ' · builds strength' : ''}</div></div><button class="btn small ghost danger" data-action="removeActivity" data-id="${esc(a.id)}" aria-label="Remove ${esc(a.name)}">${icon('trash')}</button></li>`).join('')}</ul>`
+    ? `<ul class="list">${acts.map((a) => `<li class="row between nowrap"><div class="grow"><strong>${esc(a.name)}</strong><div class="muted" style="font-size:.86rem">${[...a.days].sort((x, y) => weekOrder().indexOf(x) - weekOrder().indexOf(y)).map((d) => DAY_SHORT[d]).join(', ')} · ${a.minutes} min · ${esc(INTENSITY[a.intensity].label.toLowerCase())}${a.strength ? ' · builds strength' : ''}</div></div><button class="btn small ghost danger" data-action="removeActivity" data-id="${esc(a.id)}" aria-label="Remove ${esc(a.name)}">${icon('trash')}</button></li>`).join('')}</ul>`
     : '<p class="muted" style="font-size:.9rem">Already walk with friends, play a sport, dance or garden? Add it and your plan counts it — you’ll get less extra cardio, and strength-type activities replace a strength session.</p>';
   let form = `<button class="btn" data-action="toggleAddActivity" style="margin-top:8px">${icon('plus')}Add an activity you already do</button>`;
   if (showAddActivity && picked == null) {
@@ -55,7 +54,7 @@ function activitiesCard(state) {
         <button type="button" class="btn ghost small" data-action="repickHobby" style="margin:-4px 0 6px -8px">${icon('back')}All activities</button>
         <label class="field"><span>Activity</span><input type="text" name="name" maxlength="80" required value="${esc(h?.name || '')}" placeholder="e.g. Walking with friends" ${h ? '' : 'autofocus'}></label>
         ${h ? `<p class="muted" style="font-size:var(--text-xs);margin:-8px 0 12px">${h.est ? esc(h.note) : `≈ ${h.met} METs — 2024 Compendium of Physical Activities (${esc(h.code)})`}. Change anything that doesn’t match how you do it.</p>` : ''}
-        <fieldset><legend>Which days?</legend>${chips('days', DAY_CHIPS, [])}</fieldset>
+        <fieldset><legend>Which days?</legend>${chips('days', dayChoices(), [])}</fieldset>
         <div class="grid two" style="margin-bottom:0">
           <label class="field"><span>How long?</span><div class="inline-inputs"><input type="number" name="minutes" min="5" max="600" step="5" value="${h?.minutes || 45}" required inputmode="numeric"><span class="unit">min</span></div></label>
           <label class="field"><span>How hard?</span><select name="intensity">${Object.entries(INTENSITY).map(([k, v]) => `<option value="${k}" ${k === intensity ? 'selected' : ''}>${v.label} — ${esc(v.hint)}</option>`).join('')}</select></label>
@@ -99,7 +98,7 @@ function overview(state) {
     const pills = d.items.map((it) => {
       const isDone = itemDone(logged, it);
       if (it.kind === 'rest') return '<span class="pill rest">rest</span>';
-      const text = it.kind === 'activity' ? esc(shortName(it.name)) : it.kind === 'strength' ? `Str ${it.variant}` : `${it.minutes}′ ${esc(it.mode)}`;
+      const text = it.kind === 'activity' ? esc(shortName(it.name)) : it.kind === 'strength' ? `Str ${it.variant}` : `${it.minutes}′ ${esc(shortName(CARDIO[it.mode]?.label || it.mode))}`;
       // Tap to move it to another day this week.
       return `<button type="button" class="pill ${it.kind} ${isDone ? 'done' : ''} ${it.from != null ? 'moved' : ''}" data-action="openMoveItem" data-key="${esc(itemKey(it))}" data-from="${i}" data-date="${dd}" aria-label="Move ${esc(itemName(it))} (${d.name})">${text}</button>`;
     });

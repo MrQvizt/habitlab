@@ -18,8 +18,7 @@ export function dayRings(state, date = store.today()) {
   const logged = meals.filter((m) => log[m.slot]).length;
   const eat = { pct: meals.length ? logged / meals.length : 0, text: `${logged}/${meals.length} meals` };
 
-  const { schedule } = store.schedule(state, date);
-  const items = schedule[(new Date(date + 'T12:00').getDay() + 6) % 7].items.filter((it) => it.kind !== 'rest');
+  const items = store.dayItems(state, date).filter((it) => it.kind !== 'rest');
   const done = items.filter((it) => itemDone(state.workouts.log[date] || [], it)).length;
   // Planned sessions and activities close the ring; on a rest day, resting is the plan (any movement logged is a bonus).
   const anyMove = (state.workouts.log[date] || []).length > 0;

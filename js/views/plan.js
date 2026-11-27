@@ -4,18 +4,17 @@
 // Sheeran 2006). Opened by the wind-down alarm, an evening reminder, or the card on Today.
 import { esc, icon, fmtDate } from '../ui/dom.js';
 import * as store from '../store.js';
-import { addDays } from '../engine/util.js';
+import { addDays, weekdayOf } from '../engine/util.js';
 import { itemKey } from '../engine/workouts.js';
 import { byId } from '../engine/meals.js';
 import { habitById } from '../engine/habits.js';
-import { itemName } from './planmove.js';
+import { itemName, planEmoji, planKind } from './planmove.js';
 import { eventsOn, EVENT_KINDS } from './calendar.js';
 import { mealsFor, slotLabel } from './shared.js';
 import { toHHMM } from '../engine/schedule.js';
 import { confetti } from '../ui/celebrate.js';
 import * as share from '../share.js';
 
-const ICON = { strength: '💪', cardio: '🚶', activity: '🏸' };
 
 export function tomorrow() {
   return addDays(store.today(), 1);
@@ -26,15 +25,15 @@ export function isPlanned(state, date = tomorrow()) {
 }
 
 function moveBlock(state, date) {
-  const di = (new Date(date + 'T12:00').getDay() + 6) % 7;
-  const items = store.schedule(state, date).schedule[di].items.filter((i) => i.kind !== 'rest');
+  const di = weekdayOf(date);
+  const items = store.dayItems(state, date).filter((i) => i.kind !== 'rest');
   const evs = eventsOn(state, date);
   const rows = items.map((it) => {
     const key = itemKey(it);
     const ev = evs.find((e) => e.planKey === key);
-    return `<li class="plan-row"><span class="cal-emoji" aria-hidden="true">${ICON[it.kind] || '📌'}</span>
+    return `<li class="plan-row"><span class="cal-emoji" aria-hidden="true">${planEmoji(it)}</span>
       <div class="grow"><strong>${esc(itemName(it))}</strong>
-        <form class="plan-when" data-form="planSetWhen" data-key="${esc(key)}" data-title="${esc(itemName(it))}" data-kind="${it.kind === 'activity' ? 'sport' : it.kind === 'cardio' ? 'walk' : 'workout'}" data-ev="${esc(ev?.id || '')}">
+        <form class="plan-when" data-form="planSetWhen" data-key="${esc(key)}" data-title="${esc(itemName(it))}" data-kind="${planKind(it)}" data-ev="${esc(ev?.id || '')}">
           <input type="time" name="time" value="${esc(ev?.time || '')}" aria-label="Time for ${esc(itemName(it))}" required>
           <input type="text" name="place" value="${esc(ev?.place || '')}" maxlength="80" placeholder="Where?" aria-label="Where for ${esc(itemName(it))}">
           <button class="btn small ${ev ? '' : 'primary'}">${ev ? 'Update' : 'Set'}</button>
@@ -83,10 +82,17 @@ export default {
       if (!time) return ctx.toast('Pick a time');
       const date = tomorrow();
       const id = form.dataset.ev || `ev_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-      const e = { id, planKey: form.dataset.key, title: form.dataset.title, date, time, place: String(data.place || '').trim().slice(0, 80), kind: form.dataset.kind, notes: '', public: false };
+      const place = String(data.place || '').trim().slice(0, 80);
+      const e = { id, planKey: form.dataset.key, title: form.dataset.title, date, time, place, kind: form.dataset.kind, notes: '', public: false };
       ctx.update((st) => {
         const prev = (st.events || []).find((x) => x.id === id);
-        st.events = [...(st.events || []).filter((x) => x.id !== id), { ...e, public: !!prev?.public }];
+        if (prev?.repeat) {
+          // A repeating event: change just tomorrow's — skip it in the series and add a one-off copy.
+          const one = { ...prev, id: `ev_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, date, time, place };
+          delete one.repeat;
+          delete one.skip;
+          st.events = [...st.events.map((x) => (x.id === id ? { ...x, skip: [...(x.skip || []), date].slice(-200) } : x)), one];
+        } else st.events = [...(st.events || []).filter((x) => x.id !== id), prev ? { ...prev, time, place } : e]; // keep its notes, length, sharing
         return st;
       }, { quiet: true });
       ctx.toast(`${form.dataset.title}: ${time}${e.place ? ` at ${e.place}` : ''}`);

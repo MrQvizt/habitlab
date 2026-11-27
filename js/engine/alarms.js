@@ -7,6 +7,7 @@
 //   compared with a printed book (Chang 2015).
 // - Meals at regular times from your day schedule.
 import { daySchedule, mealTimes, toHHMM, toMin } from './schedule.js';
+import { planDayFor, isoDate } from './util.js';
 import { DEFAULT_SOUND, nativeSound } from '../data/melodies.js';
 
 export const DEFAULT_ALARMS = {
@@ -22,7 +23,7 @@ export const STYLES = {
   gentle: { label: 'Chime', hint: 'One chime and a notification' },
 };
 
-const SLOT_LABEL = { breakfast: 'Breakfast', snack: 'Morning snack', lunch: 'Lunch', snack2: 'Afternoon snack', dinner: 'Dinner', snack3: 'Evening snack' };
+const SLOT_LABEL = { breakfast: 'Breakfast', snack: 'Snack', lunch: 'Lunch', snack2: 'Afternoon snack', dinner: 'Dinner', snack3: 'Evening snack' };
 
 export function alarmsOf(state) {
   const a = state.alarms || {};
@@ -48,12 +49,22 @@ export function alarmTimes(state) {
   return { wake, wind: d.bed - a.wind.before, bed: d.bed };
 }
 
-/** The meal slots to remind about (main meals, plus snacks if chosen). */
+/** All the meal slots in your plan (today's), in the order the plan uses — the same list Today shows. */
+function planSlots(state) {
+  const day = planDayFor(state, isoDate());
+  if (day.length) return day.map((m) => m.slot);
+  const n = state.prefs?.mealsPerDay || 4; // no plan yet: the usual shape for that many meals
+  return n >= 6 ? ['breakfast', 'snack', 'lunch', 'snack2', 'dinner', 'snack3'] : n >= 5 ? ['breakfast', 'snack', 'lunch', 'snack2', 'dinner'] : n >= 4 ? ['breakfast', 'lunch', 'snack', 'dinner'] : ['breakfast', 'lunch', 'dinner'];
+}
+
+/** The meal slots to remind about (main meals, plus snacks if chosen), from your meal plan. */
 export function mealSlots(state, withSnacks) {
-  const n = state.prefs?.mealsPerDay || 4;
-  const slots = ['breakfast', 'lunch', 'dinner'];
-  if (withSnacks) slots.push(...(n >= 5 ? ['snack', 'snack2'] : n >= 4 ? ['snack2'] : []));
-  return slots;
+  return planSlots(state).filter((s) => withSnacks || !s.startsWith('snack'));
+}
+
+/** Meal times as Today shows them: spaced using every slot in the plan, snacks included. */
+export function planMealTimes(state) {
+  return mealTimes(state.profile || {}, planSlots(state));
 }
 
 /**
@@ -72,7 +83,7 @@ export function alarmSpecs(state) {
   if (a.bed.on) out.push({ id: 'bed', kind: 'bed', label: 'Bedtime', body: 'Lights out. A good night’s sleep makes tomorrow’s choices easier — people who slept longer ate less the next day.', ...hm(t.bed), days: [0, 1, 2, 3, 4, 5, 6], style: a.bed.style, route: '#/today', ...snd('bed') });
   if (a.meals.on) {
     const slots = mealSlots(state, a.meals.snacks);
-    const times = mealTimes(state.profile || {}, slots);
+    const times = planMealTimes(state);
     for (const s of slots) {
       if (times[s] == null) continue;
       out.push({ id: `meal_${s}`, kind: 'meal', label: `${SLOT_LABEL[s]} time`, body: 'Your meal is ready in today’s plan. Sit down, eat slowly, and tick it off.', ...hm(times[s]), days: [0, 1, 2, 3, 4, 5, 6], style: a.meals.style, route: '#/today', ...snd('meals') });

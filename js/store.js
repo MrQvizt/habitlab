@@ -1,5 +1,5 @@
 // App state: one JSON object in localStorage. Everything stays on this device.
-import { isoDate, weekStart, hashString, weekdayOf, dateInWeek, planDayFor, setWeekStart } from './engine/util.js';
+import { isoDate, weekStart, daysBetween, hashString, weekdayOf, dateInWeek, planDayFor, setWeekStart } from './engine/util.js';
 import { dailyTargets, estimateTdee } from './engine/calc.js';
 import { latestTrend } from './engine/trend.js';
 import { planWeek } from './engine/meals.js';
@@ -7,6 +7,7 @@ import { initialProgress, weekSchedule, applyMoves } from './engine/workouts.js'
 import { screen } from './engine/safety.js';
 import { summary as gameSummaryRaw } from './engine/game.js';
 import { DEFAULT_REMINDERS } from './engine/reminders.js';
+import { daySchedule, toHHMM } from './engine/schedule.js';
 import { HABITS, HABIT_CATEGORIES } from './data/habits.js';
 import { setOwnHabits } from './engine/habits.js';
 import { RECIPES } from './data/recipes.js';
@@ -282,6 +283,7 @@ export function sanitize(s) {
     variant: x.kind === 'strength' ? oneOf(x.variant, ['A', 'B'], 'A') : undefined,
     name: x.kind === 'activity' ? String(x.name ?? 'Activity').slice(0, 40) : undefined,
     actId: x.kind === 'activity' && typeof x.actId === 'string' ? x.actId.slice(0, 24) : undefined,
+    evId: x.kind === 'activity' && typeof x.evId === 'string' && /^[A-Za-z0-9_-]{1,60}$/.test(x.evId) ? x.evId : undefined,
     intensity: x.kind === 'activity' ? oneOf(x.intensity, ['easy', 'moderate', 'vigorous'], 'moderate') : undefined,
     minutes: num(x.minutes, 0, 600, 0),
     ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined,
@@ -341,13 +343,31 @@ export function targets(state, date = today()) {
   return dailyTargets(p, { weightKg: calcWeight(state), kcalAdjust: (state.kcalAdjust || 0) + reset, tdeeOffset: state.tdeeOffset || 0, dietBreak });
 }
 
+/**
+ * Your wake-up time, in one place: "Your day", the wake-up alarm and the morning reminder all use it.
+ * Changing it from either screen updates the others (a reminder you set yourself is left alone).
+ */
+export function setWake(st, hhmm, { before = null } = {}) {
+  if (!/^\d{2}:\d{2}$/.test(hhmm) || !st.profile) return st;
+  const old = before ?? daySchedule(st.profile).wake;
+  st.profile.schedule = { ...(st.profile.schedule || {}), wake: hhmm };
+  if (st.alarms?.wake?.time) st.alarms = { ...st.alarms, wake: { ...st.alarms.wake, time: hhmm } };
+  const r = { ...DEFAULT_REMINDERS, ...(st.reminders || {}) };
+  if (r.morning === DEFAULT_REMINDERS.morning || r.morning === toHHMM(old + 15)) st.reminders = { ...r, morning: toHHMM(daySchedule(st.profile).wake + 15) };
+  return st;
+}
+
 export function weekKey(date = today()) {
   return weekStart(date);
 }
 
+/**
+ * Which week of your plan a date is in (0 = the week you started). Counted in *your* weeks (the
+ * week-start day you chose), so every day of a week gets the same plan on every screen.
+ */
 export function weeksSinceStart(state, date = today()) {
   const start = state.profile?.startDate || date;
-  return Math.max(0, Math.floor((new Date(date) - new Date(start)) / (7 * 86400000)));
+  return Math.max(0, Math.floor(daysBetween(weekStart(start), weekStart(date)) / 7));
 }
 
 function planSignature(state, t) {
@@ -402,6 +422,11 @@ export function schedule(state, date = today()) {
   const base = weekSchedule(state.profile, state.workouts.progress, weeksSinceStart(state, date));
   const moves = state.workouts.moves?.[weekStart(date)];
   return moves?.length ? { ...base, schedule: applyMoves(base.schedule, moves) } : base;
+}
+
+/** What's planned to move on a date (strength, cardio, your activities; rest days included). One place for every screen. */
+export function dayItems(state, date = today()) {
+  return schedule(state, date).schedule[weekdayOf(date)].items;
 }
 
 export function exportJson(state) {
