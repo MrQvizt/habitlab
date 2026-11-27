@@ -67,6 +67,13 @@ function loggedOut(state) {
 }
 
 function loggedIn(state, me) {
+  if (me.confirmed && !state.profile) {
+    return `<header class="page-head"><div><div class="eyebrow">Your account</div><h1>Email confirmed ✓</h1></div></header>
+      <div class="card"><p style="margin-top:0"><strong>${esc(me.email || 'Your account')}</strong> is ready.</p>
+        <p><strong>Using the Habit Lab app on your phone?</strong> Open it and go to <em>Settings → Save your progress → Log in</em> with this email. Everything on your phone is then saved to your account.</p>
+        <p class="muted" style="font-size:var(--text-sm)">Want to use Habit Lab here in the browser instead? Start below — once your phone has saved its progress, logging in here brings it all in.</p>
+        <div class="row" style="gap:8px;flex-wrap:wrap"><a class="btn primary" href="#/start">Start here</a><button class="btn ghost" data-action="accountSync">Check for saved progress</button></div></div>`;
+  }
   return `<a class="btn ghost small" href="#/settings" style="margin:0 0 6px -10px">${icon('back')}Settings</a>
     <header class="page-head"><div><div class="eyebrow">Your account</div><h1>Saved online</h1></div></header>
     <div class="card"><div class="row between nowrap"><div><strong>${esc(me.email || 'Logged in')}</strong><small class="muted" style="display:block">Last saved ${esc(ago(me.lastSync))}${me.pending ? ' · saving…' : ''}</small></div><span class="tag green">${icon('check')}On</span></div>
@@ -142,7 +149,12 @@ export default {
       ctx.rerender();
       try {
         const outcome = await account.syncNow(ctx);
-        ctx.toast(outcome === 'merged' || outcome === 'restored' ? MESSAGES[outcome] : 'Saved to your account.');
+        if (!ctx.state.profile) ctx.toast('Nothing saved in your account yet — log in in the app on your phone first.');
+        else if (outcome === 'restored') {
+          ctx.toast(MESSAGES.restored);
+          busy = false;
+          return ctx.go('#/today');
+        } else ctx.toast(outcome === 'merged' ? MESSAGES.merged : 'Saved to your account.');
       } catch (e) {
         ctx.toast(e.message);
       }

@@ -24,6 +24,7 @@ const base = process.argv[2] || 'http://localhost:8771/';
       }
       if (url.includes('grant_type=password')) return users[body.email] === body.password ? json(200, session(body.email)) : json(400, { error_code: 'invalid_credentials', msg: 'Invalid login credentials' });
       if (url.includes('/logout')) return route.fulfill({ status: 204, body: '' });
+      if (url.endsWith('/auth/v1/user')) return json(200, { email: 'test@example.com' });
       return json(404, { msg: 'not mocked' });
     });
     await ctx.route(`${SUPA}/rest/v1/rpc/hl_*`, async (route) => {
@@ -106,6 +107,16 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await pb.waitForSelector('form[data-form=accountSubmit]');
   if (!(await pb.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).profile))) errors.push('B: logging out should keep the data on the phone');
   if (await pb.evaluate(() => localStorage.getItem('habitlab.account'))) errors.push('B: logging out should forget the login');
+
+  // ---- The confirmation email opened in a phone's browser (no progress there): say what to do next ----
+  const c = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await mock(c);
+  const pc = await c.newPage();
+  pc.on('pageerror', (e) => errors.push('C pageerror: ' + e.message));
+  await pc.goto(base + '#access_token=tok_test%40example.com&refresh_token=ref_x&expires_in=3600&token_type=bearer&type=signup');
+  await pc.waitForSelector('main >> text=Email confirmed').catch(() => errors.push('C: the confirmation link should say the email is confirmed'));
+  if (!(await pc.locator('main >> text=Save your progress → Log in').count())) errors.push('C: should tell you to log in in the app');
+  if (/access_token/.test(await pc.evaluate(() => location.href))) errors.push('C: the login tokens should be removed from the address');
 
   await browser.close();
   if (errors.length) {

@@ -11585,7 +11585,13 @@ const listeners = new Set();
 const notify = () => listeners.forEach((f) => f());
 const onChange = (f) => listeners.add(f);
 
-const current = () => (session ? { email: session.email, lastSync: session.lastSync || 0, pending: !!pushTimer } : null);
+const current = () => (session ? { email: session.email, lastSync: session.lastSync || 0, pending: !!pushTimer, confirmed: !!justConfirmed } : null);
+let justConfirmed = false;
+/** Opened from the confirmation email (in a browser): the account page says what to do next. */
+function markConfirmed() {
+  justConfirmed = true;
+  whoAmI().then(notify);
+}
 
 /** Plain-language messages for what Supabase Auth answers. */
 function friendly(body, status) {
@@ -11802,7 +11808,7 @@ async function deleteCloudCopy() {
   await rpc('hl_delete_my_data');
 }
 
-Object.assign(__m, { onChange, current, signUp, logIn, resetPassword, setPassword, logOut, takeTokensFromUrl, syncNow, queue, start, deleteCloudCopy });
+Object.assign(__m, { onChange, current, markConfirmed, signUp, logIn, resetPassword, setPassword, logOut, takeTokensFromUrl, syncNow, queue, start, deleteCloudCopy });
 },
 /* js/data/reasons.js */ 52: function (__m, __req) {
 // One-word reasons people give for wanting to lose weight, to pick on the morning screen and in Settings.
@@ -14547,6 +14553,13 @@ function loggedOut(state) {
 }
 
 function loggedIn(state, me) {
+  if (me.confirmed && !state.profile) {
+    return `<header class="page-head"><div><div class="eyebrow">Your account</div><h1>Email confirmed ✓</h1></div></header>
+      <div class="card"><p style="margin-top:0"><strong>${esc(me.email || 'Your account')}</strong> is ready.</p>
+        <p><strong>Using the Habit Lab app on your phone?</strong> Open it and go to <em>Settings → Save your progress → Log in</em> with this email. Everything on your phone is then saved to your account.</p>
+        <p class="muted" style="font-size:var(--text-sm)">Want to use Habit Lab here in the browser instead? Start below — once your phone has saved its progress, logging in here brings it all in.</p>
+        <div class="row" style="gap:8px;flex-wrap:wrap"><a class="btn primary" href="#/start">Start here</a><button class="btn ghost" data-action="accountSync">Check for saved progress</button></div></div>`;
+  }
   return `<a class="btn ghost small" href="#/settings" style="margin:0 0 6px -10px">${icon('back')}Settings</a>
     <header class="page-head"><div><div class="eyebrow">Your account</div><h1>Saved online</h1></div></header>
     <div class="card"><div class="row between nowrap"><div><strong>${esc(me.email || 'Logged in')}</strong><small class="muted" style="display:block">Last saved ${esc(ago(me.lastSync))}${me.pending ? ' · saving…' : ''}</small></div><span class="tag green">${icon('check')}On</span></div>
@@ -14622,7 +14635,12 @@ __m.default = {
       ctx.rerender();
       try {
         const outcome = await account.syncNow(ctx);
-        ctx.toast(outcome === 'merged' || outcome === 'restored' ? MESSAGES[outcome] : 'Saved to your account.');
+        if (!ctx.state.profile) ctx.toast('Nothing saved in your account yet — log in in the app on your phone first.');
+        else if (outcome === 'restored') {
+          ctx.toast(MESSAGES.restored);
+          busy = false;
+          return ctx.go('#/today');
+        } else ctx.toast(outcome === 'merged' ? MESSAGES.merged : 'Saved to your account.');
       } catch (e) {
         ctx.toast(e.message);
       }
@@ -15093,8 +15111,14 @@ account.onChange(() => parseRoute().name === 'account' && !document.querySelecto
 if (fromEmail?.error) ctx.toast(fromEmail.error);
 else if (fromEmail?.type === 'recovery') ctx.toast('Choose a new password');
 else if (fromEmail) {
-  ctx.toast('Email confirmed — you’re logged in.');
-  afterLogin(ctx);
+  // On a phone the email link opens the browser, not the app: with nothing here yet, say where to go next.
+  if (state.profile) {
+    ctx.toast('Email confirmed — you’re logged in.');
+    afterLogin(ctx);
+  } else {
+    account.markConfirmed();
+    ctx.go('#/account');
+  }
 } else account.start(ctx);
 // Shared calendar: background notifications on the phone, and a quick in-app check every minute.
 share.watch(state);

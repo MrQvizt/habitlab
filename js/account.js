@@ -34,7 +34,13 @@ const listeners = new Set();
 const notify = () => listeners.forEach((f) => f());
 export const onChange = (f) => listeners.add(f);
 
-export const current = () => (session ? { email: session.email, lastSync: session.lastSync || 0, pending: !!pushTimer } : null);
+export const current = () => (session ? { email: session.email, lastSync: session.lastSync || 0, pending: !!pushTimer, confirmed: !!justConfirmed } : null);
+let justConfirmed = false;
+/** Opened from the confirmation email (in a browser): the account page says what to do next. */
+export function markConfirmed() {
+  justConfirmed = true;
+  whoAmI().then(notify);
+}
 
 /** Plain-language messages for what Supabase Auth answers. */
 function friendly(body, status) {

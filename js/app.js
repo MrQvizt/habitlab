@@ -438,8 +438,14 @@ account.onChange(() => parseRoute().name === 'account' && !document.querySelecto
 if (fromEmail?.error) ctx.toast(fromEmail.error);
 else if (fromEmail?.type === 'recovery') ctx.toast('Choose a new password');
 else if (fromEmail) {
-  ctx.toast('Email confirmed — you’re logged in.');
-  afterLogin(ctx);
+  // On a phone the email link opens the browser, not the app: with nothing here yet, say where to go next.
+  if (state.profile) {
+    ctx.toast('Email confirmed — you’re logged in.');
+    afterLogin(ctx);
+  } else {
+    account.markConfirmed();
+    ctx.go('#/account');
+  }
 } else account.start(ctx);
 // Shared calendar: background notifications on the phone, and a quick in-app check every minute.
 share.watch(state);
