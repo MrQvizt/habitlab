@@ -37,11 +37,13 @@ const shots = process.argv[3] || null;
     const active = await page.evaluate(() => document.querySelector('.bottomnav a.active')?.getAttribute('href'));
     if (active !== '#/' + tab) errors.push(`${route}: expected ${tab} tab active, got ${active}`);
   }
-  // Today: rings hero, then one "Your day" timeline (meals, habits, movement together), then reflection cards
+  // Today: rings hero with your body right under it, then one "Your day" timeline (meals, habits, movement together)
   await page.goto(base + '#/today');
   await page.waitForSelector('.tg-day');
   const order = await page.evaluate(() => [...document.querySelectorAll('main .section-head h2')].map((h) => h.textContent));
-  if (order.indexOf('Your day') < 0 || order.indexOf('Your day') > order.indexOf('Your body this week')) errors.push('Today: Your day should come before the body rings — ' + order.join(' > '));
+  if (order.indexOf('Your body this week') < 0 || order.indexOf('Your day') < order.indexOf('Your body this week')) errors.push('Today: your body should sit under the rings, before Your day — ' + order.join(' > '));
+  const underRings = await page.evaluate(() => document.querySelector('.rings-hero')?.nextElementSibling?.textContent || '');
+  if (!/Your body this week/.test(underRings)) errors.push('Today: the body rings should come straight after the day rings');
   if (order.includes('Food') || order.includes('Habits')) errors.push('Today still has separate Food/Habits sections: ' + order.join(' > '));
   if ((await page.locator('.rings-hero .day-rings-svg .rf').count()) !== 3) errors.push('Today: three day rings expected');
   if ((await page.locator('.tl-now').count()) !== 1) errors.push('Today: exactly one Now line expected');
