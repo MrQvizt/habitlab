@@ -294,6 +294,14 @@ export default {
 };
 void REP_RANGE;
 
+// Searching the activity picker: show the best matches first ("cardio" → Cardio, then the
+// cardio levels and machines) instead of catalogue order. Hiding is done by the shared filter.
+document.addEventListener('input', (ev) => {
+  if (!ev.target.matches?.('input[data-filter=hobby]')) return;
+  const rank = new Map(searchHobbies(ev.target.value, HOBBIES.length).map((h, i) => [h.name, i]));
+  for (const el of document.querySelectorAll('[data-filter-target=hobby] .hobby-btn[data-name]')) el.style.order = !rank.size ? '' : rank.has(el.dataset.name) ? String(rank.get(el.dataset.name)) : '9999'; // "Something else" stays last
+});
+
 // Suggestions for "Something else…" — our own list instead of the phone's autocomplete pop-up,
 // which Android's in-app browser draws see-through.
 document.addEventListener('input', (ev) => {

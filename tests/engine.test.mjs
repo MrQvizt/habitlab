@@ -823,7 +823,7 @@ test('food database: search, sides, totals and labels', async () => {
   assert.ok(searchFoods('curry chicken').some((x) => x.id === 'chicken_curry'), 'words in any order');
   assert.deepEqual(searchFoods(''), []);
   // Everyday foods, plurals and accents
-  for (const [q, id] of [['kiwi', 'kiwi'], ['kiwis', 'kiwi'], ['kefir', 'kefir'], ['filmjolk', 'filmjolk'], ['Filmjölk', 'filmjolk'], ['strawberries', 'strawberries'], ['broccoli', 'broccoli'], ['tuna', 'tuna_tin'], ['almonds', 'almonds']]) {
+  for (const [q, id] of [['kiwi', 'kiwi'], ['kiwis', 'kiwi'], ['kefir', 'kefir'], ['soured milk', 'filmjolk'], ['creme fraiche', 'sour_cream'], ['strawberries', 'strawberries'], ['broccoli', 'broccoli'], ['tuna', 'tuna_tin'], ['almonds', 'almonds']]) {
     assert.ok(searchFoods(q).some((x) => x.id === id), `${q} finds ${id}`);
   }
   const items = [{ id: 'sausages_2', n: 1 }, { id: 'side_salad', n: 1 }, { id: 'fries_small', n: 0.5 }];
@@ -833,9 +833,12 @@ test('food database: search, sides, totals and labels', async () => {
 });
 
 test('activity search: everyday words find the right activities', async () => {
-  const { HOBBIES, searchHobbies } = await import('../js/data/hobbies.js');
+  const { HOBBIES, searchHobbies, hobbyByName } = await import('../js/data/hobbies.js');
+  const { CARDIO } = await import('../js/data/exercises.js');
+  assert.equal(CARDIO.cardio.label, 'Cardio', 'plain cardio can be logged and planned');
   assert.equal(new Set(HOBBIES.map((h) => h.name)).size, HOBBIES.length, 'unique names');
-  assert.equal(searchHobbies('cardio')[0].name.startsWith('Cardio'), true);
+  assert.equal(searchHobbies('cardio')[0].name, 'Cardio', 'plain Cardio comes first');
+  assert.equal(hobbyByName('cardio').name, 'Cardio');
   assert.ok(searchHobbies('cardio', 20).some((h) => h.name === 'Elliptical trainer'), 'cardio also finds machines');
   assert.deepEqual(searchHobbies('cardio hard').map((h) => h.name), ['Cardio (hard)']);
   assert.ok(searchHobbies('cross trainer').some((h) => h.name === 'Elliptical trainer'));

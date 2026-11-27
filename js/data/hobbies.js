@@ -230,8 +230,9 @@ export const HOBBIES = [
   A('Stretching', 'mindbody', 2.3, 15, { code: '02101' }),
   A('Stability ball exercises', 'mindbody', 2.8, 30, { code: '02112', strength: true }),
   A('Sit-to-stand exercises', 'mindbody', 2.8, 10, { code: '02340', strength: true }),
+  A('Cardio', 'fitness', 5.0, 30, { code: '02048', pop: true }), // any cardio; elliptical at moderate effort
   A('Cardio (easy)', 'fitness', 4.0, 30, { code: '01214' }), // Compendium: stationary bike, light effort
-  A('Cardio (moderate)', 'fitness', 5.0, 30, { code: '02048', pop: true }), // elliptical, moderate effort
+  A('Cardio (moderate)', 'fitness', 5.0, 30, { code: '02048' }), // elliptical, moderate effort
   A('Cardio (hard)', 'fitness', 9.0, 30, { code: '02049' }), // elliptical, vigorous effort
   A('Gym session (cardio + weights)', 'fitness', 5.5, 60, { code: '02060', strength: true, pop: true }), // health club exercise, general
   A('Weights at the gym', 'fitness', 3.5, 45, { code: '02054', strength: true, pop: true }),

@@ -91,8 +91,8 @@ const shots = process.argv[3] || null;
   for (const w of ['pizza', 'fries', 'beer', 'wine', 'dessert', 'soft drink', 'chocolate', 'crisps', 'sweets', 'cake', 'onion rings']) if (before.includes(w)) errors.push(`food picker shows "${w}" before searching`);
   await page.fill('.sheet [data-food-search]', 'fries');
   if (!(await page.locator('.sheet .food-hit:has-text("Fries (small)")').count())) errors.push('fries not findable by search');
-  // Everyday foods: fruit like kiwi and dairy like kefir, plural or without accents
-  for (const [q, name] of [['kiwis', 'Kiwi'], ['kefir', 'Kefir (glass)'], ['filmjolk', 'Filmjölk / sour milk (glass)']]) {
+  // Everyday foods: fruit like kiwi and dairy like kefir, plural or typed without accents
+  for (const [q, name] of [['kiwis', 'Kiwi'], ['kefir', 'Kefir (glass)'], ['creme fraiche', 'Sour cream / crème fraîche (2 tbsp)']]) {
     await page.fill('.sheet [data-food-search]', q);
     if (!(await page.locator(`.sheet .food-hit:has-text("${name}")`).count())) errors.push(`${q}: ${name} not found`);
   }
@@ -180,7 +180,8 @@ const shots = process.argv[3] || null;
   if ((await page.$$('.hobby-btn:not([hidden]):not(.custom)')).length !== 1) errors.push('search did not reach outside the Popular tab');
   // Everyday words: "cardio" finds the generic cardio levels and the machines
   await page.fill('input[data-filter=hobby]', 'cardio');
-  const cardio = await page.$$eval('.hobby-btn:not([hidden]):not(.custom) span', (els) => els.map((e) => e.textContent));
+  const cardio = await page.$$eval('.hobby-btn:not([hidden]):not(.custom)', (els) => els.sort((a, b) => (Number(a.style.order) || 0) - (Number(b.style.order) || 0)).map((e) => e.querySelector('span').textContent));
+  if (cardio[0] !== 'Cardio') errors.push('plain Cardio should be the first hit: ' + cardio[0]);
   for (const n of ['Cardio (moderate)', 'Elliptical trainer', 'Rowing machine']) if (!cardio.includes(n)) errors.push(`"cardio" search misses ${n}`);
   await page.fill('input[data-filter=hobby]', '');
   const popCount = (await page.$$('.hobby-btn:not([hidden]):not(.custom)')).length;

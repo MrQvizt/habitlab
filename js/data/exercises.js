@@ -77,6 +77,7 @@ export const CHAINS = {
 
 export const CARDIO = {
   walk: { label: 'Brisk walking', joint: 'low', how: 'Walk at a pace where you can talk but not sing. Hills or a slight incline add challenge without impact.' },
+  cardio: { label: 'Cardio', joint: 'low', how: 'Any cardio you like — a machine at the gym, a brisk walk, a bike ride or a class. Aim for a pace where you can talk but not sing.' },
   cycle: { label: 'Cycling / stationary bike', joint: 'very-low', how: 'Seat high enough that your knee is slightly bent at the bottom. Easy-to-moderate resistance.' },
   swim: { label: 'Swimming or water walking', joint: 'very-low', how: 'Water supports your weight — excellent if knees, hips or back are sore. Water walking counts.' },
   elliptical: { label: 'Elliptical / cross-trainer', joint: 'low', how: 'Smooth, no-impact. Keep an upright posture and light grip on the handles.' },
