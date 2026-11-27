@@ -82,7 +82,7 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await page.waitForSelector('.k-event.is-done:has-text("Walk with friends")').catch(() => errors.push('done walk should stay done after reload'));
   // Plan tomorrow: give tomorrow's first planned session a time and place; it's linked, not duplicated
   await page.goto(base + '#/plan');
-  await page.waitForSelector('text=Plan tomorrow');
+  await page.waitForSelector('main h1:has-text("Plan tomorrow")'); // not Today's evening "Plan tomorrow" card
   const tmr = ymd(new Date(Date.now() + 864e5));
   if (await page.locator('form[data-form=planSetWhen]').count()) {
     const key = await page.getAttribute('form[data-form=planSetWhen] >> nth=0', 'data-key');

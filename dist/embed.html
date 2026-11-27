@@ -15134,6 +15134,7 @@ function renderRoute() {
     : '';
   if (name !== 'today') setViewDate(null); // past-day editing belongs to Today only
   main.innerHTML = top + saveBanner + view.render(state, params, ctx);
+  restoreFilter();
   view.after?.(main, ctx, params);
   const routeKey = `${name}/${params.join('/')}`;
   if (routeKey !== lastRoute) {
@@ -15189,11 +15190,25 @@ document.addEventListener('submit', (ev) => {
 });
 // Client-side list filtering: <input data-filter="x"> filters [data-filter-target="x"] [data-filter-text].
 // A search covers every item; with the box empty, items marked data-out (outside the current tab) stay hidden.
+let lastFilter = null; // { key, value, hash }: a search you're typing survives the screen redrawing
+function applyFilter(key, value) {
+  const words = value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().split(/\s+/).filter(Boolean);
+  for (const el of document.querySelectorAll(`[data-filter-target="${key}"] [data-filter-text]`)) el.hidden = words.length ? !words.every((w) => el.dataset.filterText.includes(w)) && !el.classList.contains('custom') : el.dataset.out === '1';
+}
+/** After a redraw on the same screen, put back the search you were typing. */
+function restoreFilter() {
+  if (!lastFilter || lastFilter.hash !== location.hash) return;
+  const input = document.querySelector(`input[data-filter="${lastFilter.key}"]`);
+  if (!input || input.value) return;
+  input.value = lastFilter.value;
+  applyFilter(lastFilter.key, lastFilter.value);
+  if (lastFilter.focused) input.focus({ preventScroll: true });
+}
 document.addEventListener('input', (ev) => {
   const key = ev.target.dataset?.filter;
   if (!key) return;
-  const words = ev.target.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().split(/\s+/).filter(Boolean);
-  for (const el of document.querySelectorAll(`[data-filter-target="${key}"] [data-filter-text]`)) el.hidden = words.length ? !words.every((w) => el.dataset.filterText.includes(w)) && !el.classList.contains('custom') : el.dataset.out === '1';
+  lastFilter = { key, value: ev.target.value, hash: location.hash, focused: true };
+  applyFilter(key, ev.target.value);
 });
 // Body Wrap: arrow keys move through the story, Escape closes it.
 document.addEventListener('keydown', (ev) => {
