@@ -328,8 +328,8 @@ document.addEventListener('submit', (ev) => {
 document.addEventListener('input', (ev) => {
   const key = ev.target.dataset?.filter;
   if (!key) return;
-  const q = ev.target.value.trim().toLowerCase();
-  for (const el of document.querySelectorAll(`[data-filter-target="${key}"] [data-filter-text]`)) el.hidden = q ? !el.dataset.filterText.includes(q) && !el.classList.contains('custom') : el.dataset.out === '1';
+  const words = ev.target.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().split(/\s+/).filter(Boolean);
+  for (const el of document.querySelectorAll(`[data-filter-target="${key}"] [data-filter-text]`)) el.hidden = words.length ? !words.every((w) => el.dataset.filterText.includes(w)) && !el.classList.contains('custom') : el.dataset.out === '1';
 });
 // Body Wrap: arrow keys move through the story, Escape closes it.
 document.addEventListener('keydown', (ev) => {

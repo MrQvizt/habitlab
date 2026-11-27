@@ -4,7 +4,7 @@ import * as store from '../store.js';
 import { logDate, validLogDate } from '../viewdate.js';
 import { progressChain, stepOf, stepGoal, REP_RANGE, INTENSITY, creditedMinutes } from '../engine/workouts.js';
 import { chips } from '../ui/dom.js';
-import { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName } from '../data/hobbies.js';
+import { HOBBIES, HOBBY_CATEGORIES, intensityFromMet, hobbyByName, hobbySearchText, searchHobbies } from '../data/hobbies.js';
 import { CARDIO, WARMUP, COOLDOWN, CHAINS } from '../data/exercises.js';
 import { STOP_SIGNS } from '../engine/safety.js';
 import { addDays, weekStart, weekOrder, dateInWeek } from '../engine/util.js';
@@ -43,9 +43,9 @@ function activitiesCard(state) {
     const tabs = [['pop', 'Popular', HOBBIES.filter((h) => h.pop).length], ['all', 'All', HOBBIES.length], ...Object.entries(HOBBY_CATEGORIES).map(([k, l]) => [k, l, HOBBIES.filter((h) => h.cat === k).length])];
     form = `<div class="card flat" style="margin-top:10px">
       <div class="row between" style="margin-bottom:8px"><strong>What do you do?</strong><button class="btn ghost small" data-action="toggleAddActivity">Cancel</button></div>
-      <input type="search" autocomplete="off" placeholder="Search all ${HOBBIES.length} — e.g. squash, gardening, scuba" data-filter="hobby" aria-label="Search activities" style="margin-bottom:10px">
+      <input type="search" autocomplete="off" placeholder="Search all ${HOBBIES.length} — e.g. cardio, squash, gardening" data-filter="hobby" aria-label="Search activities" style="margin-bottom:10px">
       <div class="scroll-x" style="margin-bottom:10px">${tabs.map(([k, l, n]) => `<button type="button" class="qchip ${pickCat === k ? 'done' : ''}" style="padding-left:12px" data-action="hobbyCat" data-value="${k}" aria-pressed="${pickCat === k}">${esc(l)} <span class="muted">${n}</span></button>`).join('')}</div>
-      <div class="hobby-grid" data-filter-target="hobby">${HOBBIES.map((h) => `<button type="button" class="hobby-btn" data-action="pickHobby" data-name="${esc(h.name)}" data-filter-text="${esc(h.name.toLowerCase())} ${esc(HOBBY_CATEGORIES[h.cat].toLowerCase())}"${inCat(h) ? '' : ' data-out="1" hidden'}><span>${esc(h.name)}</span><small class="int-${intensityFromMet(h.met)}">${INTENSITY[intensityFromMet(h.met)].label}${h.strength ? ' · strength' : ''}</small></button>`).join('')}
+      <div class="hobby-grid" data-filter-target="hobby">${HOBBIES.map((h) => `<button type="button" class="hobby-btn" data-action="pickHobby" data-name="${esc(h.name)}" data-filter-text="${esc(hobbySearchText(h))}"${inCat(h) ? '' : ' data-out="1" hidden'}><span>${esc(h.name)}</span><small class="int-${intensityFromMet(h.met)}">${INTENSITY[intensityFromMet(h.met)].label}${h.strength ? ' · strength' : ''}</small></button>`).join('')}
         <button type="button" class="hobby-btn custom" data-action="pickHobby" data-name="" data-filter-text="something else other custom"><span>${icon('plus')} Something else</span><small>Type your own</small></button></div>
     </div>`;
   } else if (showAddActivity) {
@@ -300,7 +300,7 @@ document.addEventListener('input', (ev) => {
   if (!ev.target.matches?.('[data-hobby-suggest]')) return;
   const box = ev.target.parentElement.querySelector('.hobby-suggest');
   const q = ev.target.value.trim().toLowerCase();
-  const hits = q.length < 2 ? [] : HOBBIES.filter((h) => h.name.toLowerCase().includes(q)).sort((a, b) => Number(!a.name.toLowerCase().startsWith(q)) - Number(!b.name.toLowerCase().startsWith(q))).slice(0, 6);
+  const hits = searchHobbies(q, 6);
   box.innerHTML = hits.map((h) => `<button type="button" role="option" data-action="pickSuggest" data-v="${esc(h.name)}">${esc(h.name)}</button>`).join('');
 });
 

@@ -822,10 +822,26 @@ test('food database: search, sides, totals and labels', async () => {
   assert.ok(searchFoods('sausage').some((x) => /Sausage/.test(x.name)));
   assert.ok(searchFoods('curry chicken').some((x) => x.id === 'chicken_curry'), 'words in any order');
   assert.deepEqual(searchFoods(''), []);
+  // Everyday foods, plurals and accents
+  for (const [q, id] of [['kiwi', 'kiwi'], ['kiwis', 'kiwi'], ['kefir', 'kefir'], ['filmjolk', 'filmjolk'], ['Filmjölk', 'filmjolk'], ['strawberries', 'strawberries'], ['broccoli', 'broccoli'], ['tuna', 'tuna_tin'], ['almonds', 'almonds']]) {
+    assert.ok(searchFoods(q).some((x) => x.id === id), `${q} finds ${id}`);
+  }
   const items = [{ id: 'sausages_2', n: 1 }, { id: 'side_salad', n: 1 }, { id: 'fries_small', n: 0.5 }];
   const t = totalOf(items);
   assert.equal(t.kcal, 360 + 25 + 115);
   assert.equal(describe(items), 'Sausages (2) + Side salad (no dressing) + 0.5× Fries (small)');
+});
+
+test('activity search: everyday words find the right activities', async () => {
+  const { HOBBIES, searchHobbies } = await import('../js/data/hobbies.js');
+  assert.equal(new Set(HOBBIES.map((h) => h.name)).size, HOBBIES.length, 'unique names');
+  assert.equal(searchHobbies('cardio')[0].name.startsWith('Cardio'), true);
+  assert.ok(searchHobbies('cardio', 20).some((h) => h.name === 'Elliptical trainer'), 'cardio also finds machines');
+  assert.deepEqual(searchHobbies('cardio hard').map((h) => h.name), ['Cardio (hard)']);
+  assert.ok(searchHobbies('cross trainer').some((h) => h.name === 'Elliptical trainer'));
+  assert.ok(searchHobbies('strength', 3).some((h) => h.name === 'Weights at the gym'));
+  assert.equal(searchHobbies('walking')[0].name, 'Walking');
+  assert.deepEqual(searchHobbies('x'), []);
 });
 
 test('re-planning: moves put a planned item on another day; emptied days rest', async () => {
