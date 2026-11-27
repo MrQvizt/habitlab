@@ -27,6 +27,8 @@ import { resetSos } from './views/sos.js';
 import { organActions } from './views/body.js';
 import { setOwnHabits } from './engine/habits.js';
 import accountView from './views/account.js';
+import inboxView from './views/inbox.js';
+import { resetInbox } from './views/inbox.js';
 import { afterLogin } from './views/account.js';
 import * as account from './account.js';
 import { organById } from './engine/body.js';
@@ -42,7 +44,7 @@ import { closeSheet } from './ui/sheet.js';
 import { sheetActions } from './views/sheets.js';
 import { daySummary, readDay } from './views/day.js';
 
-const VIEWS = { account: accountView, sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { inbox: inboxView, account: accountView, sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 // Screens without their own tab light up the tab they belong to.
 const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today', calendar: 'move', plan: 'today', sos: 'today' };
 const NAV = [
@@ -238,6 +240,13 @@ function navHtml(active, kind) {
   return links;
 }
 
+/** Inbox in the top bar (once you share your calendar), with a count of new messages. */
+function inboxBtn() {
+  if (!state.share?.id) return '';
+  const n = share.unreadCount(state);
+  return `<a class="icon-btn inbox-btn" href="#/inbox" aria-label="Inbox${n ? `, ${n} new` : ''}">${icon('inbox')}${n ? `<span class="inbox-badge" aria-hidden="true">${n > 9 ? '9+' : n}</span>` : ''}</a>`;
+}
+
 function xpChip() {
   const g = store.game(state);
   if (!g) return '';
@@ -269,7 +278,7 @@ function renderRoute() {
   document.body.classList.toggle('no-nav', !hasShell);
   document.body.classList.toggle('wrap-open', (name === 'wrap' || name === 'wake') && hasShell);
   const top = hasShell
-    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span>Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}<a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
+    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span>Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}${inboxBtn()}<a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
     : '';
   const saveBanner = saveFailing && hasShell
     ? `<div class="notice warn" role="alert">${icon('alert')}<div class="grow"><strong>Changes aren’t being saved.</strong> This device’s storage is full or blocked, so anything you log now will be lost when you close the app. <a href="#/settings/data">Export a backup</a>, then free up some space.</div></div>`
@@ -418,6 +427,7 @@ let transitioning = false;
 function navigate(ev) {
   // Opening the craving SOS from anywhere else starts it from the beginning.
   if (ev?.oldURL != null && !/#\/sos(\/|$)/.test(ev.oldURL) && /^#\/sos(\/|$)/.test(location.hash)) resetSos();
+  if (ev?.oldURL != null && /#\/inbox(\/|$)/.test(ev.oldURL) && !/^#\/inbox(\/|$)/.test(location.hash)) resetInbox();
   closeSheet(true);
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   if (document.startViewTransition && !reduce && !transitioning) {

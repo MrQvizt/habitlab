@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const axeSource = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
 const base = process.argv[2] || 'http://localhost:8765/';
-const routes = ['today', 'meals', 'move', 'habits', 'progress', 'journey', 'body', 'rewards', 'learn', 'shopping', 'checkin', 'settings', 'settings/profile', 'settings/day', 'settings/food', 'settings/movement', 'settings/alarms', 'settings/reminders', 'settings/appearance', 'settings/data', 'wake', 'wrap', 'calendar', 'plan', 'sos', 'account', 'today/' + new Date(Date.now() - 864e5).toISOString().slice(0, 10)];
+const routes = ['today', 'meals', 'move', 'habits', 'progress', 'journey', 'body', 'rewards', 'learn', 'shopping', 'checkin', 'settings', 'settings/profile', 'settings/day', 'settings/food', 'settings/movement', 'settings/alarms', 'settings/reminders', 'settings/appearance', 'settings/data', 'wake', 'wrap', 'calendar', 'plan', 'sos', 'account', 'inbox', 'today/' + new Date(Date.now() - 864e5).toISOString().slice(0, 10)];
 
 (async () => {
   const browser = await chromium.launch();

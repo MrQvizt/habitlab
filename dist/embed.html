@@ -745,7 +745,9 @@ form:has(input[name=enabled]:not(:checked)) .reminder-list { opacity: 0.5; }
 .xp-chip { min-height: 44px; padding: 6px 12px 6px 6px; gap: 10px; }
 .xp-chip .lvl { min-width: 0; padding: 0 9px; height: 30px; font-size: var(--text-xs); letter-spacing: 0.02em; }
 .xp-chip .mini { width: 52px; height: 8px; }
-@media (max-width: 380px) { .xp-chip .mini { display: none; } .topbar .brand span:last-child { display: none; } }
+@media (max-width: 380px) { .xp-chip .mini { display: none; } }
+@media (max-width: 440px) { .topbar .brand span:last-child { display: none; } }
+.topbar .brand span:last-child { white-space: nowrap; }
 
 .grid { margin-bottom: 14px; }
 .grid:last-child { margin-bottom: 0; }
@@ -1337,6 +1339,21 @@ body.cal-dragging .cg-scroll, body.cal-dragging .cal-view { touch-action: none; 
 .cal-meal, .cal-sleep-link { font: inherit; font-size: var(--text-xs); border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 4px 10px; min-height: 32px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; text-decoration: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-meal.done { border-color: var(--ring-eat); color: var(--ring-eat-text); }
 .cal-sleep-link { color: var(--ring-habits-text); }
+
+/* Inbox: cheers and joins from friends */
+.inbox-btn { position: relative; }
+.inbox-badge { position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--ring-eat); color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--bg); }
+.inbox-list { list-style: none; padding: 0; margin: 0 0 10px; }
+.inbox-item { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-top: 1px solid var(--line); }
+.inbox-item:first-child { border-top: 0; }
+.inbox-item.new { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.inbox-ico { font-size: 22px; line-height: 1; margin-top: 2px; }
+.inbox-when { font-size: var(--text-xs); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.inbox-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display: inline-block; }
+.inbox-text { margin-top: 2px; overflow-wrap: anywhere; }
+.inbox-note { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); }
+.inbox-note small { display: block; }
+.inbox-link { display: block; margin-top: 12px; color: var(--ink-2); text-decoration: none; font-size: var(--text-sm); }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -5649,7 +5666,7 @@ function sanitize(s) {
     ...(e.repeat && typeof e.repeat === 'object' && ['daily', 'weekly', 'biweekly', 'monthly'].includes(e.repeat.freq) ? { repeat: { freq: e.repeat.freq, ...(Array.isArray(e.repeat.days) ? { days: [...new Set(e.repeat.days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort() } : {}), ...(ISO.test(e.repeat.until || '') ? { until: e.repeat.until } : {}) }, ...(Array.isArray(e.skip) ? { skip: e.skip.filter((d) => ISO.test(d)).slice(-200) } : {}) } : {}),
   }));
   const sh = s.share;
-  if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40), ...(num(sh.seen, 1, 1e15, 0) ? { seen: num(sh.seen, 1, 1e15, 0) } : {}) };
+  if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40), ...(num(sh.seen, 1, 1e15, 0) ? { seen: num(sh.seen, 1, 1e15, 0) } : {}), ...(typeof sh.inboxSeen === 'string' && !Number.isNaN(Date.parse(sh.inboxSeen)) ? { inboxSeen: sh.inboxSeen } : {}) };
   else delete s.share;
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 120), kcal: num(x?.kcal, 0, 10000, 0), ...(num(x?.p, 0, 500, 0) ? { p: num(x?.p, 0, 500, 0) } : {}), ...(num(x?.fib, 0, 200, 0) ? { fib: num(x?.fib, 0, 200, 0) } : {}), ...(typeof x?.at === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x.at) ? { at: x.at } : {}) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
@@ -5939,6 +5956,7 @@ function icon(name, cls = '') {
     alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17h.01"/>',
     calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
     flame: '<path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-3 2-4 2-7 1.5 1 2 2 2 3 1-2 1-4 1-6z"/>',
+    inbox: '<path d="M3 13l3-8h12l3 8v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 13h5l1.5 3h5L16 13h5"/>',
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
   };
   return `<svg class="icon ${cls}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths[name] || ''}</svg>`;
@@ -8349,14 +8367,29 @@ const signupsFor = (eventId) => signups.filter((s) => s.event === eventId);
 const cheersList = () => cheers;
 /** Cheers you haven't seen yet (newer than the last one you dismissed). */
 const newCheers = (state) => cheers.filter((c) => c.id > (state.share?.seen || 0));
-const cheerHtml = (c) => `<li><strong>${esc(c.name)}</strong> <span class="muted">${esc(new Date(c.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))}</span><div>${esc(c.message)}</div></li>`;
 
-/** Today: a card with new cheers from friends. */
+/**
+ * Your inbox: cheers and people joining your activities, newest first.
+ * Each: { kind: 'cheer' | 'join', at, name, text, unread }.
+ */
+function inboxItems(state) {
+  const titles = titlesFor(state);
+  const seenAt = state.share?.inboxSeen ? Date.parse(state.share.inboxSeen) : null;
+  const items = [
+    ...cheers.map((c) => ({ kind: 'cheer', at: c.at, name: c.name, text: c.message, unread: seenAt == null ? c.id > (state.share?.seen || 0) : Date.parse(c.at) > seenAt })),
+    ...signups.map((x) => ({ kind: 'join', at: x.at, name: x.name, text: titles[x.event] || 'one of your activities', unread: seenAt != null && Date.parse(x.at) > seenAt })),
+  ];
+  return items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+}
+const unreadCount = (state) => inboxItems(state).filter((x) => x.unread).length;
+
+/** Today: a small note when something new is in your inbox. */
 function cheerCardHtml(state) {
-  const fresh = newCheers(state);
+  const fresh = inboxItems(state).filter((x) => x.unread);
   if (!fresh.length) return '';
-  return `<section class="card cheer-card" aria-label="Cheers from friends"><div class="row between nowrap"><h2 style="margin:0;font-size:var(--text-lg)">💌 ${fresh.length === 1 ? `${esc(fresh[0].name)} is cheering you on` : `${fresh.length} friends are cheering you on`}</h2><button class="btn small ghost" data-action="cheersSeen" data-id="${fresh[0].id}">Thanks!</button></div>
-    <ul class="cheer-list">${fresh.slice(0, 3).map(cheerHtml).join('')}</ul></section>`;
+  const first = fresh[0];
+  const line = fresh.length === 1 ? (first.kind === 'cheer' ? `${esc(first.name)} sent you a cheer` : `${esc(first.name)} is joining you`) : `${fresh.length} new messages from friends`;
+  return `<a class="card cheer-card inbox-note" href="#/inbox"><span class="cal-emoji" aria-hidden="true">💌</span><span class="grow"><strong>${line}</strong><small class="muted">Open your inbox</small></span>${icon('chevron')}</a>`;
 }
 
 /** The events friends can see: open to friends, from yesterday on. */
@@ -8402,6 +8435,8 @@ async function watch(state) {
 }
 
 /** Fetch who's joining and cheers (at most every 20 s); say so when something new arrives. */
+const openInbox = (ctx) => (location.hash.startsWith('#/inbox') ? {} : { action: { label: 'Open', run: () => ctx.go('#/inbox') } });
+
 async function refresh(ctx, force = false) {
   const s = ctx.state.share;
   if (!s?.id || (!force && Date.now() - lastFetch < 20000)) return;
@@ -8413,9 +8448,9 @@ async function refresh(ctx, force = false) {
       const had = new Set(signups.map((x) => `${x.event}|${x.name}`));
       const titles = titlesFor(ctx.state);
       const fresh = list.filter((x) => !had.has(`${x.event}|${x.name}`));
-      if (fresh.length) ctx.toast(fresh.length === 1 ? `🙌 ${fresh[0].name} is joining you — ${titles[fresh[0].event] || 'your activity'}` : `🙌 ${fresh.length} friends just joined your activities`);
+      if (fresh.length) ctx.toast(fresh.length === 1 ? `🙌 ${fresh[0].name} is joining you — ${titles[fresh[0].event] || 'your activity'}` : `🙌 ${fresh.length} friends just joined your activities`, openInbox(ctx));
     }
-    if (loadedOnce && Array.isArray(ch) && ch.length && (!cheers.length || ch[0].id > cheers[0].id)) ctx.toast(`💌 ${ch[0].name} sent you a cheer: “${ch[0].message}”`);
+    if (loadedOnce && Array.isArray(ch) && ch.length && (!cheers.length || ch[0].id > cheers[0].id)) ctx.toast(`💌 ${ch[0].name} sent you a cheer: “${ch[0].message}”`, openInbox(ctx));
     if (Array.isArray(list)) signups = list;
     if (Array.isArray(ch)) cheers = ch;
     loadedOnce = true;
@@ -8440,8 +8475,18 @@ function shareCardHtml(state, pubCount) {
   return `<div class="card share-card"><div class="row between nowrap"><h2 style="margin:0;font-size:var(--text-lg)">${icon("star")} Your shared calendar</h2>${total ? `<span class="tag green">${total} joining</span>` : ''}</div>
     <p class="muted" style="font-size:var(--text-sm);margin:6px 0 8px">${pubCount ? `${pubCount} upcoming ${pubCount === 1 ? 'activity is' : 'activities are'} open to friends.` : 'Nothing open to friends yet — tap an activity and switch on “Open to friends”.'}</p>
     <div class="share-link"><input type="text" readonly value="${esc(link)}" aria-label="Your calendar link"><button class="btn small" data-action="shareCopy">Copy</button>${navigator.share ? '<button class="btn small primary" data-action="shareNative">Share</button>' : ''}</div>
-    ${cheers.length ? `<div class="over" style="margin-top:12px">💌 Cheers from friends</div><ul class="cheer-list">${cheers.slice(0, 5).map(cheerHtml).join('')}</ul>` : ''}
+    ${cheers.length || signups.length ? `<a class="inbox-link" href="#/inbox">💌 Cheers and joins are in your <strong>inbox</strong>${unreadCount(state) ? ` <span class="tag green">${unreadCount(state)} new</span>` : ''} →</a>` : ''}
     <button class="btn ghost small" data-action="shareStop" style="margin-top:8px">Stop sharing</button></div>`;
+}
+
+/** Opening the inbox marks everything in it as read. */
+function markInboxRead(ctx) {
+  if (!ctx.state.share || !unreadCount(ctx.state)) return;
+  const top = cheers.reduce((m, c) => Math.max(m, c.id || 0), 0);
+  ctx.update((st) => {
+    if (st.share) st.share = { ...st.share, seen: Math.max(st.share.seen || 0, top), inboxSeen: new Date().toISOString() };
+    return st;
+  }, { quiet: true, render: false });
 }
 
 const shareActions = {
@@ -8502,7 +8547,7 @@ const shareActions = {
   },
 };
 
-Object.assign(__m, { SUPABASE_URL, PUBLISHABLE_KEY, SHARE_BASE, rpc, shareLink, signupsFor, cheersList, newCheers, cheerCardHtml, publicEvents, sync, watch, refresh, shareCardHtml, shareActions });
+Object.assign(__m, { SUPABASE_URL, PUBLISHABLE_KEY, SHARE_BASE, rpc, shareLink, signupsFor, cheersList, newCheers, inboxItems, unreadCount, cheerCardHtml, publicEvents, sync, watch, refresh, shareCardHtml, markInboxRead, shareActions });
 },
 /* js/data/melodies.js */ 36: function (__m, __req) {
 // Alarm sounds. Each melody is data: the same spec is played by the in-app preview (Web Audio) and by
@@ -14670,7 +14715,59 @@ __m.default = {
 
 Object.assign(__m, { afterLogin });
 },
-/* js/app.js */ 65: function (__m, __req) {
+/* js/views/inbox.js */ 65: function (__m, __req) {
+// Inbox: cheers from friends and people joining your activities, newest first. Opening it marks
+// everything as read; new ones show a dot this visit so you can see what came in.
+const { esc, icon } = __req(18);
+const share = __req(35);
+
+let shownUnread = null; // what was unread while you've had the inbox open (kept until you leave)
+let fresh = false;
+
+const when = (iso) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const days = Math.floor((Date.now() - d.getTime()) / 864e5);
+  if (days < 1 && new Date().toDateString() === d.toDateString()) return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  if (days < 6) return d.toLocaleDateString(undefined, { weekday: 'short' });
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+};
+
+function resetInbox() {
+  shownUnread = null;
+}
+
+__m.default = {
+  render(state) {
+    const items = share.inboxItems(state);
+    fresh = shownUnread == null;
+    shownUnread ||= new Set();
+    for (const x of items) if (x.unread) shownUnread.add(`${x.kind}|${x.at}|${x.name}`);
+    const head = `<header class="page-head"><div><div class="eyebrow">From friends</div><h1>Inbox</h1></div></header>`;
+    if (!state.share?.id) {
+      return `${head}<div class="card empty-state">${icon('inbox')}<strong>Nothing here yet</strong>Share your calendar and friends can cheer you on or join your walks — it all lands here.<a class="btn primary small" href="#/calendar" style="margin-top:10px">Share your calendar</a></div>`;
+    }
+    if (!items.length) {
+      return `${head}<div class="card empty-state">${icon('inbox')}<strong>No messages yet</strong>When a friend sends a cheer or joins one of your activities, you’ll see it here.<a class="btn small" href="#/calendar" style="margin-top:10px">Your shared calendar</a></div>`;
+    }
+    const row = (x) => {
+      const isNew = shownUnread.has(`${x.kind}|${x.at}|${x.name}`);
+      return `<li class="inbox-item ${isNew ? 'new' : ''}"><span class="inbox-ico" aria-hidden="true">${x.kind === 'cheer' ? '💌' : '🙌'}</span>
+        <div class="grow"><div class="row between nowrap"><strong>${esc(x.name)}</strong><span class="muted inbox-when">${esc(when(x.at))}${isNew ? ' <span class="inbox-dot" aria-label="new"></span>' : ''}</span></div>
+        <div class="inbox-text">${x.kind === 'cheer' ? esc(x.text) : `Joining you: ${esc(x.text)}`}</div></div></li>`;
+    };
+    return `${head}<ul class="card tight inbox-list" aria-label="Messages">${items.map(row).join('')}</ul>
+      <p class="muted" style="font-size:var(--text-xs)">Cheers and joins come from the people you shared <a href="#/calendar">your calendar</a> with.</p>`;
+  },
+  after(root, ctx) {
+    if (fresh) share.refresh(ctx, true); // once per visit: pick up anything just sent
+    share.markInboxRead(ctx);
+  },
+};
+
+Object.assign(__m, { resetInbox });
+},
+/* js/app.js */ 66: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(17);
 const { icon, formData } = __req(18);
@@ -14700,6 +14797,8 @@ const { resetSos } = __req(63);
 const { organActions } = __req(61);
 const { setOwnHabits } = __req(10);
 const accountView = __req(64).default;
+const inboxView = __req(65).default;
+const { resetInbox } = __req(65);
 const { afterLogin } = __req(64);
 const account = __req(51);
 const { organById } = __req(13);
@@ -14715,7 +14814,7 @@ const { closeSheet } = __req(26);
 const { sheetActions } = __req(30);
 const { daySummary, readDay } = __req(21);
 
-const VIEWS = { account: accountView, sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { inbox: inboxView, account: accountView, sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 // Screens without their own tab light up the tab they belong to.
 const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today', calendar: 'move', plan: 'today', sos: 'today' };
 const NAV = [
@@ -14911,6 +15010,13 @@ function navHtml(active, kind) {
   return links;
 }
 
+/** Inbox in the top bar (once you share your calendar), with a count of new messages. */
+function inboxBtn() {
+  if (!state.share?.id) return '';
+  const n = share.unreadCount(state);
+  return `<a class="icon-btn inbox-btn" href="#/inbox" aria-label="Inbox${n ? `, ${n} new` : ''}">${icon('inbox')}${n ? `<span class="inbox-badge" aria-hidden="true">${n > 9 ? '9+' : n}</span>` : ''}</a>`;
+}
+
 function xpChip() {
   const g = store.game(state);
   if (!g) return '';
@@ -14942,7 +15048,7 @@ function renderRoute() {
   document.body.classList.toggle('no-nav', !hasShell);
   document.body.classList.toggle('wrap-open', (name === 'wrap' || name === 'wake') && hasShell);
   const top = hasShell
-    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span>Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}<a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
+    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span>Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}${inboxBtn()}<a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
     : '';
   const saveBanner = saveFailing && hasShell
     ? `<div class="notice warn" role="alert">${icon('alert')}<div class="grow"><strong>Changes aren’t being saved.</strong> This device’s storage is full or blocked, so anything you log now will be lost when you close the app. <a href="#/settings/data">Export a backup</a>, then free up some space.</div></div>`
@@ -15091,6 +15197,7 @@ let transitioning = false;
 function navigate(ev) {
   // Opening the craving SOS from anywhere else starts it from the beginning.
   if (ev?.oldURL != null && !/#\/sos(\/|$)/.test(ev.oldURL) && /^#\/sos(\/|$)/.test(location.hash)) resetSos();
+  if (ev?.oldURL != null && /#\/inbox(\/|$)/.test(ev.oldURL) && !/^#\/inbox(\/|$)/.test(location.hash)) resetInbox();
   closeSheet(true);
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   if (document.startViewTransition && !reduce && !transitioning) {
@@ -15155,5 +15262,5 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(65);
+__req(66);
 })();</script>

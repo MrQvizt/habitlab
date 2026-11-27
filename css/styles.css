@@ -739,7 +739,9 @@ form:has(input[name=enabled]:not(:checked)) .reminder-list { opacity: 0.5; }
 .xp-chip { min-height: 44px; padding: 6px 12px 6px 6px; gap: 10px; }
 .xp-chip .lvl { min-width: 0; padding: 0 9px; height: 30px; font-size: var(--text-xs); letter-spacing: 0.02em; }
 .xp-chip .mini { width: 52px; height: 8px; }
-@media (max-width: 380px) { .xp-chip .mini { display: none; } .topbar .brand span:last-child { display: none; } }
+@media (max-width: 380px) { .xp-chip .mini { display: none; } }
+@media (max-width: 440px) { .topbar .brand span:last-child { display: none; } }
+.topbar .brand span:last-child { white-space: nowrap; }
 
 .grid { margin-bottom: 14px; }
 .grid:last-child { margin-bottom: 0; }
@@ -1331,3 +1333,18 @@ body.cal-dragging .cg-scroll, body.cal-dragging .cal-view { touch-action: none; 
 .cal-meal, .cal-sleep-link { font: inherit; font-size: var(--text-xs); border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 4px 10px; min-height: 32px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; text-decoration: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-meal.done { border-color: var(--ring-eat); color: var(--ring-eat-text); }
 .cal-sleep-link { color: var(--ring-habits-text); }
+
+/* Inbox: cheers and joins from friends */
+.inbox-btn { position: relative; }
+.inbox-badge { position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--ring-eat); color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--bg); }
+.inbox-list { list-style: none; padding: 0; margin: 0 0 10px; }
+.inbox-item { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-top: 1px solid var(--line); }
+.inbox-item:first-child { border-top: 0; }
+.inbox-item.new { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.inbox-ico { font-size: 22px; line-height: 1; margin-top: 2px; }
+.inbox-when { font-size: var(--text-xs); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.inbox-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display: inline-block; }
+.inbox-text { margin-top: 2px; overflow-wrap: anywhere; }
+.inbox-note { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); }
+.inbox-note small { display: block; }
+.inbox-link { display: block; margin-top: 12px; color: var(--ink-2); text-decoration: none; font-size: var(--text-sm); }
