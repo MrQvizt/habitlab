@@ -284,7 +284,7 @@ export function sanitize(s) {
     name: x.kind === 'activity' ? String(x.name ?? 'Activity').slice(0, 40) : undefined,
     actId: x.kind === 'activity' && typeof x.actId === 'string' ? x.actId.slice(0, 24) : undefined,
     evId: x.kind === 'activity' && typeof x.evId === 'string' && /^[A-Za-z0-9_-]{1,60}$/.test(x.evId) ? x.evId : undefined,
-    intensity: x.kind === 'activity' ? oneOf(x.intensity, ['easy', 'moderate', 'vigorous'], 'moderate') : undefined,
+    intensity: x.kind === 'activity' ? oneOf(x.intensity, ['easy', 'moderate', 'vigorous'], 'moderate') : x.kind === 'cardio' && ['easy', 'moderate', 'vigorous'].includes(x.intensity) ? x.intensity : undefined,
     minutes: num(x.minutes, 0, 600, 0),
     ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined,
   })) : null));

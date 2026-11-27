@@ -212,9 +212,10 @@ const shots = process.argv[3] || null;
   if (dayTabs[0] !== 'Sun' || dayTabs[6] !== 'Sat') errors.push('meal tabs order: ' + dayTabs.join(','));
   if ((await page.$$('.daytabs a.on')).length !== 1) errors.push('exactly one meal tab selected');
   await page.goto(base + '#/move');
-  await page.waitForSelector('main .d b');
-  const days = await page.$$eval('main .d b', (bs) => bs.map((b) => b.textContent.slice(0, 3)));
-  if (days[0] !== 'Sun') errors.push('move week order: ' + days.join(','));
+  // Move: one list of this week's sessions (Start / Done / Move), no separate week strip
+  await page.waitForSelector('.session-list');
+  if (await page.locator('main .week').count()) errors.push('Move should not repeat the calendar as a week strip');
+  if (!(await page.locator('.session-row a[href^="#/move/session/"], .session-row .tag').count())) errors.push('strength sessions should have Start (or show Done)');
   // Your own habit: make it (all 3 slots in use → saved under "Yours"), free a slot, start it,
   // tick it on Today, survive a reload, edit it; a second one can be deleted.
   await page.goto(base + '#/habits');

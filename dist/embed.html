@@ -1354,6 +1354,16 @@ body.cal-dragging .cg-scroll, body.cal-dragging .cal-view { touch-action: none; 
 .inbox-note { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); }
 .inbox-note small { display: block; }
 .inbox-link { display: block; margin-top: 12px; color: var(--ink-2); text-decoration: none; font-size: var(--text-sm); }
+
+/* Move: this week's sessions, one list with Start / Done / Move */
+.session-list { list-style: none; margin: 10px 0 0; padding: 0; }
+.session-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.session-row:first-child { border-top: 0; }
+.session-row .grow { min-width: 0; }
+.session-row small { display: block; }
+.session-row.today strong::after { content: ' · today'; font-weight: 600; color: var(--accent); font-size: var(--text-sm); }
+.session-row.is-done strong { color: var(--ink-3); }
+.session-row .tag svg { width: 14px; height: 14px; vertical-align: -2px; }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -2711,7 +2721,7 @@ function creditedMinutes(entry) {
   if (!entry) return 0;
   if (entry.kind === 'strength') return 0;
   if (entry.kind === 'activity') return (entry.minutes || 0) * (INTENSITY[entry.intensity]?.factor ?? 1);
-  return entry.minutes || 0; // planned cardio
+  return (entry.minutes || 0) * (INTENSITY[entry.intensity]?.factor ?? 1); // cardio: as hard as you said (older entries: as planned)
 }
 
 /**
@@ -5715,7 +5725,7 @@ function sanitize(s) {
     name: x.kind === 'activity' ? String(x.name ?? 'Activity').slice(0, 40) : undefined,
     actId: x.kind === 'activity' && typeof x.actId === 'string' ? x.actId.slice(0, 24) : undefined,
     evId: x.kind === 'activity' && typeof x.evId === 'string' && /^[A-Za-z0-9_-]{1,60}$/.test(x.evId) ? x.evId : undefined,
-    intensity: x.kind === 'activity' ? oneOf(x.intensity, ['easy', 'moderate', 'vigorous'], 'moderate') : undefined,
+    intensity: x.kind === 'activity' ? oneOf(x.intensity, ['easy', 'moderate', 'vigorous'], 'moderate') : x.kind === 'cardio' && ['easy', 'moderate', 'vigorous'].includes(x.intensity) ? x.intensity : undefined,
     minutes: num(x.minutes, 0, 600, 0),
     ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined,
   })) : null));
@@ -7111,10 +7121,11 @@ function moveSheetHtml(state, date, key, from) {
  * a walk/workout/sport from your calendar ({ ev: { id, title, dur, date } }), so it counts as movement.
  */
 function activitySheetHtml(state, id, ev = null) {
-  const a = ev ? { id: '', name: ev.title, minutes: ev.dur || 30, intensity: 'moderate' } : (state.profile.activities || []).find((x) => x.id === id);
+  const a = ev?.cardio ? { id: '', name: CARDIO[ev.cardio]?.label || 'Cardio', minutes: ev.minutes || 30, intensity: 'moderate' }
+    : ev ? { id: '', name: ev.title, minutes: ev.dur || 30, intensity: 'moderate' } : (state.profile.activities || []).find((x) => x.id === id);
   if (!a) return '';
   return `<div class="sheet-head"><div><div class="over">Nice work</div><h2>${esc(a.name)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
-    <form data-form="activityDoneSave" data-id="${esc(a.id)}" ${ev ? `data-ev="${esc(ev.id)}" data-name="${esc(ev.title)}" data-date="${esc(ev.date)}"` : ''}>
+    <form data-form="activityDoneSave" data-id="${esc(a.id)}" ${ev?.cardio ? `data-cardio="${esc(ev.cardio)}"` : ev ? `data-ev="${esc(ev.id)}" data-name="${esc(ev.title)}" data-date="${esc(ev.date)}"` : ''}>
       <label class="field"><span>How long did you go?</span>
         <div class="quick-chips">${[15, 30, 45, 60, 90].map((m) => `<button type="button" data-action="sheetQuickMin" data-v="${m}">${m} min</button>`).join('')}</div>
         <div class="inline-inputs"><input type="number" name="minutes" inputmode="numeric" min="1" max="600" value="${a.minutes}" required><span class="unit">min</span></div></label>
@@ -7136,6 +7147,10 @@ const saveMoves = (ctx, date, fn) => ctx.update((st) => {
 }, { quiet: true });
 
 const planActions = {
+  /** Planned cardio done (Today or Move): like every other movement, how long and how hard? */
+  cardioDone(el, ev, ctx) {
+    askActivity(ctx, '', { cardio: el.dataset.mode, minutes: Number(el.dataset.min) || 30 });
+  },
   /** A walk / workout / sport in your calendar is done: ask how long and how hard, and count it. */
   eventDone(el, ev, ctx) {
     askActivity(ctx, '', { id: el.dataset.ev, title: el.dataset.title, dur: Number(el.dataset.dur) || 0, date: el.dataset.date });
@@ -7171,14 +7186,15 @@ const planActions = {
   },
   activityDoneSave(form, ev, ctx, data) {
     const evId = form.dataset.ev || '';
-    const a = evId ? { id: '', name: form.dataset.name || 'Activity', intensity: 'moderate' } : (ctx.state.profile.activities || []).find((x) => x.id === form.dataset.id);
+    const mode = CARDIO[form.dataset.cardio] ? form.dataset.cardio : '';
+    const a = mode ? { id: '', name: CARDIO[mode].label, intensity: 'moderate' } : evId ? { id: '', name: form.dataset.name || 'Activity', intensity: 'moderate' } : (ctx.state.profile.activities || []).find((x) => x.id === form.dataset.id);
     const minutes = Math.round(Number(data.minutes));
     if (!a || !(minutes > 0 && minutes <= 600)) return;
     const intensity = INTENSITY[data.intensity] ? data.intensity : a.intensity;
     const date = evId && /^\d{4}-\d{2}-\d{2}$/.test(form.dataset.date || '') ? form.dataset.date : logDate();
     closeSheet();
     ctx.update((st) => {
-      const entry = evId ? { kind: 'activity', evId, name: a.name, intensity, minutes } : { kind: 'activity', actId: a.id, name: a.name, intensity, minutes };
+      const entry = mode ? { kind: 'cardio', mode, intensity, minutes } : evId ? { kind: 'activity', evId, name: a.name, intensity, minutes } : { kind: 'activity', actId: a.id, name: a.name, intensity, minutes };
       st.workouts.log[date] = [...(st.workouts.log[date] || []).filter((x) => !evId || x.evId !== evId), entry];
       return st;
     });
@@ -7202,7 +7218,7 @@ const { CARDIO, WARMUP, COOLDOWN, CHAINS } = __req(6);
 const { STOP_SIGNS } = __req(8);
 const { addDays, weekStart, weekOrder, dateInWeek, dayChoices, DAY_SHORT } = __req(0);
 const { dayIndex } = __req(19);
-const { askActivity, itemName } = __req(27);
+const { askActivity, itemName, planEmoji } = __req(27);
 const { itemKey } = __req(7);
 
 let ratings = {}; // chainKey -> rating, for the session in progress
@@ -7212,11 +7228,6 @@ let picked = null; // hobby name, or '' for a custom activity
 let logOther = false;
 const ACTIVITY_IDEAS = ['Walking with friends', 'Dog walk', 'Football', 'Dancing', 'Swimming', 'Cycling to work', 'Gardening', 'Yoga class', 'Climbing', 'Tennis / padel', 'Gym class', 'Hiking'];
 
-/** First word, at most 7 characters, so it fits a narrow week-grid cell. */
-function shortName(name) {
-  const w = String(name).split(/\s+/)[0];
-  return w.length > 7 ? w.slice(0, 6) + '…' : w;
-}
 
 /** Was this planned item logged on that day? */
 function itemDone(logged, it) {
@@ -7277,6 +7288,40 @@ function dose(ex) {
   return ex.type === 'time' ? `${ex.sets} × ${ex.reps} sec${per}` : `${ex.sets} × ${ex.reps}${per}`;
 }
 
+/**
+ * This week's planned sessions as one list: each with Start (strength) or Done, and Move.
+ * What you logged anywhere this week ticks them off — Saturday's Strength A done on Friday counts.
+ */
+function weekSessions(state, wk, schedule, ti) {
+  const logs = [];
+  for (let i = 0; i < 7; i++) for (const x of state.workouts.log[addDays(wk, i)] || []) logs.push(x);
+  const used = new Set();
+  const take = (match) => {
+    const k = logs.findIndex((x, n) => !used.has(n) && match(x));
+    if (k < 0) return null;
+    used.add(k);
+    return logs[k];
+  };
+  const rows = [];
+  for (const i of weekOrder()) {
+    for (const it of schedule[i].items) {
+      if (it.kind === 'rest') continue;
+      const done = take(it.kind === 'strength' ? (x) => x.kind === 'strength' && x.variant === it.variant : it.kind === 'activity' ? (x) => x.kind === 'activity' && x.actId === it.id : (x) => x.kind === 'cardio');
+      const day = i === ti ? 'Today' : schedule[i].name;
+      const name = it.kind === 'strength' ? `Strength session ${it.variant}` : it.kind === 'activity' ? it.name : `${CARDIO[it.mode]?.label || 'Cardio'}`;
+      const sub = it.kind === 'strength' ? `${it.exercises.length} exercises · about ${it.minutes} min` : `${it.minutes} min${it.kind === 'activity' ? ' · your regular activity' : ''}`;
+      const go = done ? `<span class="tag green">${icon('check')}Done</span>`
+        : it.kind === 'strength' ? `<a class="btn small primary" href="#/move/session/${it.variant}">Start</a>`
+        : it.kind === 'activity' ? `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`
+        : `<button class="btn small primary" data-action="cardioDone" data-mode="${esc(it.mode)}" data-min="${it.minutes}">Done</button>`;
+      rows.push(`<li class="session-row ${done ? 'is-done' : ''} ${i === ti ? 'today' : ''}"><span class="cal-emoji" aria-hidden="true">${planEmoji(it)}</span>
+        <div class="grow"><strong>${esc(name)}</strong><small class="muted">${esc(day)}${it.from != null ? ' · moved' : ''} · ${esc(sub)}</small></div>
+        ${go}${`<button class="btn small ghost" data-action="openMoveItem" data-key="${esc(itemKey(it))}" data-from="${i}" data-date="${dateInWeek(wk, i)}" aria-label="Move ${esc(name)} to another day">Move</button>`}</li>`);
+    }
+  }
+  return rows.join('') || '<li class="muted" style="padding:8px 0">Nothing planned this week — add a walk in the calendar.</li>';
+}
+
 function overview(state) {
   const date = store.today();
   const wk = weekStart(date);
@@ -7284,42 +7329,20 @@ function overview(state) {
   const done = weekMinutes(state, wk);
   const strengthPlanned = schedule.reduce((a, d) => a + d.items.filter((i) => i.kind === 'strength').length, 0);
   const ti = dayIndex(date);
-  const grid = weekOrder().map((i) => {
-    const d = schedule[i];
-    const dd = dateInWeek(wk, i);
-    const logged = state.workouts.log[dd] || [];
-    const pills = d.items.map((it) => {
-      const isDone = itemDone(logged, it);
-      if (it.kind === 'rest') return '<span class="pill rest">rest</span>';
-      const text = it.kind === 'activity' ? esc(shortName(it.name)) : it.kind === 'strength' ? `Str ${it.variant}` : `${it.minutes}′ ${esc(shortName(CARDIO[it.mode]?.label || it.mode))}`;
-      // Tap to move it to another day this week.
-      return `<button type="button" class="pill ${it.kind} ${isDone ? 'done' : ''} ${it.from != null ? 'moved' : ''}" data-action="openMoveItem" data-key="${esc(itemKey(it))}" data-from="${i}" data-date="${dd}" aria-label="Move ${esc(itemName(it))} (${d.name})">${text}</button>`;
-    });
-    return `<div class="d ${i === ti ? 'today' : ''}"><b>${d.name}</b>${pills.join('')}</div>`;
-  });
-  const today = schedule[ti];
+  const sessions = weekSessions(state, wk, schedule, ti);
   const prog = state.workouts.progress;
   return html`<header class="page-head"><div><div class="eyebrow">Week ${store.weeksSinceStart(state, date) + 1}</div><h1>Move</h1></div></header>
     <p class="muted" style="margin:-8px 0 14px">For health, mood and keeping weight off — not to earn food. Start low, go slow; the plan builds with you.</p>
     <a class="card cal-link" href="#/calendar"><span class="cal-emoji big" aria-hidden="true">📅</span><span class="grow"><strong>Calendar</strong><small>Set when and where, add walks and batch cooking, invite friends</small></span>${icon('chevron')}</a>
-    <div class="grid two">
-      <div class="card"><h2>Today</h2>${today.items.map((it) => {
-        if (it.kind === 'rest') return '<p class="muted">Rest day — gentle walking is still great.</p>';
-        if (it.kind === 'strength') return `<p><strong>Strength session ${it.variant}</strong> · ${it.exercises.length} exercises</p><a class="btn primary" href="#/move/session/${it.variant}">Start session</a>`;
-        if (it.kind === 'activity') {
-          const done = itemDone(state.workouts.log[date] || [], it);
-          return `<div class="row between"><div><strong>${esc(it.name)}</strong><div class="muted" style="font-size:.88rem">${it.minutes} min · your regular activity</div></div>${done ? '<span class="tag green">done ✓</span>' : `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`}</div>`;
-        }
-        return `<p><strong>${esc(CARDIO[it.mode].label)}</strong> · ${it.minutes} min</p><p class="muted" style="font-size:.88rem">${esc(CARDIO[it.mode].how)}</p>`;
-      }).join('')}</div>
-      <div class="card"><h2>This week</h2>
+    <div class="card"><h2 style="margin:0">This week’s sessions</h2>
+      ${schedule[ti].items.every((it) => it.kind === 'rest') ? '<p class="muted" style="margin:6px 0 0">Today is a rest day — gentle walking is still great. You can still do any session below today.</p>' : ''}
+      <ul class="session-list">${sessions}</ul>
+      <p class="muted" style="font-size:.84rem;margin:8px 0 0">Do a session on any day — it counts wherever it was planned. Set times and places in the calendar.</p></div>
+    <div class="card"><h2>This week</h2>
         <div class="macro"><span>Cardio</span>${progressBar(done.cardio, cardioMin, { label: 'Cardio minutes' })}<span>${done.cardio}/${cardioMin} min</span></div>
         <div class="macro"><span>Strength</span>${progressBar(done.strength, strengthPlanned, { label: 'Strength sessions' })}<span>${done.strength}/${strengthPlanned}</span></div>
         <p class="muted" style="font-size:.86rem;margin-top:8px">Target grows ~10% a week toward 150+ min.${activityMin ? ` Your regular activities cover about ${activityMin} min of it${strengthFromActivities ? ` and ${strengthFromActivities} strength session${strengthFromActivities > 1 ? 's' : ''}` : ''}.` : ''}</p>
-      </div>
     </div>
-    <div class="card"><h2>Week plan</h2><div class="week">${grid.join('')}</div>
-      <p class="muted" style="font-size:.84rem;margin:8px 0 0">One main thing per day: your own activities, a strength session or a cardio session. <strong>Tap one to move it to another day.</strong></p></div>
     ${activitiesCard(state)}
     <div class="card"><div class="card-head"><h2>Log activity</h2></div>
       <form data-form="logCardio" class="row">
@@ -8439,7 +8462,7 @@ function publicEvents(state) {
   const from = addDays(store.today(), -1);
   // Repeating events are shared as their next 8 weeks of dates, each joinable on its own.
   return expand((state.events || []).filter((e) => e.public), from, addDays(from, 56)).slice(0, 200)
-    .map((e) => ({ id: e.series ? `${e.series}_${e.date.replace(/-/g, '')}` : e.id, title: e.title, date: e.date, time: e.time, place: e.place, kind: e.kind, notes: e.notes }));
+    .map((e) => ({ id: e.series ? `${e.series}_${e.date.replace(/-/g, '')}` : e.id, title: e.title, date: e.date, time: e.time, place: e.place, kind: e.kind, notes: e.notes, ...(e.dur ? { dur: e.dur } : {}) }));
 }
 
 /** Publish after a change (only once you've created a link). */
@@ -10363,13 +10386,6 @@ __m.default = {
     },
     activityDone(el, ev, ctx) {
       logPlannedActivity(ctx, el.dataset.id);
-    },
-    cardioDone(el, ev, ctx) {
-      const date = logDate();
-      ctx.undoable('Nice work — logged', (st) => {
-        st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'cardio', mode: el.dataset.mode, minutes: Number(el.dataset.min) }];
-        return st;
-      });
     },
     dismissAlarmTip(el, ev, ctx) {
       ctx.update((st) => {

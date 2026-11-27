@@ -931,6 +931,17 @@ test('one wake time: Your day, the wake-up alarm and the morning reminder move t
   assert.equal(st.reminders.morning, '09:00', 'a reminder you set yourself stays');
 });
 
+test('cardio done: how hard it felt counts, older entries count as planned', async () => {
+  const { creditedMinutes } = await import('../js/engine/workouts.js');
+  const store = await import('../js/store.js');
+  assert.equal(creditedMinutes({ kind: 'cardio', mode: 'walk', minutes: 30 }), 30);
+  assert.equal(creditedMinutes({ kind: 'cardio', mode: 'walk', minutes: 30, intensity: 'vigorous' }), 60);
+  assert.equal(creditedMinutes({ kind: 'cardio', mode: 'walk', minutes: 30, intensity: 'easy' }), 15);
+  const st = store.sanitize({ workouts: { log: { '2026-03-01': [{ kind: 'cardio', mode: 'walk', minutes: 30, intensity: 'vigorous' }, { kind: 'cardio', mode: 'walk', minutes: 20, intensity: 'silly' }] } } });
+  assert.equal(st.workouts.log['2026-03-01'][0].intensity, 'vigorous');
+  assert.equal(st.workouts.log['2026-03-01'][1].intensity, undefined);
+});
+
 test('activity search: everyday words find the right activities', async () => {
   const { HOBBIES, searchHobbies, hobbyByName } = await import('../js/data/hobbies.js');
   const { CARDIO } = await import('../js/data/exercises.js');

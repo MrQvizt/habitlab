@@ -333,13 +333,6 @@ export default {
     activityDone(el, ev, ctx) {
       logPlannedActivity(ctx, el.dataset.id);
     },
-    cardioDone(el, ev, ctx) {
-      const date = logDate();
-      ctx.undoable('Nice work — logged', (st) => {
-        st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'cardio', mode: el.dataset.mode, minutes: Number(el.dataset.min) }];
-        return st;
-      });
-    },
     dismissAlarmTip(el, ev, ctx) {
       ctx.update((st) => {
         st.flags = { ...(st.flags || {}), alarmTip: true };

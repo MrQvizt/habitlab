@@ -71,7 +71,7 @@ export function publicEvents(state) {
   const from = addDays(store.today(), -1);
   // Repeating events are shared as their next 8 weeks of dates, each joinable on its own.
   return expand((state.events || []).filter((e) => e.public), from, addDays(from, 56)).slice(0, 200)
-    .map((e) => ({ id: e.series ? `${e.series}_${e.date.replace(/-/g, '')}` : e.id, title: e.title, date: e.date, time: e.time, place: e.place, kind: e.kind, notes: e.notes }));
+    .map((e) => ({ id: e.series ? `${e.series}_${e.date.replace(/-/g, '')}` : e.id, title: e.title, date: e.date, time: e.time, place: e.place, kind: e.kind, notes: e.notes, ...(e.dur ? { dur: e.dur } : {}) }));
 }
 
 /** Publish after a change (only once you've created a link). */
