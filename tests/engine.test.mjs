@@ -856,6 +856,25 @@ test('fibre: every food has a value, logs save it, and old logs are read from th
   assert.equal(weekBody(st, ws).stats.fibre - before, 2 + 4, 'saved fibre and fibre read back from the name both count');
 });
 
+test('own habits: saved, cleaned, looked up like library habits', async () => {
+  const store = await import('../js/store.js');
+  const { habitById, habitLevels } = await import('../js/engine/habits.js');
+  const st = store.sanitize({ habits: {
+    own: [{ id: 'own_abc1', title: '  Drink a glass of water ', cue: 'After I pour my coffee', tiny: '', cat: 'food' }, { id: 'bad id', title: 'x' }, { id: 'own_x2', title: '' }, { id: 'own_x3', title: 'Hum', cat: 'nope' }],
+    active: [{ id: 'own_abc1', cue: 'After I pour my coffee', started: '2026-01-01' }, { id: 'own_gone', cue: 'x' }],
+    log: { '2026-01-02': { own_abc1: true, own_gone: true } },
+  } });
+  assert.deepEqual(st.habits.own.map((h) => h.id), ['own_abc1', 'own_x3'], 'only valid own habits are kept');
+  assert.equal(st.habits.own[0].title, 'Drink a glass of water');
+  assert.equal(st.habits.own[0].tiny, 'Do a two-minute version', 'a smallest version is filled in');
+  assert.equal(st.habits.own[1].cat, 'mind', 'unknown type falls back');
+  assert.deepEqual(st.habits.active.map((a) => a.id), ['own_abc1'], 'active list keeps own habits, drops unknown ones');
+  assert.deepEqual(Object.keys(st.habits.log['2026-01-02']), ['own_abc1']);
+  assert.equal(habitById('own_abc1').title, 'Drink a glass of water');
+  assert.ok(habitById('own_abc1').own);
+  assert.deepEqual(habitLevels('own_abc1').map((l) => l.label), ['Do a two-minute version', 'Drink a glass of water']);
+});
+
 test('activity search: everyday words find the right activities', async () => {
   const { HOBBIES, searchHobbies, hobbyByName } = await import('../js/data/hobbies.js');
   const { CARDIO } = await import('../js/data/exercises.js');

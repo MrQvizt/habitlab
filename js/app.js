@@ -25,6 +25,7 @@ import planView from './views/plan.js';
 import sosView from './views/sos.js';
 import { resetSos } from './views/sos.js';
 import { organActions } from './views/body.js';
+import { setOwnHabits } from './engine/habits.js';
 import { organById } from './engine/body.js';
 import * as alarmNative from './alarm-native.js';
 import { floatXp, confetti, chime, buzz, showCelebration, ringBanner } from './ui/celebrate.js';
@@ -242,6 +243,7 @@ function xpChip() {
 
 let lastRoute = '';
 function renderRoute() {
+  setOwnHabits(state.habits?.own); // your own habits, for every screen that looks habits up
   let { name, params } = parseRoute();
   if (!state.profile && name !== 'start' && name !== 'learn' && name !== 'join') name = 'start';
   if (state.profile && name === 'start') name = 'today';

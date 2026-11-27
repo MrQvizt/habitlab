@@ -7,7 +7,8 @@ import { initialProgress, weekSchedule, applyMoves } from './engine/workouts.js'
 import { screen } from './engine/safety.js';
 import { summary as gameSummaryRaw } from './engine/game.js';
 import { DEFAULT_REMINDERS } from './engine/reminders.js';
-import { HABITS } from './data/habits.js';
+import { HABITS, HABIT_CATEGORIES } from './data/habits.js';
+import { setOwnHabits } from './engine/habits.js';
 import { RECIPES } from './data/recipes.js';
 import { FOODS, DIETS, ALLERGENS } from './data/foods.js';
 import { CARDIO, CHAINS } from './data/exercises.js';
@@ -30,7 +31,7 @@ export function emptyState() {
     daily: {},
     plans: {},
     workouts: { progress: {}, log: {} },
-    habits: { active: [], log: {}, retired: [] },
+    habits: { active: [], log: {}, retired: [], own: [] },
     checkins: [],
     wraps: {},
     wakes: {},
@@ -258,7 +259,14 @@ export function sanitize(s) {
   s.tdeeOffset = num(s.tdeeOffset, -1500, 1500, 0);
   s.calcWeightKg = num(s.calcWeightKg, 30, 400, null) ?? undefined;
   s.maintainKg = num(s.maintainKg, 30, 400, null) ?? undefined;
-  const habitIds = HABITS.map((h) => h.id);
+  // Habits you made yourself: what you'll do, the moment, and the smallest version.
+  const txt = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
+  s.habits.own = (Array.isArray(s.habits.own) ? s.habits.own : [])
+    .filter((h) => h && typeof h.id === 'string' && /^own_[a-z0-9]{1,20}$/.test(h.id) && txt(h.title, 80))
+    .slice(0, 30)
+    .map((h) => ({ id: h.id, cat: HABIT_CATEGORIES[h.cat] ? h.cat : 'mind', title: txt(h.title, 80), tiny: txt(h.tiny, 80) || 'Do a two-minute version', cue: txt(h.cue, 160) }));
+  setOwnHabits(s.habits.own);
+  const habitIds = HABITS.map((h) => h.id).concat(s.habits.own.map((h) => h.id));
   s.habits.active = (Array.isArray(s.habits.active) ? s.habits.active : [])
     .filter((a) => a && habitIds.includes(a.id))
     .slice(0, 3)

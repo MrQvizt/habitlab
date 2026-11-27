@@ -29,8 +29,19 @@ export function levelValue(id, index) {
   return index >= habitLevels(id).length - 1 ? true : index + 1;
 }
 
+// Habits you made yourself (state.habits.own), registered whenever state is loaded or changed.
+let OWN = [];
+export const OWN_WHY = 'Your own habit. Tie it to something you already do every day, keep it small, and repeat it in the same moment — that’s what makes it automatic.';
+/** Your own habits as full habit objects (same shape as the library). */
+export function setOwnHabits(list) {
+  OWN = (Array.isArray(list) ? list : []).map((h) => ({ ...h, why: OWN_WHY, ev: 'habits', own: true }));
+  return OWN;
+}
+export const ownHabits = () => OWN;
+export const newOwnId = () => `own_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+
 export function habitById(id) {
-  return HABITS.find((h) => h.id === id);
+  return HABITS.find((h) => h.id === id) || OWN.find((h) => h.id === id);
 }
 
 /**
