@@ -8055,10 +8055,10 @@ function barHtml() {
     : timer.phase === 'rest' ? `Rest · next: set ${(setsDone[timer.i] || 0) + 1} of ${esc(ex.name)}` : `Ready · set ${(setsDone[timer.i] || 0) + 1} of ${esc(ex.name)}`;
   const pct = timer.phase === 'ready' ? 100 : Math.min(100, (1 - left / timer.total) * 100);
   return `<div class="set-timer ${timer.phase}" role="timer" aria-label="${timer.phase === 'rest' ? 'Rest timer' : 'Set timer'}">
-    <div class="st-top"><span class="st-label">${label}</span><button class="st-x" data-action="timerStop" aria-label="Stop timer">${icon('x')}</button></div>
+    <div class="st-top"><span class="st-label">${label}</span><button class="st-x" data-action="timerStop" aria-label="${timer.phase === 'work' ? 'Cancel this set' : 'Stop timer'}">${icon('x')}</button></div>
     <div class="st-main"><b class="st-clock">${timer.phase === 'ready' ? 'Go' : mmss(left)}</b>
       ${timer.phase === 'rest' ? `<button class="btn small ghost" data-action="timerAdd" data-s="-15" aria-label="15 seconds less">−15</button><button class="btn small ghost" data-action="timerAdd" data-s="15" aria-label="15 seconds more">+15</button><button class="btn small" data-action="timerSkip">Skip</button>`
-        : timer.phase === 'ready' ? `<button class="btn small primary" data-action="setStart" data-i="${timer.i}">▶ Start ${ex.reps} s</button>` : `<button class="btn small" data-action="timerSkip">Done</button>`}</div>
+        : timer.phase === 'ready' ? `<button class="btn small primary" data-action="setStart" data-i="${timer.i}">▶ Start ${ex.reps} s</button>` : `<button class="btn small" data-action="timerStop">Cancel</button>`}</div>
     <span class="st-bar"><span style="width:${pct.toFixed(1)}%"></span></span></div>`;
 }
 
@@ -8429,7 +8429,8 @@ __m.default = {
       saveDraft();
     },
     timerSkip(el, ev, ctx) {
-      if (!timer) return;
+      // Only rest can be skipped: a timed set counts once its time is up (Cancel stops it uncounted).
+      if (!timer || timer.phase !== 'rest') return;
       timer.end = Date.now();
       finishPhase(ctx);
     },
@@ -8447,6 +8448,7 @@ __m.default = {
       paintBar();
     },
     timerStop(el, ev, ctx) {
+      if (timer?.phase === 'work') ctx.toast('Set cancelled — it isn’t counted');
       timer = null;
       clearInterval(timerTick);
       ctx.rerender();

@@ -271,13 +271,25 @@ const shots = process.argv[3] || null;
   }
   const firstTimed = page.locator('.set-row button[data-action=setStart]').first();
   if (await firstTimed.count()) {
+    const timedEx = page.locator('.exercise:has(.set-row button[data-action=setStart])').first();
+    const dotsBefore = await timedEx.locator('.st-dot.on').count();
     await firstTimed.click();
     await page.waitForSelector('.set-timer.work').catch(() => errors.push('a timed set should start counting down'));
     const c1 = await page.textContent('.st-clock');
     await page.waitForTimeout(1300);
     if ((await page.textContent('.st-clock')) === c1) errors.push('the set timer should count down');
-    await page.click('.set-timer button[data-action=timerSkip]');
+    // While a hold is timing you can't mark it done early — only cancel it, and then it doesn't count
+    if (await page.locator('.set-timer.work button:has-text("Done"), .set-timer.work button[data-action=timerSkip]').count()) errors.push('a timed set should not offer Done while timing');
+    await page.click('.set-timer.work button:has-text("Cancel")');
+    await page.waitForSelector('.toast.show >> text=Set cancelled');
+    if ((await timedEx.locator('.st-dot.on').count()) !== dotsBefore) errors.push('a cancelled timed set should not count');
+    // Let a hold run its full time: it counts, then rest starts
+    await page.clock.install();
+    await firstTimed.click();
+    await page.waitForSelector('.set-timer.work');
+    await page.clock.fastForward('01:30');
     await page.waitForSelector('.set-timer.rest').catch(() => errors.push('after a timed set, rest should start'));
+    if ((await timedEx.locator('.st-dot.on').count()) !== dotsBefore + 1) errors.push('a completed timed set should count');
     await page.click('.set-timer button[data-action=timerStop]');
   }
   if (await page.locator('.set-timer').count()) errors.push('stopping should hide the timer');
