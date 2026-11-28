@@ -11,8 +11,113 @@ import { addDays, weekStart, weekOrder, dateInWeek, dayChoices, DAY_SHORT } from
 import { dayIndex } from './shared.js';
 import { askActivity, itemName, planEmoji } from './planmove.js';
 import { itemKey } from '../engine/workouts.js';
+import { chime, buzz } from '../ui/celebrate.js';
 
 let ratings = {}; // chainKey -> rating, for the session in progress
+
+// ---------- set timer: one timer at a time, in a slim bar at the bottom ----------
+// Timed exercises count down their seconds (both sides when per side), then rest; rep exercises
+// start the rest when you tap "Set done". Times are end timestamps, so a dimmed screen stays accurate.
+const loadRest = () => {
+  try {
+    return Math.min(180, Math.max(15, Number(localStorage.getItem('habitlab.rest')) || 60));
+  } catch (e) {
+    return 60;
+  }
+};
+let setsDone = {}; // exercise index -> sets finished, for the session in progress
+let sessionKey = '';
+let timer = null; // { i, phase: 'work' | 'rest' | 'ready', end, total, half? }
+let timerTick = null;
+let exList = []; // the session's exercises, for labels in the bar
+let restSec = null;
+
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.max(0, s) % 60).padStart(2, '0')}`;
+const workSecs = (ex) => Number(ex.reps) * (ex.perSide ? 2 : 1);
+
+function barHtml() {
+  if (!timer) return '';
+  const ex = exList[timer.i];
+  if (!ex) return '';
+  const n = (setsDone[timer.i] || 0) + (timer.phase === 'work' ? 1 : 0);
+  const left = Math.max(0, Math.ceil((timer.end - Date.now()) / 1000));
+  const label = timer.phase === 'work' ? `${esc(ex.name)} · set ${n} of ${ex.sets}${ex.perSide ? (left > workSecs(ex) / 2 ? ' · first side' : ' · other side') : ''}`
+    : timer.phase === 'rest' ? `Rest · next: set ${(setsDone[timer.i] || 0) + 1} of ${esc(ex.name)}` : `Ready · set ${(setsDone[timer.i] || 0) + 1} of ${esc(ex.name)}`;
+  const pct = timer.phase === 'ready' ? 100 : Math.min(100, (1 - left / timer.total) * 100);
+  return `<div class="set-timer ${timer.phase}" role="timer" aria-label="${timer.phase === 'rest' ? 'Rest timer' : 'Set timer'}">
+    <div class="st-top"><span class="st-label">${label}</span><button class="st-x" data-action="timerStop" aria-label="Stop timer">${icon('x')}</button></div>
+    <div class="st-main"><b class="st-clock">${timer.phase === 'ready' ? 'Go' : mmss(left)}</b>
+      ${timer.phase === 'rest' ? `<button class="btn small ghost" data-action="timerAdd" data-s="-15" aria-label="15 seconds less">−15</button><button class="btn small ghost" data-action="timerAdd" data-s="15" aria-label="15 seconds more">+15</button><button class="btn small" data-action="timerSkip">Skip</button>`
+        : timer.phase === 'ready' ? `<button class="btn small primary" data-action="setStart" data-i="${timer.i}">▶ Start ${ex.reps} s</button>` : `<button class="btn small" data-action="timerSkip">Done</button>`}</div>
+    <span class="st-bar"><span style="width:${pct.toFixed(1)}%"></span></span></div>`;
+}
+
+function paintBar() {
+  const slot = document.getElementById('set-timer-slot');
+  if (slot) slot.innerHTML = barHtml();
+}
+
+function setRow(ex, i) {
+  const done = setsDone[i] || 0;
+  const dots = Array.from({ length: ex.sets }, (_, k) => `<span class="st-dot ${k < done ? 'on' : ''}"></span>`).join('');
+  const running = timer && timer.i === i && timer.phase !== 'ready';
+  const btn = done >= ex.sets ? '<span class="tag green">✓ All sets</span>'
+    : running ? `<span class="muted st-now">${timer.phase === 'rest' ? 'Resting…' : 'Timing…'}</span>`
+    : ex.type === 'time' ? `<button class="btn small primary" data-action="setStart" data-i="${i}">▶ Set ${done + 1} · ${ex.reps} s${ex.perSide ? ' each side' : ''}</button>`
+    : `<button class="btn small primary" data-action="setDone" data-i="${i}">✓ Set ${done + 1} done</button>`;
+  return `<div class="set-row" aria-label="Sets: ${done} of ${ex.sets} done"><span class="st-dots" aria-hidden="true">${dots}</span>${btn}</div>`;
+}
+
+function tick(ctx) {
+  if (!timer || timer.phase === 'ready') return;
+  if (!location.hash.startsWith('#/move/session')) {
+    // Left the session: stop quietly rather than chiming on another screen.
+    timer = null;
+    clearInterval(timerTick);
+    return;
+  }
+  if (timer.half && Date.now() >= timer.half) {
+    timer.half = null; // halfway on a per-side hold: switch sides
+    chime('tick');
+    buzz(60);
+  }
+  if (Date.now() < timer.end) return paintBar();
+  finishPhase(ctx);
+}
+
+function startTimer(ctx, t) {
+  timer = t;
+  clearInterval(timerTick);
+  timerTick = setInterval(() => tick(ctx), 250);
+  ctx.rerender();
+}
+
+function finishPhase(ctx) {
+  const ex = exList[timer.i];
+  chime('tick');
+  buzz([120, 80, 120]);
+  if (timer.phase === 'work') {
+    setsDone[timer.i] = (setsDone[timer.i] || 0) + 1;
+    return afterSet(ctx, timer.i);
+  }
+  // Rest over: a timed exercise waits for you to start the next set; reps just carry on.
+  clearInterval(timerTick);
+  timer = ex.type === 'time' ? { i: timer.i, phase: 'ready', end: Date.now(), total: 1 } : null;
+  ctx.rerender();
+}
+
+function afterSet(ctx, i) {
+  const ex = exList[i];
+  if ((setsDone[i] || 0) >= ex.sets) {
+    // Last set of this exercise: no rest needed, on to the next one.
+    timer = null;
+    clearInterval(timerTick);
+    ctx.rerender();
+    return;
+  }
+  restSec ??= loadRest();
+  startTimer(ctx, { i, phase: 'rest', end: Date.now() + restSec * 1000, total: restSec });
+}
 let showAddActivity = false;
 let pickCat = 'pop';
 let picked = null; // hobby name, or '' for a custom activity
@@ -162,18 +267,27 @@ function session(state, variant) {
   const { schedule } = store.schedule(state, date);
   const item = schedule.flatMap((d) => d.items).find((i) => i.kind === 'strength' && i.variant === variant);
   if (!item) return '<div class="empty">No session found. <a href="#/move">Back</a></div>';
+  if (sessionKey !== `${date}|${variant}`) {
+    sessionKey = `${date}|${variant}`;
+    setsDone = {};
+    timer = null;
+    clearInterval(timerTick);
+  }
+  exList = item.exercises;
   const rateBtn = (chain, value, label) => `<button type="button" class="btn small ${ratings[chain] === value ? 'on' : ''}" data-action="rate" data-chain="${chain}" data-value="${value}" aria-pressed="${ratings[chain] === value}">${label}</button>`;
   return html`<a href="#/move" class="btn ghost small">${icon('back')}Move</a>
     <h1>Strength session ${esc(variant)}</h1>
-    <p class="muted">Rest 60–90 seconds between sets. Move slowly and with control; breathe out as you push. Stop 2–3 reps before you can’t do any more.</p>
+    <p class="muted">Move slowly and with control; breathe out as you push. Stop 2–3 reps before you can’t do any more. Tap each set as you go — a rest timer starts between sets.</p>
     <div class="card"><h3>Warm-up (5 min)</h3><ul style="padding-left:20px;margin:0">${WARMUP.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>
     ${item.exercises.map((ex, i) => `<div class="exercise"><div class="row between"><h3 style="margin:0">${i + 1}. ${esc(ex.name)}</h3><span class="dose">${dose(ex)}</span></div>
       <p>${esc(ex.how)}</p>
+      ${setRow(ex, i)}
       <div class="field-label" style="font-size:.85rem">How did it feel?</div>
       <div class="rate">${rateBtn(ex.chain, 'easy', 'Too easy')}${rateBtn(ex.chain, 'right', 'Just right')}${rateBtn(ex.chain, 'hard', 'Too hard')}${rateBtn(ex.chain, 'pain', 'It hurt')}</div></div>`)}
     <div class="card"><h3>Cool-down</h3><ul style="padding-left:20px;margin:0">${COOLDOWN.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>
     <div class="row" style="margin:14px 0"><button class="btn primary" data-action="finish" data-variant="${esc(variant)}">${icon('check')}Finish session</button><span class="muted" style="font-size:.86rem">Unrated exercises count as “just right”.</span></div>
-    ${stopSigns()}`;
+    ${stopSigns()}
+    <div id="set-timer-slot">${barHtml()}</div>`;
 }
 
 export default {
@@ -183,6 +297,43 @@ export default {
     return overview(state);
   },
   actions: {
+    setStart(el, ev, ctx) {
+      const i = Number(el.dataset.i);
+      const ex = exList[i];
+      if (!ex) return;
+      const secs = workSecs(ex);
+      startTimer(ctx, { i, phase: 'work', end: Date.now() + secs * 1000, total: secs, half: ex.perSide ? Date.now() + (secs / 2) * 1000 : null });
+    },
+    setDone(el, ev, ctx) {
+      const i = Number(el.dataset.i);
+      if (!exList[i]) return;
+      setsDone[i] = Math.min(exList[i].sets, (setsDone[i] || 0) + 1);
+      buzz(15);
+      afterSet(ctx, i);
+    },
+    timerSkip(el, ev, ctx) {
+      if (!timer) return;
+      timer.end = Date.now();
+      finishPhase(ctx);
+    },
+    timerAdd(el, ev, ctx) {
+      if (!timer || timer.phase !== 'rest') return;
+      const d = Number(el.dataset.s) || 0;
+      timer.end = Math.max(Date.now() + 5000, timer.end + d * 1000);
+      timer.total = Math.max(15, timer.total + d);
+      restSec = Math.min(180, Math.max(15, (restSec ?? loadRest()) + d)); // remembered for next time
+      try {
+        localStorage.setItem('habitlab.rest', String(restSec));
+      } catch (e) {
+        /* private mode */
+      }
+      paintBar();
+    },
+    timerStop(el, ev, ctx) {
+      timer = null;
+      clearInterval(timerTick);
+      ctx.rerender();
+    },
     rate(el, ev, ctx) {
       ratings[el.dataset.chain] = el.dataset.value;
       el.parentElement.querySelectorAll('button').forEach((b) => {

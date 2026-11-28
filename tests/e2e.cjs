@@ -252,6 +252,29 @@ const shots = process.argv[3] || null;
   // Strength session
   await page.goto(base + '#/move/session/A');
   await page.waitForSelector('text=Finish session');
+  // Sets and timers: a rep set starts the rest timer; a timed set counts down, then rest
+  const firstReps = page.locator('.set-row button[data-action=setDone]').first();
+  if (await firstReps.count()) {
+    await firstReps.click();
+    await page.waitForSelector('.set-timer.rest').catch(() => errors.push('a finished set should start the rest timer'));
+    if (!/Rest/.test(await page.textContent('.set-timer'))) errors.push('rest timer should say Rest');
+    await page.click('.set-timer button[data-action=timerAdd][data-s="15"]');
+    await page.click('.set-timer button[data-action=timerSkip]');
+    await page.waitForTimeout(300);
+    if ((await page.locator('.exercise .st-dot.on').count()) < 1) errors.push('the set should be ticked off');
+  }
+  const firstTimed = page.locator('.set-row button[data-action=setStart]').first();
+  if (await firstTimed.count()) {
+    await firstTimed.click();
+    await page.waitForSelector('.set-timer.work').catch(() => errors.push('a timed set should start counting down'));
+    const c1 = await page.textContent('.st-clock');
+    await page.waitForTimeout(1300);
+    if ((await page.textContent('.st-clock')) === c1) errors.push('the set timer should count down');
+    await page.click('.set-timer button[data-action=timerSkip]');
+    await page.waitForSelector('.set-timer.rest').catch(() => errors.push('after a timed set, rest should start'));
+    await page.click('.set-timer button[data-action=timerStop]');
+  }
+  if (await page.locator('.set-timer').count()) errors.push('stopping should hide the timer');
   await page.click('button:has-text("Too easy") >> nth=0');
   await page.click('button:has-text("Finish session")');
   await page.waitForSelector('.session-list');

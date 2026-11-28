@@ -1390,3 +1390,24 @@ body.cal-dragging .cg-scroll, body.cal-dragging .cal-view { touch-action: none; 
   .cal-view .cg, .cal-view .cm { margin: 0 calc(-1 * var(--gutter)); border-radius: 0; border-left: 0; border-right: 0; }
   .cg-head, .cg-allday, .cg-body { grid-template-columns: 38px repeat(var(--cols), minmax(0, 1fr)); }
 }
+/* Strength session: set dots + one timer bar at the bottom (work, then rest) */
+.set-row { display: flex; align-items: center; gap: 10px; margin: 4px 0 12px; }
+.st-dots { display: inline-flex; gap: 5px; }
+.st-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--line-strong); }
+.st-dot.on { background: var(--accent); border-color: var(--accent); }
+.st-now { font-size: var(--text-sm); }
+.set-timer { position: fixed; left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(74px + env(safe-area-inset-bottom, 0px)); z-index: 30; background: var(--ink); color: var(--bg); border-radius: 18px; padding: 10px 14px 12px; box-shadow: 0 10px 30px rgba(0,0,0,.3); max-width: 560px; margin: 0 auto; }
+.set-timer.rest { background: color-mix(in srgb, var(--ring-habits) 85%, #000); color: #fff; }
+.set-timer.ready { background: var(--accent); color: var(--accent-ink); }
+.st-top { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); }
+.st-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .9; }
+.st-x { background: none; border: 0; color: inherit; padding: 4px; cursor: pointer; opacity: .8; }
+.st-x .icon { width: 18px; height: 18px; }
+.st-main { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.st-clock { flex: 1; font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.set-timer .btn.ghost { color: inherit; border-color: color-mix(in srgb, currentColor 40%, transparent); }
+.st-bar { display: block; height: 4px; border-radius: 4px; background: color-mix(in srgb, currentColor 20%, transparent); margin-top: 8px; overflow: hidden; }
+.st-bar span { display: block; height: 100%; background: currentColor; transition: width .25s linear; }
+@media (min-width: 900px) { .set-timer { bottom: 24px; } }
+#set-timer-slot:not(:empty) { height: 120px; } /* room so the bar never covers Finish session */
+body:has(.set-timer) .toast { bottom: calc(200px + env(safe-area-inset-bottom, 0px)); } /* messages sit above the set timer */
