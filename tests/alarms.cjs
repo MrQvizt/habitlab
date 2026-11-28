@@ -165,7 +165,19 @@ const shots = process.argv[3] || null;
   await page.goto(url + '#/settings/alarms/reasons'); // the morning screen's link opens the library directly
   await page.waitForSelector('.reason-lib[open]');
   if ((await page.locator('.reason-btn').count()) < 600) errors.push('fewer than 600 reasons in the library');
+  // Type once the screen has finished opening (a fill during the route's view transition lands on
+  // the outgoing page's search box, which is then replaced).
+  await page.waitForFunction(() => {
+    let moving = false;
+    try {
+      moving = document.documentElement.matches(':active-view-transition');
+    } catch (e) {
+      /* older browsers: no such selector */
+    }
+    return !moving && document.querySelector('.reason-search')?.isConnected;
+  });
   await page.fill('.reason-search', 'knee');
+  await page.waitForFunction(() => [...document.querySelectorAll('.reason-btn:not([hidden])')].every((e) => /knee/i.test(e.textContent)), null, { timeout: 5000 }).catch(() => {});
   const hits = await page.$$eval('.reason-btn:not([hidden])', (els) => els.map((e) => e.textContent));
   if (!hits.length || !hits.every((t) => /knee/i.test(t))) errors.push('reason search: ' + hits.join(' | '));
   const all = await page.$$eval('.reason-btn', (els) => els.map((e) => e.textContent.slice(2)));
