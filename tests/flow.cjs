@@ -258,7 +258,10 @@ const shots = process.argv[3] || null;
   await page.goto(base + '#/wrap');
   await page.waitForSelector('.wrap-story');
   for (let k = 0; k < 15 && (await page.locator('.w-tap.right').count()); k++) await page.keyboard.press('ArrowRight');
-  if (!/Come back Sunday/.test(await page.textContent('.wrap-story'))) errors.push('wrap should say come back Sunday');
+  // Mid-week the wrap is partial ("come back Sunday"); on the week's last day (Saturday) it's complete.
+  const lastDayOfWeek = new Date().getDay() === 6;
+  const wrapText = await page.textContent('.wrap-story');
+  if (lastDayOfWeek ? /Come back Sunday/.test(wrapText) : !/Come back Sunday/.test(wrapText)) errors.push(`wrap on ${lastDayOfWeek ? 'the last day should be complete' : 'a mid-week day should say come back Sunday'}`);
   await page.keyboard.press('Escape');
   await browser.close();
   if (errors.length) {
