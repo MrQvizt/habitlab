@@ -26,6 +26,7 @@ import sosView from './views/sos.js';
 import { resetSos } from './views/sos.js';
 import { organActions } from './views/body.js';
 import { setOwnHabits } from './engine/habits.js';
+import { setOwnFoods } from './data/fooddb.js';
 import accountView from './views/account.js';
 import inboxView from './views/inbox.js';
 import { resetInbox } from './views/inbox.js';
@@ -295,6 +296,7 @@ function xpChip() {
 let lastRoute = '';
 function renderRoute() {
   setOwnHabits(state.habits?.own); // your own habits, for every screen that looks habits up
+  setOwnFoods(state.foods?.own);
   let { name, params } = parseRoute();
   if (!state.profile && name !== 'start' && name !== 'learn' && name !== 'join' && name !== 'account') name = 'start';
   if (state.profile && name === 'start') name = 'today';

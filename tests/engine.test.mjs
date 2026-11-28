@@ -1011,3 +1011,98 @@ test('repeating calendar events: daily, weekly days, every 2 weeks, monthly, unt
   assert.equal(expand([weekly], '2026-11-25', '2026-11-25')[0].series, 'w');
   assert.equal(repeatLabel(weekly.repeat), 'Every week on Mon, Wed');
 });
+
+test('food search: USDA foods with real portions, your own foods first, British words work', async () => {
+  const { searchFoods, foodById, nutritionOf, gramsOf, totalOf, describe, setOwnFoods, FOOD_COUNT } = await import('../js/data/fooddb.js');
+  assert.ok(FOOD_COUNT > 3500, `only ${FOOD_COUNT} foods`);
+  const kiwi = searchFoods('kiwi').find((x) => x.src === 'usda' && /green, raw/.test(x.name));
+  assert.ok(kiwi, 'USDA kiwi found');
+  assert.equal(kiwi.per100.kcal, 61);
+  assert.ok(kiwi.units.some(([l]) => l === '1 fruit'), 'kiwi has a 1-fruit portion');
+  // 150 g of kiwi = 1.5 × per 100 g
+  const it = { id: kiwi.id, n: 150, u: 'g' };
+  assert.equal(gramsOf(it), 150);
+  assert.equal(Math.round(nutritionOf(it).kcal), 92);
+  assert.equal(describe([it]), 'Kiwi, green, raw (150 g)');
+  // A chosen household unit: 2 × 1 fruit
+  const fruitU = kiwi.units.findIndex(([l]) => l === '1 fruit');
+  assert.equal(gramsOf({ id: kiwi.id, n: 2, u: fruitU }), 2 * kiwi.units[fruitU][1]);
+  // Plain portions still multiply like before
+  assert.equal(totalOf([{ id: 'sausages_2', n: 1 }, { id: 'side_salad', n: 1 }]).kcal, 385);
+  // British words find US names
+  for (const q of ['aubergine', 'courgette', 'prawn']) assert.ok(searchFoods(q).length, `${q} finds nothing`);
+  // Your own foods come first and round-trip by id
+  setOwnFoods([{ id: 'food_abc', name: 'Kiwi smoothie from work', portion: '1 cup', kcal: 180, p: 4, c: 35, f: 1, fib: 3 }]);
+  assert.equal(searchFoods('kiwi')[0].id, 'food_abc');
+  assert.equal(foodById('food_abc').kcal, 180);
+  setOwnFoods([]);
+  assert.equal(foodById('food_abc'), undefined);
+});
+
+test('build it: a burrito adds up its parts; extra counts 1.5×; searching "chipotle" offers the builder', async () => {
+  const { templateById, buildFood, matchTemplates } = await import('../js/data/builder.js');
+  const t = templateById('burrito');
+  const f = buildFood(t, { 'base.tortilla': 1, 'protein.chicken': 1, 'rice.white_rice': 1, 'extras.guac': 1.5 });
+  assert.equal(f.kcal, 320 + 180 + 210 + Math.round(230 * 1.5));
+  assert.ok(f.name.startsWith('Burrito with chicken, white rice, extra guacamole'), f.name);
+  assert.ok(f.fib > 9);
+  assert.deepEqual(matchTemplates('chipotle').map((x) => x.id), ['burrito']);
+  assert.deepEqual(matchTemplates('subway').map((x) => x.id), ['sub']);
+  const pizza = buildFood(templateById('pizza'), { 'slices.margherita': 3 });
+  assert.equal(pizza.kcal, 600);
+});
+
+test('own foods, saved meals and moved meal times survive saving and loading (and junk is dropped)', async () => {
+  const { sanitize, emptyState } = await import('../js/store.js');
+  const s = sanitize({
+    ...emptyState(),
+    foods: {
+      own: [{ id: 'food_x1', name: 'Wrap', portion: '1 wrap', kcal: 450, p: 25, fib: 4, g: 0 }, { id: 'bad id', name: 'x', kcal: 1 }, { id: 'food_x2', name: '', kcal: 5 }],
+      meals: [{ id: 'meal_m1', name: 'Lunch box', items: [{ id: 'food_x1', n: 1, u: 0 }, { id: 'b1', n: 1, food: { name: 'Burrito with chicken', kcal: 900, p: 50, built: 'burrito' } }, { id: 7 }] }, { id: 'meal_m2', name: 'Empty', items: [] }],
+    },
+    mealTimes: { '2026-11-28': { lunch: '13:00', dinner: '25:00', nope: '10:00' }, bad: { lunch: '12:00' } },
+    prefs: { ...emptyState().prefs, mealTimesByDay: { 5: { lunch: '13:30' }, 9: { lunch: '12:00' } } },
+  });
+  assert.deepEqual(s.foods.own.map((x) => x.id), ['food_x1']);
+  assert.equal(s.foods.own[0].g, undefined, 'a zero weight is no weight');
+  assert.equal(s.foods.meals.length, 1);
+  assert.equal(s.foods.meals[0].items.length, 2);
+  assert.equal(s.foods.meals[0].items[1].food.kcal, 900);
+  assert.deepEqual(s.mealTimes, { '2026-11-28': { lunch: '13:00' } });
+  assert.deepEqual(s.prefs.mealTimesByDay, { 5: { lunch: '13:30' } });
+});
+
+test('meal times: a moved meal sits at its new time (this date beats every-weekday), in eating order', async () => {
+  const { mealsFor } = await import('../js/views/shared.js');
+  const { orderMeals } = await import('../js/engine/schedule.js');
+  const profile = { schedule: { wake: '07:00', bed: '23:00' } };
+  const day = [{ slot: 'breakfast', recipeId: 'x', scale: 1 }, { slot: 'lunch', recipeId: 'y', scale: 1 }, { slot: 'snack', recipeId: 'z', scale: 1 }, { slot: 'dinner', recipeId: 'w', scale: 1 }];
+  const base = orderMeals(profile, day);
+  const date = '2026-11-28'; // a Saturday (weekday index 5)
+  const { weekStart, weekdayOf } = await import('../js/engine/util.js');
+  const days = [];
+  days[weekdayOf(date)] = day;
+  const state = { profile, prefs: { mealTimesByDay: { [weekdayOf(date)]: { lunch: '13:30' } } }, mealTimes: { [date]: { snack: '11:00' } }, plans: { [weekStart(date)]: { days } } };
+  const got = mealsFor(state, date);
+  const lunch = got.find((m) => m.slot === 'lunch');
+  const snack = got.find((m) => m.slot === 'snack');
+  assert.equal(lunch.time, 13 * 60 + 30);
+  assert.equal(lunch.moved, 'weekday');
+  assert.equal(snack.time, 11 * 60);
+  assert.equal(snack.moved, 'day');
+  assert.deepEqual(got.map((m) => m.slot), ['breakfast', 'snack', 'lunch', 'dinner']);
+  // Nothing moved: the usual times, untouched
+  assert.deepEqual(mealsFor({ ...state, prefs: {}, mealTimes: {} }, date).map((m) => m.time), base.map((m) => m.time));
+  assert.ok(base.find((m) => m.slot === 'lunch').time !== 13 * 60 + 30);
+});
+
+test('meal reminders follow a meal you moved on certain weekdays', async () => {
+  const { alarmSpecs } = await import('../js/engine/alarms.js');
+  const s = { profile: { schedule: { wake: '06:30', bed: '22:30' } }, prefs: { mealsPerDay: 4, mealTimesByDay: { 5: { lunch: '13:15' }, 6: { lunch: '13:15' } } }, alarms: { meals: { on: true } } };
+  const lunch = alarmSpecs(s).filter((x) => x.id.startsWith('meal_lunch'));
+  assert.equal(lunch.length, 2);
+  const weekend = lunch.find((x) => x.id === 'meal_lunch_1315');
+  assert.deepEqual(weekend.days, [5, 6]);
+  assert.equal(`${weekend.hour}:${weekend.minute}`, '13:15');
+  assert.deepEqual(lunch.find((x) => x.id === 'meal_lunch').days, [0, 1, 2, 3, 4]);
+});

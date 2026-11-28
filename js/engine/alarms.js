@@ -84,9 +84,19 @@ export function alarmSpecs(state) {
   if (a.meals.on) {
     const slots = mealSlots(state, a.meals.snacks);
     const times = planMealTimes(state);
+    const byDay = state.prefs?.mealTimesByDay || {};
     for (const s of slots) {
       if (times[s] == null) continue;
-      out.push({ id: `meal_${s}`, kind: 'meal', label: `${SLOT_LABEL[s]} time`, body: 'Your meal is ready in today’s plan. Sit down, eat slowly, and tick it off.', ...hm(times[s]), days: [0, 1, 2, 3, 4, 5, 6], style: a.meals.style, route: '#/today', ...snd('meals') });
+      // A meal you moved on certain weekdays ("lunch at 13:00 on Saturdays") rings then on those days.
+      const groups = new Map();
+      for (let d = 0; d < 7; d++) {
+        const t = byDay[d]?.[s] ? toMin(byDay[d][s]) : times[s];
+        groups.set(t, [...(groups.get(t) || []), d]);
+      }
+      for (const [t, days] of groups) {
+        const id = t === times[s] ? `meal_${s}` : `meal_${s}_${toHHMM(t).replace(':', '')}`;
+        out.push({ id, kind: 'meal', label: `${SLOT_LABEL[s]} time`, body: 'Your meal is ready in today’s plan. Sit down, eat slowly, and tick it off.', ...hm(t), days, style: a.meals.style, route: '#/today', ...snd('meals') });
+      }
     }
   }
   return out;

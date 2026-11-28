@@ -2,7 +2,7 @@
 import { esc, icon } from '../ui/dom.js';
 import { byId, scaledNutrition, SLOT_LABEL, ingredientText } from '../engine/meals.js';
 import * as store from '../store.js';
-import { orderMeals } from '../engine/schedule.js';
+import { orderMeals, toMin } from '../engine/schedule.js';
 import { fibreFromLabel } from '../data/fooddb.js';
 import { daysBetween, weekdayOf, planDayFor } from '../engine/util.js';
 
@@ -13,7 +13,15 @@ export function dayIndex(date) {
 /** The day's meals in the order you eat them (by your day timeline), each with `time` in minutes. */
 export function mealsFor(state, date) {
   const day = planDayFor(state, date);
-  return orderMeals(state.profile || {}, day);
+  const meals = orderMeals(state.profile || {}, day);
+  // Times you moved: for every same weekday ("lunch at 13:00 on Saturdays"), then for just this date.
+  const weekly = state.prefs?.mealTimesByDay?.[weekdayOf(date)] || {};
+  const once = state.mealTimes?.[date] || {};
+  if (!Object.keys(weekly).length && !Object.keys(once).length) return meals;
+  return meals.map((m) => {
+    const t = once[m.slot] || weekly[m.slot];
+    return t ? { ...m, time: toMin(t), moved: once[m.slot] ? 'day' : 'weekday' } : m;
+  }).sort((a, b) => a.time - b.time);
 }
 
 /** Calories logged so far today (meal ticks + extras). */
