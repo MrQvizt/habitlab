@@ -83,6 +83,10 @@ const base = process.argv[2] || 'http://localhost:8771/';
   // Plan tomorrow: give tomorrow's first planned session a time and place; it's linked, not duplicated
   await page.goto(base + '#/plan');
   await page.waitForSelector('main h1:has-text("Plan tomorrow")'); // not Today's evening "Plan tomorrow" card
+  // Step 1: how today went; step 2: tomorrow at a glance (times and places)
+  await page.click('button[data-action=ritRate][data-v="4"]');
+  await page.fill('[data-rit-note]', 'prepped lunch');
+  await page.click('.rit-nav button:has-text("Next")');
   const tmr = ymd(new Date(Date.now() + 864e5));
   if (await page.locator('form[data-form=planSetWhen]').count()) {
     const key = await page.getAttribute('form[data-form=planSetWhen] >> nth=0', 'data-key');
@@ -105,9 +109,31 @@ const base = process.argv[2] || 'http://localhost:8771/';
     await page.waitForSelector('text=Rest day on the plan');
   }
   await page.goto(base + '#/plan');
+  // The draft is kept: still on step 2 with today's rating remembered
+  await page.waitForSelector('.rit-dot.on:has-text("Tomorrow")');
+  await page.click('.rit-nav button:has-text("Next")');
+  // Step 3: what's different tomorrow; step 4: an if-then plan for each
+  await page.click('button[data-action=ritSit][data-k=out]');
+  await page.click('button[data-action=ritSit][data-k=tired]');
+  await page.click('.rit-nav button:has-text("Next")');
+  await page.click('button[data-action=ritPlan][data-k=out] >> nth=0');
+  await page.fill('[data-rit-own=tired]', 'If I’m tired, I’ll walk to work instead of the gym');
   await page.click('button[data-action=planDone]');
   await page.waitForSelector('text=Tomorrow is planned.');
-  if ((await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).flags.planned)) !== tmr) errors.push('planned flag');
+  const rs = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')));
+  if (rs.flags.planned !== tmr) errors.push('planned flag');
+  const tday = ymd(new Date());
+  if (rs.reflect?.[tday]?.rate !== 4 || rs.reflect[tday].note !== 'prepped lunch') errors.push('today’s rating not saved: ' + JSON.stringify(rs.reflect));
+  const rp = rs.ritual?.[tmr]?.plans || [];
+  if (rp.length !== 2 || !/eat out/.test(rp[0].text) || !/walk to work/.test(rp[1].text)) errors.push('if-then plans not saved: ' + JSON.stringify(rs.ritual));
+  // Tomorrow, Today shows the plan to tick off
+  await page.evaluate((t) => { const s = JSON.parse(localStorage.getItem('habitlab.v1')); s.ritual[t] = s.ritual[Object.keys(s.ritual)[0]]; localStorage.setItem('habitlab.v1', JSON.stringify(s)); }, tday);
+  await page.goto(base + '#/today');
+  await page.reload();
+  await page.waitForSelector('.rit-today .rit-keep');
+  await page.click('.rit-today .rit-keep >> nth=0');
+  await page.waitForSelector('.rit-today .rit-keep.on');
+  if (!(await page.evaluate((t) => JSON.parse(localStorage.getItem('habitlab.v1')).ritual[t].kept?.includes(0), today))) errors.push('kept plan not saved');
 
   // Share: create a link (publishes only open events)
   await page.goto(base + '#/calendar');

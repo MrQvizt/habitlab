@@ -1589,3 +1589,41 @@ body:has(.set-timer) .toast { bottom: calc(200px + env(safe-area-inset-bottom, 0
 .ms.done span { color: inherit; opacity: 0.85; }
 .ms.next { box-shadow: inset 0 0 0 2px var(--accent); }
 .ms-info { margin: 10px 2px 0; font-size: var(--text-sm); color: var(--ink-2); }
+
+/* ---- Plan tomorrow ritual ---- */
+.rit-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: -4px 0 14px; }
+.rit-dot { border: 0; background: none; padding: 0; cursor: pointer; font: inherit; text-align: left; }
+.rit-dot::before { content: ''; display: block; height: 4px; border-radius: 4px; background: var(--surface-3); margin-bottom: 6px; transition: background 200ms var(--ease); }
+.rit-dot.past::before, .rit-dot.on::before { background: var(--accent); }
+.rit-dot span { font-size: 11px; font-weight: 700; color: var(--ink-3); }
+.rit-dot.on span { color: var(--ink); }
+.rit-card h2 { margin: 0 0 4px; }
+.rit-card > .muted { margin: 0 0 12px; font-size: var(--text-sm); }
+.rit-faces { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.rit-face { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0 8px; border: 0; border-radius: 16px; background: var(--surface-2); font: inherit; cursor: pointer; transition: transform 150ms var(--ease-out); }
+.rit-face span { font-size: 30px; line-height: 1; filter: grayscale(0.6); transition: filter 150ms; }
+.rit-face small { font-size: 11px; font-weight: 700; color: var(--ink-3); }
+.rit-face.on { background: var(--accent-soft); transform: scale(1.05); }
+.rit-face.on span { filter: none; }
+.rit-sits { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rit-sit { display: flex; align-items: center; gap: 8px; padding: 12px; border: 0; border-radius: 16px; background: var(--surface-2); font: inherit; font-weight: 600; font-size: var(--text-sm); color: var(--ink); cursor: pointer; text-align: left; }
+.rit-sit span { font-size: 20px; }
+.rit-sit.on { background: var(--accent); color: var(--accent-ink); }
+.rit-group { margin-top: 14px; }
+.rit-group .over { font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+.rit-plan { display: block; width: 100%; text-align: left; margin-bottom: 6px; padding: 11px 14px; border: 0; border-radius: 14px; background: var(--surface-2); font: inherit; font-size: var(--text-sm); color: var(--ink); cursor: pointer; line-height: 1.35; }
+.rit-plan.on { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); font-weight: 600; }
+.rit-own { width: 100%; font-size: var(--text-sm); }
+.rit-own.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.rit-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.rit-nav .btn.large { min-width: 46%; }
+.rit-done { text-align: center; padding: 24px 18px; }
+.rit-moon { font-size: 44px; margin-bottom: 6px; }
+.rit-list { text-align: left; margin: 12px 0; padding-left: 18px; }
+.rit-list li { margin-bottom: 6px; }
+.rit-today { padding: 14px 14px 8px; background: linear-gradient(135deg, color-mix(in srgb, #5e5ce6 10%, var(--surface)), var(--surface)); }
+.rit-today .over { font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px; }
+.rit-today ul { list-style: none; margin: 0; padding: 0; }
+.rit-keep { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 0; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.rit-keep .check { flex: none; width: 26px; height: 26px; }
+.rit-keep.on .grow { color: var(--ink-3); }

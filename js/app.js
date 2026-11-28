@@ -20,6 +20,7 @@ import wakeView from './views/wake.js';
 import bodyView from './views/body.js';
 import calendarView from './views/calendar.js';
 import { calendarActions } from './views/calendar.js';
+import { ritualActions } from './views/plan.js';
 import joinView from './views/join.js';
 import planView from './views/plan.js';
 import sosView from './views/sos.js';
@@ -357,6 +358,7 @@ const GLOBAL = {
   ...sheetActions,
   ...calendarActions,
   ...organActions,
+  ...ritualActions,
   activityDone(el, ev, ctx) {
     logPlannedActivity(ctx, el.dataset.id);
   },
