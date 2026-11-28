@@ -140,6 +140,7 @@ Browser suites need Playwright and axe-core: `npm install --no-save playwright@1
 | `native`, `alarms` | The Android notification and alarm bridges, with mocked native plugins |
 | `calendar`, `account`, `session` | Calendar views and plan sheet; account sync; workout timers and drafts |
 | `food` | Grams and household units, build-it meals, your own foods, saved meals, swap chooser, moved meal times |
+| `textfit` | Every screen and sheet with Android's font size at 130% (360 px) and at 320 px: no cut-off, spilling or overlapping text |
 
 CI (`.github/workflows/android.yml`) runs all three layers on every push and pull request.
 Release, deployment and rollback: see [`RELEASE.md`](RELEASE.md).

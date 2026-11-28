@@ -21,7 +21,7 @@ export default {
       </div>
       <h2 class="you-h">Habits</h2>
       <ul class="you-list">
-        <li><a class="you-row" href="#/habits"><span class="you-ico" aria-hidden="true">${icon('habits')}</span><span class="grow"><strong>Your habits</strong><small>${habits.length ? esc(habits.map((h) => h.title).join(' · ')) : 'Pick up to 3 to build'}</small></span>${icon('chevron')}</a></li>
+        <li><a class="you-row" href="#/habits"><span class="you-ico" aria-hidden="true">${icon('habits')}</span><span class="grow"><strong>Your habits</strong><small>${habits.length ? `${habits.length} active · ${esc(habits[0].title)}${habits.length > 1 ? ` +${habits.length - 1}` : ''}` : 'Pick up to 3 to build'}</small></span>${icon('chevron')}</a></li>
       </ul>
       <h2 class="you-h">Your day</h2>
       <ul class="you-list">
