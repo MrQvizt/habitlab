@@ -12,6 +12,7 @@ import { dayIndex } from './shared.js';
 import { askActivity, itemName, planEmoji } from './planmove.js';
 import { itemKey } from '../engine/workouts.js';
 import { chime, buzz } from '../ui/celebrate.js';
+import { openSheet, closeSheet } from '../ui/sheet.js';
 
 let ratings = {}; // chainKey -> rating, for the session in progress
 
@@ -26,6 +27,93 @@ const loadRest = () => {
   }
 };
 let setsDone = {}; // exercise index -> sets finished, for the session in progress
+
+// ---------- drafts: a session you started is kept, so leaving (or closing the app) loses nothing ----------
+const DRAFT_KEY = 'habitlab.sessionDraft';
+const DRAFT_DAYS = 3; // offer to continue for this long
+let draftAsked = ''; // the session for which you already chose Continue / Start fresh
+let pendingLeave = null; // where you were going when we asked "are you done?"
+function hasProgress() {
+  return Object.keys(ratings).length > 0 || Object.values(setsDone).some((n) => n > 0) || ['warm', 'cool'].some((p) => routine[p].done.size || routine[p].skipped);
+}
+export function readDraft(variant) {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+    if (!d || (variant && d.variant !== variant) || Date.now() - (d.at || 0) > DRAFT_DAYS * 864e5) return null;
+    return d;
+  } catch (e) {
+    return null;
+  }
+}
+function saveDraft() {
+  if (!sessionKey) return;
+  if (!hasProgress()) return clearDraft();
+  const variant = sessionKey.split('|')[1];
+  const r = (p) => ({ done: [...routine[p].done], skipped: routine[p].skipped });
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ variant, ratings, setsDone, routine: { warm: r('warm'), cool: r('cool') }, at: Date.now() }));
+  } catch (e) {
+    /* storage full or blocked: progress stays for this visit */
+  }
+}
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch (e) {
+    /* ignore */
+  }
+}
+function loadDraft(d) {
+  ratings = { ...(d.ratings || {}) };
+  setsDone = { ...(d.setsDone || {}) };
+  for (const p of ['warm', 'cool']) routine[p] = { done: new Set(d.routine?.[p]?.done || []), skipped: !!d.routine?.[p]?.skipped };
+}
+const ago = (ms) => {
+  const m = Math.round((Date.now() - ms) / 60000);
+  return m < 2 ? 'a moment ago' : m < 60 ? `${m} minutes ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : 'yesterday or earlier';
+};
+function draftCard(d) {
+  const sets = Object.values(d.setsDone || {}).reduce((a, n) => a + n, 0);
+  const rated = Object.keys(d.ratings || {}).length;
+  const bits = [sets ? `${sets} set${sets > 1 ? 's' : ''} done` : '', rated ? `${rated} exercise${rated > 1 ? 's' : ''} rated` : '', d.routine?.warm?.done?.length || d.routine?.warm?.skipped ? 'warm-up marked' : ''].filter(Boolean).join(' · ');
+  return `<div class="notice info draft-card">${icon('clock')}<div class="grow"><strong>You started this session ${esc(ago(d.at))}</strong><div>${esc(bits || 'Some progress saved')}</div>
+    <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn small primary" data-action="draftContinue">Continue where I left off</button><button class="btn small ghost" data-action="draftFresh">Start fresh</button></div></div></div>`;
+}
+
+let ctxRef = null;
+/** Left a session (a tab, the back button, Continue later): keep it as a draft and start clean next time. */
+function leaveSession(say = true) {
+  if (sessionKey && hasProgress()) {
+    saveDraft();
+    if (say && ctxRef) ctxRef.toast('Your session is saved — continue it any time from Move.');
+  }
+  ratings = {};
+  setsDone = {};
+  routine = { warm: { done: new Set(), skipped: false }, cool: { done: new Set(), skipped: false } };
+  sessionKey = '';
+}
+window.addEventListener('hashchange', (ev) => {
+  if (/#\/move\/session/.test(ev.oldURL) && !location.hash.startsWith('#/move/session')) {
+    const said = pendingLeave === 'go';
+    pendingLeave = null;
+    leaveSession(!said);
+  }
+});
+
+// Leaving a session with progress: ask whether you're done or will continue later.
+document.addEventListener('click', (ev) => {
+  if (!location.hash.startsWith('#/move/session') || !hasProgress() || pendingLeave === 'go') return;
+  const a = ev.target.closest?.('a[href^="#/"]');
+  if (!a || a.getAttribute('href') === location.hash || a.closest('.sheet')) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  pendingLeave = a.getAttribute('href');
+  openSheet(`<div class="sheet-head"><div><div class="over">Strength session</div><h2>You’ve made progress</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+    <p class="muted" style="margin-top:0">Are you done, or will you carry on later? Your progress is kept either way.</p>
+    <div class="leave-opts"><button class="btn primary block" data-action="leaveFinish">${icon('check')}I’m done — finish session</button>
+      <button class="btn block" data-action="leaveLater">Continue later</button>
+      <button class="btn ghost block" data-action="sheetClose">Keep going</button></div>`, { label: 'Leave session?' });
+}, true);
 // Warm-up and cool-down: tick each step, or say you did it all / skipped it — so it isn't silently missed.
 let routine = { warm: { done: new Set(), skipped: false }, cool: { done: new Set(), skipped: false } };
 const ROUTINE = { warm: () => WARMUP, cool: () => COOLDOWN };
@@ -117,6 +205,7 @@ function finishPhase(ctx) {
   buzz([120, 80, 120]);
   if (timer.phase === 'work') {
     setsDone[timer.i] = (setsDone[timer.i] || 0) + 1;
+    saveDraft();
     return afterSet(ctx, timer.i);
   }
   // Rest over: a timed exercise waits for you to start the next set; reps just carry on.
@@ -226,7 +315,7 @@ function weekSessions(state, wk, schedule, ti) {
       const name = it.kind === 'strength' ? `Strength session ${it.variant}` : it.kind === 'activity' ? it.name : `${CARDIO[it.mode]?.label || 'Cardio'}`;
       const sub = it.kind === 'strength' ? `${it.exercises.length} exercises · about ${it.minutes} min` : `${it.minutes} min${it.kind === 'activity' ? ' · your regular activity' : ''}`;
       const go = done ? `<span class="tag green">${icon('check')}Done</span>`
-        : it.kind === 'strength' ? `<a class="btn small primary" href="#/move/session/${it.variant}">Start</a>`
+        : it.kind === 'strength' ? `<a class="btn small primary" href="#/move/session/${it.variant}">${readDraft(it.variant) ? 'Continue' : 'Start'}</a>`
         : it.kind === 'activity' ? `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`
         : `<button class="btn small primary" data-action="cardioDone" data-mode="${esc(it.mode)}" data-min="${it.minutes}">Done</button>`;
       rows.push(`<li class="session-row ${done ? 'is-done' : ''} ${i === ti ? 'today' : ''}"><span class="cal-emoji" aria-hidden="true">${planEmoji(it)}</span>
@@ -290,13 +379,16 @@ function session(state, variant) {
     sessionKey = `${date}|${variant}`;
     setsDone = {};
     routine = { warm: { done: new Set(), skipped: false }, cool: { done: new Set(), skipped: false } };
+    draftAsked = '';
     timer = null;
     clearInterval(timerTick);
   }
   exList = item.exercises;
+  const draft = draftAsked !== sessionKey && !hasProgress() ? readDraft(variant) : null;
   const rateBtn = (chain, value, label) => `<button type="button" class="btn small ${ratings[chain] === value ? 'on' : ''}" data-action="rate" data-chain="${chain}" data-value="${value}" aria-pressed="${ratings[chain] === value}">${label}</button>`;
   return html`<a href="#/move" class="btn ghost small">${icon('back')}Move</a>
     <h1>Strength session ${esc(variant)}</h1>
+    ${draft ? draftCard(draft) : ''}
     <p class="muted">Move slowly and with control; breathe out as you push. Stop 2–3 reps before you can’t do any more. Tap each set as you go — a rest timer starts between sets.</p>
     ${routineCard('warm', 'Warm-up (5 min)')}
     ${item.exercises.map((ex, i) => `<div class="exercise"><div class="row between"><h3 style="margin:0">${i + 1}. ${esc(ex.name)}</h3><span class="dose">${dose(ex)}</span></div>
@@ -311,12 +403,36 @@ function session(state, variant) {
 }
 
 export default {
-  render(state, params) {
+  render(state, params, ctx) {
+    ctxRef = ctx || ctxRef;
     if (params[0] === 'session') return session(state, params[1] || 'A');
-    ratings = {};
     return overview(state);
   },
   actions: {
+    draftContinue(el, ev, ctx) {
+      const d = readDraft(sessionKey.split('|')[1]);
+      if (d) loadDraft(d);
+      draftAsked = sessionKey;
+      ctx.toast('Welcome back — picking up where you left off');
+      ctx.rerender();
+    },
+    draftFresh(el, ev, ctx) {
+      clearDraft();
+      draftAsked = sessionKey;
+      ctx.rerender();
+    },
+    leaveFinish(el, ev, ctx) {
+      closeSheet(true); // no history step back: finishing navigates on its own
+      pendingLeave = null;
+      document.querySelector('button[data-action=finish]')?.click();
+    },
+    leaveLater(el, ev, ctx) {
+      const to = pendingLeave;
+      saveDraft();
+      pendingLeave = 'go';
+      ctx.toast('Saved — continue your session any time from Move.');
+      ctx.go(to || '#/move');
+    },
     routineTick(el, ev, ctx) {
       const r = routine[el.dataset.part];
       if (!r) return;
@@ -326,6 +442,7 @@ export default {
       r.skipped = false;
       buzz(10);
       ctx.rerender();
+      saveDraft();
     },
     routineAll(el, ev, ctx) {
       const r = routine[el.dataset.part];
@@ -334,6 +451,7 @@ export default {
       r.skipped = false;
       buzz(15);
       ctx.rerender();
+      saveDraft();
     },
     routineSkip(el, ev, ctx) {
       const r = routine[el.dataset.part];
@@ -341,6 +459,7 @@ export default {
       r.skipped = !r.skipped;
       if (r.skipped) r.done = new Set();
       ctx.rerender();
+      saveDraft();
     },
     setStart(el, ev, ctx) {
       const i = Number(el.dataset.i);
@@ -355,6 +474,7 @@ export default {
       setsDone[i] = Math.min(exList[i].sets, (setsDone[i] || 0) + 1);
       buzz(15);
       afterSet(ctx, i);
+      saveDraft();
     },
     timerSkip(el, ev, ctx) {
       if (!timer) return;
@@ -385,6 +505,7 @@ export default {
         b.classList.toggle('on', b === el);
         b.setAttribute('aria-pressed', String(b === el));
       });
+      saveDraft();
     },
     finish(el, ev, ctx) {
       const date = store.today();
@@ -410,6 +531,9 @@ export default {
         return st;
       }, { render: false });
       ratings = {};
+      setsDone = {};
+      sessionKey = '';
+      clearDraft();
       ctx.toast(pain ? 'Logged. The painful exercise has been eased back — if pain persists, check with a physio or doctor.' : changes.length ? `Level up! ${changes[0]}` : 'Session logged. Great work.');
       ctx.go('#/move');
     },

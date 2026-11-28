@@ -13,7 +13,7 @@ await new Promise((r) => setTimeout(r, 600));
 
 const suites = [
   ['e2e', [base]], ['demo', [base]], ['journey', [base]], ['wrap', [base]], ['flow', [base]],
-  ['xss', [base]], ['web', [base]], ['a11y', [base]], ['robust', [base]], ['native', []], ['alarms', []], ['calendar', [base]], ['account', [base]],
+  ['xss', [base]], ['web', [base]], ['a11y', [base]], ['robust', [base]], ['native', []], ['alarms', []], ['calendar', [base]], ['account', [base]], ['session', [base]],
 ];
 let failed = 0;
 for (const [name, args] of suites) {
