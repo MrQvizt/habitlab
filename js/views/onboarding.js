@@ -23,7 +23,7 @@ export function goalHint(heightCm, weightKg, u) {
   return `Healthy range for your height: ${fmtKg(r.lo, u)}–${fmtKg(r.hi, u)} (BMI 18.5–24.9).${sug ? ` Suggested: <strong>${fmtKg(sug, u)}</strong>, the nearest healthy weight. <button type="button" class="btn small tonal" data-action="useGoalDraft" data-value="${round(weightNum(sug, u), 0.1)}" style="margin-top:4px">Use ${fmtKg(sug, u)}</button>` : ''}`;
 }
 
-const STEPS = ['Welcome', 'About you', 'Health check', 'Food', 'Movement', 'Habits', 'Your plan'];
+const STEPS = ['Welcome', 'About you', 'Health check', 'Food & movement', 'Your plan'];
 const DISLIKE_OPTIONS = ['tofu', 'tempeh', 'salmon', 'cod', 'tuna_can', 'shrimp', 'egg', 'cottage_cheese', 'greek_yogurt', 'mushrooms', 'avocado', 'chickpeas', 'lentils', 'black_beans', 'quinoa', 'brown_rice', 'sweet_potato', 'broccoli', 'spinach', 'kimchi', 'peanut_butter', 'whey', 'beef_mince', 'pork_tenderloin'];
 const STRUGGLES = {
   evening: 'Evening snacking',
@@ -78,7 +78,7 @@ function about() {
   const u = draft.units;
   const imperial = u === 'imperial';
   const hIn = draft.heightCm ? Math.round(cmToIn(draft.heightCm)) : null;
-  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>About you</h1></div></header><p class="muted">Used to estimate your energy needs. You can change any of this later.</p>
+  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 4</div><h1>About you</h1></div></header><p class="muted">Used to estimate your energy needs. You can change any of this later.</p>
   <form data-form="step" class="card">
     <fieldset><legend>Units</legend><div class="segmented" role="radiogroup">
       <button type="button" class="${!imperial ? 'on' : ''}" data-action="units" data-value="metric">kg / cm</button>
@@ -102,7 +102,7 @@ function about() {
 
 function health() {
   const med = new Set(draft.medical || []);
-  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Health check</h1></div></header><p class="muted">A few questions so the plan stays safe for you. Answers stay on this device.</p>
+  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 4</div><h1>Health check</h1></div></header><p class="muted">A few questions so the plan stays safe for you. Answers stay on this device.</p>
   <form data-form="step" class="card">
     <fieldset><legend>Do any of these apply?</legend><div class="options">
       ${[
@@ -128,8 +128,8 @@ function health() {
   </form>`;
 }
 
-function food() {
-  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Food</h1></div></header><p class="muted">No diet is “best” — the one you can stick with is. Same calories, your choice of foods.</p>
+function foodMove() {
+  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 4</div><h1>Food &amp; movement</h1></div></header><p class="muted">Same calories, your choice of foods — and movement that starts where you are. Everything here can be changed later.</p>
   <form data-form="step" class="card">
     <fieldset><legend>Your day</legend>
       <p class="muted" style="font-size:var(--text-sm);margin:-2px 0 10px">Meals and reminders follow your rhythm, with snacks between meals and the kitchen closed well before bed.</p>
@@ -138,6 +138,12 @@ function food() {
     </fieldset>
     <fieldset><legend>What do you eat?</legend>${chips('diet', Object.fromEntries(Object.entries(DIETS).map(([k, d]) => [k, d.label])), draft.diet || 'omnivore', { multi: false })}</fieldset>
     <fieldset><legend>Allergies or intolerances</legend>${chips('allergies', ALLERGENS, draft.allergies || [])}</fieldset>
+
+    <fieldset><legend>Strength training experience</legend><div class="options">
+      ${[['none', 'New to it', 'We’ll start with chair and wall exercises.'], ['some', 'Some experience', 'I’ve done bodyweight or gym work before.'], ['regular', 'I train regularly', 'Comfortable with squats, push-ups, weights.']].map(([v, l, h]) => `<label class="option"><input type="radio" name="experience" value="${v}" ${(draft.experience || 'none') === v ? 'checked' : ''}><div><strong>${l}</strong><small class="muted">${h}</small></div></label>`)}
+    </div></fieldset>
+    <fieldset><legend>Which days could you exercise?</legend>${chips('daysAvailable', dayChoices(), (draft.daysAvailable || [0, 2, 4]).map(String))}</fieldset>
+    <details class="more-opts"><summary><strong>More options</strong> <span class="muted">foods you dislike, cooking time, budget, equipment…</span></summary>
     <fieldset><legend>Foods you don’t like <span class="hint">Recipes containing these won’t be suggested.</span></legend>
       ${chips('dislikes', Object.fromEntries(DISLIKE_OPTIONS.map((id) => [id, FOODS[id].name.replace(/,.*$/, '').replace(/ \(.*\)$/, '')])), draft.dislikes || [])}</fieldset>
     <div class="grid two">
@@ -155,18 +161,7 @@ function food() {
       </select></label>
     </div>
     <label class="option"><input type="checkbox" name="noCookLunch" value="1" ${draft.noCookLunch ? 'checked' : ''}><div><strong>I need lunches I can make ahead or without a stove</strong><small class="muted">For work or school days.</small></div></label>
-    ${nav()}
-  </form>`;
-}
-
-function movement() {
-  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Movement</h1></div></header><p class="muted">Start low, go slow. Some activity beats none, and the plan grows with you.</p>
-  <form data-form="step" class="card">
-    <fieldset><legend>Strength training experience</legend><div class="options">
-      ${[['none', 'New to it', 'We’ll start with chair and wall exercises.'], ['some', 'Some experience', 'I’ve done bodyweight or gym work before.'], ['regular', 'I train regularly', 'Comfortable with squats, push-ups, weights.']].map(([v, l, h]) => `<label class="option"><input type="radio" name="experience" value="${v}" ${(draft.experience || 'none') === v ? 'checked' : ''}><div><strong>${l}</strong><small class="muted">${h}</small></div></label>`)}
-    </div></fieldset>
-    <fieldset><legend>Equipment you have <span class="hint">Nothing at all is fine.</span></legend>${chips('equipment', { bands: 'Resistance bands', dumbbells: 'Dumbbells', gym: 'Gym access' }, draft.equipment || [])}</fieldset>
-    <fieldset><legend>Which days could you exercise?</legend>${chips('daysAvailable', dayChoices(), (draft.daysAvailable || [0, 2, 4]).map(String))}</fieldset>
+        <fieldset><legend>Equipment you have <span class="hint">Nothing at all is fine.</span></legend>${chips('equipment', { bands: 'Resistance bands', dumbbells: 'Dumbbells', gym: 'Gym access' }, draft.equipment || [])}</fieldset>
     <div class="grid two">
       <label class="field"><span>Time per session</span><select name="sessionMinutes">
         ${[15, 20, 30, 45].map((m) => `<option value="${m}" ${Number(draft.sessionMinutes || 30) === m ? 'selected' : ''}>${m} minutes</option>`)}</select></label>
@@ -174,17 +169,17 @@ function movement() {
     </div>
     <fieldset><legend>Cardio you’d enjoy (or tolerate)</legend>${chips('cardioPrefs', Object.fromEntries(Object.entries(CARDIO).map(([k, c]) => [k, c.label])), draft.cardioPrefs || ['walk'])}</fieldset>
     <p class="muted" style="font-size:.88rem">Already walk with friends, play a sport or dance? You can add those on the Move page — they count toward your week, so the app plans less on top.</p>
+        </details>
     ${nav()}
   </form>`;
 }
 
-function habitsStep() {
+function habitsSection() {
   const profile = { struggles: draft.struggles || [] };
   const suggested = suggestNext([], profile).slice(0, 4);
   const picked = draft.habitPicks || suggested.slice(0, 2);
-  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Your first habits</h1></div></header><p class="muted">Habits take around 2 months to feel automatic (anywhere from 3 weeks to 8 months). Starting with one or two small ones works better than changing everything at once.</p>
-  <form data-form="step" class="card">
-    <fieldset><legend>What tends to get in the way?</legend>${chips('struggles', STRUGGLES, draft.struggles || [])}
+  return html`<h2 style="margin:18px 0 4px">Your first habits</h2><p class="muted" style="margin:0 0 6px;font-size:var(--text-sm)">One or two small ones beat changing everything at once.</p>
+    <fieldset><legend>What tends to get in the way? <span class="hint">optional</span></legend>${chips('struggles', STRUGGLES, draft.struggles || [])}
       <div style="margin-top:8px"><button type="button" class="btn small" data-action="refreshHabits">Update suggestions</button></div></fieldset>
     <fieldset><legend>Pick 1–2 to start <span class="hint">Each is tied to something you already do, as an “After I…, I will…” plan.</span></legend><div class="options">
       ${[...new Set([...picked, ...suggested])].slice(0, 6).map((id) => {
@@ -192,8 +187,7 @@ function habitsStep() {
         return `<label class="option"><input type="checkbox" name="habitPicks" value="${id}" ${picked.includes(id) ? 'checked' : ''}><div><strong>${esc(h.title)}</strong><small class="muted">${esc(h.cue)} → ${esc(h.title.toLowerCase())}. ${esc(h.why)}</small></div></label>`;
       })}
     </div></fieldset>
-    ${nav()}
-  </form>`;
+    `;
 }
 
 function planStep() {
@@ -208,7 +202,7 @@ function planStep() {
       <small class="muted">${pace.hint} ≈ ${fmtWeight(t.expectedWeeklyLossKg, u, 2)}/week to start${tl?.reached && tl.weeks ? `; goal in about ${tl.text}` : ''}.${t.hitFloor ? ' Held at the safe minimum.' : ''}</small></div></label>`;
   });
   const t = dailyTargets({ ...p, pace: draft.pace || 'steady' });
-  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 6</div><h1>Your plan</h1></div></header>
+  return html`<header class="page-head" style="margin-bottom:6px"><div><div class="eyebrow">Step ${draft.step} of 4</div><h1>Your plan</h1></div></header>
   ${s.flags.map((f) => `<div class="notice ${f.level === 'block' ? 'block' : f.level === 'warn' ? 'warn' : 'info'}">${icon(f.level === 'info' ? 'info' : 'alert')}<div>${esc(f.text)}</div></div>`)}
   ${(draft.edFlags || []).length && !s.blocked ? `<div class="notice block">${icon('alert')}<div>Some of your answers suggest calorie counting may not be helpful right now. The app will hide calorie numbers and focus on regular meals, movement and wellbeing habits. Please consider talking to your doctor, or an eating-disorder charity such as Beat (UK) or ANAD (US).</div></div>` : ''}
   <form data-form="step" class="card">
@@ -222,6 +216,7 @@ function planStep() {
       <div class="stat"><span class="v">${t.fiberG} g</span><span class="l">fibre target</span></div>
     </div>
     <p class="muted" style="margin-top:12px">These are starting estimates (equations can be off by ±10% for any one person). After a few weeks of weigh-ins and meal ticks, your weekly check-in learns your real needs and adjusts.</p>`}
+    ${habitsSection()}
     ${nav(true)}
   </form>`;
 }
@@ -234,7 +229,9 @@ function journeyPreview(p) {
   const j = journey({ profile: prof }, { today, trendKg: p.weightKg });
   const tl = j.timeline;
   const stops = j.stops.slice(0, 5);
-  return `<div class="journey-preview"><h2 style="margin:0 0 4px">Your journey: ${fmtKg(p.weightKg, u)} → ${fmtKg(p.goalWeightKg, u)}</h2>
+  const first = p.weightKg * 0.95;
+  return `<div class="journey-preview"><div class="over">Your first stop</div><h2 style="margin:2px 0 4px">5% lighter: ${fmtKg(first, u)} <span class="muted" style="font-weight:600">(−${fmtKg(p.weightKg - first, u)})</span></h2>
+    <p style="margin:0 0 6px;font-size:var(--text-sm)">That alone improves blood sugar, blood pressure and blood fats. Long term: ${fmtKg(p.weightKg, u)} → ${fmtKg(p.goalWeightKg, u)}.</p>
     <p class="muted" style="margin:0 0 8px">${draft.goalAuto ? `Your goal is set to the nearest healthy weight for your height (BMI under 25). You can change it in step 1 or later in Settings. ` : ''}${tl.reached && tl.weeks ? `At a steady pace that’s about <strong>${tl.text}</strong>${tl.weeks > 104 ? ' — a long road, so the app breaks it into stops. You only ever need to reach the next one.' : '.'}` : ''}</p>
     <ol class="roadmap">${stops.map((s) => stopRow(s, { u, today, hide: false })).join('')}</ol>
     <p class="muted" style="font-size:var(--text-xs);margin:6px 0 0">…and ${Math.max(0, j.stops.length - stops.length)} more stops on the Journey page, re-estimated from your real progress.</p></div>`;
@@ -302,8 +299,8 @@ function validate() {
       draft.goalAuto = !!draft.goalWeightKg;
     }
   }
-  if (draft.step === 4 && !(draft.daysAvailable || []).length) return 'Pick at least one day — even 10 minutes counts.';
-  if (draft.step === 5 && (draft.habitPicks || []).length > 3) return 'Pick at most 3 — fewer is better to start.';
+  if (draft.step === 3 && !(draft.daysAvailable || []).length) return 'Pick at least one day — even 10 minutes counts.';
+  if (draft.step === 4 && (draft.habitPicks || []).length > 3) return 'Pick at most 3 — fewer is better to start.';
   return null;
 }
 
@@ -339,7 +336,7 @@ function finish(ctx) {
 
 export default {
   render() {
-    const body = [welcome, about, health, food, movement, habitsStep, planStep][draft.step]();
+    const body = [welcome, about, health, foodMove, planStep][draft.step]();
     return `<div style="max-width:640px;margin:0 auto">${draft.step ? stepper() : ''}${body}<p class="footer-note">Habit Lab gives general information based on published guidelines. It isn’t a substitute for advice from your doctor.</p></div>`;
   },
   actions: {
@@ -379,6 +376,7 @@ export default {
     refreshHabits(el, ev, ctx) {
       const form = el.closest('form');
       draft.struggles = new FormData(form).getAll('struggles');
+      draft.pace = new FormData(form).get('pace') || draft.pace;
       draft.habitPicks = null;
       ctx.rerender();
     },
@@ -389,7 +387,7 @@ export default {
         ctx.toast(err);
         if (!err.startsWith('That goal')) return;
       }
-      if (draft.step === 6) return finish(ctx);
+      if (draft.step === 4) return finish(ctx);
       draft.step++;
       ctx.rerender();
     },

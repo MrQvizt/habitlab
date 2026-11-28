@@ -55,8 +55,6 @@ export function weightChart(series, { goal = null, band = null, milestones = [],
 export function trendChart(series, { target = null, projection = null, band = null, conv = (x) => x, unitLabel = 'kg', width = 360, height = 220 } = {}) {
   if (series.length < 2) return '<div class="empty chart-empty">Weigh in a few mornings and your trend line appears here.</div>';
   const pad = { l: 34, r: 14, t: 16, b: 24 };
-  const W = width - pad.l - pad.r;
-  const H = height - pad.t - pad.b;
   const n = series.length - 1;
   const days = n + (projection?.days || 0);
   const vals = series.flatMap((p) => [p.trend, p.kg].filter((v) => v != null)).map(conv);
@@ -68,11 +66,15 @@ export function trendChart(series, { target = null, projection = null, band = nu
   const span = Math.max(hi - lo, 1.5);
   lo -= span * 0.12;
   hi += span * 0.1;
+  const ticks = niceTicks(lo, hi, 3);
+  // Room for the longest axis label (bigger with large system text), so numbers are never cut off.
+  pad.l = Math.max(34, Math.max(...ticks.map((t) => String(t).length)) * 8 + 8);
+  const W = width - pad.l - pad.r;
+  const H = height - pad.t - pad.b;
   const x = (i) => pad.l + (i / days) * W;
   const yv = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * H;
   const y = (kg) => yv(conv(kg));
   const f = (v) => v.toFixed(1);
-  const ticks = niceTicks(lo, hi, 3);
   const grid = ticks.map((t) => `<line x1="${pad.l}" x2="${width - pad.r}" y1="${f(yv(t))}" y2="${f(yv(t))}" class="grid"/><text x="${pad.l - 6}" y="${f(yv(t) + 4)}" class="axis" text-anchor="end">${t}</text>`).join('');
   const lastI = n;
   const labels = [0, Math.round(n / 2), n].filter((v, i, a) => a.indexOf(v) === i)

@@ -33,7 +33,7 @@ const shots = process.argv[3] || null;
   await page.click('[data-action=useGoalDraft]');
   if ((await page.inputValue('input[name=goal]')) !== '82') errors.push('Use button did not fill the goal');
   await page.fill('input[name=goal]', '');
-  for (let i = 0; i < 5; i++) await page.click('button:has-text("Continue")');
+  for (let i = 0; i < 3; i++) await page.click('button:has-text("Continue")');
   await page.waitForSelector('text=Choose your pace');
   const preview = await page.textContent('.journey-preview');
   if (!/185 kg → 82 kg/.test(preview)) errors.push('journey preview heading: ' + preview.slice(0, 80));

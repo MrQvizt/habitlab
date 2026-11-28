@@ -45,18 +45,15 @@ const shots = process.argv[3] || null;
   // Health
   await page.click('label.chip:has-text("Knees")');
   await page.click('button:has-text("Continue")');
-  // Food
+  // Food & movement (one step; the finer settings fold under "More options")
   await page.click('label.chip:has-text("Vegetarian")');
   await page.click('label.chip:has-text("Peanuts")');
-  await page.click('button:has-text("Continue")');
-  // Movement
+  await page.click('.more-opts summary');
   await page.click('label.chip:has-text("Resistance bands")');
   await page.click('button:has-text("Continue")');
-  // Habits
-  await page.click('label.chip:has-text("Evening snacking")');
-  await page.click('button:has-text("Continue")');
-  // Plan
+  // Plan, with your first habits
   await page.waitForSelector('text=Choose your pace');
+  await page.click('label.chip:has-text("Evening snacking")');
   await snap('03-plan');
   await page.click('button:has-text("Start my plan")');
   await page.waitForSelector('text=Add something else you ate');
@@ -274,13 +271,25 @@ const shots = process.argv[3] || null;
   }
   const firstTimed = page.locator('.set-row button[data-action=setStart]').first();
   if (await firstTimed.count()) {
+    const timedEx = page.locator('.exercise:has(.set-row button[data-action=setStart])').first();
+    const dotsBefore = await timedEx.locator('.st-dot.on').count();
     await firstTimed.click();
     await page.waitForSelector('.set-timer.work').catch(() => errors.push('a timed set should start counting down'));
     const c1 = await page.textContent('.st-clock');
     await page.waitForTimeout(1300);
     if ((await page.textContent('.st-clock')) === c1) errors.push('the set timer should count down');
-    await page.click('.set-timer button[data-action=timerSkip]');
+    // While a hold is timing you can't mark it done early — only cancel it, and then it doesn't count
+    if (await page.locator('.set-timer.work button:has-text("Done"), .set-timer.work button[data-action=timerSkip]').count()) errors.push('a timed set should not offer Done while timing');
+    await page.click('.set-timer.work button:has-text("Cancel")');
+    await page.waitForSelector('.toast.show >> text=Set cancelled');
+    if ((await timedEx.locator('.st-dot.on').count()) !== dotsBefore) errors.push('a cancelled timed set should not count');
+    // Let a hold run its full time: it counts, then rest starts
+    await page.clock.install();
+    await firstTimed.click();
+    await page.waitForSelector('.set-timer.work');
+    await page.clock.fastForward('01:30');
     await page.waitForSelector('.set-timer.rest').catch(() => errors.push('after a timed set, rest should start'));
+    if ((await timedEx.locator('.st-dot.on').count()) !== dotsBefore + 1) errors.push('a completed timed set should count');
     await page.click('.set-timer button[data-action=timerStop]');
   }
   if (await page.locator('.set-timer').count()) errors.push('stopping should hide the timer');
@@ -292,6 +301,9 @@ const shots = process.argv[3] || null;
   await page.click('button:has-text("Too easy") >> nth=0');
   await page.click('button:has-text("Finish session")');
   await page.waitForSelector('.session-list');
+  await page.waitForSelector('.sheet .sum-stats');
+  if (!/Warm-up: some/.test(await page.textContent('.sheet'))) errors.push('summary should show the warm-up status');
+  await page.click('.sheet button:has-text("Done")');
   const strengthLog = await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('habitlab.v1')).workouts.log).flat().filter((x) => x.kind === 'strength').pop());
   if (strengthLog?.warmup !== 'some' || strengthLog?.cooldown !== 'done') errors.push('warm-up / cool-down not saved with the session: ' + JSON.stringify(strengthLog));
   // The finished session is ticked off in this week's sessions, whichever day it was planned for

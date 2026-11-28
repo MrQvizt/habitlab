@@ -66,7 +66,13 @@ The app works like a native app:
 - **Undo snackbars** replace "are you sure?" dialogs for anything reversible.
 - **Today** starts with a single "Next up" action.
 - **Buttons are easy to reach:** touch targets are at least 44 px, and primary actions sit in sticky bars at the bottom of the screen.
-- **Navigation** uses five tabs, with page transitions that respect reduced-motion settings.
+- **Navigation**: Today · Plan · (+) · Progress · You. Plan holds the schedule, food and movement behind one
+  switcher; (+) opens one Log sheet for everything; alarms and the inbox sit in the top bar. Page transitions
+  respect reduced-motion settings.
+- **One sheet per planned session**, wherever you tap it: preview, start, move to another day, set a time.
+- **Plan tomorrow** is a four-step evening ritual (how today went, tomorrow at a glance, what's different,
+  an if-then plan), shown back on Today the next day.
+- **Visual style**: Inter, borderless soft cards, big tabular numbers, one icon set, light haptics on picks.
 
 Light and dark themes are designed separately. Text and icons meet WCAG AA contrast. `node tests/screens.cjs` takes a
 screenshot tour for design review.
@@ -134,6 +140,7 @@ Browser suites need Playwright and axe-core: `npm install --no-save playwright@1
 | `native`, `alarms` | The Android notification and alarm bridges, with mocked native plugins |
 | `calendar`, `account`, `session` | Calendar views and plan sheet; account sync; workout timers and drafts |
 | `food` | Grams and household units, build-it meals, your own foods, saved meals, swap chooser, moved meal times |
+| `textfit` | Every screen and sheet with Android's font size at 130% (360 px) and at 320 px: no cut-off, spilling or overlapping text |
 
 CI (`.github/workflows/android.yml`) runs all three layers on every push and pull request.
 Release, deployment and rollback: see [`RELEASE.md`](RELEASE.md).

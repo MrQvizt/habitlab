@@ -57,7 +57,7 @@ const TAB_OF = {
   calendar: 'planner', meals: 'planner', move: 'planner', shopping: 'planner',
   rewards: 'progress', learn: 'progress',
   habits: 'you', settings: 'you', account: 'you', inbox: 'you',
-  wake: 'today', plan: 'today', sos: 'today',
+  plan: 'planner', wake: 'today', sos: 'today',
 };
 const NAV = [
   ['today', 'Today', 'today'],
@@ -384,6 +384,8 @@ const GLOBAL = {
 document.addEventListener('click', (ev) => {
   const el = ev.target.closest('[data-action]');
   if (!el || !(main.parentElement.contains(el) || document.querySelector('.bottomnav').contains(el) || el.closest('.sheet'))) return;
+  // A light tick under the finger for picks and toggles (when vibration is on in Appearance & feedback).
+  if (state.game?.haptics !== false && el.matches('.tab-log, .side-chip, .rit-face, .rit-sit, .rit-plan, .rit-keep, .fi-unit, .ql-tile, .swap-opt')) buzz(8);
   if (dispatch('action', el, ev)) ev.preventDefault();
 });
 document.addEventListener('submit', (ev) => {
