@@ -27,7 +27,8 @@ const routes = process.argv.slice(4).length ? process.argv.slice(4) : ['today', 
       await page.screenshot({ path: `${out}/${label}-sheet-meal.png` });
       await page.keyboard.press('Escape');
       await page.waitForTimeout(350);
-      await page.click('button[data-action=openWeigh] >> nth=0');
+      await page.click('.bottomnav .tab-log');
+  await page.click('.sheet .ql-tile[data-action=openWeigh]');
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${out}/${label}-sheet-weigh.png` });
     }

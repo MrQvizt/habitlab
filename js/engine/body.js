@@ -114,7 +114,9 @@ export function weekBody(state, ws, { asOf = addDays(ws, 6), habitsOnly = false,
     }
     s.mealsLogged += meals.filter((m) => ml[m.slot]).length;
     if (meals.length && meals.every((m) => ml[m.slot])) s.fullDays++;
-    if (ate) {
+    // Today only counts once it's fully logged — breakfast alone shouldn't drag your fibre average down.
+    const partialToday = d === asOf && meals.length && !meals.every((m) => ml[m.slot]);
+    if (ate && !partialToday) {
       s.fibre += fib;
       s.fibreDays++;
     }

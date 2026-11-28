@@ -73,7 +73,8 @@ const base = process.argv[2] || 'http://localhost:8771/';
   if (!cloud.data || cloud.data.weights.length !== weighInsA) errors.push(`A: account should hold this phone's ${weighInsA} weigh-ins, has ${cloud.data?.weights?.length}`);
   // Background saving: log a weigh-in, it reaches the account a few seconds later
   const savesBefore = cloud.saves;
-  await pa.click('button[data-action=openWeigh] >> nth=0');
+  await pa.click('.bottomnav .tab-log');
+  await pa.click('.sheet .ql-tile[data-action=openWeigh]');
   await pa.click('.sheet button[data-action=sheetStep][data-d^="-"]');
   await pa.click('.sheet button:has-text("Save weigh-in")');
   await pa.waitForTimeout(5500);

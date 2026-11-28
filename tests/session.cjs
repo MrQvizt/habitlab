@@ -63,7 +63,7 @@ const base = process.argv[2] || 'http://localhost:8771/';
   // "I'm done" from the leave prompt finishes and logs the session
   const before = await strengthLogs();
   await page.click('.exercise >> nth=0 >> button[data-action=rate][data-value=easy]');
-  await page.click('.bottomnav a[href="#/habits"]');
+  await page.click('.bottomnav a[href="#/you"]');
   await page.waitForSelector('.sheet button[data-action=leaveFinish]');
   await page.click('.sheet button[data-action=leaveFinish]');
   await page.waitForFunction(() => location.hash === '#/move');

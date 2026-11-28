@@ -77,18 +77,6 @@ function hero(state, date) {
   </section>`;
 }
 
-// ---------- Quick log: the four things people log most, one tap away ----------
-function quickLog(state) {
-  const hide = store.habitsOnly(state);
-  const b = (action, ic, label, extra = '') => `<button class="ql-btn" data-action="${action}" ${extra}><span class="ql-ico">${icon(ic)}</span>${label}</button>`;
-  return `<div class="quick-log" role="group" aria-label="Quick log">
-    ${b('openExtra', 'plus', 'Food')}
-    ${hide ? '' : b('openWeigh', 'scale', 'Weight')}
-    <a class="ql-btn" href="#/move"><span class="ql-ico">${icon('move')}</span>Workout</a>
-    <a class="ql-btn ql-sos" href="#/sos"><span class="ql-ico" aria-hidden="true">🌊</span>Craving</a>
-  </div>`;
-}
-
 // ---------- Next up: the single most useful thing to do now ----------
 function nextUp(state, date) {
   const h = new Date().getHours();
@@ -227,8 +215,11 @@ function yourDay(state, date) {
   if (!nowShown && date === store.today()) parts.push(nowLine);
   const extraRows = extras.map((x, i) => (x.at ? '' : extraRow(x, i))).join('');
   const any = [moves.any.join(''), ...evs.filter((e) => !e.time).map(evRow), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time')), extraRows].join('');
-  const total = plan.timed.filter((t) => t.kind !== 'extra').length + plan.anytime.length;
-  const doneCount = meals.filter((m) => m.done).length + active.filter((a) => state.habits.log[date]?.[a.id]).length + (!hide && state.weights.some((w) => w.date === date) ? 1 : 0);
+  // "N of M done" counts exactly the rows you can tick on screen, and only the ones that are ticked.
+  const tickable = [...parts, ...moves.any, ...evs.filter((e) => !e.time).map(evRow), ...plan.anytime.map((it) => habitHtml(it.id, 'Any time'))]
+    .filter((h) => /^<li class="k-(meal|weigh|habit|move|event)\b/.test(h) && /class="check|href="#\/move\/session/.test(h));
+  const total = tickable.length;
+  const doneCount = tickable.filter((h) => /^<li class="k-\w+ is-done/.test(h)).length;
   const noHabit = active.length ? '' : `<li class="tl-empty"><a class="lrow" href="#/habits" style="text-decoration:none"><span class="slot-ico" style="background:var(--accent-soft);color:var(--accent)">${icon('habits')}</span><span class="body"><span class="title">Pick one small habit</span><span class="sub">It slots into your day at the moment you choose</span></span><span class="trail">${icon('chevron')}</span></a></li>`;
   return `<div class="section-head"><h2>Your day</h2><span class="day-count">${doneCount} of ${total} done</span></div>
     <div class="card tight day-card">${kcalSummary(state, date)}
@@ -236,7 +227,6 @@ function yourDay(state, date) {
         <li class="tl-part" aria-hidden="true">Any time today</li>${any}
         <li><button class="lrow" data-action="openExtra" style="min-height:54px"><span class="slot-ico" style="background:var(--accent-tint);color:var(--accent)">${icon('plus')}</span><span class="body"><span class="title" style="color:var(--accent)">Add something else you ate</span></span></button></li>
       </ul>
-      <div class="day-links"><a href="#/calendar">Calendar</a><a href="#/meals">Week meal plan</a><a href="#/habits">Manage habits</a><a href="#/move">This week’s movement</a></div>
     </div>`;
 }
 
@@ -290,7 +280,10 @@ function banners(state, date) {
   const calc = state.calcWeightKg ?? state.profile.weightKg;
   const trend = store.trendWeight(state);
   if (Math.abs(trend - calc) >= 2) out.push(`<div class="notice info">${icon('info')}<div class="grow">Targets refreshed for your new weight.</div><button class="btn small" data-action="ackRecalc">OK</button></div>`);
-  return out.join('');
+  // Safety first, then the demo note, then at most one other nudge — Today isn't a notice board.
+  const [safety, ...rest] = out;
+  const demo = state.profile.demo ? rest.shift() : '';
+  return safety + demo + (rest.find(Boolean) || '');
 }
 
 export default {
@@ -309,7 +302,7 @@ export default {
     return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${past ? 'Fill in the gaps' : greeting()}</h1></div>${dayNav}</header>
       ${past ? `<div class="notice info past-day" style="align-items:center">${icon('calendar')}<div class="grow"><strong>${esc(dayLabel(date, today))}</strong> — anything you tick here is saved to that day.</div><a class="btn small" href="#/today">Back to today</a></div>` : banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + share.cheerCardHtml(state) + planCard(state) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : bodyRingsCard(state, date) + nextUp(state, date)}${quickLog(state)}</div>
+        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + share.cheerCardHtml(state) + planCard(state) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : bodyRingsCard(state, date) + nextUp(state, date)}</div>
         <div class="tg-day">${yourDay(state, date)}</div>
         <div class="tg-rest">${past ? '' : journeyCard(state, date) + firstWeek(state, date)}</div>
       </div>`;
