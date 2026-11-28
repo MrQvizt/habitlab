@@ -1,7 +1,7 @@
 // Progress: the home for everything long-term. A hub (journey, body levels, rewards, weekly
 // check-in), past Body Wraps, then the weight trend, activity, weigh-ins, waist and check-in history.
 import { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } from '../ui/dom.js';
-import { weightChart, barChart } from '../ui/charts.js';
+import { trendChart, barChart } from '../ui/charts.js';
 import * as store from '../store.js';
 import { trendSeries, weeklyRate } from '../engine/trend.js';
 import { milestones, bmi, bmiCategory } from '../engine/calc.js';
@@ -51,7 +51,70 @@ function wrapsCard(state, date, hide) {
     }).join('')}</ul></div>`;
 }
 
-let range = 'all';
+let range = '3m';
+const RANGES = [['1m', '1M', 30], ['3m', '3M', 91], ['6m', '6M', 182], ['all', 'All', 0]];
+
+/** Where you are on the 5 → 7 → 10 → 15% road (from your starting weight). */
+export function nextMilestone(state) {
+  const p = state.profile;
+  const trend = store.trendWeight(state);
+  const ms = milestones(p.startWeightKg);
+  return { ms, next: ms.find((m) => trend > m.weightKg) || null, done: ms.filter((m) => trend <= m.weightKg) };
+}
+
+/** The top of Progress: trend weight, change, the chart, one-tap weigh-in and milestones. */
+function weightHero(state, date) {
+  const p = state.profile;
+  const u = p.units === 'imperial' ? 'imperial' : 'metric';
+  const conv = (kg) => weightNum(kg, u);
+  const unit = u === 'imperial' ? 'lb' : 'kg';
+  const series = trendSeries(state.weights);
+  const days = RANGES.find((r) => r[0] === range)?.[2] || 0;
+  const shown = days ? series.filter((x) => x.date > addDays(date, -days)) : series;
+  const trend = store.trendWeight(state);
+  const lost = p.startWeightKg - trend;
+  const pct = (lost / p.startWeightKg) * 100;
+  const rate = weeklyRate(state.weights, date, 21);
+  const todays = state.weights.find((w) => w.date === date);
+  const maintain = p.phase === 'maintain' && state.maintainKg;
+  const { ms, next, done } = nextMilestone(state);
+  // Projection to the next milestone at your current pace (only when you're heading there and it's within half a year).
+  let projection = null;
+  let eta = '';
+  if (!maintain && next && rate != null && rate < -0.05) {
+    const weeks = (trend - next.weightKg) / -rate;
+    if (weeks <= 26) {
+      const d = Math.max(7, Math.round(weeks * 7));
+      const when = addDays(date, d);
+      eta = new Date(when + 'T12:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+      projection = { days: shown.length > 1 ? Math.min(d, Math.max(14, Math.round(shown.length * 0.6))) : d, toKg: next.weightKg, label: eta };
+      if (projection.days < d) projection.toKg = trend + rate * (projection.days / 7);
+    }
+  }
+  const target = maintain ? null : next ? { kg: next.weightKg, label: `−${next.pct}% · ${conv(next.weightKg).toFixed(1)}` } : null;
+  const band = maintain ? { lo: state.maintainKg - 2, hi: state.maintainKg + 2 } : null;
+  const narrow = typeof window !== 'undefined' && window.innerWidth < 600;
+  const weighed = state.weights.filter((w) => w.date > addDays(date, -28)).length;
+  const rateText = rate == null ? '–' : Math.abs(rate) < 0.05 ? 'Steady' : `${rate < 0 ? '−' : '+'}${conv(Math.abs(rate)).toFixed(1)}`;
+  return `<section class="card w-hero" aria-label="Weight">
+    <div class="w-top"><div>
+      <div class="eyebrow">Trend weight</div>
+      <div class="w-big">${conv(trend).toFixed(1)}<small>${unit}</small></div>
+      <div class="w-sub">${lost > 0.05 ? `<span class="w-chip good">−${conv(lost).toFixed(1)} ${unit} · ${pct.toFixed(1)}%</span>` : `<span class="w-chip">Since ${fmtDate(p.startDate, { day: 'numeric', month: 'short' })}</span>`}${maintain ? `<span class="w-chip">Keeping within ${conv(state.maintainKg - 2).toFixed(0)}–${conv(state.maintainKg + 2).toFixed(0)}</span>` : ''}</div>
+    </div>
+    <button class="w-weigh ${todays ? 'done' : ''}" data-action="openWeigh">${icon(todays ? 'check' : 'scale')}<span>${todays ? conv(todays.kg).toFixed(1) : 'Weigh in'}</span></button></div>
+    <div class="w-ranges" role="tablist" aria-label="Chart range">${RANGES.map(([k, l]) => `<button role="tab" class="${range === k ? 'on' : ''}" aria-selected="${range === k}" data-action="range" data-value="${k}">${l}</button>`).join('')}</div>
+    ${trendChart(shown, { target, projection, band, conv, unitLabel: unit, width: narrow ? 360 : 640, height: narrow ? 210 : 240 })}
+    <div class="w-tiles">
+      <div class="w-tile"><b>${rateText}</b><span>${rate == null ? 'a week (need more weigh-ins)' : `${unit} a week, last 3 weeks`}</span></div>
+      <div class="w-tile"><b>${next ? `${conv(Math.max(0, trend - next.weightKg)).toFixed(1)} ${unit}` : '🎉'}</b><span>${next ? `to −${next.pct}%${eta ? ` · ~${eta}` : ''}` : 'every milestone reached'}</span></div>
+      <div class="w-tile"><b>${weighed}/28</b><span>days weighed</span></div>
+    </div>
+    ${maintain ? '' : `<div class="ms-strip">${ms.map((m) => `<div class="ms ${done.includes(m) ? 'done' : m === next ? 'next' : ''}"><b>${done.includes(m) ? '✓ ' : ''}${m.pct}%</b><span>${conv(m.weightKg).toFixed(1)}</span></div>`).join('')}</div>
+    <p class="ms-info">${esc((next || ms[ms.length - 1]).info)}</p>`}
+    <p class="muted" style="font-size:var(--text-xs);margin:8px 2px 0">Dots are daily weigh-ins; the line is the smoothed trend — water and salt move a single day by 1–2 kg. BMI ${bmi(trend, p.heightCm).toFixed(1)} (${bmiCategory(bmi(trend, p.heightCm))}); waist and how you feel count too. <a href="#/journey">Your journey</a></p>
+  </section>`;
+}
 
 export default {
   render(state) {
@@ -60,13 +123,6 @@ export default {
     const u = p.units === 'imperial' ? 'imperial' : 'metric';
     const hide = store.habitsOnly(state);
     const series = trendSeries(state.weights);
-    const shown = range === 'all' ? series : series.slice(-(range === '4w' ? 28 : 84));
-    const trend = store.trendWeight(state);
-    const start = p.startWeightKg;
-    const lost = start - trend;
-    const pct = (lost / start) * 100;
-    const rate = weeklyRate(state.weights, date, 21);
-    const ms = milestones(start);
     const conv = (kg) => weightNum(kg, u);
     const narrow = typeof window !== 'undefined' && window.innerWidth < 600;
 
@@ -81,27 +137,10 @@ export default {
     const loggedDays = Object.keys(state.mealLog).filter((d) => d > addDays(date, -28) && Object.keys(state.mealLog[d]).length).length;
     const weighDays = state.weights.filter((w) => w.date > addDays(date, -28)).length;
 
-    const weightSection = hide ? '' : html`
-      <div class="stats card">
-        <div class="stat"><span class="v">${fmtWeight(trend, u)}</span><span class="l">trend weight</span></div>
-        <div class="stat"><span class="v">${fmtDelta(-lost, u)}</span><span class="l">since ${fmtDate(p.startDate, { day: 'numeric', month: 'short' })}</span></div>
-        <div class="stat"><span class="v">${pct >= 0 ? pct.toFixed(1) : '0.0'}%</span><span class="l">of starting weight</span></div>
-        <div class="stat"><span class="v">${rate == null ? '–' : Math.abs(rate) < 0.05 ? 'Steady' : `${rate < 0 ? 'Down' : 'Up'} ${fmtWeight(Math.abs(rate), u, 2)}`}</span><span class="l">${rate == null ? 'need more weigh-ins' : 'a week, last 3 weeks'}</span></div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h2>Weight trend</h2><div class="segmented">${[['4w', '4 weeks'], ['12w', '12 weeks'], ['all', 'All']].map(([k, l]) => `<button type="button" class="${range === k ? 'on' : ''}" data-action="range" data-value="${k}">${l}</button>`).join('')}</div></div>
-        ${weightChart(shown, { width: narrow ? 360 : 640, height: narrow ? 230 : 240, goal: p.phase === 'maintain' ? null : p.goalWeightKg, band: p.phase === 'maintain' && state.maintainKg ? { lo: state.maintainKg - 2, hi: state.maintainKg + 2 } : null, milestones: p.phase === 'maintain' ? [] : ms, conv, unitLabel: u === 'imperial' ? 'lb' : 'kg' })}
-        ${p.phase === 'maintain' && state.maintainKg ? `<p style="font-size:.9rem;margin-top:6px"><strong>Maintenance:</strong> keep your trend between ${fmtWeight(state.maintainKg - 2, u)} and ${fmtWeight(state.maintainKg + 2, u)}. If it drifts above, the check-in starts a short reset plan.</p>` : ''}
-        <p class="muted" style="font-size:.85rem;margin-top:6px">Dots are daily weigh-ins; the line is your smoothed trend. Water, salt, hormones and digestion move daily weight by 1–2 kg — the line shows what’s really happening. Dashed lines mark the 5–15% health milestones${p.goalWeightKg ? ` and your goal (${fmtWeight(p.goalWeightKg, u)})` : ''}.</p>
-        <p class="muted" style="font-size:.85rem">Current BMI ${bmi(trend, p.heightCm).toFixed(1)} (${bmiCategory(bmi(trend, p.heightCm))}). BMI is a rough screening number — waist size, blood tests and how you feel matter too. <a href="#/journey">See every stop on your journey</a></p>
-      </div>
-`;
-
     return html`<header class="page-head"><div><div class="eyebrow">Since ${fmtDate(p.startDate, { day: 'numeric', month: 'short' })}</div><h1>Progress</h1></div></header>
+      ${hide ? '' : weightHero(state, date)}
       ${hub(state, date, hide)}
       ${wrapsCard(state, date, hide)}
-      ${hide ? '' : '<div class="section-head"><h2>Weight</h2></div>'}
-      ${weightSection}
       <div class="grid two">
         <div class="card"><h2>Consistency (last 28 days)</h2>
           <div class="stats" style="grid-template-columns:1fr 1fr">
@@ -112,8 +151,9 @@ export default {
         <div class="card"><h2>Active minutes per week</h2>${barChart(mins, { target: 150, unit: ' min', width: narrow ? 360 : 640, height: narrow ? 190 : 180 })}</div>
       </div>
       ${hide ? '' : `<div class="grid two">
-        <div class="card"><div class="card-head"><h2>Weigh-ins</h2><button class="btn small tonal" data-action="openWeigh" data-pick-date="1">${icon('plus')}Add</button></div>
-          ${weighTable(series.filter((s) => s.kg != null).reverse(), u)}</div>
+        <details class="card"><summary style="cursor:pointer"><strong>All weigh-ins</strong> <span class="muted">· ${state.weights.length}</span></summary>
+          <button class="btn small tonal" data-action="openWeigh" data-pick-date="1" style="margin:10px 0">${icon('plus')}Add a past one</button>
+          ${weighTable(series.filter((s) => s.kg != null).reverse(), u)}</details>
         <div class="card"><div class="card-head"><h2>Waist</h2><button class="btn small tonal" data-action="openWaist">${icon('plus')}Add</button></div><p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Often drops even when the scale stalls.</p>
           ${(state.waist || []).length ? `<table class="simple">${(state.waist || []).slice(-5).reverse().map((w) => `<tr><td>${fmtDate(w.date)}</td><td class="right num">${u === 'imperial' ? `${round(cmToIn(w.cm), 0.5)} in` : `${w.cm} cm`}</td></tr>`).join('')}</table>` : '<p class="muted" style="font-size:var(--text-sm)">No measurements yet.</p>'}</div>
       </div>`}

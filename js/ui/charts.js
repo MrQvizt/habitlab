@@ -47,6 +47,53 @@ export function weightChart(series, { goal = null, band = null, milestones = [],
   return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Weight trend chart">${bandRect}${grid}${ms}${goalLine}${dots}<path d="${trendPath}" class="trend"/>${xlabels}</svg>`;
 }
 
+/**
+ * The Progress hero chart: faint daily weigh-ins, the smoothed trend as a bold line with a soft fill,
+ * the next milestone as a dashed target, and a dotted projection to it at your current pace.
+ * series: [{date, kg|null, trend}], target: {kg, label}, projection: {days, toKg}
+ */
+export function trendChart(series, { target = null, projection = null, band = null, conv = (x) => x, unitLabel = 'kg', width = 360, height = 220 } = {}) {
+  if (series.length < 2) return '<div class="empty chart-empty">Weigh in a few mornings and your trend line appears here.</div>';
+  const pad = { l: 34, r: 14, t: 16, b: 24 };
+  const W = width - pad.l - pad.r;
+  const H = height - pad.t - pad.b;
+  const n = series.length - 1;
+  const days = n + (projection?.days || 0);
+  const vals = series.flatMap((p) => [p.trend, p.kg].filter((v) => v != null)).map(conv);
+  if (target) vals.push(conv(target.kg));
+  if (projection) vals.push(conv(projection.toKg));
+  if (band) vals.push(conv(band.lo), conv(band.hi));
+  let lo = Math.min(...vals);
+  let hi = Math.max(...vals);
+  const span = Math.max(hi - lo, 1.5);
+  lo -= span * 0.12;
+  hi += span * 0.1;
+  const x = (i) => pad.l + (i / days) * W;
+  const yv = (v) => pad.t + (1 - (v - lo) / (hi - lo)) * H;
+  const y = (kg) => yv(conv(kg));
+  const f = (v) => v.toFixed(1);
+  const ticks = niceTicks(lo, hi, 3);
+  const grid = ticks.map((t) => `<line x1="${pad.l}" x2="${width - pad.r}" y1="${f(yv(t))}" y2="${f(yv(t))}" class="grid"/><text x="${pad.l - 6}" y="${f(yv(t) + 4)}" class="axis" text-anchor="end">${t}</text>`).join('');
+  const lastI = n;
+  const labels = [0, Math.round(n / 2), n].filter((v, i, a) => a.indexOf(v) === i)
+    .map((i) => `<text x="${f(x(i))}" y="${height - 6}" class="axis" text-anchor="${i === 0 ? 'start' : i === n && !projection ? 'end' : 'middle'}">${esc(shortDate(series[i].date))}</text>`).join('');
+  const line = series.map((p, i) => `${i ? 'L' : 'M'}${f(x(i))},${f(y(p.trend))}`).join('');
+  const area = `${line}L${f(x(lastI))},${pad.t + H}L${f(x(0))},${pad.t + H}Z`;
+  const dots = series.map((p, i) => (p.kg != null ? `<circle cx="${f(x(i))}" cy="${f(y(p.kg))}" r="2.2" class="wdot"><title>${esc(p.date)}: ${conv(p.kg).toFixed(1)} ${unitLabel}</title></circle>` : '')).join('');
+  const last = series[lastI];
+  const targetLine = target
+    ? `<line x1="${pad.l}" x2="${width - pad.r}" y1="${f(y(target.kg))}" y2="${f(y(target.kg))}" class="target"/><text x="${width - pad.r}" y="${f(y(target.kg) - 6)}" class="axis target-label" text-anchor="end">${esc(target.label)}</text>`
+    : '';
+  const proj = projection
+    ? `<path d="M${f(x(lastI))},${f(y(last.trend))}L${f(x(days))},${f(y(projection.toKg))}" class="proj"/><circle cx="${f(x(days))}" cy="${f(y(projection.toKg))}" r="4" class="proj-end"/>${projection.label ? `<text x="${f(x(days))}" y="${height - 6}" class="axis" text-anchor="end">${esc(projection.label)}</text>` : ''}`
+    : '';
+  const bandRect = band ? `<rect x="${pad.l}" width="${W}" y="${f(y(band.hi))}" height="${f(y(band.lo) - y(band.hi))}" class="band"/>` : '';
+  const now = `<circle cx="${f(x(lastI))}" cy="${f(y(last.trend))}" r="5.5" class="now"/>`;
+  return `<svg class="chart trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Weight trend: ${conv(series[0].trend).toFixed(1)} to ${conv(last.trend).toFixed(1)} ${unitLabel}${target ? `, next milestone ${conv(target.kg).toFixed(1)}` : ''}">
+    <defs><linearGradient id="tc-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--chart-trend)" stop-opacity=".22"/><stop offset="1" stop-color="var(--chart-trend)" stop-opacity="0"/></linearGradient></defs>
+    ${bandRect}${grid}${targetLine}<path d="${area}" fill="url(#tc-fill)" class="tarea"/>${dots}<path d="${line}" class="trend"/>${proj}${now}${labels}</svg>`;
+}
+
 /** Simple bar chart: items [{label, value}], optional target line. */
 export function barChart(items, { target = null, width = 640, height = 180, unit = '' } = {}) {
   if (!items.length) return '<div class="empty">No data yet.</div>';

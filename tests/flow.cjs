@@ -67,6 +67,17 @@ const shots = process.argv[3] || null;
     return { done, total, ticked };
   });
   if (counted.done !== counted.ticked) errors.push('day counter does not match ticked rows: ' + JSON.stringify(counted));
+  // Progress opens on the weight hero: trend, chart, next milestone, one-tap weigh-in
+  await page.goto(base + '#/progress');
+  await page.waitForSelector('.w-hero .trend-chart');
+  if (!(await page.locator('.w-hero .ms.next, .w-hero .ms.done').count())) errors.push('milestones missing on Progress');
+  const yTicks = await page.$$eval('.w-hero .trend-chart text.axis', (t) => t.map((x) => Number(x.textContent)).filter((n) => !Number.isNaN(n)));
+  if (Math.min(...yTicks) < 95) errors.push('chart axis should hug your weight, not stretch to a far goal: ' + yTicks.join(','));
+  await page.click('.w-ranges button[data-value=all]');
+  await page.waitForSelector('.w-ranges button.on[data-value=all]');
+  await page.click('.w-hero .w-weigh');
+  await page.waitForSelector('.sheet form[data-form=sheetWeigh]');
+  await page.keyboard.press('Escape');
   // Today: rings hero with your body right under it, then one "Your day" timeline (meals, habits, movement together)
   await page.goto(base + '#/today');
   await page.waitForSelector('.tg-day');
