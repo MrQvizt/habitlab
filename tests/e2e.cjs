@@ -63,7 +63,8 @@ const shots = process.argv[3] || null;
   await snap('04-today');
 
   // Interact on Today: weigh-in sheet with stepper
-  await page.click('button[data-action=openWeigh] >> nth=0');
+  await page.click('.bottomnav .tab-log');
+  await page.click('.sheet .ql-tile[data-action=openWeigh]');
   await page.click('.sheet button[data-action=sheetStep][data-d^="-"]');
   await page.click('.sheet button:has-text("Save weigh-in")');
   await page.waitForSelector('text=Weigh-in saved');
@@ -216,14 +217,16 @@ const shots = process.argv[3] || null;
   if (actLog?.minutes !== 45 || actLog?.intensity !== 'vigorous') errors.push('activity time/intensity not saved: ' + JSON.stringify(actLog));
   // Re-plan: move today's walk to another day from this week's sessions
   await page.goto(base + '#/move');
-  await page.click(`.session-list button[data-action=openMoveItem][data-key="activity:${savedActId = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).profile.activities[0].id)}"]`);
+  await page.click(`.session-list button[data-action=openPlanItem][data-key="activity:${savedActId = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).profile.activities[0].id)}"]`);
+  await page.click('.sheet button[data-action=openMoveItem]');
   await page.waitForSelector('.sheet .move-days');
   const target = (todayIdx + 1) % 7;
   await page.click(`.sheet .move-day[data-to="${target}"]`);
   await page.waitForSelector(`text=Moved to`);
   const moves = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).workouts.moves);
   if (!Object.values(moves).flat().some((m) => m.to === target)) errors.push('move not saved: ' + JSON.stringify(moves));
-  await page.click(`.session-row:has-text("moved") button[data-action=openMoveItem]`);
+  await page.click(`.session-row:has-text("moved") button[data-action=openPlanItem]`);
+  await page.click('.sheet button[data-action=openMoveItem]');
   await page.click('.sheet button[data-action=moveItemReset]');
   await page.waitForSelector('text=Back on its planned day');
   await page.goto(base + '#/move');

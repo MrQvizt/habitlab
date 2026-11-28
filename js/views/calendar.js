@@ -113,7 +113,7 @@ function chip(e) {
   const k = EVENT_KINDS[e.kind] || EVENT_KINDS.other;
   return `<button class="cal-chip k-${e.kind}" data-action="calEdit" ${dragAttrs(e)} title="${esc(e.title)}">${k.emoji} ${e.time ? `<b>${esc(e.time)}</b> ` : ''}${esc(e.title)}${e.series ? ' ↻' : ''}</button>`;
 }
-const planChip = (it, date) => `<button class="cal-chip plan" data-action="calFromPlan" ${planAttrs(it, date)}>${planEmoji(it)} ${esc(itemName(it))}</button>`;
+const planChip = (it, date) => `<button class="cal-chip plan" data-action="openPlanItem" ${planAttrs(it, date)}>${planEmoji(it)} ${esc(itemName(it))}</button>`;
 
 function eventRow(state, e) {
   const k = EVENT_KINDS[e.kind] || EVENT_KINDS.other;
@@ -133,7 +133,7 @@ function listView(state, from, days = 14) {
     out.push(`<section class="cal-day ${d === today ? 'today' : ''}" data-drop-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}">
       <div class="cal-date"><b>${esc(fmtDate(d, { weekday: 'short' }))}</b><span>${new Date(d + 'T12:00').getDate()}</span></div>
       <ul class="cal-items">
-        ${plan.map((it) => `<li><button class="cal-plan" data-action="calFromPlan" ${planAttrs(it, d)}><span class="cal-emoji" aria-hidden="true">${planEmoji(it)}</span><span class="grow">${esc(itemName(it))}<small>From your plan · tap to set a time and place</small></span></button></li>`).join('')}
+        ${plan.map((it) => `<li><button class="cal-plan" data-action="openPlanItem" ${planAttrs(it, d)}><span class="cal-emoji" aria-hidden="true">${planEmoji(it)}</span><span class="grow">${esc(itemName(it))}<small>From your plan · tap to start, move or set a time</small></span></button></li>`).join('')}
         ${evs.map((e) => eventRow(state, e)).join('')}
         ${rhythmRow(state, d)}
         <li><button class="cal-add" data-action="calAdd" data-date="${d}">${icon('plus')} Add</button></li>
@@ -238,7 +238,7 @@ function monthView(state, monthAnchor) {
     const plan = looseplan(state, d, evs);
     // Like a phone calendar's month: one line per item with its title (cut to fit); the full title is in the label.
     const mini = (e) => `<button class="cm-item k-${e.kind}" data-action="calEdit" ${dragAttrs(e)} aria-label="${esc(`${e.title}${e.time ? ` at ${e.time}` : ''}`)}">${esc(e.title)}</button>`;
-    const miniPlan = (it) => `<button class="cm-item plan" data-action="calFromPlan" ${planAttrs(it, d)} aria-label="${esc(itemName(it))} (planned)">${esc(planShort(it))}</button>`;
+    const miniPlan = (it) => `<button class="cm-item plan" data-action="openPlanItem" ${planAttrs(it, d)} aria-label="${esc(itemName(it))} (planned)">${esc(planShort(it))}</button>`;
     const items = [...evs.map(mini), ...plan.map(miniPlan)];
     const fit = items.length > 3 ? 2 : 3; // room for "N more"
     return `<div class="cm-cell ${d.slice(0, 7) !== month ? 'other' : ''} ${d === today ? 'today' : ''}" data-drop-date="${d}">

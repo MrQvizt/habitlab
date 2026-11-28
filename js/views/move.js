@@ -298,19 +298,24 @@ function dose(ex) {
  */
 function weekSessions(state, wk, schedule, ti) {
   const logs = [];
-  for (let i = 0; i < 7; i++) for (const x of state.workouts.log[addDays(wk, i)] || []) logs.push(x);
+  for (let i = 0; i < 7; i++) for (const x of state.workouts.log[addDays(wk, i)] || []) logs.push({ x, day: i });
   const used = new Set();
-  const take = (match) => {
-    const k = logs.findIndex((x, n) => !used.has(n) && match(x));
+  const take = (match, day) => {
+    const k = logs.findIndex((l, n) => !used.has(n) && (day == null || l.day === day) && match(l.x));
     if (k < 0) return null;
     used.add(k);
-    return logs[k];
+    return logs[k].x;
   };
+  const matcher = (it) => (it.kind === 'strength' ? (x) => x.kind === 'strength' && x.variant === it.variant : it.kind === 'activity' ? (x) => x.kind === 'activity' && x.actId === it.id : (x) => x.kind === 'cardio');
+  // A session done on a planned day counts for that day first; only then does it fill a missed one.
+  const doneOn = new Map();
+  for (const i of weekOrder()) for (const it of schedule[i].items) if (it.kind !== 'rest') doneOn.set(it, take(matcher(it), i));
+  for (const i of weekOrder()) for (const it of schedule[i].items) if (it.kind !== 'rest' && !doneOn.get(it)) doneOn.set(it, take(matcher(it)));
   const rows = [];
   for (const i of weekOrder()) {
     for (const it of schedule[i].items) {
       if (it.kind === 'rest') continue;
-      const done = take(it.kind === 'strength' ? (x) => x.kind === 'strength' && x.variant === it.variant : it.kind === 'activity' ? (x) => x.kind === 'activity' && x.actId === it.id : (x) => x.kind === 'cardio');
+      const done = doneOn.get(it);
       const day = i === ti ? 'Today' : schedule[i].name;
       const name = it.kind === 'strength' ? `Strength session ${it.variant}` : it.kind === 'activity' ? it.name : `${CARDIO[it.mode]?.label || 'Cardio'}`;
       const sub = it.kind === 'strength' ? `${it.exercises.length} exercises · about ${it.minutes} min` : `${it.minutes} min${it.kind === 'activity' ? ' · your regular activity' : ''}`;
@@ -319,8 +324,8 @@ function weekSessions(state, wk, schedule, ti) {
         : it.kind === 'activity' ? `<button class="btn small primary" data-action="activityDone" data-id="${esc(it.id)}">Done</button>`
         : `<button class="btn small primary" data-action="cardioDone" data-mode="${esc(it.mode)}" data-min="${it.minutes}">Done</button>`;
       rows.push(`<li class="session-row ${done ? 'is-done' : ''} ${i === ti ? 'today' : ''}"><span class="cal-emoji" aria-hidden="true">${planEmoji(it)}</span>
-        <div class="grow"><strong>${esc(name)}</strong><small class="muted">${esc(day)}${it.from != null ? ' · moved' : ''} · ${esc(sub)}</small></div>
-        ${go}${`<button class="btn small ghost" data-action="openMoveItem" data-key="${esc(itemKey(it))}" data-from="${i}" data-date="${dateInWeek(wk, i)}" aria-label="Move ${esc(name)} to another day">Move</button>`}</li>`);
+        <button class="grow session-open" data-action="openPlanItem" data-key="${esc(itemKey(it))}" data-date="${dateInWeek(wk, i)}"><strong>${esc(name)}</strong><small class="muted">${esc(day)}${it.from != null ? ' · moved' : ''} · ${esc(sub)}</small></button>
+        ${go}</li>`);
     }
   }
   return rows.join('') || '<li class="muted" style="padding:8px 0">Nothing planned this week — add a walk in the calendar.</li>';
@@ -336,12 +341,10 @@ function overview(state) {
   const sessions = weekSessions(state, wk, schedule, ti);
   const prog = state.workouts.progress;
   return html`<header class="page-head"><div><div class="eyebrow">Week ${store.weeksSinceStart(state, date) + 1}</div><h1>Move</h1></div></header>
-    <p class="muted" style="margin:-8px 0 14px">For health, mood and keeping weight off — not to earn food. Start low, go slow; the plan builds with you.</p>
-    <a class="card cal-link" href="#/calendar"><span class="cal-emoji big" aria-hidden="true">📅</span><span class="grow"><strong>Calendar</strong><small>Set when and where, add walks and batch cooking, invite friends</small></span>${icon('chevron')}</a>
     <div class="card"><h2 style="margin:0">This week’s sessions</h2>
       ${schedule[ti].items.every((it) => it.kind === 'rest') ? '<p class="muted" style="margin:6px 0 0">Today is a rest day — gentle walking is still great. You can still do any session below today.</p>' : ''}
       <ul class="session-list">${sessions}</ul>
-      <p class="muted" style="font-size:.84rem;margin:8px 0 0">Do a session on any day — it counts wherever it was planned. Set times and places in the calendar.</p></div>
+      <p class="muted" style="font-size:.84rem;margin:8px 0 0">Tap a session to see it, move it or give it a time.</p></div>
     <div class="card"><h2>This week</h2>
         <div class="macro"><span>Cardio</span>${progressBar(done.cardio, cardioMin, { label: 'Cardio minutes' })}<span>${done.cardio}/${cardioMin} min</span></div>
         <div class="macro"><span>Strength</span>${progressBar(done.strength, strengthPlanned, { label: 'Strength sessions' })}<span>${done.strength}/${strengthPlanned}</span></div>
@@ -386,7 +389,7 @@ function session(state, variant) {
   exList = item.exercises;
   const draft = draftAsked !== sessionKey && !hasProgress() ? readDraft(variant) : null;
   const rateBtn = (chain, value, label) => `<button type="button" class="btn small ${ratings[chain] === value ? 'on' : ''}" data-action="rate" data-chain="${chain}" data-value="${value}" aria-pressed="${ratings[chain] === value}">${label}</button>`;
-  return html`<a href="#/move" class="btn ghost small">${icon('back')}Move</a>
+  return html`<a href="#/move" class="btn ghost small">${icon('back')}Plan</a>
     <h1>Strength session ${esc(variant)}</h1>
     ${draft ? draftCard(draft) : ''}
     <p class="muted">Move slowly and with control; breathe out as you push. Stop 2–3 reps before you can’t do any more. Tap each set as you go — a rest timer starts between sets.</p>

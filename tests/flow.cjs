@@ -17,11 +17,11 @@ const shots = process.argv[3] || null;
   await page.click('text=Explore with demo data first');
   await page.waitForSelector('.tg-hero');
   await page.addLocatorHandler(page.locator('.modal-wrap'), async () => page.click('.modal-wrap button >> nth=-1'));
-  const tabs = ['today', 'meals', 'move', 'habits', 'progress'];
+  const tabs = ['today', 'calendar', 'meals', 'move', 'progress', 'you'];
   const linksOf = async (route) => {
     await page.goto(base + '#/' + route);
     await page.waitForTimeout(300);
-    return page.evaluate(() => [...new Set([...document.querySelectorAll('main a[href^="#/"]')].map((a) => a.getAttribute('href').slice(2).split('/')[0]))]);
+    return page.evaluate(() => [...new Set([...document.querySelectorAll('main a[href^="#/"]')].filter((a) => !a.closest('.topbar')).map((a) => a.getAttribute('href').slice(2).split('/')[0]))]);
   };
   const one = new Set(tabs);
   for (const t of tabs) for (const l of await linksOf(t)) one.add(l);
@@ -31,12 +31,42 @@ const shots = process.argv[3] || null;
   const prog = await linksOf('progress');
   for (const r of ['journey', 'body', 'rewards', 'checkin', 'learn', 'wrap']) if (!prog.includes(r)) errors.push(`Progress hub does not link to ${r}`);
   // Tab highlighting for screens without their own tab
-  for (const [route, tab] of [['journey', 'progress'], ['body', 'progress'], ['rewards', 'progress'], ['learn', 'progress'], ['shopping', 'meals']]) {
+  for (const [route, tab] of [['journey', 'progress'], ['body', 'progress'], ['rewards', 'progress'], ['learn', 'progress'], ['shopping', 'planner'], ['calendar', 'planner'], ['habits', 'you'], ['settings', 'you']]) {
     await page.goto(base + '#/' + route);
     await page.waitForTimeout(200);
     const active = await page.evaluate(() => document.querySelector('.bottomnav a.active')?.getAttribute('href'));
     if (active !== '#/' + tab) errors.push(`${route}: expected ${tab} tab active, got ${active}`);
   }
+  // Plan tab: remembers Schedule / Food / Move, and the switcher is on all three
+  await page.goto(base + '#/meals');
+  await page.waitForSelector('.plan-tabs a.on[href="#/meals"]');
+  await page.goto(base + '#/planner');
+  await page.waitForFunction(() => location.hash === '#/meals');
+  // The top bar always has alarms and the inbox
+  for (const href of ['#/settings/alarms', '#/inbox']) if (!(await page.locator(`.topbar a[href="${href}"]`).count())) errors.push(`top bar is missing ${href}`);
+  // (+) opens one sheet with everything you can log
+  await page.click('.bottomnav .tab-log');
+  await page.waitForSelector('.sheet .ql-grid');
+  for (const a of ['openExtra', 'openWeigh', 'openSteps', 'calAdd']) if (!(await page.locator(`.sheet .ql-tile[data-action=${a}]`).count())) errors.push(`log sheet is missing ${a}`);
+  await page.click('.sheet .ql-tile[data-action=openWeigh]');
+  await page.waitForSelector('.sheet form[data-form=sheetWeigh]');
+  await page.keyboard.press('Escape');
+  // A strength session in the calendar opens its preview with Start, Move day and Set time
+  await page.goto(base + '#/calendar');
+  await page.click('button[data-action=calView][data-v=month]');
+  await page.click('.cm-item.plan:has-text("Str") >> nth=0');
+  await page.waitForSelector('.sheet .pi-list li');
+  for (const sel of ['[data-action=planStart]', '[data-action=openMoveItem]', '[data-action=calFromPlan]']) if (!(await page.locator(`.sheet ${sel}`).count())) errors.push(`plan sheet is missing ${sel}`);
+  await page.click('.sheet [data-action=planStart]');
+  await page.waitForFunction(() => /#\/move\/session\/[AB]/.test(location.hash));
+  await page.goto(base + '#/today');
+  // "N of M done" only counts what's ticked
+  const counted = await page.evaluate(() => {
+    const [done, total] = (document.querySelector('.day-count')?.textContent.match(/\d+/g) || []).map(Number);
+    const ticked = [...document.querySelectorAll('.timeline-list > li.is-done')].filter((li) => li.querySelector('.check')).length;
+    return { done, total, ticked };
+  });
+  if (counted.done !== counted.ticked) errors.push('day counter does not match ticked rows: ' + JSON.stringify(counted));
   // Today: rings hero with your body right under it, then one "Your day" timeline (meals, habits, movement together)
   await page.goto(base + '#/today');
   await page.waitForSelector('.tg-day');
@@ -88,7 +118,8 @@ const shots = process.argv[3] || null;
   });
   await page.goto(base + '#/today');
   await page.reload();
-  await page.click('.quick-log a[href="#/sos"]');
+  await page.click('.bottomnav .tab-log');
+  await page.click('.sheet [data-href="#/sos"]');
   await page.waitForSelector('.sos-tools');
   if (!/This morning you said/.test(await page.textContent('.sos-hero')) || !/the people you love and freedom/.test(await page.textContent('.sos-hero'))) errors.push('SOS should show this morning’s reasons: ' + (await page.textContent('.sos-hero')));
   const sosText = (await page.textContent('main')).toLowerCase();
@@ -110,10 +141,7 @@ const shots = process.argv[3] || null;
   await page.goto(base + '#/sos');
   await page.waitForSelector('.sos-tools');
   await page.goto(base + '#/today');
-  await page.waitForSelector('.quick-log');
-
-  // Quick log row: food, weight, workout
-  if ((await page.locator('.quick-log .ql-btn').count()) < 3) errors.push('quick log missing');
+  await page.waitForSelector('.tg-hero');
   // Forgot to log yesterday: step back on Today, tick a meal and a habit → saved to yesterday, not today
   const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const yday = ymd(new Date(Date.now() - 864e5));
@@ -187,7 +215,7 @@ const shots = process.argv[3] || null;
   // Settings: day, alarms and reminders sit together and point at each other
   await page.goto(base + '#/settings');
   await page.waitForSelector('main a[href="#/settings/profile"]');
-  const hubOrder = await page.evaluate(() => [...document.querySelectorAll('main a[href^="#/settings/"]')].map((a) => a.getAttribute('href').split('/').pop()));
+  const hubOrder = await page.evaluate(() => [...document.querySelectorAll('main a[href^="#/settings/"]')].filter((a) => !a.closest('.topbar')).map((a) => a.getAttribute('href').split('/').pop()));
   const i = (k) => hubOrder.indexOf(k);
   if (!(i('alarms') === i('day') + 1 && i('reminders') === i('alarms') + 1)) errors.push('settings order: ' + hubOrder.join(','));
   if (!(await linksOf('settings/reminders')).includes('settings')) errors.push('reminders page');

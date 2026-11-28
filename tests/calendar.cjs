@@ -32,7 +32,7 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await page.waitForSelector('.tg-hero');
   await page.addLocatorHandler(page.locator('.modal-wrap'), async () => page.click('.modal-wrap button >> nth=-1'));
   await page.goto(base + '#/move');
-  await page.click('a.cal-link');
+  await page.click('.plan-tabs a[href="#/calendar"]');
   // Opens in the 3-day time grid; switch to Schedule (list) for the steps below
   await page.waitForSelector('.cg');
   if ((await page.locator('.cg-col').count()) !== 3) errors.push('3-day view should show 3 columns');

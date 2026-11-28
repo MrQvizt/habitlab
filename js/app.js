@@ -43,23 +43,55 @@ import * as notify from './notify.js';
 import { closeSheet } from './ui/sheet.js';
 import { sheetActions } from './views/sheets.js';
 import { daySummary, readDay } from './views/day.js';
+import youView from './views/you.js';
+import { openQuickLog } from './views/quicklog.js';
+import { logPlannedActivity } from './views/move.js';
 
-const VIEWS = { inbox: inboxView, account: accountView, sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
+const VIEWS = { you: youView, inbox: inboxView, account: accountView, sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
 // Screens without their own tab light up the tab they belong to.
-const TAB_OF = { journey: 'progress', body: 'progress', rewards: 'progress', checkin: 'progress', learn: 'progress', wrap: 'progress', shopping: 'meals', wake: 'today', calendar: 'move', plan: 'today', sos: 'today' };
+// Five tabs: Today · Plan · (+) · Progress · You. Screens without their own tab light up the one they belong to.
+const TAB_OF = {
+  journey: 'progress', body: 'progress', checkin: 'progress', wrap: 'progress',
+  calendar: 'planner', meals: 'planner', move: 'planner', shopping: 'planner',
+  rewards: 'progress', learn: 'progress',
+  habits: 'you', settings: 'you', account: 'you', inbox: 'you',
+  wake: 'today', plan: 'today', sos: 'today',
+};
 const NAV = [
   ['today', 'Today', 'today'],
-  ['meals', 'Meals', 'meals'],
-  ['move', 'Move', 'move'],
-  ['habits', 'Habits', 'habits'],
+  ['planner', 'Plan', 'plan'],
+  ['+', 'Log', 'plus'],
   ['progress', 'Progress', 'progress'],
+  ['you', 'You', 'user'],
 ];
+// Plan has three parts — the day's schedule, food and movement — one tap apart.
+const PLAN_TABS = [['calendar', 'Schedule'], ['meals', 'Food'], ['move', 'Move']];
+const PLAN_OF = { calendar: 'calendar', meals: 'meals', shopping: 'meals', move: 'move' };
+const lastPlanTab = () => {
+  try {
+    const t = localStorage.getItem('habitlab.planTab');
+    return PLAN_TABS.some(([id]) => id === t) ? t : 'calendar';
+  } catch (e) {
+    return 'calendar';
+  }
+};
+function planTabs(name, params) {
+  const on = PLAN_OF[name];
+  if (!on || (name === 'move' && params[0] === 'session')) return '';
+  try {
+    localStorage.setItem('habitlab.planTab', on);
+  } catch (e) {
+    /* ignore */
+  }
+  return `<nav class="plan-tabs no-print" aria-label="Plan">${PLAN_TABS.map(([id, label]) => `<a href="#/${id}" class="${on === id ? 'on' : ''}" ${on === id ? 'aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
+}
 
 let state = store.load();
 let saveFailing = false; // shown as a banner on every screen until saving works again
 const main = document.getElementById('main');
 const toastEl = document.querySelector('.toast');
 let toastTimer = null;
+let toastAt = 0;
 
 const ctx = {
   get state() {
@@ -108,6 +140,7 @@ const ctx = {
       toastEl.append(b);
     }
     toastEl.classList.add('show');
+    toastAt = Date.now();
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => toastEl.classList.remove('show'), opts.action ? 5000 : 3000);
   },
@@ -232,19 +265,24 @@ function parseRoute() {
 
 function navHtml(active, kind) {
   if (kind !== 'side') active = TAB_OF[active] || active;
-  const links = NAV.map(([id, label, ic]) => `<a href="#/${id}" class="${kind === 'side' ? 'nav ' : ''}${active === id ? 'active' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`).join('');
+  const links = NAV.map(([id, label, ic]) => (id === '+'
+    ? `<button type="button" class="${kind === 'side' ? 'nav nav-log' : 'tab-log'}" data-action="quickLog" aria-label="Log something">${icon(ic)}${kind === 'side' ? `<span>${label}</span>` : ''}</button>`
+    : `<a href="#/${id}" class="${kind === 'side' ? 'nav ' : ''}${active === id ? 'active' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`)).join('');
   if (kind === 'side') {
-    const extra = [['journey', 'Journey', 'flag'], ['body', 'Your body', 'today'], ['rewards', 'Rewards', 'star'], ['checkin', 'Weekly check-in', 'calendar'], ['learn', 'The evidence', 'learn'], ['settings', 'Settings', 'settings']];
+    const extra = [['journey', 'Journey', 'flag'], ['body', 'Your body', 'today'], ['habits', 'Habits', 'habits'], ['checkin', 'Weekly check-in', 'calendar'], ['learn', 'The evidence', 'learn'], ['settings', 'Settings', 'settings']];
     return `<a class="brand" href="#/today"><span class="logo">HL</span>Habit Lab</a>${links}<div class="sep"></div>${extra.map(([id, label, ic]) => `<a href="#/${id}" class="nav ${active === id ? 'active' : ''}" ${active === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${label}</span></a>`).join('')}<div class="spacer"></div>`;
   }
   return links;
 }
 
-/** Inbox in the top bar (once you share your calendar), with a count of new messages. */
+/** Inbox in the top bar, with a count of new messages. */
 function inboxBtn() {
-  if (!state.share?.id) return '';
-  const n = share.unreadCount(state);
-  return `<a class="icon-btn inbox-btn" href="#/inbox" aria-label="Inbox${n ? `, ${n} new` : ''}">${icon('inbox')}${n ? `<span class="inbox-badge" aria-hidden="true">${n > 9 ? '9+' : n}</span>` : ''}</a>`;
+  const n = state.share?.id ? share.unreadCount(state) : 0;
+  return `<a class="icon-btn inbox-btn" href="#/inbox" aria-label="Inbox${n ? `, ${n} new` : ''}">${icon('bell')}${n ? `<span class="inbox-badge" aria-hidden="true">${n > 9 ? '9+' : n}</span>` : ''}</a>`;
+}
+/** Alarms one tap away: shows the next one that will ring. */
+function alarmBtn() {
+  return `<a class="icon-btn" href="#/settings/alarms" aria-label="Alarms">${icon('alarm')}</a>`;
 }
 
 function xpChip() {
@@ -260,6 +298,10 @@ function renderRoute() {
   let { name, params } = parseRoute();
   if (!state.profile && name !== 'start' && name !== 'learn' && name !== 'join' && name !== 'account') name = 'start';
   if (state.profile && name === 'start') name = 'today';
+  if (name === 'planner') {
+    name = lastPlanTab();
+    history.replaceState(null, '', `#/${name}`);
+  }
   const view = VIEWS[name] || todayView;
   // Make sure derived data (this week's plan, workout progress) exists before rendering.
   if (state.profile) {
@@ -278,13 +320,13 @@ function renderRoute() {
   document.body.classList.toggle('no-nav', !hasShell);
   document.body.classList.toggle('wrap-open', (name === 'wrap' || name === 'wake') && hasShell);
   const top = hasShell
-    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span>Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}${inboxBtn()}<a class="icon-btn" href="#/settings" aria-label="Settings">${icon('settings')}</a></div></div>`
+    ? `<div class="topbar no-print"><a class="brand" href="#/today" aria-label="Habit Lab home"><span class="logo">HL</span><span>Habit Lab</span></a><div class="row nowrap" style="gap:4px">${xpChip()}${alarmBtn()}${inboxBtn()}</div></div>`
     : '';
   const saveBanner = saveFailing && hasShell
     ? `<div class="notice warn" role="alert">${icon('alert')}<div class="grow"><strong>Changes aren’t being saved.</strong> This device’s storage is full or blocked, so anything you log now will be lost when you close the app. <a href="#/settings/data">Export a backup</a>, then free up some space.</div></div>`
     : '';
   if (name !== 'today') setViewDate(null); // past-day editing belongs to Today only
-  main.innerHTML = top + saveBanner + view.render(state, params, ctx);
+  main.innerHTML = top + (hasShell ? planTabs(name, params) : '') + saveBanner + view.render(state, params, ctx);
   restoreFilter();
   view.after?.(main, ctx, params);
   const routeKey = `${name}/${params.join('/')}`;
@@ -313,6 +355,15 @@ const GLOBAL = {
   ...sheetActions,
   ...calendarActions,
   ...organActions,
+  activityDone(el, ev, ctx) {
+    logPlannedActivity(ctx, el.dataset.id);
+  },
+  quickLog(el, ev, ctx) {
+    openQuickLog(ctx);
+  },
+  quickGo(el, ev, ctx) {
+    ctx.go(el.dataset.href);
+  },
   theme(el) {
     const t = el.dataset.value;
     if (t === 'auto') document.documentElement.removeAttribute('data-theme');
@@ -444,6 +495,8 @@ function navigate(ev) {
   if (ev?.oldURL != null && !/#\/sos(\/|$)/.test(ev.oldURL) && /^#\/sos(\/|$)/.test(location.hash)) resetSos();
   if (ev?.oldURL != null && /#\/inbox(\/|$)/.test(ev.oldURL) && !/^#\/inbox(\/|$)/.test(location.hash)) resetInbox();
   closeSheet(true);
+  // A message belongs to the screen it was about: an old one goes when you move on (Undo, and anything said about leaving, stay).
+  if (!toastEl.querySelector('button') && Date.now() - toastAt > 800) toastEl.classList.remove('show');
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   if (document.startViewTransition && !reduce && !transitioning) {
     transitioning = true;

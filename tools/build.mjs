@@ -74,7 +74,9 @@ __req(${entry});
 // Sanity check: the bundle must parse.
 new Function(js);
 
-const css = readFileSync(join(root, 'css/styles.css'), 'utf8');
+// Inter (SIL OFL 1.1, fonts/Inter-OFL.txt), embedded so it works offline in the app and needs no network.
+const interFont = readFileSync(join(root, 'fonts/inter-latin-wght.woff2')).toString('base64');
+const css = `@font-face{font-family:'Inter';font-style:normal;font-weight:100 900;font-display:swap;src:url(data:font/woff2;base64,${interFont}) format('woff2')}\n` + readFileSync(join(root, 'css/styles.css'), 'utf8');
 const icon = 'data:image/svg+xml,' + encodeURIComponent(readFileSync(join(root, 'icons/icon.svg'), 'utf8').trim());
 const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
 const safeJs = `window.HABITLAB_VERSION = ${JSON.stringify(version)};\n` + js.replace(/<\/script/gi, '<\\/script');
@@ -108,6 +110,7 @@ const csp = [
   "default-src 'none'",
   `script-src '${SCRIPT_HASH}'`,
   "style-src 'unsafe-inline'",
+  'font-src data:',
   "img-src 'self' data:",
   "manifest-src 'self'",
   "worker-src 'self'",
