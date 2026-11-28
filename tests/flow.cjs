@@ -253,12 +253,35 @@ const shots = process.argv[3] || null;
   await page.click('.modal-wrap button >> nth=-1').catch(() => {});
   await page.waitForTimeout(300);
   if (await page.locator('main li:has-text("Floss")').count()) errors.push('deleting your own habit should remove it');
+  // All 3 slots full: "Swap in" trades a current habit for the new one (no dead Add button)
+  await page.$eval('details.own-habit', (d) => (d.open = true));
+  await page.fill('form[data-form=ownCreate] input[name=title]', 'Drink water');
+  await page.fill('form[data-form=ownCreate] input[name=cue]', 'pour my coffee');
+  await page.click('form[data-form=ownCreate] button.primary');
+  await page.waitForSelector('main li:has-text("Drink water") button[data-action=add]:not([disabled])').catch(() => errors.push('with all slots full, Add should still work (Swap in)'));
+  const activeBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).habits.active.map((a) => a.id));
+  await page.click('main li:has-text("Drink water") button[data-action=add]');
+  await page.waitForSelector('.sheet button[data-action=swapHabit]');
+  const outId = await page.getAttribute('.sheet button[data-action=swapHabit] >> nth=0', 'data-out');
+  await page.click('.sheet button[data-action=swapHabit] >> nth=0');
+  await page.waitForSelector('main .rows button[data-action=manage]:has-text("Drink water")').catch(() => errors.push('Swap in should make the new habit active'));
+  const activeAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).habits.active.map((a) => a.id));
+  if (activeAfter.length !== activeBefore.length || activeAfter.includes(outId)) errors.push('swap should replace the chosen habit: ' + activeAfter.join(','));
+  // Undo the swap so the checks below see the habits they expect
+  await page.click('.toast button:has-text("Undo")').catch(() => {});
+  await page.waitForTimeout(300);
+  await page.click('main li:has-text("Drink water") button[data-action=ownDelete]');
+  await page.click('.modal-wrap button >> nth=-1').catch(() => {});
+  await page.waitForTimeout(300);
   const own = await page.evaluate(() => JSON.parse(localStorage.getItem('habitlab.v1')).habits.own.map((h) => h.title));
   if (own.join('|') !== 'Stretch my calves and hips') errors.push('own habits saved: ' + own.join('|'));
   await page.goto(base + '#/wrap');
   await page.waitForSelector('.wrap-story');
   for (let k = 0; k < 15 && (await page.locator('.w-tap.right').count()); k++) await page.keyboard.press('ArrowRight');
-  if (!/Come back Sunday/.test(await page.textContent('.wrap-story'))) errors.push('wrap should say come back Sunday');
+  // Mid-week the wrap is partial ("come back Sunday"); on the week's last day (Saturday) it's complete.
+  const lastDayOfWeek = new Date().getDay() === 6;
+  const wrapText = await page.textContent('.wrap-story');
+  if (lastDayOfWeek ? /Come back Sunday/.test(wrapText) : !/Come back Sunday/.test(wrapText)) errors.push(`wrap on ${lastDayOfWeek ? 'the last day should be complete' : 'a mid-week day should say come back Sunday'}`);
   await page.keyboard.press('Escape');
   await browser.close();
   if (errors.length) {

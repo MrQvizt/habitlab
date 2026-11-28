@@ -10,6 +10,7 @@ import { openSheet, closeSheet } from '../ui/sheet.js';
 import { itemName, planEmoji, planKind } from './planmove.js';
 import { itemKey } from '../engine/workouts.js';
 import { expand, FREQS, repeatLabel } from '../engine/recur.js';
+import { CARDIO } from '../data/exercises.js';
 import { buzz } from '../ui/celebrate.js';
 import * as share from '../share.js';
 import { mealsFor, slotLabel } from './shared.js';
@@ -29,6 +30,7 @@ export const EVENT_KINDS = {
 };
 const QUICK = [['walk', 'Walk'], ['cooking', 'Batch cooking'], ['workout', 'Gym'], ['outdoors', 'Hike'], ['sport', 'Swim'], ['shopping', 'Food shopping'], ['cooking', 'Meal prep'], ['walk', 'Walk with friends']];
 const VIEWS = [['day', 'Day'], ['3day', '3 days'], ['week', 'Week'], ['month', 'Month'], ['list', 'Schedule']];
+const SHORT_VIEW = { '3day': '3 days', list: 'List' }; // fits a phone's toolbar
 const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 let H0 = 6; // first hour shown in the time grid (earlier if you wake before 6)
 const H1 = 24;
@@ -94,6 +96,14 @@ function sleepOn(state, date) {
 }
 
 const mealBtn = (m, date, cls = 'cal-meal') => `<button class="${cls}${m.done ? ' done' : ''}" data-action="openMeal" data-slot="${esc(m.slot)}" data-date="${date}" aria-label="${esc(`${slotLabel(m.slot)} at ${toHHMM(m.time)}: ${m.name}${m.done ? ' (logged)' : ''}`)}">${m.done ? '✓' : '🍽'} <b>${toHHMM(m.time)}</b> ${esc(m.name)}</button>`;
+
+/** A planned session in a few characters, for the month view: "Strength A", "Brisk 35′". */
+const CARDIO_SHORT = { walk: 'Walk', cycle: 'Bike', swim: 'Swim', elliptical: 'X-trainer', seated: 'Seated', dance: 'Dance', cardio: 'Cardio' };
+function planShort(it) {
+  if (it.kind === 'strength') return `Str ${it.variant}`;
+  if (it.kind === 'activity') return it.name;
+  return `${CARDIO_SHORT[it.mode] || 'Cardio'} ${it.minutes}′`;
+}
 
 // ---------- pieces ----------
 const dragAttrs = (e) => `data-drag="event" data-id="${esc(e.series || e.id)}" data-date="${e.date}"`;
@@ -182,12 +192,20 @@ function gridView(state, days) {
   }).join('');
   const cols = days.map((d) => {
     const timed = all.filter((e) => e.date === d && e.time);
-    const meals = mealsOn(state, d).map((m) => ({ time: toHHMM(m.time), dur: m.slot.startsWith('snack') ? 15 : 30, meal: m }));
-    const blocks = lanes([...timed, ...meals]).map(({ e, s, f, lane, n }) => {
+    // Meals sit as small tags on the right and never squeeze your activities; an activity at the same
+    // time leaves them room on the right.
+    const meals = mealsOn(state, d);
+    const mealSpans = meals.map((m) => [m.time, m.time + (m.slot.startsWith('snack') ? 15 : 30)]);
+    const mealTags = meals.map((m) => {
+      const top = Math.max(0, (m.time - H0 * 60) / 60 * PX);
+      // In the grid just the time fits; the meal's name is in the label and one tap away.
+      return `<button class="cg-ev cg-meal${m.done ? ' done' : ''}" style="top:${top}px" data-action="openMeal" data-slot="${esc(m.slot)}" data-date="${d}" aria-label="${esc(`${slotLabel(m.slot)} at ${toHHMM(m.time)}: ${m.name}${m.done ? ' (logged)' : ''}`)}">${m.done ? '✓' : '🍽'} ${toHHMM(m.time)}</button>`;
+    }).join('');
+    const blocks = lanes(timed).map(({ e, s, f, lane, n }) => {
       const top = Math.max(0, (s - H0 * 60) / 60 * PX);
       const height = Math.max(24, (Math.min(f, H1 * 60) - Math.max(s, H0 * 60)) / 60 * PX - 2);
-      const pos = `top:${top}px;height:${height}px;left:calc(${(lane / n) * 100}% + 1px);width:calc(${100 / n}% - 3px)`;
-      if (e.meal) return mealBtn(e.meal, d, 'cg-ev cg-meal').replace('<button ', `<button style="${pos}" `);
+      const room = mealSpans.some(([a, b]) => a < f && b > s) ? 0.62 : 1; // share the row with a meal tag
+      const pos = `top:${top}px;height:${height}px;left:calc(${(lane / n) * room * 100}% + 1px);width:calc(${(room * 100) / n}% - 3px)`;
       const k = EVENT_KINDS[e.kind] || EVENT_KINDS.other;
       return `<button class="cg-ev k-${e.kind}" data-action="calEdit" ${dragAttrs(e)} style="top:${top}px;height:${height}px;left:calc(${(lane / n) * 100}% + 1px);width:calc(${100 / n}% - 3px)"><b>${k.emoji} ${esc(e.title)}${e.series ? ' ↻' : ''}</b><small>${esc(e.time)}${e.place ? ` · ${esc(e.place)}` : ''}</small></button>`;
     }).join('');
@@ -195,7 +213,7 @@ function gridView(state, days) {
     const y = (m) => (m - H0 * 60) / 60 * PX;
     const sleep = sl ? `${sl.wake > H0 * 60 ? `<div class="cg-sleep am" style="top:0;height:${y(sl.wake)}px"><a href="#/settings/day">${sl.alarm ? '⏰' : '☀️'} Up ${toHHMM(sl.wake)}</a></div>` : ''}${sl.wind != null && sl.wind < H1 * 60 ? `<div class="cg-sleep wind" style="top:${y(sl.wind)}px;height:${y(Math.min(sl.bed, H1 * 60)) - y(sl.wind)}px"><a href="#/settings/alarms">🌗 Wind down</a></div>` : ''}${sl.bed < H1 * 60 ? `<div class="cg-sleep pm" style="top:${y(sl.bed)}px;height:${y(H1 * 60) - y(sl.bed)}px"><a href="#/settings/day">🌙 Bed ${toHHMM(sl.bed)}</a></div>` : ''}` : '';
     const nowLine = d === today && nowMin >= H0 * 60 ? `<span class="cg-now" style="top:${(nowMin - H0 * 60) / 60 * PX}px" aria-hidden="true"></span>` : '';
-    return `<div class="cg-col ${d === today ? 'today' : ''}" role="group" data-drop-date="${d}" data-grid="1" data-action="calSlot" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}: tap a time to add">${sleep}${nowLine}${blocks}</div>`;
+    return `<div class="cg-col ${d === today ? 'today' : ''}" role="group" data-drop-date="${d}" data-grid="1" data-action="calSlot" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}: tap a time to add">${sleep}${nowLine}${mealTags}${blocks}</div>`;
   }).join('');
   return `<div class="cg" style="--cols:${days.length}">
     <div class="cg-head"><span class="cg-gutter"></span>${head}</div>
@@ -218,15 +236,25 @@ function monthView(state, monthAnchor) {
   const cells = days.map((d) => {
     const evs = all.filter((e) => e.date === d);
     const plan = looseplan(state, d, evs);
-    // Compact on a phone: emoji + time (or the first word); the full title is in the label.
-    const mini = (e) => `<button class="cal-chip mini k-${e.kind}" data-action="calEdit" ${dragAttrs(e)} aria-label="${esc(`${e.title}${e.time ? ` at ${e.time}` : ''}`)}">${(EVENT_KINDS[e.kind] || EVENT_KINDS.other).emoji}${esc(e.time || e.title.split(' ')[0])}</button>`;
-    const miniPlan = (it) => `<button class="cal-chip mini plan" data-action="calFromPlan" ${planAttrs(it, d)} aria-label="${esc(itemName(it))} (planned)">${planEmoji(it)}</button>`;
-    const items = [...evs.map(mini), ...(plan.length ? [`<span class="cm-plans">${plan.map(miniPlan).join('')}</span>`] : [])];
+    // Like a phone calendar's month: one line per item with its title (cut to fit); the full title is in the label.
+    const mini = (e) => `<button class="cm-item k-${e.kind}" data-action="calEdit" ${dragAttrs(e)} aria-label="${esc(`${e.title}${e.time ? ` at ${e.time}` : ''}`)}">${esc(e.title)}</button>`;
+    const miniPlan = (it) => `<button class="cm-item plan" data-action="calFromPlan" ${planAttrs(it, d)} aria-label="${esc(itemName(it))} (planned)">${esc(planShort(it))}</button>`;
+    const items = [...evs.map(mini), ...plan.map(miniPlan)];
+    const fit = items.length > 3 ? 2 : 3; // room for "N more"
     return `<div class="cm-cell ${d.slice(0, 7) !== month ? 'other' : ''} ${d === today ? 'today' : ''}" data-drop-date="${d}">
       <button class="cm-date" data-action="calGoDay" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}">${new Date(d + 'T12:00').getDate()}</button>
-      ${items.slice(0, 3).join('')}${items.length > 3 ? `<button class="cm-more" data-action="calGoDay" data-date="${d}">+${items.length - 3}</button>` : ''}</div>`;
+      ${items.slice(0, fit).join('')}${items.length > fit ? `<button class="cm-more" data-action="calGoDay" data-date="${d}">${items.length - fit} more</button>` : ''}</div>`;
   }).join('');
   return `<div class="cm"><div class="cm-head">${head}</div><div class="cm-grid">${cells}</div></div>`;
+}
+
+/** Day view: this week's days in a row (like a phone calendar) — tap one to jump to it. */
+function weekStrip(a, today) {
+  const s = weekStart(a);
+  return `<div class="cal-strip" role="group" aria-label="Days this week">${[0, 1, 2, 3, 4, 5, 6].map((i) => {
+    const d = addDays(s, i);
+    return `<button class="cal-strip-day ${d === a ? 'on' : ''} ${d === today ? 'today' : ''}" data-action="calGoDay" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}" ${d === a ? 'aria-current="date"' : ''}><span>${DAY_SHORT[weekdayOf(d)].slice(0, 1)}</span><b>${new Date(d + 'T12:00').getDate()}</b></button>`;
+  }).join('')}</div>`;
 }
 
 // ---------- range + title ----------
@@ -438,6 +466,24 @@ document.addEventListener('click', (ev) => {
   }
 }, true);
 
+// ---------- swipe to change days / week / month ----------
+let swipe = null;
+document.addEventListener('touchstart', (ev) => {
+  const area = ev.target.closest?.('[data-swipe="cal"]');
+  swipe = area && ev.touches.length === 1 ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY, t: Date.now() } : null;
+}, { passive: true });
+document.addEventListener('touchend', (ev) => {
+  if (!swipe || drag || pending) return (swipe = null);
+  const t = ev.changedTouches[0];
+  const dx = t.clientX - swipe.x;
+  const dy = t.clientY - swipe.y;
+  const quick = Date.now() - swipe.t < 700;
+  swipe = null;
+  if (!quick || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5 || !ctxRef) return;
+  anchor = shift(view, anchor, dx < 0 ? 1 : -1); // a moving finger makes no tap, so nothing to swallow
+  ctxRef.rerender();
+}, { passive: true });
+
 // ---------- the screen ----------
 export default {
   render(state) {
@@ -448,18 +494,21 @@ export default {
     const pub = (state.events || []).filter((e) => e.public && (e.repeat || e.date >= today)).length;
     const body = view === 'list' ? listView(state, anchor) : view === 'month' ? monthView(state, anchor) : gridView(state, rangeOf(view, anchor));
     const showsToday = view === 'month' ? anchor.slice(0, 7) === today.slice(0, 7) : view === 'week' ? weekStart(anchor) === weekStart(today) : anchor === today;
-    return `<header class="page-head"><div><div class="eyebrow">Move</div><h1>Calendar</h1></div><button class="btn small primary" data-action="calAdd" data-date="${view === 'month' || view === 'week' ? today : anchor}" aria-label="Add to calendar">${icon('plus')} Add</button></header>
-      ${share.shareCardHtml(state, pub)}
-      <div class="segmented cal-views" role="tablist" aria-label="Calendar view">${VIEWS.map(([k, l]) => `<button role="tab" class="${view === k ? 'on' : ''}" aria-selected="${view === k}" data-action="calView" data-v="${k}">${l}</button>`).join('')}</div>
-      <div class="cal-nav">
+    const joining = state.share?.id ? share.unreadCount(state) : 0; // new joins and cheers
+    const layerBtns = view === 'month' ? '' : LAYERS.filter(([k]) => k !== 'meals' || !store.habitsOnly(state)).map(([k, l]) => `<button class="cal-layer ${layers[k] ? 'on' : ''}" aria-pressed="${layers[k]}" data-action="calLayer" data-k="${k}" aria-label="${k === 'meals' ? 'Show meals' : 'Show sleep'}">${l}</button>`).join('');
+    // Phone-first: one compact toolbar, the calendar edge to edge, a floating add button.
+    return `<header class="cal-top"><h1 class="cal-title">${esc(titleOf(view, anchor))}</h1>
+        <div class="cal-tools">${showsToday ? '' : '<button class="btn small" data-action="calShift" data-d="0">Today</button>'}<button class="icon-btn cal-share-btn" data-action="calShareOpen" aria-label="Share your calendar${pub ? `, ${pub} open to friends` : ''}">${icon('share')}${joining ? `<span class="inbox-badge" aria-hidden="true">${joining > 9 ? '9+' : joining}</span>` : ''}</button></div></header>
+      <div class="cal-bar">
         <button class="icon-btn cal-back" data-action="calShift" data-d="-1" aria-label="Earlier">${icon('chevron')}</button>
-        <strong class="grow">${esc(titleOf(view, anchor))}</strong>
-        ${showsToday ? '' : '<button class="btn small" data-action="calShift" data-d="0">Today</button>'}
+        <div class="segmented cal-views" role="tablist" aria-label="Calendar view">${VIEWS.map(([k, l]) => `<button role="tab" class="${view === k ? 'on' : ''}" aria-selected="${view === k}" data-action="calView" data-v="${k}">${SHORT_VIEW[k] || l}</button>`).join('')}</div>
         <button class="icon-btn" data-action="calShift" data-d="1" aria-label="Later">${icon('chevron')}</button>
       </div>
-      ${view === 'month' ? '' : `<div class="cal-layers" role="group" aria-label="Also show">${LAYERS.filter(([k]) => k !== 'meals' || !store.habitsOnly(state)).map(([k, l]) => `<button class="cal-layer ${layers[k] ? 'on' : ''}" aria-pressed="${layers[k]}" data-action="calLayer" data-k="${k}">${l}</button>`).join('')}</div>`}
-      <div class="cal-view">${body}</div>
-      <p class="muted" style="font-size:var(--text-xs);margin-top:8px">Long-press anything and drag it to another day${view === 'month' || view === 'list' ? '' : ' or time'}. ${view === 'month' || view === 'list' ? '' : 'Tap an empty time to add something there.'}</p>`;
+      ${layerBtns ? `<div class="cal-layers" role="group" aria-label="Also show">${layerBtns}</div>` : ''}
+      ${view === 'day' ? weekStrip(anchor, today) : ''}
+      <div class="cal-view cal-v-${view}" data-swipe="cal">${body}</div>
+      <p class="muted cal-tip">Swipe to change ${view === 'month' ? 'month' : view === 'week' ? 'week' : 'days'}. Long-press anything to drag it${view === 'month' || view === 'list' ? ' to another day' : ' to another day or time'}.${view === 'month' || view === 'list' ? '' : ' Tap an empty time to add something there.'}</p>
+      <button class="cal-fab" data-action="calAdd" data-date="${view === 'month' || view === 'week' ? today : anchor}" aria-label="Add to calendar">${icon('plus')}</button>`;
   },
   after(root, ctx) {
     ctxRef = ctx;
@@ -487,6 +536,10 @@ export default {
       }
       if (view === 'week' || view === 'month' || view === 'list') anchor = view === 'month' ? anchor.slice(0, 8) + '01' : anchor;
       ctx.rerender();
+    },
+    calShareOpen(el, ev, ctx) {
+      const pub = (ctx.state.events || []).filter((e) => e.public && (e.repeat || e.date >= store.today())).length;
+      openSheet(`<div class="sheet-head"><div><div class="over">Your calendar</div><h2>Share with friends</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>${share.shareCardHtml(ctx.state, pub)}`, { label: 'Share your calendar' });
     },
     calLayer(el, ev, ctx) {
       layers[el.dataset.k] = !layers[el.dataset.k];

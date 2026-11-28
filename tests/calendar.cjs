@@ -54,7 +54,7 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await page.waitForSelector('.cal-day');
   if (!(await page.locator('.cal-plan').count())) errors.push('planned sessions not shown on the calendar');
   // Add: walk today at 23:58 in the park, open to friends
-  await page.click('.page-head button[data-action=calAdd]');
+  await page.click('.cal-fab'); // the floating add button
   await page.click('.sheet button[data-action=calQuick]:has-text("Walk with friends")');
   await page.fill('.sheet input[name=time]', '23:58');
   await page.fill('.sheet input[name=place]', 'Lake loop');
@@ -111,6 +111,7 @@ const base = process.argv[2] || 'http://localhost:8771/';
 
   // Share: create a link (publishes only open events)
   await page.goto(base + '#/calendar');
+  await page.click('.cal-share-btn'); // sharing lives behind the Share button, not above the calendar
   await page.fill('form[data-form=shareCreate] input[name=name]', 'Alex');
   await page.click('form[data-form=shareCreate] button');
   await page.waitForSelector('.share-link input');
@@ -123,13 +124,17 @@ const base = process.argv[2] || 'http://localhost:8771/';
   if (!saved?.key || saved.key !== pub?.body.p_key) errors.push('share key not kept on the device');
   // Who's joining
   await page.reload();
+  if (await page.locator('main > .share-card, .cal-view ~ .share-card').count()) errors.push('the share card should not take space above the calendar');
   await page.waitForSelector('.cal-ev:has-text("1 joining")', { timeout: 8000 }).catch(() => errors.push('sign-up count not shown'));
   await page.click('.cal-ev:has-text("Walk with friends")');
   await page.waitForSelector('.sheet :text("Sam")').catch(() => errors.push('sign-up names not shown to the owner'));
   await page.keyboard.press('Escape');
   // Cheers and joins live in the inbox: not listed on the calendar card; Today and the top bar say something's new
-  if (/So proud of you!/.test(await page.textContent('.share-card'))) errors.push('cheers should be in the inbox, not on the calendar card');
-  if (!(await page.locator('.share-card a[href="#/inbox"]').count())) errors.push('calendar card should link to the inbox');
+  await page.click('.cal-share-btn');
+  await page.waitForSelector('.sheet .share-card');
+  if (/So proud of you!/.test(await page.textContent('.sheet .share-card'))) errors.push('cheers should be in the inbox, not on the share card');
+  if (!(await page.locator('.sheet .share-card a[href="#/inbox"]').count())) errors.push('share card should link to the inbox');
+  await page.keyboard.press('Escape');
   await page.goto(base + '#/today');
   await page.waitForSelector('.inbox-note:has-text("Maria sent you a cheer")', { timeout: 8000 }).catch(() => errors.push('Today should say Maria sent a cheer'));
   if ((await page.textContent('.topbar .inbox-badge').catch(() => '')) !== '1') errors.push('top bar inbox should show 1 new');
@@ -156,7 +161,29 @@ const base = process.argv[2] || 'http://localhost:8771/';
     await page.waitForSelector(sel);
     const c = await page.locator(sel).count();
     if (v === 'month' ? c < n : c !== n) errors.push(`${v} view: ${c} ${sel}`);
+    if (v === 'day') {
+      // The day fills the width (a class clash once squeezed it into a 46 px column)
+      const w = await page.evaluate(() => [document.querySelector('.cg-col').getBoundingClientRect().width, document.querySelector('.cal-view').getBoundingClientRect().width]);
+      if (w[0] < w[1] * 0.6) errors.push(`day column too narrow: ${Math.round(w[0])} of ${Math.round(w[1])} px`);
+      if ((await page.locator('.cal-strip-day').count()) !== 7) errors.push('day view should show the week strip');
+    }
   }
+  // Phone: swipe left on the month → next month; swipe right → back
+  const swipe = (dx) => page.evaluate((dx) => {
+    const el = document.querySelector('.cal-view');
+    const r = el.getBoundingClientRect();
+    const t = (x) => new Touch({ identifier: 1, target: el, clientX: x, clientY: r.top + 80 });
+    const x0 = r.left + r.width / 2;
+    el.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [t(x0)], changedTouches: [t(x0)] }));
+    el.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [t(x0 + dx)] }));
+  }, dx);
+  const monthTitle = await page.textContent('.cal-title');
+  await swipe(-150);
+  await page.waitForFunction((t) => document.querySelector('.cal-title')?.textContent !== t, monthTitle).catch(() => errors.push('swiping left should show the next month'));
+  await swipe(150);
+  await page.waitForFunction((t) => document.querySelector('.cal-title')?.textContent === t, monthTitle).catch(() => errors.push('swiping right should go back'));
+  // Month shows titles you can read, not just icons
+  if (!(await page.locator('.cm-item').filter({ hasText: /\w{3,}/ }).count())) errors.push('month view should show readable titles');
   // Month → tap a date → that day
   await page.click(`.cm-cell[data-drop-date="${today}"] .cm-date`);
   await page.waitForSelector('.cg-col');

@@ -163,6 +163,14 @@ export function markInboxRead(ctx) {
   }, { quiet: true, render: false });
 }
 
+/** The share card can sit in a sheet (Calendar → Share): redraw it there after a change. */
+function refreshCard(state) {
+  const el = document.querySelector('.sheet .share-card');
+  if (!el) return;
+  const pub = (state.events || []).filter((e) => e.public && (e.repeat || e.date >= store.today())).length;
+  el.outerHTML = shareCardHtml(state, pub);
+}
+
 export const shareActions = {
   cheersSeen(el, ev, ctx) {
     const id = Number(el.dataset.id) || 0;
@@ -185,6 +193,7 @@ export const shareActions = {
       return st;
     }, { quiet: true });
     ctx.toast('Your link is ready — share it with friends.');
+    refreshCard(ctx.state);
     watch(ctx.state);
   },
   async shareCopy(el, ev, ctx) {
@@ -217,6 +226,7 @@ export const shareActions = {
       return st;
     }, { quiet: true });
     ctx.toast('Sharing stopped');
+    refreshCard(ctx.state);
     watch(ctx.state);
   },
 };
