@@ -1,10 +1,10 @@
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 import { html, esc, icon, chips, fmtDate, fmtNum } from '../ui/dom.js';
-import { mealRows } from './sheets.js';
+import { mealRows, openSwap } from './sheets.js';
 import * as store from '../store.js';
 import { recipeDetails, dayIndex, setMealStatus, eatenSoFar, dayComplete } from './shared.js';
 import { markChosen } from './shared.js';
-import { swapMeal, candidates, recipeNutrition, planDay, SLOT_LABEL, dayTotals } from '../engine/meals.js';
+import { candidates, recipeNutrition, planDay, SLOT_LABEL, dayTotals } from '../engine/meals.js';
 import { RECIPES } from '../data/recipes.js';
 import { rng } from '../engine/util.js';
 import { weekStart, dateInWeek, weekOrder } from '../engine/util.js';
@@ -114,15 +114,8 @@ export default {
       ctx.go(`#/meals/${di}`);
     },
     swap(el, ev, ctx) {
-      const s = ctx.state;
       const wk = weekStart(store.today());
-      const di = Number(el.dataset.day);
-      const t = store.targets(s, dateInWeek(wk, di));
-      const meals = markChosen(swapMeal(t, s.prefs, s.plans[wk].days[di], el.dataset.slot, `${wk}|${di}|${Date.now()}`), s.plans[wk].days[di], el.dataset.slot);
-      ctx.update((st) => {
-        st.plans[wk].days[di] = meals;
-        return st;
-      });
+      openSwap(ctx, dateInWeek(wk, Number(el.dataset.day)), el.dataset.slot);
     },
     fav(el, ev, ctx) {
       const id = el.dataset.id;

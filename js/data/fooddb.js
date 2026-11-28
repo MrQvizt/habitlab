@@ -1,3 +1,4 @@
+import { USDA } from './usda.js';
 // Common foods and dishes per typical portion, for logging what you ate off the plan.
 // Values are approximate, rounded averages from food composition tables (USDA FoodData Central,
 // UK McCance & Widdowson, Swedish Livsmedelsverket) for a standard portion; real portions vary.
@@ -466,49 +467,120 @@ const SHOWN = new Set(['side_salad', 'side_salad_dressing', 'veg_steamed', 'veg_
 /** The side chips shown without searching. */
 export const SHOWN_SIDES = SIDES.filter((x) => SHOWN.has(x.id));
 
-const BY_ID = new Map([...FOOD_DB, ...SIDES].map((x) => [x.id, x]));
-export const foodById = (id) => BY_ID.get(id);
-
 /** Lower case without accents ("Crème fraîche" → "creme fraiche"). */
 const plain = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+const r1 = (x) => Math.round(x * 10) / 10;
+
+// A portion like "150 g" also gets gram units, so it can be changed to any amount.
+for (const x of [...FOOD_DB, ...SIDES]) {
+  const m = /^(\d+) g$/.exec(x.portion);
+  if (!m) continue;
+  const g = Number(m[1]);
+  x.g = g;
+  x.units = [[x.portion, g], ['100 g', 100]];
+  x.per100 = { kcal: (x.kcal * 100) / g, p: (x.p * 100) / g, c: (x.c * 100) / g, f: (x.f * 100) / g, fib: (x.fib * 100) / g };
+}
+
+// USDA foods: everything per 100 g, with the household portions USDA weighed (1 fruit, 1 cup, 1 slice…).
+const USDA_CAT = { '0100': 'dairy', '0400': 'extras', '0500': 'protein', '0600': 'meal', '0700': 'protein', '0800': 'breakfast', '0900': 'fruit', '1000': 'protein', '1100': 'fruit', '1200': 'extras', '1300': 'protein', '1400': 'drink', '1500': 'protein', '1600': 'protein', '1700': 'protein', '1800': 'bread', '1900': 'snack', '2000': 'bread', '2100': 'fast', '2200': 'meal', '2500': 'snack', '3600': 'fast' };
+const slug = (t) => plain(t).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 64);
+export const USDA_FOODS = USDA.map(([name, kcal, p, c, f, fib, grp, units]) => {
+  const all = [...units.filter(([, g]) => g > 0), ['100 g', 100]];
+  const g = all[0][1];
+  const k = g / 100;
+  return { id: `u:${slug(name)}`, name, portion: all[0][0], g, units: all, per100: { kcal, p, c, f, fib }, kcal: Math.round(kcal * k), p: r1(p * k), c: r1(c * k), f: r1(f * k), fib: r1(fib * k), cat: USDA_CAT[grp] || 'meal', src: 'usda' };
+});
+
+// Your own foods (state.foods.own), registered whenever the state is loaded or changes.
+let OWN = [];
+let OWN_BY_ID = new Map();
+export function setOwnFoods(list = []) {
+  OWN = (Array.isArray(list) ? list : []).map((x) => {
+    const g = Number(x.g) > 0 ? Number(x.g) : 0;
+    const base = { ...x, cat: 'own', src: 'own' };
+    if (!g) return base;
+    const k = 100 / g;
+    return { ...base, g, units: [[x.portion || `${g} g`, g], ['100 g', 100]], per100: { kcal: x.kcal * k, p: x.p * k, c: (x.c || 0) * k, f: (x.f || 0) * k, fib: (x.fib || 0) * k } };
+  });
+  OWN_BY_ID = new Map(OWN.map((x) => [x.id, x]));
+}
+export const ownFoods = () => OWN;
+export const newFoodId = (prefix = 'food') => `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+const BY_ID = new Map([...FOOD_DB, ...SIDES, ...USDA_FOODS].map((x) => [x.id, x]));
+export const foodById = (id) => OWN_BY_ID.get(id) || BY_ID.get(id);
+/** The food behind a picked item: a stored food, or one built on the spot (a burrito you built). */
+export const foodOf = (it) => it?.food || foodById(it?.id);
+export const FOOD_COUNT = FOOD_DB.length + SIDES.length + USDA_FOODS.length;
+
 /** "kiwis" finds "Kiwi", "berries" finds "Berry…" (a simple plural trim, kept loose). */
 const stem = (w) => (w.length > 4 && w.endsWith('ies') ? w.slice(0, -3) : w.length > 3 && w.endsWith('es') && !w.endsWith('ses') ? w.slice(0, -2) : w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
+// British and Swedish-English words for what the US tables call something else.
+const ALIAS = { yoghurt: 'yogurt', aubergine: 'eggplant', courgette: 'zucchini', prawn: 'shrimp', coriander: 'cilantro', porridge: 'oat', mince: 'ground', minced: 'ground', rocket: 'arugula', beetroot: 'beet', crisp: 'chip', sweetcorn: 'corn', chip: 'fries', biscuit: 'cookie', jam: 'jelly', scone: 'biscuit', swede: 'rutabaga', mangetout: 'snow pea', 'spring onion': 'scallion', candy: 'sweet', soda: 'soft drink', fizzy: 'carbonated', kiwifruit: 'kiwi' };
+const INDEX = [...FOOD_DB, ...SIDES, ...USDA_FOODS].map((x) => ({ x, name: plain(x.name), tier: x.src === 'usda' ? 2 : 1 }));
+const has = (name, w) => name.includes(w) || (ALIAS[w] && name.includes(ALIAS[w]));
+const rank = (name, w) => (name.startsWith(w) ? 0 : name.split(/\W+/).some((t) => t.startsWith(w)) ? 1 : 2);
 
-/** Search foods and sides by words in any order ("chicken curry", "curry chick"); best matches first. */
-export function searchFoods(q, limit = 30) {
+/** Search your foods, common foods, sides and the USDA tables by words in any order; best matches first. */
+export function searchFoods(q, limit = 40) {
   const words = plain(q).split(/\s+/).filter(Boolean).map(stem);
   if (!words.length) return [];
   const scored = [];
-  for (const x of [...FOOD_DB, ...SIDES]) {
-    const name = plain(x.name);
-    if (!words.every((w) => name.includes(w))) continue;
-    scored.push([name.startsWith(words[0]) ? 0 : name.split(/\W+/).some((t) => t.startsWith(words[0])) ? 1 : 2, x]);
+  const own = OWN.map((x) => ({ x, name: plain(x.name), tier: 0 }));
+  for (const e of [...own, ...INDEX]) {
+    if (!words.every((w) => has(e.name, w))) continue;
+    scored.push([rank(e.name, words[0]) * 3 + e.tier, e.x]);
   }
   return scored.sort((a, b) => a[0] - b[0] || a[1].name.length - b[1].name.length).slice(0, limit).map((s) => s[1]);
 }
 
-/** Total of picked items [{id, n}] (n = portions). */
+/**
+ * How much of a food a picked item is. Items are { id, n } (n portions), { id, n, u } (n of unit u)
+ * or { id, n, u: 'g' } (n grams); built foods carry their own { food }.
+ */
+export function gramsOf(it, x = foodOf(it)) {
+  if (!x?.units) return 0;
+  const n = Number(it.n) || 0;
+  if (it.u === 'g') return n;
+  return n * (x.units[Number(it.u) || 0]?.[1] || x.g || 0);
+}
+export function nutritionOf(it) {
+  const x = foodOf(it);
+  if (!x) return { kcal: 0, p: 0, c: 0, f: 0, fib: 0 };
+  if (x.per100 && (it.u === 'g' || Number(it.u) > 0)) {
+    const k = gramsOf(it, x) / 100;
+    return { kcal: x.per100.kcal * k, p: x.per100.p * k, c: x.per100.c * k, f: x.per100.f * k, fib: x.per100.fib * k };
+  }
+  const n = Number(it.n) || 1;
+  return { kcal: x.kcal * n, p: x.p * n, c: (x.c || 0) * n, f: (x.f || 0) * n, fib: (x.fib || 0) * n };
+}
+/** "2 × 1 fruit", "150 g", "1 cup, sliced" — how much, in words. */
+export function amountLabel(it) {
+  const x = foodOf(it);
+  if (!x) return '';
+  const n = Number(it.n) || 1;
+  if (it.u === 'g') return `${n} g`;
+  const unit = x.units ? x.units[Number(it.u) || 0]?.[0] : x.portion;
+  return n === 1 ? unit : `${n} × ${unit}`;
+}
+
+/** Total of picked items. */
 export function totalOf(items = []) {
   const t = { kcal: 0, p: 0, c: 0, f: 0, fib: 0 };
   for (const it of items) {
-    const x = foodById(it.id);
-    if (!x) continue;
-    const n = Number(it.n) || 1;
-    t.kcal += x.kcal * n;
-    t.p += x.p * n;
-    t.c += x.c * n;
-    t.f += x.f * n;
-    t.fib += x.fib * n;
+    const v = nutritionOf(it);
+    for (const k of Object.keys(t)) t[k] += v[k];
   }
   return { fib: Math.round(t.fib), kcal: Math.round(t.kcal), p: Math.round(t.p), c: Math.round(t.c), f: Math.round(t.f) };
 }
 
-/** "Sausages (2) + Side salad" */
+/** "Sausages (2) + Side salad + Kiwi, green, raw (150 g)" */
 export function describe(items = []) {
   return items.map((it) => {
-    const x = foodById(it.id);
+    const x = foodOf(it);
     if (!x) return '';
     const n = Number(it.n) || 1;
+    if (it.u === 'g' || Number(it.u) > 0) return `${x.name} (${amountLabel(it)})`;
     return n === 1 ? x.name : `${n}× ${x.name}`;
   }).filter(Boolean).join(' + ');
 }

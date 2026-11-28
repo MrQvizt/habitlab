@@ -256,6 +256,25 @@ export function swapMeal(targets, prefs, dayMeals, slot, seed) {
   return meals;
 }
 
+/** The day re-planned with `recipeId` in `slot` (other meals stay; portions rebalance). */
+export function swapTo(targets, prefs, dayMeals, slot, recipeId) {
+  const locked = { [slot]: recipeId };
+  for (const m of dayMeals) if (m.slot !== slot) locked[m.slot] = m.recipeId;
+  return planDay(targets, prefs, { rand: rng(`swapTo|${slot}|${recipeId}`), recent: new Map(dayMeals.map((m) => [m.recipeId, 0])), favorites: prefs.favorites || [], locked });
+}
+
+/** Up to `n` different recipes that fit this slot today (best fits first), skipping `skip`. */
+export function swapOptions(targets, prefs, dayMeals, slot, n = 5, skip = []) {
+  const current = dayMeals.find((m) => m.slot === slot)?.recipeId;
+  const found = [];
+  for (let i = 0; i < 40 && found.length < n; i++) {
+    const meals = swapMeal(targets, { ...prefs, blockedRecipes: [...(prefs.blockedRecipes || []), ...skip, ...found] }, dayMeals, slot, `opt${i}`);
+    const id = meals.find((m) => m.slot === slot)?.recipeId;
+    if (id && id !== current && !found.includes(id) && !skip.includes(id)) found.push(id);
+  }
+  return found;
+}
+
 /** Aggregate ingredients for a set of days into a shopping list grouped by aisle. */
 export function shoppingList(days) {
   const totals = new Map();

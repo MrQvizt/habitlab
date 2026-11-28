@@ -8,7 +8,7 @@ import { pickerHtml, startPick, pickResult, picked, foodActions } from './foodpi
 import { planActions } from './planmove.js';
 import { totalOf } from '../data/fooddb.js';
 import { mealsFor, setMealStatus, markChosen, dayIndex, computeIntake } from './shared.js';
-import { byId, scaledNutrition, swapMeal, ingredientText, SLOT_LABEL } from '../engine/meals.js';
+import { byId, scaledNutrition, swapTo, swapOptions, ingredientText, SLOT_LABEL } from '../engine/meals.js';
 import { habitById, streak, habitLevels, levelIndex, levelValue } from '../engine/habits.js';
 import { stepGoal } from '../engine/workouts.js';
 import { round, weekStart, isoDate, addDays } from '../engine/util.js';
@@ -42,7 +42,7 @@ function mealSheetHtml(state, date, slot, mode = '') {
   const other = mode === 'other'
     ? `<form data-form="sheetMealOtherSave" data-date="${date}" data-slot="${slot}" class="card flat" style="margin:12px 0">
         <div class="over" style="margin-bottom:8px">What did you have instead?</div>
-        ${pickerHtml(show)}
+        ${pickerHtml(show, state)}
         <details class="food-manual" ${picked().length ? '' : ''}><summary>Not in the list? Type it</summary>
           <label class="field" style="margin:8px 0 0"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. leftovers at work"></label>
         </details>
@@ -54,6 +54,7 @@ function mealSheetHtml(state, date, slot, mode = '') {
     : '';
   return `<div class="sheet-head"><div><div class="over">${esc(SLOT_LABEL[slot] || slot)}${isToday ? '' : ` · ${esc(new Date(date + 'T12:00').toLocaleDateString(undefined, { weekday: 'long' }))}`}</div><h2>${esc(r.name)}</h2></div>
       <button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+    ${timeRow(state, date, slot, meal, mode === 'time')}
     <div class="facts">${facts.map((f) => `<span class="tag">${f}</span>`).join('')}</div>
     ${statusLine ? `<div class="notice ok" style="margin:14px 0 0">${icon('check')}<div class="grow">${esc(statusLine)}</div><button class="btn small ghost" data-action="sheetMealClear" data-date="${date}" data-slot="${slot}">Clear</button></div>` : ''}
     ${other || (date <= store.today() ? `<div class="actions-grid">
@@ -98,6 +99,71 @@ export function mealRowList(state, date) {
       <button class="body row-btn" data-action="openMeal" data-slot="${m.slot}" data-date="${date}"><div class="over"><span class="meal-time">${toHHMM(m.time)}</span> ${esc(SLOT_LABEL[m.slot] || m.slot)}${show ? ` · ${fmtNum(n.kcal, 10)} kcal` : ''}${favs.has(r.id) ? ' · ★' : ''}</div><div class="title"><span>${esc(r.name)}</span></div><div class="sub">${sub}</div></button>
       <span class="trail" aria-hidden="true">${icon('chevron')}</span></div></li>`;
   }).map((html, i) => ({ slot: meals[i].slot, time: meals[i].time, done: !!log[meals[i].slot], html }));
+}
+
+// ---------- Meal time (just this day, or every same weekday) ----------
+const DAY_NAME = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+function timeRow(state, date, slot, meal, open) {
+  const t = toHHMM(meal.time);
+  const moved = meal.moved === 'day' ? 'moved for this day' : meal.moved === 'weekday' ? `every ${DAY_NAME[dayIndex(date)]}` : '';
+  if (!open) return `<button class="meal-time-row" data-action="sheetMealTime" data-date="${date}" data-slot="${slot}">${icon('clock')}<strong>${t}</strong>${moved ? `<span class="muted">· ${moved}</span>` : ''}<span class="grow"></span><span class="link">Change time</span></button>`;
+  const shift = (d) => `<button type="button" data-action="sheetTimeShift" data-d="${d}">${d > 0 ? '+' : '−'}${Math.abs(d)} min</button>`;
+  return `<form class="meal-time-edit" data-form="sheetMealTimeSave" data-date="${date}" data-slot="${slot}">
+    <div class="row" style="gap:10px;flex-wrap:wrap"><input type="time" name="time" value="${t}" aria-label="New time" required><div class="quick-chips" style="margin:0">${shift(-30)}${shift(-15)}${shift(15)}${shift(30)}</div></div>
+    <div class="segmented" role="radiogroup" aria-label="For which days" style="margin:10px 0">
+      <label><input type="radio" name="scope" value="day" checked><span>Just this ${DAY_NAME[dayIndex(date)]}</span></label>
+      <label><input type="radio" name="scope" value="weekday"><span>Every ${DAY_NAME[dayIndex(date)]}</span></label></div>
+    <div class="row" style="gap:8px"><button class="btn primary small">Save time</button>${meal.moved ? `<button type="button" class="btn ghost small" data-action="sheetMealTimeReset" data-date="${date}" data-slot="${slot}">Back to usual time</button>` : ''}<button type="button" class="btn ghost small" data-action="sheetMealBack" data-date="${date}" data-slot="${slot}">Cancel</button></div>
+    <p class="muted" style="font-size:var(--text-xs);margin:8px 0 0">Your usual times follow your day in <a href="#/settings/day">Day &amp; week</a>.</p>
+  </form>`;
+}
+
+// ---------- Swap chooser ----------
+let swapShown = { key: '', ids: [], scope: 'day' };
+function sameMealDays(state, date, slot, recipeId) {
+  const wk = weekStart(date);
+  const from = dayIndex(date);
+  const out = [];
+  for (let d = 0; d < 7; d++) {
+    if (addDays(wk, d) < date && d !== from) continue;
+    if (state.plans[wk]?.days[d]?.find((m) => m.slot === slot)?.recipeId === recipeId) out.push(d);
+  }
+  return out.length ? out : [from];
+}
+function swapSheetHtml(state, date, slot, more = false) {
+  const wk = weekStart(date);
+  const di = dayIndex(date);
+  const day = state.plans[wk].days[di];
+  const cur = day.find((m) => m.slot === slot);
+  const t = store.targets(state, date);
+  const key = `${date}|${slot}`;
+  if (swapShown.key !== key) swapShown = { key, ids: [], scope: 'day' };
+  if (more || !swapShown.ids.length) swapShown.ids = swapOptions(t, state.prefs, day, slot, 5, more ? swapShown.ids : []);
+  const show = !store.habitsOnly(state);
+  const same = sameMealDays(state, date, slot, cur?.recipeId);
+  const option = (id) => {
+    const r = byId(id);
+    const m = swapTo(t, state.prefs, day, slot, id).find((x) => x.slot === slot);
+    const n = scaledNutrition(r, m?.scale || 1);
+    const fav = (state.prefs.favorites || []).includes(id);
+    return `<li><button class="swap-opt" data-action="sheetSwapTo" data-date="${date}" data-slot="${slot}" data-recipe="${esc(id)}">
+      <span class="grow"><strong>${fav ? '★ ' : ''}${esc(r.name)}</strong><small>${r.minutes} min${show ? ` · ${fmtNum(n.kcal, 10)} kcal · ${Math.round(n.p)} g protein · ${Math.round(n.fib)} g fibre` : ''}${r.batch ? ' · batch-friendly' : ''}${r.nocook ? ' · no-cook' : ''}</small></span>${icon('chevron')}</button></li>`;
+  };
+  return `<div class="sheet-head"><div><div class="over">Swap ${esc((SLOT_LABEL[slot] || slot).toLowerCase())}</div><h2>Instead of ${esc(byId(cur.recipeId).name)}</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
+    ${same.length > 1 ? `<div class="segmented" role="radiogroup" aria-label="Where to swap" style="margin-bottom:10px"><button role="radio" class="${swapShown.scope === 'day' ? 'on' : ''}" aria-checked="${swapShown.scope === 'day'}" data-action="sheetSwapScope" data-scope="day" data-date="${date}" data-slot="${slot}">Just this day</button><button role="radio" class="${swapShown.scope === 'week' ? 'on' : ''}" aria-checked="${swapShown.scope === 'week'}" data-action="sheetSwapScope" data-scope="week" data-date="${date}" data-slot="${slot}">All ${same.length} days it’s planned</button></div>` : ''}
+    <ul class="swap-list">${swapShown.ids.map(option).join('') || '<li class="muted">No other meals fit your settings for this slot.</li>'}</ul>
+    <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn tonal small" data-action="sheetSwapMore" data-date="${date}" data-slot="${slot}">${icon('swap')}Other ideas</button>
+      <a class="btn tonal small" href="#/meals/recipes/${slot}/${di}">See all recipes</a>
+      <button class="btn ghost small" data-action="sheetMealBack" data-date="${date}" data-slot="${slot}">Keep it</button>
+    </div>
+    <p class="muted" style="font-size:var(--text-xs);margin-top:10px">Portions adjust so the day still adds up.</p>`;
+}
+
+/** Open the swap chooser straight away (from the week plan). */
+export function openSwap(ctx, date, slot) {
+  swapShown = { key: '', ids: [], scope: 'day' };
+  openSheet(swapSheetHtml(ctx.state, date, slot), { label: 'Swap a meal' });
 }
 
 export function openMeal(ctx, date, slot) {
@@ -159,7 +225,7 @@ function extraSheetHtml(state) {
   const n = picked().length;
   return `<div class="sheet-head"><div><div class="over">Not on the plan</div><h2>Add something you ate</h2></div><button class="icon-btn" data-action="sheetClose" aria-label="Close">${icon('x')}</button></div>
     <form data-form="sheetExtra">
-      ${pickerHtml(show)}
+      ${pickerHtml(show, state)}
       <details class="food-manual" ${n ? '' : ''}><summary>Not in the list? Type it</summary>
         <label class="field" style="margin:8px 0 0"><span>What was it?</span><input type="text" name="label" maxlength="60" placeholder="e.g. leftovers, a snack at work"></label>
       </details>
@@ -269,20 +335,70 @@ export const sheetActions = {
     const r = pickResult({ ...data, kcal: data.kcal ?? '' });
     ctx.undoable('Logged', (st) => setMealStatus(st, date, slot, () => ({ status: 'other', kcal: r.kcal, p: r.p, ...(r.fib ? { fib: r.fib } : {}), ...(r.label ? { label: r.label } : {}) })));
   },
-  sheetMealSwap(el, ev, ctx) {
-    const { date, slot } = el.dataset;
-    const s = ctx.state;
-    const wk = weekStart(date);
-    const di = dayIndex(date);
-    const t = store.targets(s, date);
-    const meals = markChosen(swapMeal(t, s.prefs, s.plans[wk].days[di], slot, `${date}|${Date.now()}`), s.plans[wk].days[di], slot);
-    const prev = structuredClone(s);
+  sheetMealTime(el, ev, ctx) {
+    updateSheet(mealSheetHtml(ctx.state, el.dataset.date, el.dataset.slot, 'time'));
+  },
+  sheetTimeShift(el) {
+    const input = el.closest('form').querySelector('input[name=time]');
+    const [h, m] = input.value.split(':').map(Number);
+    const t = Math.max(0, Math.min(23 * 60 + 45, h * 60 + m + Number(el.dataset.d)));
+    input.value = toHHMM(t);
+  },
+  sheetMealTimeSave(form, ev, ctx, data) {
+    const { date, slot } = form.dataset;
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(data.time || '')) return;
+    const wd = dayIndex(date);
     ctx.update((st) => {
-      st.plans[wk].days[di] = meals;
+      if (data.scope === 'weekday') {
+        st.prefs.mealTimesByDay = { ...(st.prefs.mealTimesByDay || {}), [wd]: { ...(st.prefs.mealTimesByDay?.[wd] || {}), [slot]: data.time } };
+        if (st.mealTimes?.[date]?.[slot]) delete st.mealTimes[date][slot];
+      } else st.mealTimes = { ...(st.mealTimes || {}), [date]: { ...(st.mealTimes?.[date] || {}), [slot]: data.time } };
       return st;
     });
     updateSheet(mealSheetHtml(ctx.state, date, slot));
-    ctx.toast(`Swapped for ${byId(meals.find((m) => m.slot === slot).recipeId).name}`, { action: { label: 'Undo', run: () => (ctx.set(prev, { quiet: true }), closeSheet()) } });
+    ctx.toast(`${SLOT_LABEL[slot] || 'Meal'} at ${data.time}${data.scope === 'weekday' ? ` every ${DAY_NAME[wd]}` : ''}`);
+  },
+  sheetMealTimeReset(el, ev, ctx) {
+    const { date, slot } = el.dataset;
+    const wd = dayIndex(date);
+    ctx.update((st) => {
+      if (st.mealTimes?.[date]) delete st.mealTimes[date][slot];
+      if (st.prefs.mealTimesByDay?.[wd]) delete st.prefs.mealTimesByDay[wd][slot];
+      return st;
+    });
+    updateSheet(mealSheetHtml(ctx.state, date, slot));
+  },
+  /** Swap: a few meals that fit this slot, side by side — you choose (and where it applies). */
+  sheetMealSwap(el, ev, ctx) {
+    const { date, slot } = el.dataset;
+    swapShown = { key: `${date}|${slot}`, ids: [], scope: 'day' };
+    updateSheet(swapSheetHtml(ctx.state, date, slot));
+  },
+  sheetSwapMore(el, ev, ctx) {
+    updateSheet(swapSheetHtml(ctx.state, el.dataset.date, el.dataset.slot, true));
+  },
+  sheetSwapScope(el, ev, ctx) {
+    swapShown.scope = el.dataset.scope;
+    updateSheet(swapSheetHtml(ctx.state, el.dataset.date, el.dataset.slot));
+  },
+  sheetSwapTo(el, ev, ctx) {
+    const { date, slot, recipe } = el.dataset;
+    const s = ctx.state;
+    const wk = weekStart(date);
+    const di = dayIndex(date);
+    const current = s.plans[wk].days[di].find((m) => m.slot === slot)?.recipeId;
+    // "Everywhere this week": every day from this one on that has the same meal in this slot.
+    const days = swapShown.scope === 'week' ? sameMealDays(s, date, slot, current) : [di];
+    const prev = structuredClone(s);
+    ctx.update((st) => {
+      for (const d of days) {
+        const dayDate = addDays(wk, d);
+        st.plans[wk].days[d] = markChosen(swapTo(store.targets(st, dayDate), st.prefs, st.plans[wk].days[d], slot, recipe), st.plans[wk].days[d], slot);
+      }
+      return st;
+    });
+    updateSheet(mealSheetHtml(ctx.state, date, slot));
+    ctx.toast(`Swapped for ${byId(recipe).name}${days.length > 1 ? ` on ${days.length} days` : ''}`, { action: { label: 'Undo', run: () => (ctx.set(prev, { quiet: true }), closeSheet()) } });
   },
   openWeigh(el, ev, ctx) {
     openSheet(weighSheetHtml(ctx.state, el.dataset.pickDate === '1'), { label: 'Weigh-in' });

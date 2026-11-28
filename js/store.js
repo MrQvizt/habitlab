@@ -10,6 +10,7 @@ import { DEFAULT_REMINDERS } from './engine/reminders.js';
 import { daySchedule, toHHMM } from './engine/schedule.js';
 import { HABITS, HABIT_CATEGORIES } from './data/habits.js';
 import { setOwnHabits } from './engine/habits.js';
+import { setOwnFoods } from './data/fooddb.js';
 import { RECIPES } from './data/recipes.js';
 import { FOODS, DIETS, ALLERGENS } from './data/foods.js';
 import { CARDIO, CHAINS } from './data/exercises.js';
@@ -33,6 +34,7 @@ export function emptyState() {
     plans: {},
     workouts: { progress: {}, log: {} },
     habits: { active: [], log: {}, retired: [], own: [] },
+    foods: { own: [], meals: [] },
     checkins: [],
     wraps: {},
     wakes: {},
@@ -136,6 +138,9 @@ const num = (v, lo, hi, dflt = null) => (Number.isFinite(Number(v)) && v !== '' 
 const oneOf = (v, allowed, dflt) => (allowed.includes(v) ? v : dflt);
 const subset = (arr, allowed) => (Array.isArray(arr) ? [...new Set(arr.filter((x) => allowed.includes(x)))] : []);
 const isoOr = (v, dflt) => (typeof v === 'string' && ISO.test(v) ? v : dflt);
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** { lunch: '13:00', … } — meal slots moved to another time. */
+const slotTimes = (v) => Object.fromEntries(Object.entries(v && typeof v === 'object' ? v : {}).filter(([k, t]) => /^(breakfast|lunch|dinner|snack\d?)$/.test(k) && typeof t === 'string' && HHMM.test(t)));
 const dateMap = (obj, fn) => Object.fromEntries(Object.entries(obj && typeof obj === 'object' ? obj : {}).filter(([k]) => ISO.test(k)).map(([k, v]) => [k, fn(v)]).filter(([, v]) => v != null));
 
 export function sanitize(s) {
@@ -194,6 +199,7 @@ export function sanitize(s) {
     variety: oneOf(pr.variety, ['low', 'medium', 'high'], 'medium'),
     budget: oneOf(pr.budget, ['tight', 'normal', 'flexible'], 'normal'),
     mealsPerDay: num(pr.mealsPerDay, 3, 6, null),
+    mealTimesByDay: Object.fromEntries(Object.entries(pr.mealTimesByDay && typeof pr.mealTimesByDay === 'object' ? pr.mealTimesByDay : {}).filter(([k]) => /^[0-6]$/.test(k)).map(([k, v]) => [k, slotTimes(v)]).filter(([, v]) => Object.keys(v).length)),
     maxMinutesWeekday: num(pr.maxMinutesWeekday, 10, 120, 30),
     maxMinutesWeekend: num(pr.maxMinutesWeekend, 10, 120, 45),
     favorites: subset(pr.favorites, recipeIds),
@@ -243,6 +249,7 @@ export function sanitize(s) {
   const sh = s.share;
   if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40), ...(num(sh.seen, 1, 1e15, 0) ? { seen: num(sh.seen, 1, 1e15, 0) } : {}), ...(typeof sh.inboxSeen === 'string' && !Number.isNaN(Date.parse(sh.inboxSeen)) ? { inboxSeen: sh.inboxSeen } : {}) };
   else delete s.share;
+  s.mealTimes = dateMap(s.mealTimes, (v) => { const t = slotTimes(v); return Object.keys(t).length ? t : null; });
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 120), kcal: num(x?.kcal, 0, 10000, 0), ...(num(x?.p, 0, 500, 0) ? { p: num(x?.p, 0, 500, 0) } : {}), ...(num(x?.fib, 0, 200, 0) ? { fib: num(x?.fib, 0, 200, 0) } : {}), ...(typeof x?.at === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x.at) ? { at: x.at } : {}) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
   const g = s.game && typeof s.game === 'object' ? s.game : {};
@@ -267,6 +274,26 @@ export function sanitize(s) {
     .slice(0, 30)
     .map((h) => ({ id: h.id, cat: HABIT_CATEGORIES[h.cat] ? h.cat : 'mind', title: txt(h.title, 80), tiny: txt(h.tiny, 80) || 'Do a two-minute version', cue: txt(h.cue, 160) }));
   setOwnHabits(s.habits.own);
+  // Your own foods and saved meals.
+  const nutr = (x, nameLen) => ({ name: txt(x?.name, nameLen), portion: txt(x?.portion, 30) || '1 portion', kcal: num(x?.kcal, 0, 5000, 0), p: num(x?.p, 0, 500, 0), c: num(x?.c, 0, 1000, 0), f: num(x?.f, 0, 500, 0), fib: num(x?.fib, 0, 200, 0) });
+  const fd = s.foods && typeof s.foods === 'object' ? s.foods : {};
+  const ownFood = (x) => ({ id: x.id, ...nutr(x, 60), ...(Number(x.g) > 0 ? { g: num(x.g, 1, 5000, 1) } : {}) });
+  const pickedItem = (it) => {
+    if (!it || typeof it !== 'object' || typeof it.id !== 'string' || it.id.length > 90) return null;
+    const out = { id: it.id, n: num(it.n, 0, 5000, 1), u: it.u === 'g' ? 'g' : num(it.u, 0, 5, 0) };
+    if (it.food && typeof it.food === 'object') {
+      const f = nutr(it.food, 110);
+      if (!f.name) return null;
+      out.food = { ...f, ...(typeof it.food.built === 'string' ? { built: txt(it.food.built, 20) } : {}) };
+    }
+    return out;
+  };
+  s.foods = {
+    own: (Array.isArray(fd.own) ? fd.own : []).filter((x) => x && typeof x.id === 'string' && /^food_[a-z0-9]{1,24}$/.test(x.id) && txt(x.name, 60)).slice(0, 300).map(ownFood),
+    meals: (Array.isArray(fd.meals) ? fd.meals : []).filter((m) => m && typeof m.id === 'string' && /^meal_[a-z0-9]{1,24}$/.test(m.id) && txt(m.name, 50) && Array.isArray(m.items))
+      .slice(0, 100).map((m) => ({ id: m.id, name: txt(m.name, 50), items: m.items.slice(0, 30).map(pickedItem).filter(Boolean) })).filter((m) => m.items.length),
+  };
+  setOwnFoods(s.foods.own);
   const habitIds = HABITS.map((h) => h.id).concat(s.habits.own.map((h) => h.id));
   s.habits.active = (Array.isArray(s.habits.active) ? s.habits.active : [])
     .filter((a) => a && habitIds.includes(a.id))
