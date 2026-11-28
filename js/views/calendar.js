@@ -248,6 +248,15 @@ function monthView(state, monthAnchor) {
   return `<div class="cm"><div class="cm-head">${head}</div><div class="cm-grid">${cells}</div></div>`;
 }
 
+/** Day view: this week's days in a row (like a phone calendar) — tap one to jump to it. */
+function weekStrip(a, today) {
+  const s = weekStart(a);
+  return `<div class="cal-strip" role="group" aria-label="Days this week">${[0, 1, 2, 3, 4, 5, 6].map((i) => {
+    const d = addDays(s, i);
+    return `<button class="cal-strip-day ${d === a ? 'on' : ''} ${d === today ? 'today' : ''}" data-action="calGoDay" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}" ${d === a ? 'aria-current="date"' : ''}><span>${DAY_SHORT[weekdayOf(d)].slice(0, 1)}</span><b>${new Date(d + 'T12:00').getDate()}</b></button>`;
+  }).join('')}</div>`;
+}
+
 // ---------- range + title ----------
 function rangeOf(v, a) {
   if (v === 'day') return [a];
@@ -496,7 +505,8 @@ export default {
         <button class="icon-btn" data-action="calShift" data-d="1" aria-label="Later">${icon('chevron')}</button>
       </div>
       ${layerBtns ? `<div class="cal-layers" role="group" aria-label="Also show">${layerBtns}</div>` : ''}
-      <div class="cal-view cal-${view}" data-swipe="cal">${body}</div>
+      ${view === 'day' ? weekStrip(anchor, today) : ''}
+      <div class="cal-view cal-v-${view}" data-swipe="cal">${body}</div>
       <p class="muted cal-tip">Swipe to change ${view === 'month' ? 'month' : view === 'week' ? 'week' : 'days'}. Long-press anything to drag it${view === 'month' || view === 'list' ? ' to another day' : ' to another day or time'}.${view === 'month' || view === 'list' ? '' : ' Tap an empty time to add something there.'}</p>
       <button class="cal-fab" data-action="calAdd" data-date="${view === 'month' || view === 'week' ? today : anchor}" aria-label="Add to calendar">${icon('plus')}</button>`;
   },

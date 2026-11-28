@@ -161,6 +161,12 @@ const base = process.argv[2] || 'http://localhost:8771/';
     await page.waitForSelector(sel);
     const c = await page.locator(sel).count();
     if (v === 'month' ? c < n : c !== n) errors.push(`${v} view: ${c} ${sel}`);
+    if (v === 'day') {
+      // The day fills the width (a class clash once squeezed it into a 46 px column)
+      const w = await page.evaluate(() => [document.querySelector('.cg-col').getBoundingClientRect().width, document.querySelector('.cal-view').getBoundingClientRect().width]);
+      if (w[0] < w[1] * 0.6) errors.push(`day column too narrow: ${Math.round(w[0])} of ${Math.round(w[1])} px`);
+      if ((await page.locator('.cal-strip-day').count()) !== 7) errors.push('day view should show the week strip');
+    }
   }
   // Phone: swipe left on the month → next month; swipe right → back
   const swipe = (dx) => page.evaluate((dx) => {

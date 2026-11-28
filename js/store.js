@@ -281,6 +281,8 @@ export function sanitize(s) {
     kind: x.kind,
     mode: x.kind === 'cardio' ? oneOf(x.mode, Object.keys(CARDIO), 'walk') : undefined,
     variant: x.kind === 'strength' ? oneOf(x.variant, ['A', 'B'], 'A') : undefined,
+    warmup: x.kind === 'strength' && ['done', 'some', 'skipped'].includes(x.warmup) ? x.warmup : undefined,
+    cooldown: x.kind === 'strength' && ['done', 'some', 'skipped'].includes(x.cooldown) ? x.cooldown : undefined,
     name: x.kind === 'activity' ? String(x.name ?? 'Activity').slice(0, 40) : undefined,
     actId: x.kind === 'activity' && typeof x.actId === 'string' ? x.actId.slice(0, 24) : undefined,
     evId: x.kind === 'activity' && typeof x.evId === 'string' && /^[A-Za-z0-9_-]{1,60}$/.test(x.evId) ? x.evId : undefined,

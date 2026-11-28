@@ -1422,6 +1422,26 @@ body.cal-dragging .cg-scroll, body.cal-dragging .cal-view { touch-action: none; 
 @media (min-width: 900px) { .set-timer { bottom: 24px; } }
 #set-timer-slot:not(:empty) { height: 120px; } /* room so the bar never covers Finish session */
 body:has(.set-timer) .toast { bottom: calc(200px + env(safe-area-inset-bottom, 0px)); } /* messages sit above the set timer */
+.cal-view .cg, .cal-view .cm, .cg-body, .cg-head, .cg-allday { width: 100%; box-sizing: border-box; } /* never shrink to the content (Day view with one quiet day was 46 px wide) */
+@media (max-width: 700px) { .cal-view .cg, .cal-view .cm { width: calc(100% + 2 * var(--gutter)); } }
+/* Day view: the week as a strip of days to jump between */
+.cal-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin: 0 0 6px; }
+.cal-strip-day { background: none; border: 0; font: inherit; color: var(--ink-2); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; cursor: pointer; border-radius: 12px; min-height: 48px; }
+.cal-strip-day span { font-size: 11px; text-transform: uppercase; color: var(--ink-3); }
+.cal-strip-day b { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 1.05rem; }
+.cal-strip-day.today b { color: var(--accent); }
+.cal-strip-day.on b { background: var(--accent); color: var(--accent-ink); }
+.cal-v-day .cg-head { display: none; } /* the week strip above already shows the day */
+/* Warm-up / cool-down: tap each step; "Did it all" or "Skip" */
+.routine-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.routine-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; padding: 8px 6px; font: inherit; color: var(--ink); cursor: pointer; min-height: 44px; }
+.routine-item:active { background: var(--surface-2); }
+.routine-check { width: 22px; height: 22px; flex: none; border-radius: 7px; border: 2px solid var(--line-strong); display: grid; place-items: center; font-size: 13px; font-weight: 800; color: var(--accent-ink); }
+.routine-item.on .routine-check { background: var(--accent); border-color: var(--accent); }
+.routine-item.on > span:last-child { color: var(--ink-3); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--ink-3) 50%, transparent); }
+.routine-actions { display: flex; gap: 8px; margin-top: 8px; }
+.routine.skipped .routine-list { opacity: .5; }
+.routine-actions .btn.on { background: var(--surface-2); }
 </style>
 </head>
 <body>
@@ -5782,6 +5802,8 @@ function sanitize(s) {
     kind: x.kind,
     mode: x.kind === 'cardio' ? oneOf(x.mode, Object.keys(CARDIO), 'walk') : undefined,
     variant: x.kind === 'strength' ? oneOf(x.variant, ['A', 'B'], 'A') : undefined,
+    warmup: x.kind === 'strength' && ['done', 'some', 'skipped'].includes(x.warmup) ? x.warmup : undefined,
+    cooldown: x.kind === 'strength' && ['done', 'some', 'skipped'].includes(x.cooldown) ? x.cooldown : undefined,
     name: x.kind === 'activity' ? String(x.name ?? 'Activity').slice(0, 40) : undefined,
     actId: x.kind === 'activity' && typeof x.actId === 'string' ? x.actId.slice(0, 24) : undefined,
     evId: x.kind === 'activity' && typeof x.evId === 'string' && /^[A-Za-z0-9_-]{1,60}$/.test(x.evId) ? x.evId : undefined,
@@ -7439,6 +7461,25 @@ const loadRest = () => {
   }
 };
 let setsDone = {}; // exercise index -> sets finished, for the session in progress
+// Warm-up and cool-down: tick each step, or say you did it all / skipped it — so it isn't silently missed.
+let routine = { warm: { done: new Set(), skipped: false }, cool: { done: new Set(), skipped: false } };
+const ROUTINE = { warm: () => WARMUP, cool: () => COOLDOWN };
+/** 'done' | 'some' | 'skipped' | '' for a part, from what you ticked. */
+function routineStatus(part) {
+  const r = routine[part];
+  const n = ROUTINE[part]().length;
+  if (r.skipped) return 'skipped';
+  return r.done.size >= n ? 'done' : r.done.size ? 'some' : '';
+}
+function routineCard(part, title) {
+  const r = routine[part];
+  const items = ROUTINE[part]();
+  const st = routineStatus(part);
+  const tag = st === 'done' ? '<span class="tag green">✓ Did it</span>' : st === 'some' ? `<span class="tag">Did some · ${r.done.size}/${items.length}</span>` : st === 'skipped' ? '<span class="tag">Skipped</span>' : '';
+  return `<div class="card routine ${st}"><div class="row between nowrap"><h3 style="margin:0">${title}</h3>${tag}</div>
+    <ul class="routine-list">${items.map((w, i) => `<li><button type="button" class="routine-item ${r.done.has(i) ? 'on' : ''}" data-action="routineTick" data-part="${part}" data-i="${i}" aria-pressed="${r.done.has(i)}"><span class="routine-check" aria-hidden="true">${r.done.has(i) ? '✓' : ''}</span><span>${esc(w)}</span></button></li>`).join('')}</ul>
+    ${st === 'done' ? '' : `<div class="routine-actions"><button type="button" class="btn small" data-action="routineAll" data-part="${part}">✓ Did it all</button><button type="button" class="btn small ghost ${r.skipped ? 'on' : ''}" data-action="routineSkip" data-part="${part}" aria-pressed="${r.skipped}">${r.skipped ? 'Skipped' : 'Skip'}</button></div>`}</div>`;
+}
 let sessionKey = '';
 let timer = null; // { i, phase: 'work' | 'rest' | 'ready', end, total, half? }
 let timerTick = null;
@@ -7683,6 +7724,7 @@ function session(state, variant) {
   if (sessionKey !== `${date}|${variant}`) {
     sessionKey = `${date}|${variant}`;
     setsDone = {};
+    routine = { warm: { done: new Set(), skipped: false }, cool: { done: new Set(), skipped: false } };
     timer = null;
     clearInterval(timerTick);
   }
@@ -7691,13 +7733,13 @@ function session(state, variant) {
   return html`<a href="#/move" class="btn ghost small">${icon('back')}Move</a>
     <h1>Strength session ${esc(variant)}</h1>
     <p class="muted">Move slowly and with control; breathe out as you push. Stop 2–3 reps before you can’t do any more. Tap each set as you go — a rest timer starts between sets.</p>
-    <div class="card"><h3>Warm-up (5 min)</h3><ul style="padding-left:20px;margin:0">${WARMUP.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>
+    ${routineCard('warm', 'Warm-up (5 min)')}
     ${item.exercises.map((ex, i) => `<div class="exercise"><div class="row between"><h3 style="margin:0">${i + 1}. ${esc(ex.name)}</h3><span class="dose">${dose(ex)}</span></div>
       <p>${esc(ex.how)}</p>
       ${setRow(ex, i)}
       <div class="field-label" style="font-size:.85rem">How did it feel?</div>
       <div class="rate">${rateBtn(ex.chain, 'easy', 'Too easy')}${rateBtn(ex.chain, 'right', 'Just right')}${rateBtn(ex.chain, 'hard', 'Too hard')}${rateBtn(ex.chain, 'pain', 'It hurt')}</div></div>`)}
-    <div class="card"><h3>Cool-down</h3><ul style="padding-left:20px;margin:0">${COOLDOWN.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>
+    ${routineCard('cool', 'Cool-down & stretch')}
     <div class="row" style="margin:14px 0"><button class="btn primary" data-action="finish" data-variant="${esc(variant)}">${icon('check')}Finish session</button><span class="muted" style="font-size:.86rem">Unrated exercises count as “just right”.</span></div>
     ${stopSigns()}
     <div id="set-timer-slot">${barHtml()}</div>`;
@@ -7710,6 +7752,31 @@ __m.default = {
     return overview(state);
   },
   actions: {
+    routineTick(el, ev, ctx) {
+      const r = routine[el.dataset.part];
+      if (!r) return;
+      const i = Number(el.dataset.i);
+      if (r.done.has(i)) r.done.delete(i);
+      else r.done.add(i);
+      r.skipped = false;
+      buzz(10);
+      ctx.rerender();
+    },
+    routineAll(el, ev, ctx) {
+      const r = routine[el.dataset.part];
+      if (!r) return;
+      r.done = new Set(ROUTINE[el.dataset.part]().map((_, i) => i));
+      r.skipped = false;
+      buzz(15);
+      ctx.rerender();
+    },
+    routineSkip(el, ev, ctx) {
+      const r = routine[el.dataset.part];
+      if (!r) return;
+      r.skipped = !r.skipped;
+      if (r.skipped) r.done = new Set();
+      ctx.rerender();
+    },
     setStart(el, ev, ctx) {
       const i = Number(el.dataset.i);
       const ex = exList[i];
@@ -7771,7 +7838,9 @@ __m.default = {
           if (after.stepId !== before.stepId) changes.push(`${stepOf(ex.chain, before.stepId).name} → ${stepOf(ex.chain, after.stepId).name}`);
           st.workouts.progress[ex.chain] = after;
         }
-        st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'strength', variant, ratings: { ...ratings }, minutes: item.minutes }];
+        const warmup = routineStatus('warm');
+        const cooldown = routineStatus('cool');
+        st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'strength', variant, ratings: { ...ratings }, minutes: item.minutes, ...(warmup ? { warmup } : {}), ...(cooldown ? { cooldown } : {}) }];
         if (st.habits.active.some((a) => a.id === 'strength_sessions')) st.habits.log[date] = { ...(st.habits.log[date] || {}), strength_sessions: true };
         return st;
       }, { render: false });
@@ -9334,6 +9403,15 @@ function monthView(state, monthAnchor) {
   return `<div class="cm"><div class="cm-head">${head}</div><div class="cm-grid">${cells}</div></div>`;
 }
 
+/** Day view: this week's days in a row (like a phone calendar) — tap one to jump to it. */
+function weekStrip(a, today) {
+  const s = weekStart(a);
+  return `<div class="cal-strip" role="group" aria-label="Days this week">${[0, 1, 2, 3, 4, 5, 6].map((i) => {
+    const d = addDays(s, i);
+    return `<button class="cal-strip-day ${d === a ? 'on' : ''} ${d === today ? 'today' : ''}" data-action="calGoDay" data-date="${d}" aria-label="${esc(fmtDate(d, { weekday: 'long', day: 'numeric', month: 'long' }))}" ${d === a ? 'aria-current="date"' : ''}><span>${DAY_SHORT[weekdayOf(d)].slice(0, 1)}</span><b>${new Date(d + 'T12:00').getDate()}</b></button>`;
+  }).join('')}</div>`;
+}
+
 // ---------- range + title ----------
 function rangeOf(v, a) {
   if (v === 'day') return [a];
@@ -9582,7 +9660,8 @@ __m.default = {
         <button class="icon-btn" data-action="calShift" data-d="1" aria-label="Later">${icon('chevron')}</button>
       </div>
       ${layerBtns ? `<div class="cal-layers" role="group" aria-label="Also show">${layerBtns}</div>` : ''}
-      <div class="cal-view cal-${view}" data-swipe="cal">${body}</div>
+      ${view === 'day' ? weekStrip(anchor, today) : ''}
+      <div class="cal-view cal-v-${view}" data-swipe="cal">${body}</div>
       <p class="muted cal-tip">Swipe to change ${view === 'month' ? 'month' : view === 'week' ? 'week' : 'days'}. Long-press anything to drag it${view === 'month' || view === 'list' ? ' to another day' : ' to another day or time'}.${view === 'month' || view === 'list' ? '' : ' Tap an empty time to add something there.'}</p>
       <button class="cal-fab" data-action="calAdd" data-date="${view === 'month' || view === 'week' ? today : anchor}" aria-label="Add to calendar">${icon('plus')}</button>`;
   },

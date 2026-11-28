@@ -275,9 +275,16 @@ const shots = process.argv[3] || null;
     await page.click('.set-timer button[data-action=timerStop]');
   }
   if (await page.locator('.set-timer').count()) errors.push('stopping should hide the timer');
+  // Warm-up and cool-down are interactive: tick steps (did some), did it all, or skip
+  await page.click('.routine-item[data-part=warm] >> nth=0');
+  if (!(await page.locator('.routine:has(.routine-item[data-part=warm]) .tag:has-text("Did some")').count())) errors.push('ticking one warm-up step should say Did some');
+  await page.click('button[data-action=routineAll][data-part=cool]');
+  if (!(await page.locator('.routine:has(.routine-item[data-part=cool]) .tag:has-text("Did it")').count())) errors.push('Did it all should mark the cool-down done');
   await page.click('button:has-text("Too easy") >> nth=0');
   await page.click('button:has-text("Finish session")');
   await page.waitForSelector('.session-list');
+  const strengthLog = await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('habitlab.v1')).workouts.log).flat().filter((x) => x.kind === 'strength').pop());
+  if (strengthLog?.warmup !== 'some' || strengthLog?.cooldown !== 'done') errors.push('warm-up / cool-down not saved with the session: ' + JSON.stringify(strengthLog));
   // The finished session is ticked off in this week's sessions, whichever day it was planned for
   if (!(await page.locator('.session-row.is-done:has-text("Strength session A")').count())) errors.push('finished Strength A should show as done in this week’s sessions');
   // Check-in

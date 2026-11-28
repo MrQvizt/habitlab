@@ -26,6 +26,25 @@ const loadRest = () => {
   }
 };
 let setsDone = {}; // exercise index -> sets finished, for the session in progress
+// Warm-up and cool-down: tick each step, or say you did it all / skipped it — so it isn't silently missed.
+let routine = { warm: { done: new Set(), skipped: false }, cool: { done: new Set(), skipped: false } };
+const ROUTINE = { warm: () => WARMUP, cool: () => COOLDOWN };
+/** 'done' | 'some' | 'skipped' | '' for a part, from what you ticked. */
+function routineStatus(part) {
+  const r = routine[part];
+  const n = ROUTINE[part]().length;
+  if (r.skipped) return 'skipped';
+  return r.done.size >= n ? 'done' : r.done.size ? 'some' : '';
+}
+function routineCard(part, title) {
+  const r = routine[part];
+  const items = ROUTINE[part]();
+  const st = routineStatus(part);
+  const tag = st === 'done' ? '<span class="tag green">✓ Did it</span>' : st === 'some' ? `<span class="tag">Did some · ${r.done.size}/${items.length}</span>` : st === 'skipped' ? '<span class="tag">Skipped</span>' : '';
+  return `<div class="card routine ${st}"><div class="row between nowrap"><h3 style="margin:0">${title}</h3>${tag}</div>
+    <ul class="routine-list">${items.map((w, i) => `<li><button type="button" class="routine-item ${r.done.has(i) ? 'on' : ''}" data-action="routineTick" data-part="${part}" data-i="${i}" aria-pressed="${r.done.has(i)}"><span class="routine-check" aria-hidden="true">${r.done.has(i) ? '✓' : ''}</span><span>${esc(w)}</span></button></li>`).join('')}</ul>
+    ${st === 'done' ? '' : `<div class="routine-actions"><button type="button" class="btn small" data-action="routineAll" data-part="${part}">✓ Did it all</button><button type="button" class="btn small ghost ${r.skipped ? 'on' : ''}" data-action="routineSkip" data-part="${part}" aria-pressed="${r.skipped}">${r.skipped ? 'Skipped' : 'Skip'}</button></div>`}</div>`;
+}
 let sessionKey = '';
 let timer = null; // { i, phase: 'work' | 'rest' | 'ready', end, total, half? }
 let timerTick = null;
@@ -270,6 +289,7 @@ function session(state, variant) {
   if (sessionKey !== `${date}|${variant}`) {
     sessionKey = `${date}|${variant}`;
     setsDone = {};
+    routine = { warm: { done: new Set(), skipped: false }, cool: { done: new Set(), skipped: false } };
     timer = null;
     clearInterval(timerTick);
   }
@@ -278,13 +298,13 @@ function session(state, variant) {
   return html`<a href="#/move" class="btn ghost small">${icon('back')}Move</a>
     <h1>Strength session ${esc(variant)}</h1>
     <p class="muted">Move slowly and with control; breathe out as you push. Stop 2–3 reps before you can’t do any more. Tap each set as you go — a rest timer starts between sets.</p>
-    <div class="card"><h3>Warm-up (5 min)</h3><ul style="padding-left:20px;margin:0">${WARMUP.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>
+    ${routineCard('warm', 'Warm-up (5 min)')}
     ${item.exercises.map((ex, i) => `<div class="exercise"><div class="row between"><h3 style="margin:0">${i + 1}. ${esc(ex.name)}</h3><span class="dose">${dose(ex)}</span></div>
       <p>${esc(ex.how)}</p>
       ${setRow(ex, i)}
       <div class="field-label" style="font-size:.85rem">How did it feel?</div>
       <div class="rate">${rateBtn(ex.chain, 'easy', 'Too easy')}${rateBtn(ex.chain, 'right', 'Just right')}${rateBtn(ex.chain, 'hard', 'Too hard')}${rateBtn(ex.chain, 'pain', 'It hurt')}</div></div>`)}
-    <div class="card"><h3>Cool-down</h3><ul style="padding-left:20px;margin:0">${COOLDOWN.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>
+    ${routineCard('cool', 'Cool-down & stretch')}
     <div class="row" style="margin:14px 0"><button class="btn primary" data-action="finish" data-variant="${esc(variant)}">${icon('check')}Finish session</button><span class="muted" style="font-size:.86rem">Unrated exercises count as “just right”.</span></div>
     ${stopSigns()}
     <div id="set-timer-slot">${barHtml()}</div>`;
@@ -297,6 +317,31 @@ export default {
     return overview(state);
   },
   actions: {
+    routineTick(el, ev, ctx) {
+      const r = routine[el.dataset.part];
+      if (!r) return;
+      const i = Number(el.dataset.i);
+      if (r.done.has(i)) r.done.delete(i);
+      else r.done.add(i);
+      r.skipped = false;
+      buzz(10);
+      ctx.rerender();
+    },
+    routineAll(el, ev, ctx) {
+      const r = routine[el.dataset.part];
+      if (!r) return;
+      r.done = new Set(ROUTINE[el.dataset.part]().map((_, i) => i));
+      r.skipped = false;
+      buzz(15);
+      ctx.rerender();
+    },
+    routineSkip(el, ev, ctx) {
+      const r = routine[el.dataset.part];
+      if (!r) return;
+      r.skipped = !r.skipped;
+      if (r.skipped) r.done = new Set();
+      ctx.rerender();
+    },
     setStart(el, ev, ctx) {
       const i = Number(el.dataset.i);
       const ex = exList[i];
@@ -358,7 +403,9 @@ export default {
           if (after.stepId !== before.stepId) changes.push(`${stepOf(ex.chain, before.stepId).name} → ${stepOf(ex.chain, after.stepId).name}`);
           st.workouts.progress[ex.chain] = after;
         }
-        st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'strength', variant, ratings: { ...ratings }, minutes: item.minutes }];
+        const warmup = routineStatus('warm');
+        const cooldown = routineStatus('cool');
+        st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'strength', variant, ratings: { ...ratings }, minutes: item.minutes, ...(warmup ? { warmup } : {}), ...(cooldown ? { cooldown } : {}) }];
         if (st.habits.active.some((a) => a.id === 'strength_sessions')) st.habits.log[date] = { ...(st.habits.log[date] || {}), strength_sessions: true };
         return st;
       }, { render: false });
