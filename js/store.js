@@ -249,6 +249,14 @@ export function sanitize(s) {
   const sh = s.share;
   if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40), ...(num(sh.seen, 1, 1e15, 0) ? { seen: num(sh.seen, 1, 1e15, 0) } : {}), ...(typeof sh.inboxSeen === 'string' && !Number.isNaN(Date.parse(sh.inboxSeen)) ? { inboxSeen: sh.inboxSeen } : {}) };
   else delete s.share;
+  // Plan tomorrow: how each day went, and the if-then plans made for the next one.
+  s.reflect = dateMap(s.reflect, (v) => (num(v?.rate, 1, 5, null) ? { rate: Math.round(num(v.rate, 1, 5, 3)), ...(typeof v.note === 'string' && v.note.trim() ? { note: v.note.trim().slice(0, 80) } : {}) } : null));
+  const SITS = ['out', 'late', 'social', 'travel', 'stress', 'tired', 'none'];
+  s.ritual = dateMap(s.ritual, (v) => {
+    if (!v || typeof v !== 'object') return null;
+    const plans = (Array.isArray(v.plans) ? v.plans : []).filter((p) => p && SITS.includes(p.sit) && typeof p.text === 'string' && p.text.trim()).slice(0, 7).map((p) => ({ sit: p.sit, text: p.text.trim().slice(0, 160) }));
+    return { situations: (Array.isArray(v.situations) ? v.situations : []).filter((x) => SITS.includes(x)).slice(0, 7), plans, ...(Array.isArray(v.kept) ? { kept: v.kept.filter((i) => Number.isInteger(i) && i >= 0 && i < plans.length) } : {}) };
+  });
   s.mealTimes = dateMap(s.mealTimes, (v) => { const t = slotTimes(v); return Object.keys(t).length ? t : null; });
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 120), kcal: num(x?.kcal, 0, 10000, 0), ...(num(x?.p, 0, 500, 0) ? { p: num(x?.p, 0, 500, 0) } : {}), ...(num(x?.fib, 0, 200, 0) ? { fib: num(x?.fib, 0, 200, 0) } : {}), ...(typeof x?.at === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x.at) ? { at: x.at } : {}) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};

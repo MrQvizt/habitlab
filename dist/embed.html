@@ -1596,6 +1596,44 @@ body:has(.set-timer) .toast { bottom: calc(200px + env(safe-area-inset-bottom, 0
 .ms.done span { color: inherit; opacity: 0.85; }
 .ms.next { box-shadow: inset 0 0 0 2px var(--accent); }
 .ms-info { margin: 10px 2px 0; font-size: var(--text-sm); color: var(--ink-2); }
+
+/* ---- Plan tomorrow ritual ---- */
+.rit-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: -4px 0 14px; }
+.rit-dot { border: 0; background: none; padding: 0; cursor: pointer; font: inherit; text-align: left; }
+.rit-dot::before { content: ''; display: block; height: 4px; border-radius: 4px; background: var(--surface-3); margin-bottom: 6px; transition: background 200ms var(--ease); }
+.rit-dot.past::before, .rit-dot.on::before { background: var(--accent); }
+.rit-dot span { font-size: 11px; font-weight: 700; color: var(--ink-3); }
+.rit-dot.on span { color: var(--ink); }
+.rit-card h2 { margin: 0 0 4px; }
+.rit-card > .muted { margin: 0 0 12px; font-size: var(--text-sm); }
+.rit-faces { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.rit-face { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0 8px; border: 0; border-radius: 16px; background: var(--surface-2); font: inherit; cursor: pointer; transition: transform 150ms var(--ease-out); }
+.rit-face span { font-size: 30px; line-height: 1; filter: grayscale(0.6); transition: filter 150ms; }
+.rit-face small { font-size: 11px; font-weight: 700; color: var(--ink-3); }
+.rit-face.on { background: var(--accent-soft); transform: scale(1.05); }
+.rit-face.on span { filter: none; }
+.rit-sits { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rit-sit { display: flex; align-items: center; gap: 8px; padding: 12px; border: 0; border-radius: 16px; background: var(--surface-2); font: inherit; font-weight: 600; font-size: var(--text-sm); color: var(--ink); cursor: pointer; text-align: left; }
+.rit-sit span { font-size: 20px; }
+.rit-sit.on { background: var(--accent); color: var(--accent-ink); }
+.rit-group { margin-top: 14px; }
+.rit-group .over { font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+.rit-plan { display: block; width: 100%; text-align: left; margin-bottom: 6px; padding: 11px 14px; border: 0; border-radius: 14px; background: var(--surface-2); font: inherit; font-size: var(--text-sm); color: var(--ink); cursor: pointer; line-height: 1.35; }
+.rit-plan.on { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); font-weight: 600; }
+.rit-own { width: 100%; font-size: var(--text-sm); }
+.rit-own.on { box-shadow: inset 0 0 0 2px var(--accent); }
+.rit-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.rit-nav .btn.large { min-width: 46%; }
+.rit-done { text-align: center; padding: 24px 18px; }
+.rit-moon { font-size: 44px; margin-bottom: 6px; }
+.rit-list { text-align: left; margin: 12px 0; padding-left: 18px; }
+.rit-list li { margin-bottom: 6px; }
+.rit-today { padding: 14px 14px 8px; background: linear-gradient(135deg, color-mix(in srgb, #5e5ce6 10%, var(--surface)), var(--surface)); }
+.rit-today .over { font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px; }
+.rit-today ul { list-style: none; margin: 0; padding: 0; }
+.rit-keep { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 0; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.rit-keep .check { flex: none; width: 26px; height: 26px; }
+.rit-keep.on .grow { color: var(--ink-3); }
 </style>
 <div class="app"><nav class="sidebar" aria-label="Main"></nav><main id="main" tabindex="-1"><div class="empty">Loading…</div></main></div>
 <nav class="bottomnav" aria-label="Main"></nav>
@@ -6023,6 +6061,14 @@ function sanitize(s) {
   const sh = s.share;
   if (sh && typeof sh === 'object' && /^[0-9a-f-]{36}$/i.test(sh.id || '') && /^[0-9a-f]{32,64}$/.test(sh.key || '')) s.share = { id: sh.id, key: sh.key, name: String(sh.name || '').slice(0, 40), ...(num(sh.seen, 1, 1e15, 0) ? { seen: num(sh.seen, 1, 1e15, 0) } : {}), ...(typeof sh.inboxSeen === 'string' && !Number.isNaN(Date.parse(sh.inboxSeen)) ? { inboxSeen: sh.inboxSeen } : {}) };
   else delete s.share;
+  // Plan tomorrow: how each day went, and the if-then plans made for the next one.
+  s.reflect = dateMap(s.reflect, (v) => (num(v?.rate, 1, 5, null) ? { rate: Math.round(num(v.rate, 1, 5, 3)), ...(typeof v.note === 'string' && v.note.trim() ? { note: v.note.trim().slice(0, 80) } : {}) } : null));
+  const SITS = ['out', 'late', 'social', 'travel', 'stress', 'tired', 'none'];
+  s.ritual = dateMap(s.ritual, (v) => {
+    if (!v || typeof v !== 'object') return null;
+    const plans = (Array.isArray(v.plans) ? v.plans : []).filter((p) => p && SITS.includes(p.sit) && typeof p.text === 'string' && p.text.trim()).slice(0, 7).map((p) => ({ sit: p.sit, text: p.text.trim().slice(0, 160) }));
+    return { situations: (Array.isArray(v.situations) ? v.situations : []).filter((x) => SITS.includes(x)).slice(0, 7), plans, ...(Array.isArray(v.kept) ? { kept: v.kept.filter((i) => Number.isInteger(i) && i >= 0 && i < plans.length) } : {}) };
+  });
   s.mealTimes = dateMap(s.mealTimes, (v) => { const t = slotTimes(v); return Object.keys(t).length ? t : null; });
   s.extras = dateMap(s.extras, (v) => (Array.isArray(v) ? v.map((x) => ({ label: String(x?.label ?? '').slice(0, 120), kcal: num(x?.kcal, 0, 10000, 0), ...(num(x?.p, 0, 500, 0) ? { p: num(x?.p, 0, 500, 0) } : {}), ...(num(x?.fib, 0, 200, 0) ? { fib: num(x?.fib, 0, 200, 0) } : {}), ...(typeof x?.at === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(x.at) ? { at: x.at } : {}) })) : null));
   s.flags = s.flags && typeof s.flags === 'object' ? Object.fromEntries(Object.entries(s.flags).filter(([, v]) => typeof v === 'boolean' || (typeof v === 'string' && ISO.test(v)))) : {};
@@ -6363,6 +6409,7 @@ function icon(name, cls = '') {
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
     bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
     alarm: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 1.5M5 3L2 6M19 3l3 3"/>',
+    moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
     plan: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4M7.5 14h3M7.5 17.5h6"/>',
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
   };
@@ -10598,7 +10645,7 @@ __m.default = {
     const layerBtns = view === 'month' ? '' : LAYERS.filter(([k]) => k !== 'meals' || !store.habitsOnly(state)).map(([k, l]) => `<button class="cal-layer ${layers[k] ? 'on' : ''}" aria-pressed="${layers[k]}" data-action="calLayer" data-k="${k}" aria-label="${k === 'meals' ? 'Show meals' : 'Show sleep'}">${l}</button>`).join('');
     // Phone-first: one compact toolbar, the calendar edge to edge, a floating add button.
     return `<header class="cal-top"><h1 class="cal-title">${esc(titleOf(view, anchor))}</h1>
-        <div class="cal-tools">${showsToday ? '' : '<button class="btn small" data-action="calShift" data-d="0">Today</button>'}<button class="icon-btn cal-share-btn" data-action="calShareOpen" aria-label="Share your calendar${pub ? `, ${pub} open to friends` : ''}">${icon('share')}${joining ? `<span class="inbox-badge" aria-hidden="true">${joining > 9 ? '9+' : joining}</span>` : ''}</button></div></header>
+        <div class="cal-tools">${showsToday ? '' : '<button class="btn small" data-action="calShift" data-d="0">Today</button>'}<a class="icon-btn" href="#/plan" aria-label="Plan tomorrow">${icon('moon')}</a><button class="icon-btn cal-share-btn" data-action="calShareOpen" aria-label="Share your calendar${pub ? `, ${pub} open to friends` : ''}">${icon('share')}${joining ? `<span class="inbox-badge" aria-hidden="true">${joining > 9 ? '9+' : joining}</span>` : ''}</button></div></header>
       <div class="cal-bar">
         <button class="icon-btn cal-back" data-action="calShift" data-d="-1" aria-label="Earlier">${icon('chevron')}</button>
         <div class="segmented cal-views" role="tablist" aria-label="Calendar view">${VIEWS.map(([k, l]) => `<button role="tab" class="${view === k ? 'on' : ''}" aria-selected="${view === k}" data-action="calView" data-v="${k}">${SHORT_VIEW[k] || l}</button>`).join('')}</div>
@@ -10734,9 +10781,24 @@ const calendarActions = {
 
 Object.assign(__m, { EVENT_KINDS, occId, eventsOn, dropOn, calendarActions });
 },
-/* js/views/plan.js */ 41: function (__m, __req) {
-// Plan tomorrow (evening, ~2 minutes): when and where you'll move, a look at tomorrow's meals,
-// and your habits. Deciding "when, where, how" in advance — implementation intentions — made people
+/* js/data/situations.js */ 41: function (__m, __req) {
+// If-then plans, approach-framed ("I'll do X") — plans that say what to do work better than
+// plans to avoid something. Each situation offers three; you pick one or write your own.
+const SITUATIONS = {
+  out: { emoji: '🍽️', label: 'Eating out', plans: ['If I eat out, I’ll choose a dish with protein and vegetables', 'If I eat out, I’ll start with a salad or soup and a glass of water', 'If the portion is big, I’ll ask for a box and take half home'] },
+  late: { emoji: '🌙', label: 'Long or late day', plans: ['If I work late, I’ll eat my planned snack mid-afternoon', 'If I get home late, I’ll heat a meal from the freezer', 'If I’m hungry on the way home, I’ll have fruit or yogurt'] },
+  social: { emoji: '🎉', label: 'Party or social', plans: ['If there’s food out, I’ll fill one small plate, then move away from the table', 'If I drink, I’ll have a glass of water between each drink', 'If someone offers seconds, I’ll say “I’m full, it was lovely”'] },
+  travel: { emoji: '🧳', label: 'Travelling', plans: ['If I travel, I’ll pack water and a protein snack', 'If I buy food on the way, I’ll pick something with protein and salad', 'If I have to wait, I’ll walk around instead of sitting'] },
+  stress: { emoji: '😮‍💨', label: 'Stressful day', plans: ['If I feel stressed, I’ll walk for five minutes before deciding to eat', 'If a craving hits, I’ll open Craving help and ride it out', 'If it’s a hard day, I’ll do the small version of my habit'] },
+  tired: { emoji: '😴', label: 'Tired or short on sleep', plans: ['If I’m tired, I’ll go to bed 30 minutes earlier tonight', 'If I’m too tired to train, I’ll take a 10-minute walk instead', 'If I’m tired, I’ll keep my meals simple and on plan'] },
+  none: { emoji: '✨', label: 'Nothing special', plans: ['After dinner, I’ll brush my teeth and make a cup of tea', 'When I get home, I’ll put my shoes on for a 10-minute walk', 'Before lunch, I’ll drink a glass of water'] },
+};
+
+Object.assign(__m, { SITUATIONS });
+},
+/* js/views/plan.js */ 42: function (__m, __req) {
+// Plan tomorrow (evening, ~2 minutes), as four short steps: how today went, tomorrow at a glance
+// (meal times, when and where you'll move), anything different tomorrow, and an if-then plan for it. Deciding "when, where, how" in advance — implementation intentions — made people
 // markedly more likely to follow through (meta-analysis of 94 studies, d ≈ 0.65: Gollwitzer &
 // Sheeran 2006). Opened by the wind-down alarm, an evening reminder, or the card on Today.
 const { esc, icon, fmtDate } = __req(19);
@@ -10744,13 +10806,15 @@ const store = __req(18);
 const { addDays, weekdayOf } = __req(0);
 const { itemKey } = __req(7);
 const { byId } = __req(5);
-const { habitById } = __req(10);
 const { itemName, planEmoji, planKind } = __req(28);
 const { eventsOn, EVENT_KINDS } = __req(40);
 const { mealsFor, slotLabel } = __req(20);
 const { toHHMM } = __req(16);
 const { confetti } = __req(29);
 const share = __req(37);
+const { SITUATIONS } = __req(41);
+
+
 
 
 function tomorrow() {
@@ -10787,33 +10851,116 @@ function moveBlock(state, date) {
 function mealBlock(state, date) {
   if (store.habitsOnly(state)) return '';
   const meals = mealsFor(state, date);
-  return `<div class="card"><h2 style="margin-top:0">🍽 Tomorrow’s food</h2>
-    <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Happy with these? Tap one to swap it or see the recipe. Anything to take out of the freezer or pack tonight?</p>
+  return `<div class="card"><h2 style="margin-top:0">🍽 Food</h2>
+    <p class="muted" style="font-size:var(--text-sm);margin-top:-4px">Tap a meal to swap it or change its time. Anything to defrost or pack tonight?</p>
     <ul class="plan-list">${meals.map((m) => `<li class="plan-row"><span class="meal-time">${toHHMM(m.time)}</span><div class="grow"><strong>${esc(byId(m.recipeId).name)}</strong><small>${esc(slotLabel(m.slot))}${m.leftover ? ' · leftovers' : ''}</small></div><button class="btn small ghost" data-action="openMeal" data-slot="${m.slot}" data-date="${date}">Change</button></li>`).join('')}</ul></div>`;
 }
 
-function habitBlock(state) {
-  const active = store.visibleHabits(state);
-  if (!active.length) return '';
-  return `<div class="card"><h2 style="margin-top:0">✅ Your habits</h2>
-    <ul class="plan-list">${active.map((a) => `<li class="plan-row"><div class="grow"><strong>${esc(habitById(a.id)?.title || a.id)}</strong><small>${esc(a.cue)}</small></div></li>`).join('')}</ul>
-    <a class="btn small ghost" href="#/habits">Change a cue</a></div>`;
+const FACES = [['😣', 'Hard'], ['😕', 'Meh'], ['😐', 'Okay'], ['🙂', 'Good'], ['😄', 'Great']];
+const STEPS = ['Today', 'Tomorrow', 'What if', 'Your plan'];
+
+// The ritual in progress (kept until you finish or it's a new day).
+let draft = null;
+function draftFor(state, date) {
+  if (draft?.date === date) return draft;
+  const saved = state.ritual?.[date];
+  const r = state.reflect?.[store.today()];
+  draft = { date, step: 0, rate: r?.rate || 0, note: r?.note || '', situations: saved?.situations?.slice() || [], plans: Object.fromEntries((saved?.plans || []).map((p) => [p.sit, p.text])) };
+  return draft;
 }
+
+function stepToday(d) {
+  return `<div class="card rit-card"><h2>How did today go?</h2>
+    <p class="muted">No judging — just noticing. It helps you see what works for you.</p>
+    <div class="rit-faces" role="radiogroup" aria-label="How today went">${FACES.map(([e, l], i) => `<button role="radio" aria-checked="${d.rate === i + 1}" class="rit-face ${d.rate === i + 1 ? 'on' : ''}" data-action="ritRate" data-v="${i + 1}"><span aria-hidden="true">${e}</span><small>${l}</small></button>`).join('')}</div>
+    <label class="field" style="margin-top:14px"><span>One thing that helped (or got in the way) <span class="hint">optional</span></span><input type="text" maxlength="80" data-rit-note value="${esc(d.note)}" placeholder="e.g. prepped lunch, skipped the afternoon snack"></label>
+  </div>`;
+}
+
+function stepTomorrow(state, date) {
+  return `<div class="card"><h2 style="margin-top:0">🏃 Movement — when and where?</h2>${moveBlock(state, date)}</div>${mealBlock(state, date)}`;
+}
+
+function stepDifferent(d) {
+  return `<div class="card rit-card"><h2>Anything different tomorrow?</h2>
+    <p class="muted">Plans go wrong in the moments we didn’t see coming. Pick what applies.</p>
+    <div class="rit-sits">${Object.entries(SITUATIONS).map(([k, x]) => `<button class="rit-sit ${d.situations.includes(k) ? 'on' : ''}" aria-pressed="${d.situations.includes(k)}" data-action="ritSit" data-k="${k}"><span aria-hidden="true">${x.emoji}</span>${esc(x.label)}</button>`).join('')}</div>
+  </div>`;
+}
+
+function stepPlan(d) {
+  const sits = d.situations.length ? d.situations : ['none'];
+  return `<div class="card rit-card"><h2>Your if-then plan</h2>
+    <p class="muted">Decide now, so tomorrow you don’t have to. Pick one for each — or write your own.</p>
+    ${sits.map((k) => {
+      const x = SITUATIONS[k];
+      const cur = d.plans[k] || '';
+      const own = cur && !x.plans.includes(cur);
+      return `<div class="rit-group"><div class="over">${x.emoji} ${esc(x.label)}</div>
+        ${x.plans.map((t) => `<button class="rit-plan ${cur === t ? 'on' : ''}" aria-pressed="${cur === t}" data-action="ritPlan" data-k="${k}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}
+        <input type="text" class="rit-own ${own ? 'on' : ''}" maxlength="140" data-rit-own="${k}" value="${own ? esc(cur) : ''}" placeholder="Or in your words: If …, I’ll …" aria-label="Your own plan for ${esc(x.label)}">
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function summary(state, date) {
+  const r = state.ritual?.[date];
+  return `<div class="card rit-card rit-done"><div class="rit-moon" aria-hidden="true">🌙</div><h2>Tomorrow is planned.</h2>
+    ${r?.plans?.length ? `<ul class="rit-list">${r.plans.map((p) => `<li>${esc(p.text)}</li>`).join('')}</ul><p class="muted" style="font-size:var(--text-sm)">You’ll see this on Today tomorrow.</p>` : '<p class="muted">Sleep well.</p>'}
+    <div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center"><a class="btn primary" href="#/today">Back to today</a><button class="btn ghost" data-action="ritRedo">Change it</button></div></div>`;
+}
+
+const readInputs = () => {
+  const n = document.querySelector('[data-rit-note]');
+  if (n && draft) draft.note = n.value.trim().slice(0, 80);
+  for (const el of document.querySelectorAll('[data-rit-own]')) if (el.value.trim() && draft) draft.plans[el.dataset.ritOwn] = el.value.trim().slice(0, 140);
+};
 
 __m.default = {
   render(state) {
     const date = tomorrow();
-    const done = isPlanned(state, date);
+    const d = draftFor(state, date);
+    if (isPlanned(state, date) && !d.editing) return `<header class="page-head"><div><div class="eyebrow">${esc(fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' }))}</div><h1>Plan tomorrow</h1></div></header>${summary(state, date)}`;
+    const body = [stepToday(d), stepTomorrow(state, date), stepDifferent(d), stepPlan(d)][d.step];
+    const last = d.step === STEPS.length - 1;
     return `<header class="page-head"><div><div class="eyebrow">${esc(fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' }))}</div><h1>Plan tomorrow</h1></div></header>
-      <p class="muted" style="margin:-8px 0 14px">Two minutes now, an easier day tomorrow. Saying <em>when and where</em> you’ll do something makes it much more likely to happen.</p>
-      <div class="card"><h2 style="margin-top:0">🏃 When and where will you move?</h2>${moveBlock(state, date)}</div>
-      ${mealBlock(state, date)}
-      ${habitBlock(state)}
-      ${done ? `<div class="notice ok">${icon('check')}<div><strong>Tomorrow is planned.</strong> Sleep well.</div></div><a class="btn block" href="#/today">Back to today</a>`
-        : `<button class="btn primary large block" data-action="planDone">Tomorrow is planned ✓</button>`}
-      <p class="muted" style="font-size:var(--text-xs);margin-top:12px">Why it works: <a href="#/learn/plan_ahead">the evidence</a></p>`;
+      <div class="rit-steps" aria-label="Step ${d.step + 1} of ${STEPS.length}">${STEPS.map((s, i) => `<button class="rit-dot ${i === d.step ? 'on' : i < d.step ? 'past' : ''}" data-action="ritStep" data-to="${i}" aria-label="${esc(s)}" ${i === d.step ? 'aria-current="step"' : ''}><span>${esc(s)}</span></button>`).join('')}</div>
+      ${body}
+      <div class="rit-nav">${d.step ? `<button class="btn ghost" data-action="ritStep" data-to="${d.step - 1}">${icon('back')}Back</button>` : '<span></span>'}
+        ${last ? '<button class="btn primary large" data-action="planDone">Tomorrow is planned ✓</button>' : `<button class="btn primary large" data-action="ritStep" data-to="${d.step + 1}">Next</button>`}</div>
+      <p class="muted" style="font-size:var(--text-xs);margin-top:12px;text-align:center">Saying <em>when, where</em> and <em>what if</em> makes plans much more likely to happen. <a href="#/learn/plan_ahead">The evidence</a></p>`;
   },
   actions: {
+    ritRate(el, ev, ctx) {
+      readInputs();
+      draft.rate = Number(el.dataset.v);
+      ctx.rerender();
+    },
+    ritStep(el, ev, ctx) {
+      readInputs();
+      draft.step = Math.max(0, Math.min(STEPS.length - 1, Number(el.dataset.to)));
+      ctx.rerender();
+      window.scrollTo(0, 0);
+    },
+    ritSit(el, ev, ctx) {
+      const k = el.dataset.k;
+      const has = draft.situations.includes(k);
+      if (k === 'none') draft.situations = has ? [] : ['none'];
+      else draft.situations = has ? draft.situations.filter((x) => x !== k) : [...draft.situations.filter((x) => x !== 'none'), k];
+      ctx.rerender();
+    },
+    ritPlan(el, ev, ctx) {
+      readInputs();
+      const k = el.dataset.k;
+      draft.plans[k] = draft.plans[k] === el.dataset.t ? '' : el.dataset.t;
+      ctx.rerender();
+    },
+    ritRedo(el, ev, ctx) {
+      draft.editing = true;
+      draft.step = 2;
+      ctx.rerender();
+    },
     planSetWhen(form, ev, ctx, data) {
       const time = /^\d{2}:\d{2}$/.test(data.time || '') ? data.time : '';
       if (!time) return ctx.toast('Pick a time');
@@ -10836,19 +10983,52 @@ __m.default = {
       share.sync(ctx);
     },
     planDone(el, ev, ctx) {
+      readInputs();
+      const date = tomorrow();
+      const d = draftFor(ctx.state, date);
+      const sits = d.situations.length ? d.situations : ['none'];
+      const plans = sits.map((k) => ({ sit: k, text: d.plans[k] })).filter((p) => p.text);
       ctx.update((st) => {
-        st.flags = { ...(st.flags || {}), planned: tomorrow() };
+        st.flags = { ...(st.flags || {}), planned: date };
+        st.ritual = { ...(st.ritual || {}), [date]: { situations: d.situations.slice(), plans } };
+        if (d.rate) st.reflect = { ...(st.reflect || {}), [store.today()]: { rate: d.rate, ...(d.note ? { note: d.note } : {}) } };
         return st;
       }, { quiet: true });
+      d.editing = false;
       confetti(0.5);
       ctx.toast('Tomorrow is planned. Sleep well 🌙');
     },
   },
 };
 
-Object.assign(__m, { tomorrow, isPlanned });
+/** On the day: the if-then plans you made last night, to tick off when you used one. */
+function ritualCard(state, date) {
+  const r = state.ritual?.[date];
+  if (!r?.plans?.length) return '';
+  const kept = new Set(r.kept || []);
+  return `<section class="card rit-today" aria-label="Your plan for today"><div class="over">🌙 Your plan for today</div>
+    <ul>${r.plans.map((p, i) => `<li><button class="rit-keep ${kept.has(i) ? 'on' : ''}" aria-pressed="${kept.has(i)}" data-action="ritKept" data-i="${i}" data-date="${date}"><span class="check ${kept.has(i) ? 'on' : ''}" aria-hidden="true">${kept.has(i) ? icon('check') : ''}</span><span class="grow">${esc(p.text)}</span></button></li>`).join('')}</ul></section>`;
+}
+
+const ritualActions = {
+  ritKept(el, ev, ctx) {
+    const i = Number(el.dataset.i);
+    const date = el.dataset.date;
+    ctx.update((st) => {
+      const r = st.ritual?.[date];
+      if (!r) return st;
+      const k = new Set(r.kept || []);
+      k.has(i) ? k.delete(i) : k.add(i);
+      r.kept = [...k].sort();
+      return st;
+    }, { quiet: true });
+    if (!el.classList.contains('on')) ctx.toast('Plan kept — that’s how habits are built');
+  },
+};
+
+Object.assign(__m, { SITUATIONS, tomorrow, isPlanned, ritualCard, ritualActions });
 },
-/* js/data/learn.js */ 42: function (__m, __req) {
+/* js/data/learn.js */ 43: function (__m, __req) {
 // Evidence cards shown in the Learn section. Sources are the ones verified in RESEARCH.md.
 const S = {
   aha: ['AHA/ACC/TOS obesity guideline, 2013', 'https://www.acc.org/about-acc/press-releases/2013/11/12/15/20/111213acc_aha_obesity_guideline'],
@@ -11170,14 +11350,14 @@ const LEARN = [
 
 Object.assign(__m, { S, LEARN_SECTIONS, LEARN });
 },
-/* js/views/wrap.js */ 43: function (__m, __req) {
+/* js/views/wrap.js */ 44: function (__m, __req) {
 // Body Wrap: a short, story-style weekly recap. Each card is one body part thanking you for
 // what you did, with one research fact. Tap right/left (or use the arrow keys) to move through it.
 // Opening last week's wrap to the end earns XP once (derived from state.wraps in game.js).
 const { esc, icon, fmtDate } = __req(19);
 const store = __req(18);
 const { weekBody, lastWeekStart } = __req(14);
-const { S: SOURCES } = __req(42);
+const { S: SOURCES } = __req(43);
 const { weekStart, addDays, getWeekStart } = __req(0);
 
 const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -11340,7 +11520,7 @@ function bodyRingsCard(state, today) {
 
 Object.assign(__m, { ring, wrapReadyCard, bodyRingsCard });
 },
-/* js/views/today.js */ 44: function (__m, __req) {
+/* js/views/today.js */ 45: function (__m, __req) {
 // Today: progress hero, one "next up" action, then food, habits and movement as tappable rows.
 // Details and logging choices live in bottom sheets (js/views/sheets.js); quick ticks offer Undo.
 const { esc, icon, fmtKg, fmtWeight, fmtDelta, fmtNum, fmtDate } = __req(19);
@@ -11358,11 +11538,11 @@ const { planDay, partOf, PARTS } = __req(34);
 const { dayRings, ringsSvg, RING_META } = __req(35);
 const { eventsOn, EVENT_KINDS, occId } = __req(40);
 const { itemKey, INTENSITY } = __req(7);
-const { isPlanned } = __req(41);
+const { isPlanned, ritualCard } = __req(42);
 const share = __req(37);
 const { journey, nextStops, recentTimeStop } = __req(23);
 const { whenLabel } = __req(24);
-const { wrapReadyCard, bodyRingsCard } = __req(43);
+const { wrapReadyCard, bodyRingsCard } = __req(44);
 
 // ---------- Journey: the next stop on the long road (or a time stop just reached) ----------
 function journeyCard(state, date) {
@@ -11385,7 +11565,7 @@ const SLOT_HOUR = { breakfast: 7, snack: 10, lunch: 12, snack2: 15, dinner: 18, 
 
 /** Evening: a nudge to plan tomorrow (until it's done). */
 function planCard(state) {
-  if (new Date().getHours() < 18 || isPlanned(state)) return '';
+  if (new Date().getHours() < 17 || isPlanned(state)) return '';
   return `<a class="card plan-card" href="#/plan"><span class="cal-emoji big" aria-hidden="true">🌙</span><span class="grow"><strong>Plan tomorrow</strong><small>Two minutes: when and where you’ll move, and a look at tomorrow’s meals</small></span>${icon('chevron')}</a>`;
 }
 
@@ -11645,7 +11825,7 @@ __m.default = {
     return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${past ? 'Fill in the gaps' : greeting()}</h1></div>${dayNav}</header>
       ${past ? `<div class="notice info past-day" style="align-items:center">${icon('calendar')}<div class="grow"><strong>${esc(dayLabel(date, today))}</strong> — anything you tick here is saved to that day.</div><a class="btn small" href="#/today">Back to today</a></div>` : banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + share.cheerCardHtml(state) + planCard(state) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : bodyRingsCard(state, date) + nextUp(state, date)}</div>
+        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + share.cheerCardHtml(state) + planCard(state) + wrapReadyCard(state, date)}${past ? '' : ritualCard(state, date)}${hero(state, date)}${past ? '' : bodyRingsCard(state, date) + nextUp(state, date)}</div>
         <div class="tg-day">${yourDay(state, date)}</div>
         <div class="tg-rest">${past ? '' : journeyCard(state, date) + firstWeek(state, date)}</div>
       </div>`;
@@ -11704,7 +11884,7 @@ __m.default = {
 
 Object.assign(__m, { habitRow, lastActive });
 },
-/* js/views/meals.js */ 45: function (__m, __req) {
+/* js/views/meals.js */ 46: function (__m, __req) {
 // Weekly meal plan: browse days, swap meals, star favourites, regenerate.
 const { html, esc, icon, chips, fmtDate, fmtNum } = __req(19);
 const { mealRows, openSwap } = __req(33);
@@ -11886,7 +12066,7 @@ function keepPlan(st) {
 
 Object.assign(__m, {  });
 },
-/* js/ui/charts.js */ 46: function (__m, __req) {
+/* js/ui/charts.js */ 47: function (__m, __req) {
 // Small dependency-free SVG charts. Colours come from CSS variables so they follow the theme.
 const { esc } = __req(19);
 const { daysBetween, addDays } = __req(0);
@@ -12045,10 +12225,10 @@ function niceTicks(lo, hi, count) {
 
 Object.assign(__m, { weightChart, trendChart, barChart, habitGrid, ring, daysBetween });
 },
-/* js/views/habits.js */ 47: function (__m, __req) {
+/* js/views/habits.js */ 48: function (__m, __req) {
 // Habits: compact active list (tap to manage in a sheet), 4-week history, and the habit library.
 const { esc, icon } = __req(19);
-const { habitGrid } = __req(46);
+const { habitGrid } = __req(47);
 const store = __req(18);
 const { HABITS, HABIT_CATEGORIES, AUTOMATICITY_ITEMS } = __req(9);
 const { habitById, streak, completionRate, isEstablished, suggestNext, MAX_ACTIVE, ownHabits, setOwnHabits, newOwnId } = __req(10);
@@ -12301,11 +12481,11 @@ __m.default = {
 
 Object.assign(__m, { cueText });
 },
-/* js/views/progress.js */ 48: function (__m, __req) {
+/* js/views/progress.js */ 49: function (__m, __req) {
 // Progress: the home for everything long-term. A hub (journey, body levels, rewards, weekly
 // check-in), past Body Wraps, then the weight trend, activity, weigh-ins, waist and check-in history.
 const { html, esc, icon, fmtWeight, fmtDelta, weightNum, toKg, fmtDate } = __req(19);
-const { trendChart, barChart } = __req(46);
+const { trendChart, barChart } = __req(47);
 const store = __req(18);
 const { trendSeries, weeklyRate } = __req(2);
 const { milestones, bmi, bmiCategory } = __req(1);
@@ -12313,7 +12493,7 @@ const { addDays, weekStart, round, cmToIn, inToCm } = __req(0);
 const { journey, nextStops } = __req(23);
 const { weekBody } = __req(14);
 const { checkinDue } = __req(20);
-const { ring } = __req(43);
+const { ring } = __req(44);
 
 /** The long-term hub at the top of Progress. */
 function hub(state, date, hide) {
@@ -12528,7 +12708,7 @@ function describe(applied = [], hide) {
 
 Object.assign(__m, { nextMilestone });
 },
-/* js/engine/adjust.js */ 49: function (__m, __req) {
+/* js/engine/adjust.js */ 50: function (__m, __req) {
 // Weekly check-in: turns recent data into a few specific, optional adjustments.
 // Rules implemented (see RESEARCH.md "Design rules"): 6 adaptive TDEE, 7 recalc by weight,
 // 8 rate guardrails, 15 steps, 20 plateau flow, 21 early slow-responder support,
@@ -12797,11 +12977,11 @@ function applyRecs(state, recs, today) {
 
 Object.assign(__m, { BARRIER_OPTIONS, weeklyReview, applyRecs });
 },
-/* js/views/checkin.js */ 50: function (__m, __req) {
+/* js/views/checkin.js */ 51: function (__m, __req) {
 // Weekly check-in: a few questions → specific, optional adjustments → apply.
 const { html, esc, icon, chips, fmtWeight, toKg, fmtDelta } = __req(19);
 const store = __req(18);
-const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(49);
+const { weeklyReview, applyRecs, BARRIER_OPTIONS } = __req(50);
 const { habitById, MAX_ACTIVE } = __req(10);
 const { daysBetween, round } = __req(0);
 
@@ -12946,10 +13126,10 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/learn.js */ 51: function (__m, __req) {
+/* js/views/learn.js */ 52: function (__m, __req) {
 // Learn: the evidence behind each feature, with sources.
 const { html, esc, icon } = __req(19);
-const { LEARN, LEARN_SECTIONS } = __req(42);
+const { LEARN, LEARN_SECTIONS } = __req(43);
 
 let section = 'all';
 let openAll = false;
@@ -12994,7 +13174,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/sync.js */ 52: function (__m, __req) {
+/* js/sync.js */ 53: function (__m, __req) {
 // Merging two copies of your data — the one on this phone and the one in your account — so logging in
 // never loses progress. The newer copy (by savedAt) wins where both have the same thing; anything only
 // one copy has is kept. Day-by-day logs merge per day, lists of things with an id merge per item.
@@ -13055,13 +13235,13 @@ function mergeStates(local, cloud) {
 
 Object.assign(__m, { hasProgress, isDemo, mergeStates });
 },
-/* js/account.js */ 53: function (__m, __req) {
+/* js/account.js */ 54: function (__m, __req) {
 // Your account: log in with email and password so your progress is saved online and comes back on a
 // new phone. Uses Supabase Auth (same project as the shared calendar) over plain fetch. Your data is
 // stored as one private copy that only you can read (functions hl_my_data / hl_save_my_data, which
 // check who is logged in). The login itself is kept on this device, outside your app data.
 const { SUPABASE_URL, PUBLISHABLE_KEY, SHARE_BASE } = __req(37);
-const { mergeStates, isDemo } = __req(52);
+const { mergeStates, isDemo } = __req(53);
 const store = __req(18);
 
 const KEY = 'habitlab.account';
@@ -13317,7 +13497,7 @@ async function deleteCloudCopy() {
 
 Object.assign(__m, { onChange, current, markConfirmed, signUp, logIn, resetPassword, setPassword, logOut, takeTokensFromUrl, syncNow, queue, start, deleteCloudCopy });
 },
-/* js/data/reasons.js */ 54: function (__m, __req) {
+/* js/data/reasons.js */ 55: function (__m, __req) {
 // One-word reasons people give for wanting to lose weight, to pick on the morning screen and in Settings.
 // Grouped by the themes found in research: health first, then appearance and mood (O’Brien 2007),
 // function and mobility, stigma (hospital programme, open-ended answers), family and milestones
@@ -13942,7 +14122,7 @@ const REASONS = [
 
 Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 },
-/* js/data/affirmations.js */ 55: function (__m, __req) {
+/* js/data/affirmations.js */ 56: function (__m, __req) {
 // Morning messages shown when the wake-up alarm rings and on the Good-morning screen.
 // What the research says, and how it shapes these messages:
 // - Values-based self-affirmation: reflecting on what matters to you activates the brain's
@@ -13958,7 +14138,7 @@ Object.assign(__m, { REASON_CATS, REASON_YOUR, REASON_PROPER, REASONS });
 // - Compliments ("You look beautiful") are included because people asked for them; they can be
 //   switched off, and you can add your own words.
 
-const { REASONS, REASON_YOUR, REASON_PROPER } = __req(54);
+const { REASONS, REASON_YOUR, REASON_PROPER } = __req(55);
 
 const LIBRARY = new Set(REASONS.map((r) => r[1].toLowerCase()));
 
@@ -14172,11 +14352,11 @@ function removeReason(affirm = {}, text) {
 
 Object.assign(__m, { VALUES, MESSAGE_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, DEFAULT_SETS, morningMessages, messageForDay, reasonLine, addReason, removeReason });
 },
-/* js/alarm-native.js */ 56: function (__m, __req) {
+/* js/alarm-native.js */ 57: function (__m, __req) {
 // Bridge to the native alarm clock (android/app/src/main/java/com/mrqvizt/habitlab/alarm).
 // In a browser there is no alarm clock: the settings still save, and the page explains why.
 const { alarmSpecs, alarmsOf } = __req(39);
-const { morningMessages, valueInfo } = __req(55);
+const { morningMessages, valueInfo } = __req(56);
 
 let lastMessage = null;
 
@@ -14294,15 +14474,15 @@ async function listen(go, onWake) {
 
 Object.assign(__m, { available, sync, status, openSettings, pickSound, previewPhoneSound, stopPhonePreview, test, takeMessage, parseWake, listen });
 },
-/* js/views/alarms.js */ 57: function (__m, __req) {
+/* js/views/alarms.js */ 58: function (__m, __req) {
 // Settings → Alarms & wake-up: a clock-app style page. Changes apply immediately.
 const { esc, icon } = __req(19);
 const { alarmsOf, alarmTimes, mealSlots, planMealTimes, STYLES, fmtTime } = __req(39);
 const { daySchedule } = __req(16);
 const store = __req(18);
 const { weekOrder } = __req(0);
-const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(55);
-const { REASONS, REASON_CATS } = __req(54);
+const { VALUES, MESSAGE_SETS, DEFAULT_SETS, MAX_VALUES, MAX_OWN, VALUE_LEN, valueInfo, morningMessages, messageForDay, addReason, removeReason } = __req(56);
+const { REASONS, REASON_CATS } = __req(55);
 
 // Reason library state (kept across re-renders while you browse).
 let reasonCat = 'health';
@@ -14314,7 +14494,7 @@ document.addEventListener('input', (ev) => {
 document.addEventListener('toggle', (ev) => {
   if (ev.target.classList?.contains('reason-lib')) libOpen = ev.target.open;
 }, true);
-const alarmNative = __req(56);
+const alarmNative = __req(57);
 const { MELODIES, DEFAULT_SOUND, melodiesFor, soundLabel, nativeSound, previewMelody, stopPreview } = __req(38);
 const { openSheet, updateSheet } = __req(27);
 
@@ -14629,7 +14809,7 @@ const alarmActions = {
 
 Object.assign(__m, { ownValues, alarmsSummary, alarmsPage, alarmsAfter, alarmActions });
 },
-/* js/notify.js */ 58: function (__m, __req) {
+/* js/notify.js */ 59: function (__m, __req) {
 // Notification delivery.
 // - Android app (Capacitor): native scheduled local notifications, delivered even when the app is closed.
 // - Browser: best effort — notifications fire only while the page is open (browsers can't schedule
@@ -14766,11 +14946,11 @@ async function test() {
 
 Object.assign(__m, { platform, permissionState, requestPermission, listen, sync, test });
 },
-/* js/views/settings.js */ 59: function (__m, __req) {
+/* js/views/settings.js */ 60: function (__m, __req) {
 // Settings: profile, food, movement, units/theme, data export/import/reset.
 const { goalHint } = __req(25);
-const account = __req(53);
-const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(57);
+const account = __req(54);
+const { alarmsPage, alarmsAfter, alarmActions, alarmsSummary } = __req(58);
 const { esc, icon, chips, fmtWeight, weightNum, toKg, heightFromFtIn, fmtHeight } = __req(19);
 const store = __req(18);
 const share = __req(37);
@@ -14779,7 +14959,7 @@ const { DIETS, ALLERGENS, FOODS } = __req(3);
 const { CARDIO } = __req(6);
 const { initialProgress, availableSteps } = __req(7);
 const { round, cmToIn, weekOrder, dayChoices } = __req(0);
-const notify = __req(58);
+const notify = __req(59);
 const { DEFAULT_REMINDERS } = __req(17);
 const { dayFields, daySummary, readDay } = __req(22);
 const { daySchedule, toHHMM } = __req(16);
@@ -15177,7 +15357,7 @@ void fmtWeight;
 
 Object.assign(__m, {  });
 },
-/* js/views/shopping.js */ 60: function (__m, __req) {
+/* js/views/shopping.js */ 61: function (__m, __req) {
 // Shopping list for the rest of this week (or the whole week), grouped by aisle.
 const { html, esc, icon } = __req(19);
 const store = __req(18);
@@ -15225,15 +15405,15 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/rewards.js */ 61: function (__m, __req) {
+/* js/views/rewards.js */ 62: function (__m, __req) {
 // Rewards: level, XP, streak, badges and recent XP — plus sound/haptic settings.
 const { html, esc, icon, fmtDate, progressBar } = __req(19);
-const { ring, barChart } = __req(46);
+const { ring, barChart } = __req(47);
 const store = __req(18);
 const { BADGES, XP, levelTitle } = __req(15);
 const { addDays, weekStart } = __req(0);
 const { ORGANS, lastWeekStart } = __req(14);
-const { ring: bodyRing } = __req(43);
+const { ring: bodyRing } = __req(44);
 
 function bodyMedals(state, g, date) {
   const lv = g.stats.body.levels;
@@ -15356,15 +15536,15 @@ function questsHtml(g) {
 
 Object.assign(__m, { questsHtml });
 },
-/* js/views/wake.js */ 62: function (__m, __req) {
+/* js/views/wake.js */ 63: function (__m, __req) {
 // Good morning: the screen after "I'm up". The alarm's message, then a ten-second values
 // reflection ("Today I'm doing this for…") — the kind of self-affirmation shown to engage the brain's
 // self and reward systems and to make health messages land (Falk 2015, Cascio 2016).
 const { esc, icon, fmtDate } = __req(19);
 const store = __req(18);
-const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(55);
-const { REASONS } = __req(54);
-const { takeMessage } = __req(56);
+const { valueInfo, morningMessages, messageForDay, reasonLine, addReason } = __req(56);
+const { REASONS } = __req(55);
+const { takeMessage } = __req(57);
 const { XP } = __req(15);
 const { confetti, chime, buzz, floatXp } = __req(29);
 
@@ -15510,18 +15690,18 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/body.js */ 63: function (__m, __req) {
+/* js/views/body.js */ 64: function (__m, __req) {
 // Your body: one card per body part — this week's ring, its long-term level and what it needs.
 // Tap any ring (here, on Today or in the Body Wrap) to open the body-part sheet.
 const { esc, icon, fmtDate } = __req(19);
 const store = __req(18);
 const { openSheet } = __req(27);
 const { ORGAN_GUIDE, organById, weekBody, lastWeekStart } = __req(14);
-const { S: SOURCES } = __req(42);
+const { S: SOURCES } = __req(43);
 const { weekStart } = __req(0);
 
 const fmtDateShort = (iso) => fmtDate(iso, { day: 'numeric', month: 'short' });
-const { ring } = __req(43);
+const { ring } = __req(44);
 
 function data(state) {
   const today = store.today();
@@ -15598,7 +15778,7 @@ __m.default = {
 
 Object.assign(__m, { organSheetHtml, organActions });
 },
-/* js/views/join.js */ 64: function (__m, __req) {
+/* js/views/join.js */ 65: function (__m, __req) {
 // The page friends land on from your shared link (#/join/<id>). They don't need the app or an
 // account: it says who asked for their support, lets them join an activity with just a first name
 // (and add it to their own calendar), or send a short cheer. Nothing is stored on their phone except
@@ -15774,7 +15954,7 @@ __m.default = {
 
 Object.assign(__m, { icsFor });
 },
-/* js/views/sos.js */ 65: function (__m, __req) {
+/* js/views/sos.js */ 66: function (__m, __req) {
 // Craving SOS (#/sos): first a reminder of why you're doing this (this morning's reasons), then
 // a 1–4 minute exercise to ride the craving out, then "how is it now?". No food is ever named
 // or shown, and eating anyway is met without blame.
@@ -15791,7 +15971,7 @@ Object.assign(__m, { icsFor });
 // - Slow breathing and a minute with eyes closed are gentle ways to pause before deciding.
 const { esc, icon } = __req(19);
 const store = __req(18);
-const { valueInfo, reasonLine } = __req(55);
+const { valueInfo, reasonLine } = __req(56);
 const { chime, confetti, buzz } = __req(29);
 
 const TOOLS = {
@@ -15995,11 +16175,11 @@ function resetSos() {
 
 Object.assign(__m, { TOOLS, resetSos });
 },
-/* js/views/account.js */ 66: function (__m, __req) {
+/* js/views/account.js */ 67: function (__m, __req) {
 // Account: log in so your progress is saved online and comes back on a new phone. Works before
 // onboarding too ("Already have an account?"), so a new phone can pull everything down.
 const { esc, icon } = __req(19);
-const account = __req(53);
+const account = __req(54);
 
 let mode = 'login'; // 'login' | 'signup' | 'forgot'
 let sent = ''; // 'confirm' | 'reset' — an email is on its way
@@ -16182,7 +16362,7 @@ __m.default = {
 
 Object.assign(__m, { afterLogin });
 },
-/* js/views/inbox.js */ 67: function (__m, __req) {
+/* js/views/inbox.js */ 68: function (__m, __req) {
 // Inbox: cheers from friends and people joining your activities, newest first. Opening it marks
 // everything as read; new ones show a dot this visit so you can see what came in.
 const { esc, icon } = __req(19);
@@ -16234,13 +16414,13 @@ __m.default = {
 
 Object.assign(__m, { resetInbox });
 },
-/* js/views/you.js */ 68: function (__m, __req) {
+/* js/views/you.js */ 69: function (__m, __req) {
 // You: everything about you and how the app works for you — habits, alarms, account, settings.
 const { esc, icon } = __req(19);
 const store = __req(18);
-const account = __req(53);
+const account = __req(54);
 const { habitById } = __req(10);
-const { alarmsSummary } = __req(57);
+const { alarmsSummary } = __req(58);
 
 const row = (href, ic, title, sub = '') => `<li><a class="you-row" href="${href}"><span class="you-ico" aria-hidden="true">${icon(ic)}</span><span class="grow"><strong>${esc(title)}</strong>${sub ? `<small>${esc(sub)}</small>` : ''}</span>${icon('chevron')}</a></li>`;
 
@@ -16286,7 +16466,7 @@ __m.default = {
 
 Object.assign(__m, {  });
 },
-/* js/views/quicklog.js */ 69: function (__m, __req) {
+/* js/views/quicklog.js */ 70: function (__m, __req) {
 // The (+) in the tab bar: everything you can log, one tap away, from any screen.
 const { icon } = __req(19);
 const store = __req(18);
@@ -16326,55 +16506,56 @@ function openQuickLog(ctx) {
 
 Object.assign(__m, { quickLogHtml, openQuickLog });
 },
-/* js/app.js */ 70: function (__m, __req) {
+/* js/app.js */ 71: function (__m, __req) {
 // Habit Lab — app shell: routing, persistence and event delegation.
 const store = __req(18);
 const { icon, formData } = __req(19);
 const { setWeekStart } = __req(0);
 const onboarding = __req(25).default;
 const { goalHint } = __req(25);
-const todayView = __req(44).default;
-const meals = __req(45).default;
+const todayView = __req(45).default;
+const meals = __req(46).default;
 const move = __req(30).default;
-const habits = __req(47).default;
-const progress = __req(48).default;
-const checkin = __req(50).default;
-const learn = __req(51).default;
-const settings = __req(59).default;
-const shopping = __req(60).default;
-const rewards = __req(61).default;
+const habits = __req(48).default;
+const progress = __req(49).default;
+const checkin = __req(51).default;
+const learn = __req(52).default;
+const settings = __req(60).default;
+const shopping = __req(61).default;
+const rewards = __req(62).default;
 const journeyView = __req(24).default;
-const wrapView = __req(43).default;
-const wakeView = __req(62).default;
-const bodyView = __req(63).default;
+const wrapView = __req(44).default;
+const wakeView = __req(63).default;
+const bodyView = __req(64).default;
 const calendarView = __req(40).default;
 const { calendarActions } = __req(40);
-const joinView = __req(64).default;
-const planView = __req(41).default;
-const sosView = __req(65).default;
-const { resetSos } = __req(65);
-const { organActions } = __req(63);
+const { ritualActions } = __req(42);
+const joinView = __req(65).default;
+const planView = __req(42).default;
+const sosView = __req(66).default;
+const { resetSos } = __req(66);
+const { organActions } = __req(64);
 const { setOwnHabits } = __req(10);
 const { setOwnFoods } = __req(13);
-const accountView = __req(66).default;
-const inboxView = __req(67).default;
-const { resetInbox } = __req(67);
-const { afterLogin } = __req(66);
-const account = __req(53);
+const accountView = __req(67).default;
+const inboxView = __req(68).default;
+const { resetInbox } = __req(68);
+const { afterLogin } = __req(67);
+const account = __req(54);
 const { organById } = __req(14);
-const alarmNative = __req(56);
+const alarmNative = __req(57);
 const { floatXp, confetti, chime, buzz, showCelebration, ringBanner } = __req(29);
 const { newlyClosed, allClosed } = __req(35);
 const { setViewDate } = __req(26);
-const { reasonLine, addReason } = __req(55);
+const { reasonLine, addReason } = __req(56);
 const share = __req(37);
 const { BADGES } = __req(15);
-const notify = __req(58);
+const notify = __req(59);
 const { closeSheet } = __req(27);
 const { sheetActions } = __req(33);
 const { daySummary, readDay } = __req(22);
-const youView = __req(68).default;
-const { openQuickLog } = __req(69);
+const youView = __req(69).default;
+const { openQuickLog } = __req(70);
 const { logPlannedActivity } = __req(30);
 
 const VIEWS = { you: youView, inbox: inboxView, account: accountView, sos: sosView, plan: planView, calendar: calendarView, join: joinView, rewards, journey: journeyView, wrap: wrapView, wake: wakeView, body: bodyView, start: onboarding, today: todayView, meals, move, habits, progress, checkin, learn, settings, shopping };
@@ -16686,6 +16867,7 @@ const GLOBAL = {
   ...sheetActions,
   ...calendarActions,
   ...organActions,
+  ...ritualActions,
   activityDone(el, ev, ctx) {
     logPlannedActivity(ctx, el.dataset.id);
   },
@@ -16891,5 +17073,5 @@ function __req(id) {
   __defs[id](m, __req);
   return m;
 }
-__req(70);
+__req(71);
 })();</script>

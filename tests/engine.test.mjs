@@ -1106,3 +1106,19 @@ test('meal reminders follow a meal you moved on certain weekdays', async () => {
   assert.equal(`${weekend.hour}:${weekend.minute}`, '13:15');
   assert.deepEqual(lunch.find((x) => x.id === 'meal_lunch').days, [0, 1, 2, 3, 4]);
 });
+
+test('plan tomorrow: ratings and if-then plans are kept; junk and unknown situations are dropped', async () => {
+  const { sanitize, emptyState } = await import('../js/store.js');
+  const { SITUATIONS } = await import('../js/data/situations.js');
+  for (const x of Object.values(SITUATIONS)) {
+    assert.equal(x.plans.length, 3);
+    for (const t of x.plans) assert.match(t, /I’ll/, `plans say what to do: ${t}`);
+  }
+  const s = sanitize({
+    ...emptyState(),
+    reflect: { '2026-11-28': { rate: 4, note: ' prepped lunch ' }, '2026-11-27': { rate: 9 }, bad: { rate: 3 } },
+    ritual: { '2026-11-29': { situations: ['out', 'aliens'], plans: [{ sit: 'out', text: 'If I eat out, I’ll pick fish' }, { sit: 'x', text: 'no' }, { sit: 'tired', text: '  ' }], kept: [0, 5] } },
+  });
+  assert.deepEqual(s.reflect, { '2026-11-28': { rate: 4, note: 'prepped lunch' }, '2026-11-27': { rate: 5 } });
+  assert.deepEqual(s.ritual['2026-11-29'], { situations: ['out'], plans: [{ sit: 'out', text: 'If I eat out, I’ll pick fish' }], kept: [0] });
+});

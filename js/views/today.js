@@ -15,7 +15,7 @@ import { planDay, partOf, PARTS } from '../engine/dayplan.js';
 import { dayRings, ringsSvg, RING_META } from './dayrings.js';
 import { eventsOn, EVENT_KINDS, occId } from './calendar.js';
 import { itemKey, INTENSITY } from '../engine/workouts.js';
-import { isPlanned } from './plan.js';
+import { isPlanned, ritualCard } from './plan.js';
 import * as share from '../share.js';
 import { journey, nextStops, recentTimeStop } from '../engine/journey.js';
 import { whenLabel } from './journey.js';
@@ -42,7 +42,7 @@ const SLOT_HOUR = { breakfast: 7, snack: 10, lunch: 12, snack2: 15, dinner: 18, 
 
 /** Evening: a nudge to plan tomorrow (until it's done). */
 function planCard(state) {
-  if (new Date().getHours() < 18 || isPlanned(state)) return '';
+  if (new Date().getHours() < 17 || isPlanned(state)) return '';
   return `<a class="card plan-card" href="#/plan"><span class="cal-emoji big" aria-hidden="true">🌙</span><span class="grow"><strong>Plan tomorrow</strong><small>Two minutes: when and where you’ll move, and a look at tomorrow’s meals</small></span>${icon('chevron')}</a>`;
 }
 
@@ -302,7 +302,7 @@ export default {
     return `<header class="page-head"><div><div class="eyebrow">${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'long' })} · Week ${store.weeksSinceStart(state, date) + 1}</div><h1>${past ? 'Fill in the gaps' : greeting()}</h1></div>${dayNav}</header>
       ${past ? `<div class="notice info past-day" style="align-items:center">${icon('calendar')}<div class="grow"><strong>${esc(dayLabel(date, today))}</strong> — anything you tick here is saved to that day.</div><a class="btn small" href="#/today">Back to today</a></div>` : banners(state, date)}
       <div class="today-grid">
-        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + share.cheerCardHtml(state) + planCard(state) + wrapReadyCard(state, date)}${hero(state, date)}${past ? '' : bodyRingsCard(state, date) + nextUp(state, date)}</div>
+        <div class="tg-hero">${past ? '' : welcomeBack(state, date) + share.cheerCardHtml(state) + planCard(state) + wrapReadyCard(state, date)}${past ? '' : ritualCard(state, date)}${hero(state, date)}${past ? '' : bodyRingsCard(state, date) + nextUp(state, date)}</div>
         <div class="tg-day">${yourDay(state, date)}</div>
         <div class="tg-rest">${past ? '' : journeyCard(state, date) + firstWeek(state, date)}</div>
       </div>`;
