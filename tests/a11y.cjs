@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const axeSource = fs.readFileSync(require.resolve('axe-core/axe.min.js'), 'utf8');
 const base = process.argv[2] || 'http://localhost:8765/';
-const routes = ['today', 'meals', 'move', 'habits', 'progress', 'journey', 'body', 'rewards', 'learn', 'shopping', 'checkin', 'settings', 'settings/profile', 'settings/day', 'settings/food', 'settings/movement', 'settings/alarms', 'settings/reminders', 'settings/appearance', 'settings/data', 'wake', 'wrap', 'calendar', 'plan', 'sos', 'account', 'inbox', 'today/' + new Date(Date.now() - 864e5).toISOString().slice(0, 10)];
+const routes = ['today', 'meals', 'move', 'habits', 'progress', 'journey', 'body', 'rewards', 'learn', 'shopping', 'checkin', 'settings', 'settings/profile', 'settings/day', 'settings/food', 'settings/movement', 'settings/alarms', 'settings/reminders', 'settings/appearance', 'settings/data', 'wake', 'wrap', 'calendar', 'plan', 'sos', 'account', 'inbox', 'you', 'today/' + new Date(Date.now() - 864e5).toISOString().slice(0, 10)];
 
 (async () => {
   const browser = await chromium.launch();
@@ -39,6 +39,42 @@ const routes = ['today', 'meals', 'move', 'habits', 'progress', 'journey', 'body
     await page.click('.body-rings .br >> nth=0');
     await page.waitForSelector('.sheet.open');
     await audit('body-part sheet');
+    // The new sheets: Log, food picker with an item, build-it, create a food, swap, plan preview
+    const sheet = async (name, open) => {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(250);
+      await open();
+      await page.waitForSelector('.sheet.open');
+      await page.waitForTimeout(250);
+      await audit(name);
+    };
+    await sheet('log sheet', () => page.click('.bottomnav .tab-log'));
+    await page.click('.sheet .ql-tile[data-action=openExtra]');
+    await page.fill('.sheet [data-food-search]', 'kiwi green');
+    await page.click('.sheet .food-hit >> nth=0');
+    await audit('food picker');
+    await page.click('.sheet [data-action=foodMode][data-m=build] >> nth=0').catch(() => {});
+    await page.fill('.sheet [data-food-search]', 'burrito').catch(() => {});
+    await page.click('.sheet .food-build').catch(() => {});
+    await page.waitForSelector('.sheet .food-builder');
+    await audit('build-it');
+    await sheet('swap chooser', async () => {
+      await page.goto(base + '#/today');
+      await page.click('.tg-day button[data-action=openMeal] >> nth=0');
+      await page.click('.sheet button:has-text("Swap")');
+      await page.waitForSelector('.sheet .swap-opt');
+    });
+    await sheet('planned session', async () => {
+      await page.goto(base + '#/move');
+      await page.click('.session-open >> nth=0');
+    });
+    await page.keyboard.press('Escape');
+    for (const step of [1, 2, 3]) {
+      await page.goto(base + '#/plan');
+      await page.click(`.rit-dot[data-to="${step}"]`);
+      await page.waitForSelector('.rit-dot.on[data-to="' + step + '"]');
+      await audit('plan tomorrow step ' + (step + 1));
+    }
     await context.close();
   }
   await browser.close();

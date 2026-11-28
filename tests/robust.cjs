@@ -8,7 +8,7 @@ async function onboard(p) {
   await p.click('text=Get started');
   await p.click('label.chip:has-text("Male")');
   await p.fill('input[name=age]', '35'); await p.fill('input[name=heightCm]', '182'); await p.fill('input[name=weight]', '185');
-  for (let i = 0; i < 5; i++) await p.click('button:has-text("Continue")');
+  for (let i = 0; i < 3; i++) await p.click('button:has-text("Continue")');
   await p.click('button:has-text("Start my plan")'); await p.waitForSelector('.tg-hero');
 }
 (async () => {

@@ -66,7 +66,13 @@ The app works like a native app:
 - **Undo snackbars** replace "are you sure?" dialogs for anything reversible.
 - **Today** starts with a single "Next up" action.
 - **Buttons are easy to reach:** touch targets are at least 44 px, and primary actions sit in sticky bars at the bottom of the screen.
-- **Navigation** uses five tabs, with page transitions that respect reduced-motion settings.
+- **Navigation**: Today · Plan · (+) · Progress · You. Plan holds the schedule, food and movement behind one
+  switcher; (+) opens one Log sheet for everything; alarms and the inbox sit in the top bar. Page transitions
+  respect reduced-motion settings.
+- **One sheet per planned session**, wherever you tap it: preview, start, move to another day, set a time.
+- **Plan tomorrow** is a four-step evening ritual (how today went, tomorrow at a glance, what's different,
+  an if-then plan), shown back on Today the next day.
+- **Visual style**: Inter, borderless soft cards, big tabular numbers, one icon set, light haptics on picks.
 
 Light and dark themes are designed separately. Text and icons meet WCAG AA contrast. `node tests/screens.cjs` takes a
 screenshot tour for design review.

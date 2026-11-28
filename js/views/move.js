@@ -27,6 +27,7 @@ const loadRest = () => {
   }
 };
 let setsDone = {}; // exercise index -> sets finished, for the session in progress
+let startedAt = 0; // when the session in progress really started (first set, rating or tick)
 
 // ---------- drafts: a session you started is kept, so leaving (or closing the app) loses nothing ----------
 const DRAFT_KEY = 'habitlab.sessionDraft';
@@ -50,8 +51,9 @@ function saveDraft() {
   if (!hasProgress()) return clearDraft();
   const variant = sessionKey.split('|')[1];
   const r = (p) => ({ done: [...routine[p].done], skipped: routine[p].skipped });
+  startedAt ||= Date.now();
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ variant, ratings, setsDone, routine: { warm: r('warm'), cool: r('cool') }, at: Date.now() }));
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ variant, ratings, setsDone, routine: { warm: r('warm'), cool: r('cool') }, at: Date.now(), startedAt }));
   } catch (e) {
     /* storage full or blocked: progress stays for this visit */
   }
@@ -66,6 +68,7 @@ function clearDraft() {
 function loadDraft(d) {
   ratings = { ...(d.ratings || {}) };
   setsDone = { ...(d.setsDone || {}) };
+  startedAt = Number(d.startedAt) || 0;
   for (const p of ['warm', 'cool']) routine[p] = { done: new Set(d.routine?.[p]?.done || []), skipped: !!d.routine?.[p]?.skipped };
 }
 const ago = (ms) => {
@@ -350,6 +353,7 @@ function overview(state) {
         <div class="macro"><span>Strength</span>${progressBar(done.strength, strengthPlanned, { label: 'Strength sessions' })}<span>${done.strength}/${strengthPlanned}</span></div>
         <p class="muted" style="font-size:.86rem;margin-top:8px">Target grows ~10% a week toward 150+ min.${activityMin ? ` Your regular activities cover about ${activityMin} min of it${strengthFromActivities ? ` and ${strengthFromActivities} strength session${strengthFromActivities > 1 ? 's' : ''}` : ''}.` : ''}</p>
     </div>
+    ${historyCard(state)}
     ${activitiesCard(state)}
     <div class="card"><div class="card-head"><h2>Log activity</h2></div>
       <form data-form="logCardio" class="row">
@@ -369,6 +373,50 @@ function overview(state) {
     ${stopSigns()}`;
 }
 
+/** The next strength session after this one (to look forward to). */
+function nextStrength(state, date, variant) {
+  for (let i = 1; i <= 7; i++) {
+    const d = addDays(date, i);
+    const it = store.dayItems(state, d).find((x) => x.kind === 'strength');
+    if (it) return { variant: it.variant, day: new Date(d + 'T12:00').toLocaleDateString(undefined, { weekday: 'long' }) };
+  }
+  return null;
+}
+
+/** After "Finish session": what you did, what levelled up, and what's next. */
+function summaryHtml(x) {
+  const part = (v, label) => (v ? `<span class="tag ${v === 'done' ? 'green' : ''}">${label}: ${v === 'done' ? 'done' : v === 'some' ? 'some' : 'skipped'}</span>` : '');
+  return `<div class="sum-head"><div class="sum-badge" aria-hidden="true">💪</div><div class="over">Session complete</div><h2>Strength session ${esc(x.variant)}</h2></div>
+    <div class="sum-stats">
+      <div><b>${x.minutes}</b><span>minutes</span></div>
+      <div><b>${x.setsN ? `${x.setsN}/${x.setsTotal}` : x.exercises}</b><span>${x.setsN ? 'sets' : 'exercises'}</span></div>
+      <div><b>+${x.xp}</b><span>XP</span></div>
+      <div><b>${x.streak}</b><span>day streak</span></div>
+    </div>
+    <div class="facts" style="justify-content:center">${part(x.warmup, 'Warm-up')}${part(x.cooldown, 'Cool-down')}</div>
+    ${x.pain ? `<div class="notice warn" style="margin-top:12px">${icon('alert')}<div>The exercise that hurt has been eased back. If pain persists, check with a physio or doctor.</div></div>` : ''}
+    ${x.changes.length ? `<div class="sum-level"><div class="over">Level up</div>${x.changes.map((c) => `<div>⬆️ ${esc(c)}</div>`).join('')}</div>` : '<p class="muted" style="text-align:center;margin:12px 0 0">Same exercises next time — keep the reps clean and slow.</p>'}
+    ${x.next ? `<p class="sum-next">Next: <strong>Strength ${esc(x.next.variant)}</strong> on ${esc(x.next.day)}</p>` : ''}
+    <button class="btn primary large block" data-action="sheetClose" style="margin-top:12px">Done</button>`;
+}
+
+/** Your last sessions and activities, newest first. */
+function historyCard(state) {
+  const rows = [];
+  const dates = Object.keys(state.workouts.log).sort().reverse();
+  for (const d of dates) {
+    for (const x of [...state.workouts.log[d]].reverse()) {
+      if (rows.length >= 8) break;
+      const name = x.kind === 'strength' ? `Strength ${x.variant}` : x.kind === 'cardio' ? CARDIO[x.mode]?.label || 'Cardio' : x.name || 'Activity';
+      const meta = [`${x.minutes} min`, x.sets ? `${x.sets} sets` : '', x.intensity ? INTENSITY[x.intensity]?.label.toLowerCase() : '', x.kind === 'strength' && x.warmup === 'done' && x.cooldown === 'done' ? 'warm-up + cool-down' : ''].filter(Boolean).join(' · ');
+      rows.push(`<li><span class="cal-emoji" aria-hidden="true">${x.kind === 'strength' ? '💪' : x.kind === 'cardio' ? '🚶' : '🏸'}</span><div class="grow"><strong>${esc(name)}</strong><small class="muted">${esc(meta)}</small></div><span class="muted hist-date">${esc(new Date(d + 'T12:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }))}</span></li>`);
+    }
+    if (rows.length >= 8) break;
+  }
+  if (!rows.length) return `<div class="card empty-state">${icon('move')}<strong>No sessions yet</strong>Your workouts and walks will collect here — every one counts.</div>`;
+  return `<div class="card"><h2>Recent</h2><ul class="hist-list">${rows.join('')}</ul></div>`;
+}
+
 function stopSigns() {
   return `<div class="notice warn">${icon('alert')}<div><strong>Stop and seek help if you get:</strong> ${STOP_SIGNS.map(esc).join('; ')}. Muscle effort and being out of breath are normal; pain is not.</div></div>`;
 }
@@ -381,6 +429,7 @@ function session(state, variant) {
   if (sessionKey !== `${date}|${variant}`) {
     sessionKey = `${date}|${variant}`;
     setsDone = {};
+    startedAt = 0;
     routine = { warm: { done: new Set(), skipped: false }, cool: { done: new Set(), skipped: false } };
     draftAsked = '';
     timer = null;
@@ -518,6 +567,12 @@ export default {
       const item = schedule.flatMap((d) => d.items).find((i) => i.kind === 'strength' && i.variant === variant);
       const changes = [];
       let pain = false;
+      // How long it really took (from the first set, rating or tick), when that's believable.
+      const took = startedAt ? Math.round((Date.now() - startedAt) / 60000) : 0;
+      const minutes = took >= 5 && took <= 180 ? took : item.minutes;
+      const setsTotal = item.exercises.reduce((a, ex) => a + ex.sets, 0);
+      const setsN = Math.min(setsTotal, Object.values(setsDone).reduce((a, n) => a + n, 0));
+      const before = store.game(s);
       ctx.update((st) => {
         for (const ex of item.exercises) {
           const rating = ratings[ex.chain] || 'right';
@@ -529,16 +584,19 @@ export default {
         }
         const warmup = routineStatus('warm');
         const cooldown = routineStatus('cool');
-        st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'strength', variant, ratings: { ...ratings }, minutes: item.minutes, ...(warmup ? { warmup } : {}), ...(cooldown ? { cooldown } : {}) }];
+        st.workouts.log[date] = [...(st.workouts.log[date] || []), { kind: 'strength', variant, ratings: { ...ratings }, minutes, ...(setsN ? { sets: setsN } : {}), ...(warmup ? { warmup } : {}), ...(cooldown ? { cooldown } : {}) }];
         if (st.habits.active.some((a) => a.id === 'strength_sessions')) st.habits.log[date] = { ...(st.habits.log[date] || {}), strength_sessions: true };
         return st;
       }, { render: false });
+      const after = store.game(ctx.state);
+      const summary = { variant, minutes, setsN, setsTotal, exercises: item.exercises.length, warmup: routineStatus('warm'), cooldown: routineStatus('cool'), changes, pain, xp: Math.max(0, (after?.xp || 0) - (before?.xp || 0)), streak: after?.streak || 0, next: nextStrength(ctx.state, date, variant) };
       ratings = {};
       setsDone = {};
+      startedAt = 0;
       sessionKey = '';
       clearDraft();
-      ctx.toast(pain ? 'Logged. The painful exercise has been eased back — if pain persists, check with a physio or doctor.' : changes.length ? `Level up! ${changes[0]}` : 'Session logged. Great work.');
       ctx.go('#/move');
+      setTimeout(() => openSheet(summaryHtml(summary), { label: 'Session summary' }), 380);
     },
     logCardio(form, ev, ctx, data) {
       const minutes = Number(data.minutes);

@@ -323,6 +323,7 @@ export function sanitize(s) {
     evId: x.kind === 'activity' && typeof x.evId === 'string' && /^[A-Za-z0-9_-]{1,60}$/.test(x.evId) ? x.evId : undefined,
     intensity: x.kind === 'activity' ? oneOf(x.intensity, ['easy', 'moderate', 'vigorous'], 'moderate') : x.kind === 'cardio' && ['easy', 'moderate', 'vigorous'].includes(x.intensity) ? x.intensity : undefined,
     minutes: num(x.minutes, 0, 600, 0),
+    sets: x.kind === 'strength' && num(x.sets, 0, 100, null) != null ? Math.round(num(x.sets, 0, 100, 0)) : undefined,
     ratings: x.ratings && typeof x.ratings === 'object' ? x.ratings : undefined,
   })) : null));
   // Your moves of planned sessions to other days, per week (kept for 8 weeks).

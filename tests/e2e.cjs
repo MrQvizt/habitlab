@@ -45,18 +45,15 @@ const shots = process.argv[3] || null;
   // Health
   await page.click('label.chip:has-text("Knees")');
   await page.click('button:has-text("Continue")');
-  // Food
+  // Food & movement (one step; the finer settings fold under "More options")
   await page.click('label.chip:has-text("Vegetarian")');
   await page.click('label.chip:has-text("Peanuts")');
-  await page.click('button:has-text("Continue")');
-  // Movement
+  await page.click('.more-opts summary');
   await page.click('label.chip:has-text("Resistance bands")');
   await page.click('button:has-text("Continue")');
-  // Habits
-  await page.click('label.chip:has-text("Evening snacking")');
-  await page.click('button:has-text("Continue")');
-  // Plan
+  // Plan, with your first habits
   await page.waitForSelector('text=Choose your pace');
+  await page.click('label.chip:has-text("Evening snacking")');
   await snap('03-plan');
   await page.click('button:has-text("Start my plan")');
   await page.waitForSelector('text=Add something else you ate');
@@ -292,6 +289,9 @@ const shots = process.argv[3] || null;
   await page.click('button:has-text("Too easy") >> nth=0');
   await page.click('button:has-text("Finish session")');
   await page.waitForSelector('.session-list');
+  await page.waitForSelector('.sheet .sum-stats');
+  if (!/Warm-up: some/.test(await page.textContent('.sheet'))) errors.push('summary should show the warm-up status');
+  await page.click('.sheet button:has-text("Done")');
   const strengthLog = await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('habitlab.v1')).workouts.log).flat().filter((x) => x.kind === 'strength').pop());
   if (strengthLog?.warmup !== 'some' || strengthLog?.cooldown !== 'done') errors.push('warm-up / cool-down not saved with the session: ' + JSON.stringify(strengthLog));
   // The finished session is ticked off in this week's sessions, whichever day it was planned for

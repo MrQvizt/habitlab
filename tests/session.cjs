@@ -69,6 +69,11 @@ const base = process.argv[2] || 'http://localhost:8771/';
   await page.waitForFunction(() => location.hash === '#/move');
   if ((await strengthLogs()) !== before + 1) errors.push('I’m done should log the session');
   if (await draft()) errors.push('finishing should clear the draft');
+  // A summary of what you did, then a history of sessions on Move
+  await page.waitForSelector('.sheet .sum-stats');
+  if (!/Strength session A/.test(await page.textContent('.sheet h2'))) errors.push('summary should name the session');
+  await page.click('.sheet button:has-text("Done")');
+  await page.waitForSelector('.hist-list li:has-text("Strength A")');
 
   await browser.close();
   if (errors.length) {
